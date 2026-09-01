@@ -88,6 +88,40 @@ export function chaveDoRecibo(r) {
   return null;
 }
 
+/** O prefixo do id curto. Um id sem prefixo e indistinguivel de um sha qualquer. */
+export const ID_PREFIXO = 'f';
+
+/**
+ * O identificador CURTO e ESTAVEL de um achado — `f` + 12 hex.
+ *
+ * A `chaveDoRecibo` e a identidade a serio e continua a ser o que se escreve no
+ * `triagem.jsonl`. O que ela nao serve e para viajar: e um caminho de ficheiro
+ * com linhas e um sha colados, muda de comprimento a cada achado, e mete o
+ * caminho do disco do dono dentro de um atributo de HTML.
+ *
+ * Este id resolve as duas coisas de uma vez — cabe num rotulo e nao diz onde
+ * o ficheiro vive — e e derivado da chave, portanto o mesmo achado da o mesmo
+ * id em qualquer device da frota, sem coordenacao nenhuma.
+ */
+export function idDoAchado(r) {
+  const chave = chaveDoRecibo(r);
+  if (!chave) return null;
+  return ID_PREFIXO + createHash('sha256').update(chave).digest('hex').slice(0, 12);
+}
+
+/**
+ * O id e MESMO estavel para este recibo?
+ *
+ * So quando a chave e enderecada pelo conteudo (`ficheiro:linhas:sha`). Um
+ * recibo antigo cai no ramo `...@ts` do `chaveDoRecibo`, e um instante nunca se
+ * repete: o id existe, e util dentro desta pagina, e NAO sobrevive a proxima
+ * ronda. Quem o mostrar como referencia permanente tem de perguntar isto
+ * primeiro — senao promete ao dono uma etiqueta que amanha aponta para nada.
+ */
+export function idEstavel(r) {
+  return Boolean(r && r.chave);
+}
+
 /** Um achado e uma ronda em que o modelo AFIRMOU alguma coisa e a citacao resolveu. */
 export function ehAchado(r) {
   return Boolean(r) && !r.evento && r.conclusao === 'achado' && r.verdict === 'citacao-ok';

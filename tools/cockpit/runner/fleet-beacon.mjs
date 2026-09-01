@@ -129,6 +129,124 @@ export function beaconDir({ vaultPath = process.env.VAULT_PATH, home = os.homedi
   return { dir: path.join(home || '.', '.mooter', 'fleet'), transporte: 'local', partilhado: false };
 }
 
+/**
+ * Assina um beacon — a UNICA implementacao, usada pela escrita e pela renovacao.
+ *
+ * Estava inline dentro do `writeBeacon`. Passou a funcao no dia em que nasceu
+ * um segundo escritor (`beacon-renew.mjs`): duas copias desta escada — Ed25519
+ * se inscrito, HMAC se nao, nada se nao houver chave — divergiriam na primeira
+ * vez que uma delas mudasse, e o sintoma seria um device a ser recusado pela
+ * frota sem ninguem perceber porque.
+ *
+ * Um beacon SEM chave continua a ser devolvido e di-lo (`assinado:false`) —
+ * deixar de publicar por nao haver vault seria apagar o proprio device do
+ * painel para o proteger de um ataque que ainda nao ha. O que NAO se faz e
+ * devolver um beacon a fingir que esta assinado.
+ */
+export function assinarBeacon(beacon, {
+  device,
+  chaveImpl = assinatura.chaveDoDono, assinarImpl = assinatura.assinado,
+  deviceKeyImpl = assinatura.chaveDoDevice, registoImpl = assinatura.lerRegisto,
+  assinarEdImpl = assinatura.assinadoEd,
+} = {}) {
+  let payload = beacon;
+  let assinado = false;
+  let alg = null;
+  let porque = null;
+
+  /**
+   * Ed25519 SO depois de inscrito, nunca antes.
+   *
+   * A ordem importa e e a unica que nao parte nada: enquanto a publica deste
+   * device nao estiver no registo, ninguem la fora a tem para verificar —
+   * passar a assinar com ela cedo demais so troca "verificado" por
+   * "nao-inscrito" em todos os paineis. Assim o dono inscreve primeiro (um
+   * commit no vault), o device ve-se la, e SO ENTAO muda de algoritmo. Ate la
+   * o HMAC continua exactamente como estava.
+   */
+  const meu = deviceKeyImpl();
+  const reg = registoImpl();
+  const inscrito = Boolean(meu && meu.pub && reg && reg.devices && reg.devices[device]
+    && reg.devices[device].pub === meu.pub);
+
+  if (inscrito) {
+    try {
+      payload = assinarEdImpl(beacon, { privada: meu.privada, pub: meu.pub });
+      assinado = true;
+      alg = assinatura.ALG_ED;
+    } catch (err) {
+      porque = String(err && err.message).slice(0, 120);
+    }
+  }
+
+  const k = assinado ? null : chaveImpl();
+  if (!assinado) {
+    porque = porque || (k && k.erro ? k.erro : 'sem chave do dono neste device');
+    if (k && k.chave) {
+      try {
+        payload = assinarImpl(beacon, { chave: k.chave });
+        assinado = true;
+        alg = assinatura.ALG_TAG;
+        porque = null;
+      } catch (err) {
+        porque = String(err && err.message).slice(0, 120);
+      }
+    }
+  }
+  return {
+    payload, assinado, alg, inscrito,
+    chave_partilhada: inscrito ? true : Boolean(k && k.partilhado && k.chave),
+    porque: assinado ? null : porque,
+  };
+}
+
+/**
+ * O contador de sequencia deste device, guardado FORA do vault.
+ *
+ * Vive em `~/.mooter/` e nao ao lado do beacon de proposito: o beacon e um
+ * artefacto publicado (vai a commit, viaja para outras maquinas) e o contador e
+ * estado privado desta instalacao. Se viajasse, dois devices que partilhassem
+ * um vault ficariam a competir pelo mesmo numero.
+ */
+export function ficheiroDeSeq({ home = os.homedir(), mooDir = process.env.MOOTER_HOME } = {}) {
+  return path.join(mooDir || path.join(home || '.', '.mooter'), 'beacon-seq.json');
+}
+
+/**
+ * O proximo numero de sequencia, sempre maior do que o anterior.
+ *
+ * PORQUE EXISTE: o `ts` e um relogio, e um relogio anda para tras. Um beacon
+ * restaurado de um backup, ou um vault com `--force` por cima, volta a ser
+ * aceite pela verificacao de assinatura (esta correcta — foi assinado a serio)
+ * e passa a ganhar a corrida da frescura se o relogio o favorecer. O `seq` nao
+ * pode andar para tras sem que alguem apague o ficheiro desta maquina, e por
+ * isso responde a pergunta que o `ts` nao responde: qual destas duas copias do
+ * MESMO device foi escrita depois.
+ *
+ * Falhar a ler e a escrever nao pode travar o beacon (isto e telemetria, nao
+ * trabalho): devolve `null`, o campo sai `null` e a frota compara por `ts` como
+ * sempre comparou.
+ */
+export function proximoSeq(device, {
+  caminho = null, readImpl = fs.readFileSync, writeImpl = fs.writeFileSync,
+  mkdirImpl = fs.mkdirSync, home = os.homedir(), mooDir = process.env.MOOTER_HOME,
+} = {}) {
+  const f = caminho || ficheiroDeSeq({ home, mooDir });
+  let mapa = {};
+  try { mapa = JSON.parse(String(readImpl(f, 'utf8'))) || {}; } catch { mapa = {}; }
+  const anterior = Number.isInteger(mapa[device]) && mapa[device] >= 0 ? mapa[device] : 0;
+  const seq = anterior + 1;
+  try {
+    mkdirImpl(path.dirname(f), { recursive: true });
+    writeImpl(f, JSON.stringify({ ...mapa, [device]: seq }));
+  } catch {
+    // Um contador que nao persiste seria pior do que nenhum: reiniciaria em 1 a
+    // cada escrita e um beacon novo pareceria mais velho do que o publicado.
+    return null;
+  }
+  return seq;
+}
+
 /** Writes this device's beacon. Never throws — a beacon is telemetry, not work. */
 export function writeBeacon(state, {
   dir, writeImpl = fs.writeFileSync, mkdirImpl = fs.mkdirSync,
@@ -136,6 +254,7 @@ export function writeBeacon(state, {
   // Ed25519: o par deste device, o registo de publicas, e como assinar com ele.
   deviceKeyImpl = assinatura.chaveDoDevice, registoImpl = assinatura.lerRegisto,
   assinarEdImpl = assinatura.assinadoEd,
+  seqImpl = proximoSeq,
 } = {}) {
   const device = safeDeviceName(state && state.device);
   try {
@@ -143,6 +262,11 @@ export function writeBeacon(state, {
     const beacon = {
       device,
       ts: new Date().toISOString(),
+      // Monotonico por device. Vai DENTRO do objecto assinado de proposito: um
+      // numero de sequencia por fora da assinatura seria editavel por quem
+      // quisesse ressuscitar um beacon velho, que e precisamente o que ele
+      // existe para impedir.
+      seq: seqImpl(device),
       plataforma: os.platform(),
       running: Boolean(state && state.running),
       pilar_atual: (state && state.pilar_atual) ?? null,
@@ -199,66 +323,21 @@ export function writeBeacon(state, {
         : null,
       usd: 0,
     };
-    // Assina, se houver chave. Um beacon SEM chave continua a ser escrito e
-    // di-lo (`assinado:false`) — deixar de publicar por nao haver vault seria
-    // apagar o proprio device do painel para o proteger de um ataque que ainda
-    // nao ha. O que NAO se faz e escrever um beacon a fingir que esta assinado.
-    let payload = beacon;
-    let assinado = false;
-    let alg = null;
-    let porque = null;
-
-    /**
-     * Ed25519 SO depois de inscrito, nunca antes.
-     *
-     * A ordem importa e e a unica que nao parte nada: enquanto a publica deste
-     * device nao estiver no registo, ninguem la fora a tem para verificar —
-     * passar a assinar com ela cedo demais so troca "verificado" por
-     * "nao-inscrito" em todos os paineis. Assim o dono inscreve primeiro (um
-     * commit no vault), o device ve-se la, e SO ENTAO muda de algoritmo. Ate la
-     * o HMAC continua exactamente como estava.
-     */
-    const meu = deviceKeyImpl();
-    const reg = registoImpl();
-    const inscrito = meu && meu.pub && reg && reg.devices && reg.devices[device]
-      && reg.devices[device].pub === meu.pub;
-
-    if (inscrito) {
-      try {
-        payload = assinarEdImpl(beacon, { privada: meu.privada, pub: meu.pub });
-        assinado = true;
-        alg = assinatura.ALG_ED;
-      } catch (err) {
-        porque = String(err && err.message).slice(0, 120);
-      }
-    }
-
-    const k = assinado ? null : chaveImpl();
-    if (!assinado) {
-      porque = porque || (k && k.erro ? k.erro : 'sem chave do dono neste device');
-      if (k && k.chave) {
-        try {
-          payload = assinarImpl(beacon, { chave: k.chave });
-          assinado = true;
-          alg = assinatura.ALG_TAG;
-          porque = null;
-        } catch (err) {
-          porque = String(err && err.message).slice(0, 120);
-        }
-      }
-    }
-    writeImpl(path.join(dir, `${device}.json`), JSON.stringify(payload, null, 2));
+    const a = assinarBeacon(beacon, {
+      device, chaveImpl, assinarImpl, deviceKeyImpl, registoImpl, assinarEdImpl,
+    });
+    writeImpl(path.join(dir, `${device}.json`), JSON.stringify(a.payload, null, 2));
     return {
       ok: true,
       device,
-      assinado,
-      alg,
-      inscrito: Boolean(inscrito),
+      assinado: a.assinado,
+      alg: a.alg,
+      inscrito: a.inscrito,
       // `partilhado:false` quer dizer chave por-device: assina, mas nao prova
       // frota nenhuma — so prova que ninguem mexeu no ficheiro desta maquina.
       // Com Ed25519 a pergunta deixa de fazer sentido: quem prova e o registo.
-      chave_partilhada: inscrito ? true : Boolean(k && k.partilhado && k.chave),
-      porque_nao_assinado: assinado ? null : porque,
+      chave_partilhada: a.chave_partilhada,
+      porque_nao_assinado: a.assinado ? null : a.porque,
     };
   } catch (err) {
     return { ok: false, erro: String(err && err.message).slice(0, 120) };
@@ -417,16 +496,32 @@ export function readBeacons({
     /**
      * O proprio device NUNCA se le do remoto: o que ele acabou de escrever no
      * disco e a verdade mais fresca que existe sobre ele, e o remoto so pode
-     * estar atrasado. Dos OUTROS, ganha o `ts` mais novo — e em empate ganha o
+     * estar atrasado. Dos OUTROS, ganha o mais RECENTE — e em empate ganha o
      * disco, porque foi o que este device ja aceitou.
+     *
+     * Desde 2026-09-01, "mais recente" pergunta primeiro ao `seq`, e so cai no
+     * `ts` quando um dos lados nao o traz. Os dois lados sao copias do MESMO
+     * device, portanto o contador dele e comparavel — e nao anda para tras
+     * quando o relogio anda. Um beacon restaurado de um backup, ou um vault
+     * reescrito por cima, tem `seq` menor e perde, mesmo que o `ts` minta.
      */
     const eSelf = safeDeviceName(name.replace(/\.json$/, '')) === safeDeviceName(selfDevice);
     const r = !eSelf && remotos ? remotos[name] : null;
     let via = 'disco';
     if (r && typeof r === 'object' && r.device) {
-      const tsLocal = b && typeof b.ts === 'string' ? Date.parse(b.ts) : NaN;
-      const tsRemoto = typeof r.ts === 'string' ? Date.parse(r.ts) : NaN;
-      if (!b || (Number.isFinite(tsRemoto) && !(tsLocal >= tsRemoto))) { b = r; via = 'remoto'; }
+      const seqLocal = b && Number.isInteger(b.seq) ? b.seq : null;
+      const seqRemoto = Number.isInteger(r.seq) ? r.seq : null;
+      let remotoGanha;
+      if (!b) {
+        remotoGanha = true;
+      } else if (seqLocal !== null && seqRemoto !== null) {
+        remotoGanha = seqRemoto > seqLocal;
+      } else {
+        const tsLocal = typeof b.ts === 'string' ? Date.parse(b.ts) : NaN;
+        const tsRemoto = typeof r.ts === 'string' ? Date.parse(r.ts) : NaN;
+        remotoGanha = Number.isFinite(tsRemoto) && !(tsLocal >= tsRemoto);
+      }
+      if (remotoGanha) { b = r; via = 'remoto'; }
     }
     if (!b || typeof b !== 'object' || !b.device) continue;
 
@@ -474,6 +569,9 @@ export function readBeacons({
     frota.push({
       device: safeDeviceName(b.device),
       ts: typeof b.ts === 'string' ? b.ts : null,
+      // `null` num beacon de antes de 2026-09-01, e e assim que fica: a
+      // ausencia do contador e uma versao antiga, nao um zero.
+      seq: Number.isInteger(b.seq) ? b.seq : null,
       plataforma: typeof b.plataforma === 'string' ? b.plataforma : null,
       running: Boolean(b.running),
       pilar_atual: typeof b.pilar_atual === 'string' ? b.pilar_atual : null,

@@ -184,4 +184,71 @@ cli **668/669** · router **1285/1288** · audit **5/6** (as 3 pré-existentes) 
 `classify.js` FROZEN intacto. **Aberto:** o estágio 3 (juiz O-1) não existe · a **D8** é do dono
 (C1–C4 entram? quais das 18 saem?) · detalhe completo no journal do vault.
 
+### 2026-09-01 (madrugada) · O MOO LEDGER — e os números saem do HTML
+
+A v4 do Moo Pilot chegou dogfoodada e com o instantâneo **cravado no HTML** (2094 citações,
+$24.29 de padrão, 16 GB de VRAM): verdadeiros no minuto em que foram escritos, mentiras silenciosas
+no dia seguinte. Adoptada ao contrário — `moo-ledger-shell.html` é uma **casca sem um número
+dentro** e `runner/build-ledger-snapshot.mjs` mede-os (ledger · triagem · beacons · `git worktree
+list` · eta-index · portões do `autopilot`); sem payload a página **diz-o e pára**. F10 ganha
+`GET /ledger`; o `/panel` v1 fica **intacto** (vista do operador, com os controlos), guarda de rota
+nos dois. **26 testes**, metade a correr a casca contra um DOM de bolso. Cockpit **976/0** · router
+**1126/0** · design **10,00/10** (o `SUPERFICIES_UI` não tinha a vista do dono: entrou e mordeu,
+10,00 → 7,27). Onde **"sem medição = null"** doeu: `vram_total_gb` → `n/d`, e a pastagem mostra
+**1 device, não 3** — os recusados viajam em `fleet_rejected` **com o motivo**. G1 entregue como
+molde. **PR #461; detalhe no journal do vault.**
+**REFUTADO — o bump do conector para 1.53.0:** a `FILES` do `pack-mcpb.mjs` não leva uma única skill
+(vão por `/mooter-update`) e nada nesta onda toca em `packages/mooter-bridge/`. Fica em **1.52.0**.
+**Aberto:** `npm run sync:cockpit` depois do merge (espelho desta máquina **vazio**, pré-existente) ·
+instalar o LaunchAgent (gesto do dono) · **`version-sync.yml` vermelho por erro de ficheiro de
+workflow**, também em `main` e desde antes desta onda — a rede sob o protocolo de release está caída.
+
+### 2026-09-01 (manhã) · A 1.53.0 — os botões do Ledger deixaram de ser maquetas
+
+Três verbos POST a sério no F10, todos com a **mesma guarda de origem do kill-switch**: `/triage`
+(a **mesma porta** que o `/triagem` — um só escritor, um só ficheiro), `/assist` (a doca do Moo:
+relay ao Ollama local, **sem tool-calls, sem escalada, sem memória**; medido ao vivo, 7,3 s e $0 no
+`qwen2.5-coder:14b`) e `/update` (aponta o `.mcpb` e **não instala** — a recusa viaja no payload).
+**G8 fechado:** o arranque deixou de ECOAR o bind e passou a medi-lo (`lsof -nP -iTCP:4290`) —
+`1 socket(s), todos locais`, escrito no log; sem `lsof` fica `n/d`, nunca um «está seguro».
+
+**A prosa que citava uma fonte inexistente.** O Ledger dizia «the closed routing table (C0–C5)».
+Procurada no repo inteiro: **não existia ficheiro nenhum**. Não era mentira sobre o comportamento
+(as rondas correm mesmo local, o git é mesmo custódia do CC) — era pior: um facto verdadeiro
+afirmado por uma fonte que não existe. Agora existe (`runner/rota.mjs`), cada classe carrega a
+**prova** de quem a impõe, e as duas que este loop não exercita dizem-no em vez de serem inventadas
+para a escala fechar em seis. **G6 fechado** com o resto: `finding_id` estável, `triage.items[]`,
+`route`, `publish`, `feed[].device` — e o capítulo V passou a mostrar **decisões a sério** em vez de
+dois recibos `citacao-ok` quaisquer carimbados «closed · self-curated» sem nunca terem sido triados.
+Nada é dado por escrito num 200: cada escrita **relê a contagem** do servidor e só então diz
+`confirmed by re-read`; se não mexer, di-lo.
+
+**REFUTADA A REFUTAÇÃO DE ONTEM** («o bump para 1.53.0 não entrega nada»). A premissa estava certa —
+nada nesta onda toca em `packages/mooter-bridge/` — e a conclusão estava errada sobre o **artefacto**:
+o `mooter-v1520.mcpb` foi construído a 29/08 às **09:00**, e o fix de acessibilidade do `fleet-ui.html`
+(#442, quatro animações `infinite` a correr para quem pediu ao SO que não corressem) entrou às
+**15:51 do mesmo dia**. O bundle mais novo em disco estava **6h51m** atrás do fix. O
+`mooter-v1530.mcpb` é o primeiro que o leva (335 verificações, sha `9100e0df…`).
+
+**REFUTADO — a perf do Ledger.** A premissa do kickoff era que o fundo pontilhado fazia o capture CDP
+expirar. **Medido** (Chrome headless, 3 corridas cada): 1280×20000 → antes 2,88/4,62/3,10 s, depois
+3,29/2,93/2,93 s; 1280×60000 → 8,13/8,15 s vs 7,60/8,01 s. ~3% no melhor caso, **dentro do ruído**.
+O custo cresce com a ÁREA capturada e nenhuma folha de estilos o encurta. A textura passou a camada
+`fixed` na mesma (é grátis, correcta e visualmente idêntica), mas o remédio é capturar por fatias ou
+subir o tecto do CDP — está escrito no CSS para ninguém voltar a supô-lo.
+
+**G3 entregue como CÓDIGO, não como agente a correr.** O `beacon-renew.mjs` re-assina o **mesmo
+corpo** antes da janela de 24 h fechar — o `ts` do device **nunca** se re-carimba, senão um cron
+punha uma máquina morta a dizer «awake · heartbeat 3m ago», que é a mentira que a correcção viria
+introduzir (e há um teste que reprova essa alteração). Mais `seq` monotónico **dentro** do payload
+assinado, que passou a decidir a corrida disco-vs-remoto em vez do relógio. Instalar é duplo-clique
+(`_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command`) e **só arruma esta máquina**: até correr no
+`desktop-j26409q` e no `paulo-desktop`, esses dois beacons continuam a expirar exactamente como hoje
+(553 768 s e 496 375 s contra uma janela de 86 400 s).
+
+Cockpit **1063/0** · bridge **1126/0** · design **10,00/10** · `classify.js` FROZEN intacto.
+Congelamento registado em `CLAUDE.md` (3 ficheiros do bridge, versão apenas).
+**Aberto:** instalar os dois LaunchAgents (G1 e G3, gesto do dono) · `npm run sync:cockpit` ·
+`version-sync.yml` continua vermelho por erro de ficheiro de workflow, também em `main`.
+
 <!-- HUMANO:FIM -->

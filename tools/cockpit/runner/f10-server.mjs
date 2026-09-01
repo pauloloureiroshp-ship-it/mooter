@@ -38,6 +38,9 @@ import {
   registarTriagem, registarVarias, DECISOES, AUTORES, MOTIVOS, menuDeMotores,
   lerTriagem, porTriar, contarTriagem, ORIGEM_DETECTOR,
 } from './triagem.mjs';
+import { escolherModelo, perguntar, validarMensagem, MAX_MENSAGEM } from './assist.mjs';
+import { estadoDaActualizacao } from './actualizacao.mjs';
+import { verificarBind, linhaDeLog } from './bind-check.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
@@ -47,7 +50,7 @@ import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
-import { renderLedgerHtml } from './build-ledger-snapshot.mjs';
+import { renderLedgerHtml, versaoInstalada } from './build-ledger-snapshot.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -77,6 +80,19 @@ export function readBody(req, limit = MAX_BODY_BYTES) {
 }
 
 export const HOST = '127.0.0.1';
+
+/**
+ * Os verbos POST que o servidor aceita — e a lista e a GUARDA.
+ *
+ * Estava inline num `||` de cinco termos, e por isso cada rota nova exigia que
+ * quem a escrevesse se lembrasse de a acrescentar ali. Uma rota esquecida nessa
+ * linha nao daria 404: cairia no `else` final, que e o `POST /play` — ou seja,
+ * um endereco mal escrito RELIGAVA o loop em vez de falhar. Com a lista num
+ * sitio so, acrescentar uma rota e acrescentar-lhe a guarda de origem.
+ */
+export const VERBOS_DE_CONTROLO = Object.freeze([
+  '/play', '/stop', '/focus', '/triagem', '/triage', '/autopilot', '/assist', '/update',
+]);
 
 /**
  * O custo por modelo tem de varrer os ficheiros de sessao. O quota.js so rele
@@ -669,15 +685,61 @@ export function createServer({
       });
     }
 
-    if (req.method === 'POST' && (route === '/play' || route === '/stop' || route === '/focus' || route === '/triagem' || route === '/autopilot')) {
+    if (req.method === 'POST' && VERBOS_DE_CONTROLO.includes(route)) {
       if (!originAllowed(req.headers.origin)) {
         return sendJson(res, 403, { erro: 'origem nao local recusada' }, { cors: false });
+      }
+
+      /**
+       * O Moo responde — na GPU desta maquina, a $0, sem tocar em nada.
+       *
+       * Guardado pela MESMA origem que o kill-switch, e a razao nao e obvia: ler
+       * nao muda estado, mas isto gasta a GPU do dono e recebe texto que ele
+       * escreveu sobre o codigo dele. Um site que ele visite nao pode fazer
+       * nenhuma das duas coisas.
+       */
+      if (route === '/assist') {
+        const body = await readBody(req);
+        const v = validarMensagem(body && body.mensagem);
+        if (!v.ok) return sendJson(res, 400, { erro: v.erro, porque: v.porque, tecto: MAX_MENSAGEM });
+        // A escada de tres degraus, lida do disco e do motor — nunca um nome
+        // cravado aqui, que envelheceria no dia em que o dono trocasse de modelo.
+        const residentes = await loadedModels(fetchImpl);
+        let state = {};
+        try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { state = {}; }
+        const { modelo, fonte } = escolherModelo({ residentes, state, env });
+        const r = await perguntar({ mensagem: v.mensagem, modelo, fetchImpl });
+        if (!r.ok) {
+          // 503 e nao 500: o motor local estar em baixo nao e um defeito deste
+          // servidor, e a doca tem de o poder dizer com essas palavras.
+          return sendJson(res, 503, { ok: false, modelo: r.modelo, porque: r.porque },
+                          { origin: req.headers.origin });
+        }
+        return sendJson(res, 200, { ...r, fonte_do_modelo: fonte }, { origin: req.headers.origin });
+      }
+
+      /**
+       * Onde esta o conector novo, e o que se faz com ele. NAO instala.
+       * A recusa esta no payload (`instala_sozinho:false`) para quem leia o
+       * endpoint a espera de um botao encontrar ali a razao de nao haver um.
+       */
+      if (route === '/update') {
+        return sendJson(res, 200, estadoDaActualizacao({
+          repoRoot: raiz,
+          instalada: versaoInstalada(),
+          disponivel: versaoDoConector(raiz),
+        }), { origin: req.headers.origin });
       }
 
       // Triagem: a unica escrita do painel que produz VALOR em vez de estado.
       // Guardada pela mesma origem que o kill-switch — decidir sobre os achados
       // do dono e uma accao dele, nao de um site que ele visitou.
-      if (route === '/triagem') {
+      //
+      // `/triage` e a MESMA rota com o nome em ingles, porque o Ledger fala
+      // ingles e o painel v1 fala portugues. Duas portas, UM escritor: um
+      // segundo bloco de codigo aqui seria uma segunda maneira de escrever no
+      // `triagem.jsonl`, e as duas divergiriam no primeiro campo novo.
+      if (route === '/triagem' || route === '/triage') {
         const body = await readBody(req);
         if (!body || !body.chave || !DECISOES.includes(body.decisao)) {
           return sendJson(res, 400, { erro: 'triagem precisa de { chave, decisao }', aceites: DECISOES });
@@ -830,5 +892,12 @@ if (invokedDirectly) {
   });
   srv.listen(PORT, HOST, () => {
     process.stdout.write(`F10 vivo em http://${HOST}:${PORT} (repo ${root}, via ${fonte})\n`);
+    // A linha acima e um ECO do que pedimos; esta e o que o SO responde. Vao
+    // as duas para o log de proposito: quando divergirem, e o par que o mostra.
+    const bind = verificarBind(PORT);
+    process.stdout.write(linhaDeLog(bind, PORT));
+    if (bind.estado === 'exposto') {
+      process.stdout.write('     esta porta responde fora desta maquina. Fecha o F10 e confirma o HOST.\n');
+    }
   });
 }

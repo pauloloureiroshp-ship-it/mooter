@@ -107,12 +107,19 @@ export const FEED_LENGTH = 14;
  * Trimmed server-side so the page never holds the whole ledger in memory, and
  * so a 50 MB ledger cannot turn the payload into a page freeze.
  */
-export function buildFeed(receipts, limit = FEED_LENGTH) {
+export function buildFeed(receipts, limit = FEED_LENGTH, { device = null } = {}) {
   return (receipts || [])
     .slice(-limit)
     .reverse()
     .map((r) => ({
       ts: r.ts ?? null,
+      // QUEM produziu esta linha. Hoje e sempre o mesmo device, porque este
+      // ledger e o desta maquina — e e precisamente por isso que o campo tem de
+      // existir: sem ele, o dia em que o feed juntar duas frotas nao ha maneira
+      // de as separar, e a alternativa seria a pagina adivinhar pela ordem.
+      // `null` quando quem chamou nao disse; nunca um nome derivado do hostname
+      // aqui dentro, que seria esta funcao a afirmar uma coisa que nao leu.
+      device: r.device ?? device ?? null,
       pilar: r.pilar ?? null,
       // 'geral' = o pilar nao tinha nada no diff e revimos o resto. Sem este
       // campo no payload, o B6 corrigia o pack e o painel continuava a vestir
@@ -413,7 +420,10 @@ export function buildFleetState({
 
     frescura: fresh,
     ultimo_recibo: last,
-    feed: buildFeed(receipts),
+    // O MESMO nome que o payload publica em `device`, nao um segundo calculo:
+    // duas derivacoes do nome do device sao duas maneiras de o painel discordar
+    // de si proprio.
+    feed: buildFeed(receipts, FEED_LENGTH, { device: state.device || device || null }),
 
     // Volume is reported, but never alone — the verdict split is what says
     // whether any of it was work.

@@ -380,3 +380,106 @@ test('a casca mostra os beacons RECUSADOS — um device apagado em silencio nao 
   assert.equal(/Not shown above/.test(el('herdlist').innerHTML), false,
                'sem recusados, nao se anuncia uma lista vazia');
 });
+
+// ── 4 · G6 · os campos que tiram as historias da heuristica ──────────────────
+
+/** A mesma bancada, mais decisoes de triagem sobre os recibos dela. */
+function bancadaComTriagem() {
+  const dir = bancada();
+  fs.writeFileSync(path.join(dir, 'triagem.jsonl'), [
+    // sobre o recibo com `chave` — este junta-se ao ledger
+    { chave: 'P2|a.js:1-10:aa', decisao: 'issue', por: 'dono', via: 'painel',
+      ts: '2026-08-24T10:00:00Z' },
+    // sobre um apontamento do detector — nunca passou pelo ledger de rondas
+    { chave: 'det|z.js:9:ff', decisao: 'descartado', por: 'agente', motivo: 'trivial',
+      via: 'autopilot-l1', ts: '2026-08-25T10:00:00Z', nota: 'ferramenta interna' },
+  ].map((l) => JSON.stringify(l)).join('\n') + '\n');
+  return dir;
+}
+
+test('G6 · `triage.items[]` traz as DECISOES, nao so as contagens delas', async () => {
+  const s = await construir(bancadaComTriagem());
+  assert.ok(Array.isArray(s.triage.items), 'sem items, a pagina volta a inventar historias');
+  assert.equal(s.triage.items.length, 2);
+  // As ultimas primeiro.
+  assert.equal(s.triage.items[0].decided_at, '2026-08-25T10:00:00Z');
+  const comRecibo = s.triage.items.find((i) => i.chave === 'P2|a.js:1-10:aa');
+  assert.equal(comRecibo.decision, 'issue');
+  assert.equal(comRecibo.ficheiro, 'a.js');
+  assert.equal(comRecibo.pilar, 'P2');
+  assert.equal(comRecibo.route, 'C2');
+  assert.equal(comRecibo.by, 'dono');
+  assert.equal(comRecibo.via, 'painel');
+});
+
+test('G6 · uma decisao sem recibo no ledger leva null — nunca um recibo emprestado', async () => {
+  const s = await construir(bancadaComTriagem());
+  const semRecibo = s.triage.items.find((i) => i.chave === 'det|z.js:9:ff');
+  assert.equal(semRecibo.finding_id, null);
+  assert.equal(semRecibo.ficheiro, null);
+  assert.equal(semRecibo.route, null, 'sem recibo nao se sabe que motor correu');
+  assert.equal(semRecibo.reason, 'trivial', 'o que a decisao SABE continua a viajar');
+});
+
+test('G6 · a lista de motivos vem FECHADA do motor — a pagina nao a pode inventar', async () => {
+  const s = await construir(bancada());
+  const { MOTIVOS } = await import('./triagem.mjs');
+  assert.deepEqual(s.triage.reasons, MOTIVOS);
+  assert.ok(s.triage.reasons.length > 0);
+});
+
+test('G6 · `finding_id` e estavel: a mesma chave da o mesmo id, sempre', async () => {
+  const a = await construir(bancadaComTriagem());
+  const b = await construir(bancadaComTriagem());
+  const id = (s) => s.needs_you[0].finding_id;
+  assert.equal(id(a), id(b));
+  assert.match(id(a), /^f[0-9a-f]{12}$/);
+  // E nao carrega o caminho do disco do dono para dentro do HTML.
+  assert.equal(/a\.js/.test(id(a)), false);
+});
+
+test('G6 · um recibo sem chave de conteudo diz que o id NAO e estavel', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-ledger-legado-'));
+  fs.writeFileSync(path.join(dir, 'runner-ledger.jsonl'), JSON.stringify({
+    ts: '2026-08-22T06:00:00Z', pilar: 'P2', verdict: 'citacao-ok', ficheiro: 'v.js',
+    janela: '1-9', conclusao: 'achado', modelo: 'm', resultado_resumo: 'PROOF: v.js:2',
+  }) + '\n');
+  fs.writeFileSync(path.join(dir, 'triagem.jsonl'), JSON.stringify({
+    chave: 'v.js:1-9@2026-08-22T06:00:00Z', decisao: 'issue', por: 'dono', ts: '2026-08-24T10:00:00Z',
+  }) + '\n');
+  const s = await construir(dir);
+  assert.equal(s.needs_you.length, 1);
+  assert.equal(s.needs_you[0].finding_id_estavel, false,
+               'um id derivado de um instante nao sobrevive a proxima ronda');
+});
+
+test('G6 · `route` viaja como TABELA, e cada classe cita quem a impoe', async () => {
+  const s = await construir(bancada());
+  assert.ok(Array.isArray(s.route.classes) && s.route.classes.length);
+  assert.equal(s.route.fonte, 'tools/cockpit/runner/rota.mjs');
+  for (const c of s.route.classes) assert.ok(c.prova, `${c.id} sem prova`);
+  // O achado por decidir diz quem o achou E quem o corrigiria.
+  const s2 = await construir(bancadaComTriagem());
+  assert.equal(s2.needs_you[0].route, 'C2');
+  assert.equal(s2.needs_you[0].route_next, 'C4');
+});
+
+test('G6 · `publish` responde "a frota ve-me?" pelo git, e n/d quando nao mediu', async () => {
+  const s = await construir(bancada());
+  assert.ok('publish' in s);
+  // Sem vault montado na bancada, a resposta honesta e nenhuma medicao.
+  assert.equal(s.publish.ultima_publicacao, null);
+  assert.ok(s.publish.porque, 'um n/d sem motivo nao serve de nada');
+});
+
+test('G6 · `feed[].device` diz quem produziu a linha, sem a pagina adivinhar', async () => {
+  const { buildFeed } = await import('./fleet-state.mjs');
+  const feed = buildFeed(RECIBOS, 3, { device: 'bancada' });
+  assert.equal(feed.length, 3);
+  for (const f of feed) assert.equal(f.device, 'bancada');
+  // O device escrito NA LINHA ganha ao do chamador: um ledger que um dia junte
+  // duas frotas nao pode ser recarimbado com o nome de quem o esta a ler.
+  assert.equal(buildFeed([{ ts: 'x', device: 'outro' }], 1, { device: 'bancada' })[0].device, 'outro');
+  // Sem nenhum dos dois, `null` — nunca o hostname de quem corre o teste.
+  assert.equal(buildFeed([{ ts: 'x' }], 1)[0].device, null);
+});

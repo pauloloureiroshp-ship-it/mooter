@@ -83,6 +83,28 @@ limitação a contornar: é a mesma parede que impede qualquer site que o Paulo 
 falar com o runner dele. Diz-lhe qual das duas está a ver; nunca deixes um instantâneo
 passar por vivo.
 
+## Os verbos do F10 — e a regra que os governa (1.53.0)
+
+O Ledger deixou de ter botões com o carimbo «proposed endpoint». Três verbos POST
+passaram a existir a sério, todos com a **mesma guarda de origem do kill-switch**
+(um site que o Paulo visite leva 403; um `curl` desta máquina passa):
+
+| Verbo | O que faz | O que **não** faz |
+|---|---|---|
+| `POST /triage` | grava uma decisão no `triagem.jsonl` — é a **mesma porta** que o `/triagem` do painel v1, com o nome em inglês | não é um segundo escritor: um só bloco de código, um só ficheiro |
+| `POST /assist` | a doca do Moo — relay ao Ollama local, resposta em texto puro | **sem tool-calls, sem escalada, sem memória.** Motor local em baixo ⇒ 503 com o porquê, nunca um motor pago |
+| `POST /update` | diz onde está o `.mcpb` mais novo e o que fazer com ele | **não instala.** O payload declara-o (`instala_sozinho: false`) |
+
+> **Nada é dado por escrito só porque o servidor respondeu 200.** Depois de cada
+> escrita o Ledger volta a **ler a contagem** do `/fleet.json` e só então diz
+> «recorded · confirmed by re-read». Se a contagem não mexer, a página di-lo em
+> vez de fingir. Um 200 é o endpoint a aceitar o pedido; não é o ledger a
+> confirmar a linha.
+
+E o arranque deixou de ECOAR o `bind`: o F10 corre `lsof -nP -iTCP:4290 -sTCP:LISTEN`
+e escreve no log o que o sistema operativo respondeu. Sem `lsof` fica `n/d` — nunca
+um «está seguro» por omissão.
+
 ## O que fazes, por ordem
 
 1. **Estado real primeiro:** `npm run pilot:status`. Reporta o que está vivo e o que não está,
