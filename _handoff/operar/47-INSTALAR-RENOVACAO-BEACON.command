@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 44 — renovacao horaria do beacon (roadmap G3). Duplo-clique no Finder.
+# 47 — renovacao horaria do beacon (roadmap G3). Duplo-clique no Finder.
 #
 # O PROBLEMA que isto resolve, medido a 2026-09-01 nesta frota:
 #

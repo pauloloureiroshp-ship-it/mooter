@@ -617,12 +617,22 @@ function renderTasks(){
      estava aqui citava «the closed routing table» — uma tabela que nao existia
      em ficheiro nenhum do repositorio ate hoje (tools/cockpit/runner/rota.mjs). */
   const CLASSES = new Map(((S.route && S.route.classes) || []).map(c => [c.id, c]));
-  const rota = (id, modelo) => {
+  const maiuscula = (x) => esc(String(x).charAt(0).toUpperCase() + String(x).slice(1));
+  /**
+   * `frase:false` devolve so o sintagma, para caber depois de "Found by …".
+   * Sem isso, uma rota desconhecida dava «Found by Routing class n/d — this
+   * receipt does not carry enough…»: o dado estava certo e a prosa partida.
+   */
+  const rota = (id, modelo, { frase = true } = {}) => {
     const c = CLASSES.get(id);
-    if (!c) return `Routing class <span class="nd">n/d</span> — this receipt does not carry enough to say which engine produced it.`;
+    if (!c) {
+      return frase
+        ? `Routing class <span class="nd">n/d</span> — this receipt does not carry enough to say which engine produced it.`
+        : `an engine this receipt does not name (<span class="nd">n/d</span>)`;
+    }
     const quem = id === 'C2' && modelo ? `local <span class="mono">${esc(modelo)}</span>` : esc(c.motor);
-    const maiuscula = (x) => esc(String(x).charAt(0).toUpperCase() + String(x).slice(1));
-    return `<b>${esc(c.id)}</b> · ${esc(c.nome)} — ${quem}. ${maiuscula(c.custo)}. ${maiuscula(c.porque)}.`;
+    const corpo = `<b>${esc(c.id)}</b> · ${esc(c.nome)} — ${quem}`;
+    return frase ? `${corpo}. ${maiuscula(c.custo)}. ${maiuscula(c.porque)}.` : `${corpo} (${esc(c.custo)})`;
   };
 
   const story = (r, cls, extra) => `<div class="story ${cls || ''}">
@@ -641,7 +651,9 @@ function renderTasks(){
   const cartaoIssue = issue ? story(issue, 'issue', {
     what: `The local model read <span class="mono">${esc(issue.ficheiro || 'n/d')}</span> and produced a finding you flagged as an issue in triage.`,
     why: `Pillar ${esc(issue.pilar || 'n/d')} raised it; triage marked it <b>issue</b> rather than accept or dismiss — it is waiting on you.`,
-    route: `Found by ${rota(issue.route, issue.modelo)} If you accept it, the fix goes to ${rota(issue.route_next, null)}`,
+    route: `Found by ${rota(issue.route, issue.modelo, {frase: false})}. `
+      + `If you accept it, the fix goes to ${rota(issue.route_next, null, {frase: false})} — `
+      + `${esc((CLASSES.get(issue.route_next) || {}).porque || 'reason n/d')}.`,
     result: `Citation verified against the file. <span class="mono" style="color:var(--ink-3)">${esc((issue.summary || '').slice(0, 140))}</span>`,
     benefit: `${fmt(S.needs_you.length)} of ${fmt(t.total)} findings are in this state — the loop found it for free, a rule chose the fixer, and nothing moves until you say so.`,
     actions: `<div class="act-row live-only" data-key="${esc(issue.id)}">
@@ -672,6 +684,11 @@ function renderTasks(){
     const r = i.finding_id ? porId.get(i.finding_id) : null;
     const l = i.reason ? (LEGENDA[i.reason] || [i.reason, 'Reason recorded in triage.']) : null;
     const quem = { dono: 'you', agente: 'the level-1 autopilot', claude: 'Claude Code' }[i.by] || 'n/d';
+    // Os valores de decisao sao identificadores do motor (`aceite`/`descartado`/
+    // `issue`); a pagina fala ingles. Traduz-se a ETIQUETA, nunca o dado — o que
+    // viaja no payload e o que se escreve no ledger continua a ser o original.
+    const oQue = { aceite: 'Kept', descartado: 'Dismissed', issue: 'Flagged as an issue' }[i.decision]
+      || esc(i.decision || 'n/d');
     return story({
       ficheiro: i.ficheiro, receipt_ref: i.chave, ts: i.decided_at,
       pilar: i.pilar, route: i.route, modelo: r ? r.modelo : null,
@@ -680,7 +697,7 @@ function renderTasks(){
         ? `Read <span class="mono">${esc(i.ficheiro || 'n/d')}</span> with line numbers and pinned a claim to an exact line.`
         : `Decided on <span class="mono">${esc(i.chave)}</span>. No receipt for it in this window — the decision travels, the round's numbers do not.`,
       why: `Pillar ${esc(i.pilar || 'n/d')} raised it.`,
-      result: `<b>${esc(i.decision || 'n/d')}</b> by ${esc(quem)}${l ? ` — <span data-tip="${esc(l[1])}">${esc(l[0])}</span>` : ''}`
+      result: `<b>${oQue}</b> by ${esc(quem)}${l ? ` — <span data-tip="${esc(l[1])}">${esc(l[0])}</span>` : ''}`
         + (i.note ? `. <span class="mono" style="color:var(--ink-3)">${esc(i.note.slice(0, 90))}</span>` : '')
         + (r ? `. Round: ${fmt(r.dur_s)}s · ${fmt(r.tokens_out)} tokens · $${(r.usd ?? 0).toFixed(2)}` : ''),
       benefit: `Closed on ${i.decided_at ? dmy(i.decided_at) : 'n/d'} — the decision is a line in an append-only file, and changing your mind writes another one rather than erasing this.`,
@@ -724,6 +741,16 @@ function renderField(){
     ${linha('vault', p.vault, 'journals, beacons, receipts of record')}
     ${linha('ledger', p.ledger, `append-only, ${fmt(S.window.lines)} lines`)}
     ${linha('beacons', p.beacons, 'ed25519-signed heartbeats')}
+    ${(() => {
+      /* `publish` viajava no payload sem ninguem o ler — um campo medido que
+         nao chega ao dono nao vale mais do que um campo em falta. Responde a
+         pergunta que a pastagem nao responde: os OUTROS veem esta maquina? */
+      const q = S.publish || {};
+      if (!q.transporte) return linha('fleet sees this device', null, esc(q.porque || 'not measured'));
+      const quando = q.ultima_publicacao ? dmy(q.ultima_publicacao) : 'never';
+      return linha('fleet sees this device', `last published ${quando}`,
+        esc(q.porque || '') + (q.por_publicar ? ' · <b style="color:var(--stamp)">changes pending</b>' : ''));
+    })()}
     <h3>CI &amp; pull requests</h3>
     <p class="note">Not measured by this build — <span class="nd">n/d</span>. The hygiene pillar (P4) is designed to feed this
     block from CI runs and open PRs; wiring it is on the roadmap. An empty slot beats an invented one.</p>`;
@@ -757,7 +784,26 @@ function renderColophon(){
    the 200 alone is optimistic UI, and optimistic UI in a panel whose whole
    product is "the receipt is the proof" would be the one lie that costs all the
    others. If the second read does not move, this page says so. */
-const F10 = 'http://127.0.0.1:4290';
+/**
+ * O F10 e o servidor QUE SERVIU ESTA PAGINA — nunca um endereco cravado.
+ *
+ * Estava `http://127.0.0.1:4290`, e a porta e configuravel: o proprio servidor
+ * diz ao dono para usar `MOO_PORT` quando ha um segundo projecto na mesma
+ * maquina. Com dois F10 vivos (A na 4290, B na 4291), abrir o Ledger de B em
+ * `127.0.0.1:4291/ledger` — construido a partir do ledger de B — e carregar em
+ * Accept escrevia a chave de B no `triagem.jsonl` de **A**. Pior: como a
+ * contagem de A subia mesmo, a releitura confirmava, e a pagina dizia
+ * «confirmed by re-read» sobre uma escrita no projecto errado. Uma confirmacao
+ * que certifica o alvo errado e pior do que nao haver confirmacao nenhuma.
+ *
+ * `location.origin` resolve as duas pontas de uma vez: quem le a pagina servida
+ * pelo F10 fala com esse F10. So um `file://` (um instantaneo guardado em
+ * disco) nao tem origem utilizavel, e ai cai-se no endereco por omissao — que e
+ * o unico caso em que adivinhar e melhor do que nao tentar.
+ */
+const F10 = (typeof location === 'object' && location
+  && (location.protocol === 'http:' || location.protocol === 'https:'))
+  ? location.origin : 'http://127.0.0.1:4290';
 
 async function f10(rota, corpo, ms = 60000){
   const r = await fetch(F10 + rota, {
@@ -773,7 +819,9 @@ async function f10(rota, corpo, ms = 60000){
 /** As contagens de triagem, lidas do F10. `null` quando nao se conseguiu ler. */
 async function contagens(){
   try{
-    const r = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(4000)});
+    // O MESMO tecto do poll de vivacidade acima: um `/fleet.json` lento dava
+    // «accepted · NOT confirmed» numa escrita que tinha corrido bem.
+    const r = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
     if (!r.ok) return null;
     const b = await r.json();
     return (b && b.triagem) || null;
@@ -892,10 +940,10 @@ async function verActualizacao(){
 async function boot(){
   let live = false;
   try{
-    const r = await fetch('http://127.0.0.1:4290/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(1500)});
+    const r = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(1500)});
     if (r && r.ok){ const b = await r.json(); if (b && 'recibos' in b){ live = true; lastLiveAt = Date.now();
       setInterval(async () => { try{
-        const p = await fetch('http://127.0.0.1:4290/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
+        const p = await fetch(F10 + '/fleet.json', {cache:'no-store', signal: AbortSignal.timeout(6000)});
         if (p.ok){ lastLiveAt = Date.now(); } } catch(_){} }, 3000);
     }}
   } catch(_){ /* any failure — CSP included — lands honestly in snapshot */ }

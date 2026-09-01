@@ -184,25 +184,6 @@ cli **668/669** · router **1285/1288** · audit **5/6** (as 3 pré-existentes) 
 `classify.js` FROZEN intacto. **Aberto:** o estágio 3 (juiz O-1) não existe · a **D8** é do dono
 (C1–C4 entram? quais das 18 saem?) · detalhe completo no journal do vault.
 
-### 2026-09-01 (madrugada) · O MOO LEDGER — e os números saem do HTML
-
-A v4 do Moo Pilot chegou dogfoodada e com o instantâneo **cravado no HTML** (2094 citações,
-$24.29 de padrão, 16 GB de VRAM): verdadeiros no minuto em que foram escritos, mentiras silenciosas
-no dia seguinte. Adoptada ao contrário — `moo-ledger-shell.html` é uma **casca sem um número
-dentro** e `runner/build-ledger-snapshot.mjs` mede-os (ledger · triagem · beacons · `git worktree
-list` · eta-index · portões do `autopilot`); sem payload a página **diz-o e pára**. F10 ganha
-`GET /ledger`; o `/panel` v1 fica **intacto** (vista do operador, com os controlos), guarda de rota
-nos dois. **26 testes**, metade a correr a casca contra um DOM de bolso. Cockpit **976/0** · router
-**1126/0** · design **10,00/10** (o `SUPERFICIES_UI` não tinha a vista do dono: entrou e mordeu,
-10,00 → 7,27). Onde **"sem medição = null"** doeu: `vram_total_gb` → `n/d`, e a pastagem mostra
-**1 device, não 3** — os recusados viajam em `fleet_rejected` **com o motivo**. G1 entregue como
-molde. **PR #461; detalhe no journal do vault.**
-**REFUTADO — o bump do conector para 1.53.0:** a `FILES` do `pack-mcpb.mjs` não leva uma única skill
-(vão por `/mooter-update`) e nada nesta onda toca em `packages/mooter-bridge/`. Fica em **1.52.0**.
-**Aberto:** `npm run sync:cockpit` depois do merge (espelho desta máquina **vazio**, pré-existente) ·
-instalar o LaunchAgent (gesto do dono) · **`version-sync.yml` vermelho por erro de ficheiro de
-workflow**, também em `main` e desde antes desta onda — a rede sob o protocolo de release está caída.
-
 ### 2026-09-01 (manhã) · A 1.53.0 — os botões do Ledger deixaram de ser maquetas
 
 Três verbos POST a sério no F10, todos com a **mesma guarda de origem do kill-switch**: `/triage`
@@ -246,7 +227,25 @@ assinado, que passou a decidir a corrida disco-vs-remoto em vez do relógio. Ins
 `desktop-j26409q` e no `paulo-desktop`, esses dois beacons continuam a expirar exactamente como hoje
 (553 768 s e 496 375 s contra uma janela de 86 400 s).
 
-Cockpit **1063/0** · bridge **1126/0** · design **10,00/10** · `classify.js` FROZEN intacto.
+**A REVISÃO ADVERSARIAL ANTES DO PUSH APANHOU UM BLOQUEANTE MEU.** A casca tinha
+`const F10 = 'http://127.0.0.1:4290'` cravado, e a porta é configurável — o próprio servidor manda
+usar `MOO_PORT` num segundo projecto. Com dois F10 vivos, o Ledger do projecto B (servido na :4291)
+escrevia a chave de B no `triagem.jsonl` de **A** — e como a contagem de A subia mesmo, a releitura
+CONFIRMAVA. Uma confirmação que certifica o alvo errado é pior do que não haver confirmação nenhuma.
+Agora o alvo é `location.origin`; provado ao vivo a servir o Ledger na :4292 (arranca em `live`, fala
+com a :4292) e há um teste que **morde** (repor o endereço cravado reprova). Mais três da mesma
+revisão: o `seq` passou de decisor a **veto** (a decidir, um contador de época antiga declarava
+`morto` um device a trabalhar — reproduzido); o `proximoSeq` deixou de reinventar `1` sobre um
+contador ilegível (agora `null`, escrita atómica); e o `publicacao.mjs` deixou de chamar «publicado»
+a um commit que não foi empurrado (`por_empurrar`, medido contra `@{u}`).
+
+**E um incidente meu, registado porque a regra o exige:** a prova manual do `/triage` correu contra o
+`MOOTER_HOME` REAL e escreveu no `triagem.jsonl` do dono uma decisão assinada `por:'dono'` que ele
+nunca tomou. As contagens não mexeram (a chave não tinha recibo) — isso foi sorte, não desenho. A
+linha foi removida (era a última, e provavelmente minha: `PROVA-DA-PORTA-1530`), as contagens foram
+reconferidas antes e depois (`achados 1071 · aceite 3`, iguais), e o aviso ficou no `smoke.test.mjs`.
+
+Cockpit **1078/0** · bridge **1126/0** · design **10,00/10** · `classify.js` FROZEN intacto.
 Congelamento registado em `CLAUDE.md` (3 ficheiros do bridge, versão apenas).
 **Aberto:** instalar os dois LaunchAgents (G1 e G3, gesto do dono) · `npm run sync:cockpit` ·
 `version-sync.yml` continua vermelho por erro de ficheiro de workflow, também em `main`.

@@ -24,7 +24,7 @@
   "owner": "Claude Code + Owner (gesture)",
   "status": "waiting-owner",
   "user": "paulo",
-  "note": "code shipped 2026-09-01: beacon-renew.mjs re-signs the SAME body before the 24h window closes — the device's `ts` is never re-stamped, so a stopped machine still reads as stopped — plus a monotonic `seq` inside the signed payload, which now decides the disk-vs-remote race instead of the clock. STILL waiting-owner and not done: the hourly agent is a double-click (_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command) and it only fixes the machine it runs on. Until it runs on desktop-j26409q and paulo-desktop, those two beacons keep expiring exactly as they do today."
+  "note": "code shipped 2026-09-01: beacon-renew.mjs re-signs the SAME body before the 24h window closes — the device's `ts` is never re-stamped, so a stopped machine still reads as stopped — plus a monotonic `seq` inside the signed payload, which VETOES a remote copy whose counter went backwards (the `ts` still decides; letting `seq` decide marked a live device dead when the counter epochs differed, and was reverted before ship). STILL waiting-owner and not done: the hourly agent is a double-click (_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command) and it only fixes the machine it runs on. Until it runs on desktop-j26409q and paulo-desktop, those two beacons keep expiring exactly as they do today."
  },
  {
   "id": "G4",

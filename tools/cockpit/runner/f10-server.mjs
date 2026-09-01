@@ -85,10 +85,17 @@ export const HOST = '127.0.0.1';
  * Os verbos POST que o servidor aceita — e a lista e a GUARDA.
  *
  * Estava inline num `||` de cinco termos, e por isso cada rota nova exigia que
- * quem a escrevesse se lembrasse de a acrescentar ali. Uma rota esquecida nessa
- * linha nao daria 404: cairia no `else` final, que e o `POST /play` — ou seja,
- * um endereco mal escrito RELIGAVA o loop em vez de falhar. Com a lista num
- * sitio so, acrescentar uma rota e acrescentar-lhe a guarda de origem.
+ * quem a escrevesse se lembrasse de a acrescentar ali. Com a lista num sitio so,
+ * acrescentar uma rota e acrescentar-lhe a guarda de origem.
+ *
+ * Isso, sozinho, PIOROU um perigo antigo em vez de o corrigir — apanhado em
+ * revisao antes de sair. O `/play` era o `else` final do bloco, portanto um
+ * verbo listado sem ramo proprio apagava o STOP e ligava a maquina a trabalhar;
+ * e a lista tornou "acrescentar um verbo" no passo de menor atrito de todos.
+ * Por isso o `/play` passou a ter `if` proprio e a cauda passou a 404. Agora as
+ * duas metades tem de andar juntas, e o teste `smoke` exige que cada entrada
+ * desta lista seja servida por um ramo — a lista deixou de ser um atalho para
+ * religar o loop por engano.
  */
 export const VERBOS_DE_CONTROLO = Object.freeze([
   '/play', '/stop', '/focus', '/triagem', '/triage', '/autopilot', '/assist', '/update',
@@ -853,12 +860,28 @@ export function createServer({
         }
         return sendJson(res, 200, { ok: true, running: false });
       }
-      try {
-        fs.rmSync(stopFile, { force: true });
-      } catch (err) {
-        return sendJson(res, 500, { ok: false, running: false, erro: String(err.message) });
+      if (route === '/play') {
+        try {
+          fs.rmSync(stopFile, { force: true });
+        } catch (err) {
+          return sendJson(res, 500, { ok: false, running: false, erro: String(err.message) });
+        }
+        return sendJson(res, 200, { ok: true, running: !fs.existsSync(stopFile) });
       }
-      return sendJson(res, 200, { ok: true, running: !fs.existsSync(stopFile) });
+
+      // ⚠️ A CAUDA E UM 404, e nao o `/play`.
+      //
+      // Ate 2026-09-01 o religar do loop era o `else` final: qualquer verbo
+      // desta lista que ficasse sem ramo proprio APAGAVA o STOP. Nao era
+      // hipotetico — era o comportamento por omissao, e a lista tornou
+      // acrescentar um verbo no passo mais facil de todos. Um endpoint novo mal
+      // ligado passava a ligar a maquina a trabalhar, que e a accao com mais
+      // consequencia que este servidor tem.
+      return sendJson(res, 404, {
+        erro: 'verbo declarado sem tratamento',
+        rota: route,
+        porque: 'esta rota esta em VERBOS_DE_CONTROLO e nenhum ramo a serve — e um defeito, nao um pedido invalido',
+      });
     }
 
     return sendJson(res, 404, { erro: 'not found', rota: route });

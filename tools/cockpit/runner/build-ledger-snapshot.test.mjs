@@ -289,10 +289,14 @@ function domDeBolso() {
   return { doc, els, el };
 }
 
-async function correrCasca(html) {
+async function correrCasca(html, { location: loc = { protocol: 'file:', origin: 'null' } } = {}) {
   const { doc, el } = domDeBolso();
   const sandbox = {
     document: doc,
+    // A casca deriva o endereco do F10 de `location` desde 2026-09-01. A
+    // bancada tem de o modelar: sem ele o script rebentava com um
+    // `ReferenceError` — que foi como este harness apanhou a falta de guarda.
+    location: loc,
     window: { matchMedia: () => ({ matches: false }) },
     navigator: { clipboard: { writeText: async () => {} } },
     // O boot tenta o F10 primeiro; sem ele, cai honestamente em `snapshot`.
@@ -482,4 +486,71 @@ test('G6 · `feed[].device` diz quem produziu a linha, sem a pagina adivinhar', 
   assert.equal(buildFeed([{ ts: 'x', device: 'outro' }], 1, { device: 'bancada' })[0].device, 'outro');
   // Sem nenhum dos dois, `null` — nunca o hostname de quem corre o teste.
   assert.equal(buildFeed([{ ts: 'x' }], 1)[0].device, null);
+});
+
+// ── 5 · o alvo da escrita é o servidor QUE SERVIU a página ───────────────────
+
+/**
+ * A REGRESSÃO QUE ISTO SEGURA (apanhada em revisão, 2026-09-01).
+ *
+ * A casca tinha `const F10 = 'http://127.0.0.1:4290'` cravado. A porta é
+ * configurável — o próprio servidor manda usar `MOO_PORT` quando há um segundo
+ * projecto — e com dois F10 vivos o Ledger do projecto B, aberto na :4291,
+ * escrevia a chave de B no `triagem.jsonl` de A. Como a contagem de A subia, a
+ * releitura CONFIRMAVA: a página certificava uma escrita no projecto errado.
+ */
+async function urlsDaCasca(html, loc) {
+  const urls = [];
+  const { doc } = domDeBolso();
+  const sandbox = {
+    location: loc,
+    document: doc,
+    AbortSignal: { timeout: () => null },
+    fetch: async (u) => { urls.push(u); throw new Error('sem endpoint'); },
+    requestAnimationFrame: (fn) => fn(), setInterval: () => 0, setTimeout: () => 0,
+    clearTimeout: () => {}, navigator: { clipboard: {} }, console,
+  };
+  sandbox.window = sandbox; sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
+    try { vm.runInContext(m[1], sandbox, { timeout: 5000 }); } catch { /* o DOM de bolso é magro */ }
+  }
+  // O `boot()` é assíncrono; sem isto os `fetch` ainda não saíram.
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  return urls;
+}
+
+/** A casca COM payload: sem ele o script diz "no payload" e volta antes do boot. */
+async function cascaCheia() {
+  const dir = bancada();
+  const { html } = await renderLedgerHtml({
+    repoRoot: REPO, mooDir: dir, now: Date.parse('2026-09-01T12:00:00Z'),
+    device: 'bancada', gpuImpl: semGpu, runGitImpl: gitFalso,
+    homeImpl: path.join(dir, 'sem-home'), vaultPath: path.join(dir, 'sem-vault'), shellPath: SHELL,
+  });
+  return html;
+}
+
+test('servida por http, a casca fala com a PORTA que a serviu — nunca com a 4290', async () => {
+  const urls = await urlsDaCasca(await cascaCheia(), { protocol: 'http:', origin: 'http://127.0.0.1:4291' });
+  assert.ok(urls.length, 'o boot tem de sondar alguém');
+  for (const u of urls) {
+    assert.ok(u.startsWith('http://127.0.0.1:4291/'),
+              `a casca foi falar com ${u} em vez do servidor que a serviu`);
+  }
+});
+
+test('aberta de file://, cai no endereço por omissão — e não numa origem `null`', async () => {
+  const urls = await urlsDaCasca(await cascaCheia(), { protocol: 'file:', origin: 'null' });
+  assert.ok(urls.length);
+  for (const u of urls) assert.ok(u.startsWith('http://127.0.0.1:4290/'), `caiu em ${u}`);
+});
+
+test('o endereço do F10 não está cravado no código da casca', () => {
+  // Fora de comentários e da mensagem de instrução do "sem payload", que é
+  // texto para o dono ler, não um alvo de escrita.
+  const codigo = CASCA.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const cravados = [...codigo.matchAll(/fetch\(\s*'http:\/\/127\.0\.0\.1:\d+/g)];
+  assert.equal(cravados.length, 0, 'um fetch para uma porta cravada escreve no projecto errado');
 });

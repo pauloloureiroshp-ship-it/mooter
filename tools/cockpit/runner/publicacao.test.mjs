@@ -48,7 +48,7 @@ test('vault sem .git: transporte local, e diz que o beacon nao sai do disco', ()
 test('vault sem remoto: o commit fica aqui, e o porque di-lo', () => {
   const r = estadoDaPublicacao({
     ...base,
-    runImpl: gitFalso({ remote: '', log: '2026-08-26T08:15:21-03:00', diff: '' }),
+    runImpl: gitFalso({ remote: '', log: '2026-08-26T08:15:21-03:00', diff: '', 'rev-list': '0\n' }),
   });
   assert.equal(r.remoto, false);
   assert.match(r.porque, /nao tem remoto/);
@@ -61,6 +61,7 @@ test('O CASO REAL: beacon commitado a 26/08 e alterado em disco desde entao', ()
       remote: 'origin\n',
       log: '2026-08-26T08:15:21-03:00\n',
       diff: '50-fleet/mac-mini-de-paulo.json\n',
+      'rev-list': '0\n',
     }),
   });
   assert.equal(r.remoto, true);
@@ -69,19 +70,48 @@ test('O CASO REAL: beacon commitado a 26/08 e alterado em disco desde entao', ()
   assert.match(r.porque, /por publicar/);
 });
 
-test('em dia: por_publicar false, e a data e a do commit — nao a do ficheiro', () => {
+test('em dia E empurrado: a data e a do commit, nao a do ficheiro', () => {
   const r = estadoDaPublicacao({
     ...base,
-    runImpl: gitFalso({ remote: 'origin\n', log: '2026-09-01T05:00:00-03:00\n', diff: '' }),
+    runImpl: gitFalso({ remote: 'origin\n', log: '2026-09-01T05:00:00-03:00\n', diff: '', 'rev-list': '0\n' }),
   });
   assert.equal(r.por_publicar, false);
-  assert.match(r.porque, /e o que esta publicado/);
+  assert.equal(r.por_empurrar, false);
+  assert.match(r.porque, /e o que esta no remoto/);
+});
+
+/**
+ * COMMITADO NAO E PUBLICADO. Sem esta distincao o modulo dizia «esta publicado»
+ * a um dono cujo push tinha sido recusado — a mentira exacta que ele existe
+ * para nao contar.
+ */
+test('commitado mas NAO empurrado: nao se lhe chama publicado', () => {
+  const r = estadoDaPublicacao({
+    ...base,
+    runImpl: gitFalso({ remote: 'origin\n', log: '2026-09-01T05:00:00-03:00\n', diff: '', 'rev-list': '3\n' }),
+  });
+  assert.equal(r.por_publicar, false, 'o disco bate com o commit');
+  assert.equal(r.por_empurrar, true, 'mas o commit nao saiu daqui');
+  assert.match(r.porque, /nao foi empurrado/);
+  assert.equal(/esta no remoto/.test(r.porque), false);
+});
+
+test('sem ramo a seguir (`@{u}` rebenta): por_empurrar e null, e o porque admite-o', () => {
+  const r = estadoDaPublicacao({
+    ...base,
+    runImpl: gitFalso({
+      remote: 'origin\n', log: '2026-09-01T05:00:00-03:00\n', diff: '',
+      'rev-list': new Error('no upstream configured for branch'),
+    }),
+  });
+  assert.equal(r.por_empurrar, null);
+  assert.match(r.porque, /nao foi medido/);
 });
 
 test('nunca commitado: `ultima_publicacao` e null, e isso diz-se por extenso', () => {
   const r = estadoDaPublicacao({
     ...base,
-    runImpl: gitFalso({ remote: 'origin\n', log: '', diff: '' }),
+    runImpl: gitFalso({ remote: 'origin\n', log: '', diff: '', 'rev-list': '0\n' }),
   });
   assert.equal(r.ultima_publicacao, null);
   assert.match(r.porque, /nunca foi commitado/);

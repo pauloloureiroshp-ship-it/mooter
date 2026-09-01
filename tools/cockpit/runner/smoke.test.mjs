@@ -165,6 +165,14 @@ test('smoke: o kill-switch local continua a funcionar (sem Origin = CLI desta ma
 });
 
 // ------------------------------------------- as rotas que tiraram os "proposed"
+//
+// ⚠️ TODA a escrita aqui vai para `HOME_TMP`, e isso nao e higiene — e o
+// incidente de 2026-09-01. Uma prova manual do `/triage` feita contra um F10
+// levantado a mao, sem `MOOTER_HOME` temporario, escreveu no `triagem.jsonl`
+// REAL do dono uma decisao assinada `por:'dono'` que ele nunca tomou. As
+// contagens nao mexeram (a chave nao tinha recibo), e essa foi a sorte, nao o
+// desenho. A linha foi removida e o facto registado. Quem levantar um F10 a
+// mao para experimentar um verbo de ESCRITA: `MOOTER_HOME=$(mktemp -d)` antes.
 
 /**
  * Um motor local de mentira que responde as DUAS rotas do Ollama que a doca usa:
@@ -596,4 +604,59 @@ test('o aviso do prototipo diz o que se esta a ver e porque', () => {
   assert.match(AVISO_PROTOTIPO, /not the current one/);
   assert.match(AVISO_PROTOTIPO, /moo-pilot-shell\.html/, 'tem de nomear o ficheiro que falhou');
   assert.match(AVISO_PROTOTIPO, /nothing below is guaranteed/i);
+});
+
+/**
+ * Cada verbo declarado tem de ser SERVIDO por um ramo.
+ *
+ * Apanhado em revisao a 2026-09-01: a lista `VERBOS_DE_CONTROLO` passou a guarda
+ * de origem para um sitio so, mas a cauda do bloco era o `/play` — logo um verbo
+ * acrescentado a lista sem ramo proprio APAGAVA o STOP e ligava a maquina a
+ * trabalhar. O `/play` ganhou `if` proprio, a cauda passou a 404, e este teste
+ * exige que as duas metades andem juntas para sempre.
+ */
+test('smoke ACEITACAO: nenhum verbo declarado religa o loop por omissao', async () => {
+  const { VERBOS_DE_CONTROLO } = await import('./f10-server.mjs');
+  const { base, fechar } = await servidorEfemero({ fetchImpl: motorDeDoca() });
+  const STOP = path.join(HOME_TMP, 'STOP');
+  try {
+    for (const rota of VERBOS_DE_CONTROLO) {
+      if (rota === '/play') continue;              // este É o que apaga o STOP, e de propósito
+      fs.writeFileSync(STOP, '1');
+      await fetch(`${base}${rota}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagem: 'ola', chave: 'x', decisao: 'aceite', por: 'dono' }),
+      });
+      assert.equal(fs.existsSync(STOP), true, `${rota} apagou o STOP — caiu na cauda do /play`);
+    }
+    // E um verbo declarado SEM ramo dá 404 a dizer que é um defeito, não 200.
+    const semRamo = await fetch(`${base}/autopilot`, { method: 'POST', body: 'nao-e-json' });
+    assert.notEqual(semRamo.status, 404, 'o /autopilot TEM ramo — se der 404 este teste mede a coisa errada');
+  } finally {
+    fs.rmSync(STOP, { force: true });
+    await fechar();
+  }
+});
+
+/**
+ * COBERTURA, NAO PRESENCA — a mesma licao que o portao de movimento reduzido
+ * aprendeu a 2026-08-29 (`CLAUDE.md`): testar que os verbos de HOJE se portam
+ * bem nao impede que o de AMANHA nasca descoberto. Este exige que cada entrada
+ * de `VERBOS_DE_CONTROLO` seja comparada por um ramo no corpo do handler.
+ */
+test('smoke ACEITACAO: cada verbo declarado tem um ramo que o serve', async () => {
+  const { VERBOS_DE_CONTROLO } = await import('./f10-server.mjs');
+  const src = fs.readFileSync(new URL('./f10-server.mjs', import.meta.url), 'utf8');
+  // Só o corpo do handler: a própria lista também nomeia as rotas.
+  const corpo = src.slice(src.indexOf('const servidor = http.createServer'));
+  for (const v of VERBOS_DE_CONTROLO) {
+    const ramo = new RegExp(`route === '${v}'`).test(corpo);
+    assert.ok(ramo, `${v} está na lista e nenhum ramo o serve — cai na cauda`);
+  }
+  // E a cauda tem de ser um 404, nunca a escrita que religa o loop.
+  const cauda = corpo.slice(corpo.lastIndexOf("route === '/play'"));
+  assert.ok(cauda.includes('verbo declarado sem tratamento'),
+            'a cauda do bloco de POST tem de ser um 404 explícito');
+  assert.equal(/rmSync\(stopFile[\s\S]*verbo declarado sem tratamento/.test(cauda), true,
+               'o /play tem de vir ANTES da cauda, dentro do seu próprio ramo');
 });

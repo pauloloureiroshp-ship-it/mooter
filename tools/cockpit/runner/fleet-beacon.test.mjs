@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 
 import {
   safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness, naTuaMao,
-  medirParidade,
+  medirParidade, proximoSeq,
   BEACON_FRESH_S, BEACON_FRESH_REMOTO_S, BEACON_STALE_S,
 } from './fleet-beacon.mjs';
 import { MINUTOS_OMISSAO } from './beacon-publisher.mjs';
@@ -854,4 +854,109 @@ test('ONDA 2 · GATE: o impostor Ed25519 nao rouba o lugar de self', () => {
   assert.equal(r.frota.length, 1, 'o ficheiro do PC nao pode ressuscitar o PC com o beacon do Mac');
   assert.equal(r.rejeitados[0].ficheiro, 'pc-paulo.json');
   assert.equal(r.rejeitados[0].codigo, 'chave-diferente');
+});
+
+// ── seq: VETO, nunca decisor (regressão apanhada em revisão, 2026-09-01) ──────
+
+/** Lê beacons de uma pasta temporária, com uma camada remota por cima. */
+function frotaCom({ disco, remoto, agora }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-seq-'));
+  fs.writeFileSync(path.join(dir, 'outro.json'), JSON.stringify(disco));
+  return readBeacons({
+    dir, selfDevice: 'eu', now: agora,
+    remotos: { 'outro.json': remoto },
+    chaveImpl: () => ({ chave: null, erro: 'sem chave nesta bancada' }),
+    registoImpl: semRegisto,
+  });
+}
+
+const AGORA_SEQ = Date.parse('2026-09-01T12:00:00Z');
+const isoSeq = (msAtras) => new Date(AGORA_SEQ - msAtras).toISOString();
+
+/**
+ * O CASO QUE A PRIMEIRA VERSÃO ERRAVA. O contador vive fora do vault e reinicia
+ * num perfil/SO novo. Com o `seq` a DECIDIR, um remoto de 24 h com contador de
+ * uma época antiga (800) ganhava a um disco fresco de época nova (2) — e o
+ * painel declarava morto um device que estava a trabalhar naquele instante.
+ */
+test('seq de épocas diferentes NÃO pode declarar morto um device vivo', () => {
+  const { frota } = frotaCom({
+    disco:  { device: 'outro', seq: 2,   ts: isoSeq(0),         running: true },
+    remoto: { device: 'outro', seq: 800, ts: isoSeq(24 * 3600e3), running: false },
+    agora: AGORA_SEQ,
+  });
+  assert.equal(frota.length, 1);
+  assert.equal(frota[0].via, 'disco', 'o `ts` decide — o `seq` não escolhe por ele');
+  assert.equal(frota[0].running, true);
+});
+
+/** E o que o `seq` VETA: um beacon antigo restaurado com o relógio a mentir. */
+test('seq veta um remoto que vem ATRÁS, mesmo com o relógio a dizer o contrário', () => {
+  const { frota } = frotaCom({
+    disco:  { device: 'outro', seq: 41, ts: isoSeq(60e3),  running: true },
+    remoto: { device: 'outro', seq: 20, ts: isoSeq(-3600e3), running: false },  // datado no futuro
+    agora: AGORA_SEQ,
+  });
+  assert.equal(frota[0].via, 'disco', 'um seq mais baixo não entra por muito que o ts minta');
+  assert.equal(frota[0].running, true);
+});
+
+test('sem seq dos dois lados, a regra é a de sempre: ganha o ts mais novo', () => {
+  const { frota } = frotaCom({
+    disco:  { device: 'outro', ts: isoSeq(3600e3), running: false },
+    remoto: { device: 'outro', ts: isoSeq(60e3),   running: true },
+    agora: AGORA_SEQ,
+  });
+  assert.equal(frota[0].via, 'remoto');
+  assert.equal(frota[0].seq, null, 'um beacon antigo não ganha um contador inventado');
+});
+
+test('seq só de um lado não veta nada — não há comparação a fazer', () => {
+  const { frota } = frotaCom({
+    disco:  { device: 'outro', seq: 900, ts: isoSeq(3600e3) },
+    remoto: { device: 'outro', ts: isoSeq(60e3) },
+    agora: AGORA_SEQ,
+  });
+  assert.equal(frota[0].via, 'remoto', 'o ts decide; o seq de um só lado não é um veto');
+});
+
+// ── o contador ───────────────────────────────────────────────────────────────
+
+test('proximoSeq começa em 1 quando o ficheiro ainda não existe', () => {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-cont-')), 'seq.json');
+  assert.equal(proximoSeq('dev', { caminho: f }), 1);
+  assert.equal(proximoSeq('dev', { caminho: f }), 2);
+  assert.equal(proximoSeq('outro', { caminho: f }), 1, 'cada device tem o seu contador');
+});
+
+/**
+ * FICHEIRO ILEGÍVEL ≠ FICHEIRO AUSENTE. Recomeçar em 1 sobre um contador que
+ * existia inventa um número baixo, escreve-o por cima (a perda fica permanente)
+ * e faz o veto acima recusar os beacons desta máquina por virem «atrás».
+ */
+test('proximoSeq devolve null num contador ilegível — e NÃO escreve por cima', () => {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-cont-')), 'seq.json');
+  fs.writeFileSync(f, '{ isto nao e json');
+  assert.equal(proximoSeq('dev', { caminho: f }), null);
+  assert.equal(fs.readFileSync(f, 'utf8'), '{ isto nao e json', 'o ficheiro tem de ficar intacto');
+});
+
+test('proximoSeq devolve null se não conseguir escrever — nunca reinicia em silêncio', () => {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-cont-')), 'seq.json');
+  assert.equal(proximoSeq('dev', {
+    caminho: f, writeImpl: () => { throw new Error('EACCES'); },
+  }), null);
+});
+
+test('a escrita do contador é atómica (temp + rename), porque é partilhado', () => {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'moo-cont-')), 'seq.json');
+  let escrito = null; let renomeado = null;
+  proximoSeq('dev', {
+    caminho: f,
+    readImpl: () => { const e = new Error('nao ha'); e.code = 'ENOENT'; throw e; },
+    writeImpl: (p) => { escrito = p; },
+    renameImpl: (de, para) => { renomeado = [de, para]; },
+  });
+  assert.notEqual(escrito, f, 'escreve-se no temporário, não no destino');
+  assert.deepEqual(renomeado, [escrito, f]);
 });

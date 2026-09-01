@@ -113,7 +113,9 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `packages/mooter-bridge/manifest.json` e `packages/mooter-bridge/version.json`
   (mais o `released`), e **duas** em `packages/mooter-bridge/entregas-por-versao.json`
   (a chave `"1.53": []`). Autorizado pelo dono no kickoff da release
-  (`_handoff/KICKOFF-RELEASE-1530.md`, ponto 1: «Bump 1.53.0 … e build
+  (`_handoff/_archive/2026-09/KICKOFF-RELEASE-1530.md` — arquivado no mesmo commit
+  que o executa, como manda o `AGENTS.md` § Information architecture; ponto 1:
+  «Bump 1.53.0 … e build
   `_handoff/mooter-v1530.mcpb`»). Zero linhas de lógica.
   Não é cosmético e não é redundante com a automação: o `version-sync.yml` só
   corre **no push da tag**, que acontece DEPOIS do merge — e o `pack-mcpb.mjs`
