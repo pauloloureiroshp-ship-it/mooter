@@ -118,19 +118,30 @@ jobs:
           # versao que se cala e como nao existir.
           BRANCH="chore/version-sync-${{ steps.ver.outputs.version }}"
           git push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
+          # O corpo do PR vai num FICHEIRO, não numa string multilinha dentro do
+          # `run: |`. A versão anterior punha as linhas do corpo à coluna 0: num
+          # block scalar YAML, a indentação da primeira linha define o bloco, e
+          # qualquer linha menos indentada FECHA-O. O ficheiro deixou de ser YAML
+          # válido a 2026-08-29 e desde então falhou em todos os pushes — e, o que
+          # importa mesmo, nunca chegou a correr numa tag. Um `--body-file` não
+          # tem esta classe de defeito porque o corpo nunca toca na indentação.
+          {
+            printf '%s\n' "Aberto automaticamente pelo workflow \`Version Sync\` na tag \`${{ github.ref_name }}\`."
+            printf '%s\n' ""
+            printf '%s\n' "Alinha os cinco ficheiros de versao com a tag publicada:"
+            printf '%s\n' "\`tools/router/version.json\` · \`landing/app/version.json\` ·"
+            printf '%s\n' "\`packages/mooter-bridge/version.json\` · \`packages/mooter-bridge/manifest.json\` ·"
+            printf '%s\n' "\`plugin/mooter/.claude-plugin/plugin.json\`."
+            printf '%s\n' ""
+            printf '%s\n' "O \`manifest.json\` e o que da o nome e o rotulo ao \`.mcpb\` que o utilizador"
+            printf '%s\n' "instala — sem este merge, a release publica um bundle rotulado com a versao anterior."
+          } > "${RUNNER_TEMP}/pr-body.md"
+
           gh pr create \
             --base main \
             --head "${BRANCH}" \
             --title "chore(release): sync version.json → ${{ steps.ver.outputs.version }}" \
-            --body "Aberto automaticamente pelo workflow \`Version Sync\` na tag \`${{ github.ref_name }}\`.
-
-Alinha os cinco ficheiros de versao com a tag publicada:
-\`tools/router/version.json\` · \`landing/app/version.json\` ·
-\`packages/mooter-bridge/version.json\` · \`packages/mooter-bridge/manifest.json\` ·
-\`plugin/mooter/.claude-plugin/plugin.json\`.
-
-O \`manifest.json\` e o que da o nome e o rotulo ao \`.mcpb\` que o utilizador
-instala — sem este merge, a release publica um bundle rotulado com a versao anterior." \
+            --body-file "${RUNNER_TEMP}/pr-body.md" \
             || echo "PR ja existe para ${BRANCH} — nada a abrir."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
