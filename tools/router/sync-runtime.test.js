@@ -191,7 +191,7 @@ test('JSON_NUNCA ganha a JSON_SEMPRE se alguém puser o mesmo nome nos dois', ()
 
 // ── só o que o git distribui ─────────────────────────────────────────────
 //
-// Defeito meu, apanhado na primeira corrida a partir de `~/frugal` — um
+// Defeito meu, apanhado na primeira corrida a partir do checkout principal — um
 // checkout DE TRABALHO, ao contrário do worktree limpo onde os testes acima
 // correm. Sem o filtro, o espelho arrastava `coverage/lcov-report/*.js` e 12
 // `.json` de estado local, entre eles o `router-tuning.json` que o backtest
