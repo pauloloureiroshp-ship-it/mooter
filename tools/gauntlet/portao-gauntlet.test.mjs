@@ -244,3 +244,57 @@ test('REGISTO · nenhuma declaração real do repo passa hoje — e é o ponto',
   assert.equal(v.estado, ESTADO.FALHA,
     'uma INSTRUÇÃO para correr o gauntlet não é uma DECLARAÇÃO de o ter corrido');
 });
+
+// ── o portão nasceu cego a 11 declarações reais ──────────────────────────
+//
+// Medido a 2026-09-01, no registo real (repo + vault): 16 linhas com o regex
+// original (`^\s*gauntlet\s*:`), **27** tolerando prefixos markdown. Onze
+// declarações genuínas eram invisíveis — escritas dentro de crases, porque o
+// formato é apresentado assim no MEO_GAUNTLET.md e foi copiado com elas.
+//
+// O portão respondia «não há declarações» quando a resposta certa era «não sei
+// ler as que há». É a G11 virada contra o instrumento. Apanhado por um motor
+// diferente do autor — a G4 a funcionar.
+
+test('MORDIDA · uma declaração dentro de crases É uma declaração', () => {
+  const d = extrairDeclaracao('`gauntlet: [trivial]`');
+  assert.equal(d.presente, true, 'o portão continua cego a crases');
+  assert.equal(d.classe, 'trivial');
+});
+
+test('a crase de fecho não entra no corpo', () => {
+  // Sem isto, `G4 em codex` lido de dentro de crases traria a crase no motor.
+  const d = extrairDeclaracao('`gauntlet: [alto risco] · G4 em codex`');
+  assert.equal(d.g4_motor, 'codex', `motor lido: ${JSON.stringify(d.g4_motor)}`);
+});
+
+test('bullets e citações também contam — é assim que as pessoas escrevem', () => {
+  for (const prefixo of ['- ', '  - ', '> ', '* ', '  ']) {
+    const d = extrairDeclaracao(`${prefixo}gauntlet: [rotina] · G1 · G3 · G7`);
+    assert.equal(d.presente, true, `prefixo ${JSON.stringify(prefixo)} não reconhecido`);
+    assert.equal(d.classe, 'rotina');
+  }
+});
+
+test('as declarações reais do registo são agora vistas — as 4 que eu perdia', () => {
+  // Amostras verbatim do registo, com as crases que lá estão.
+  const reais = [
+    '`gauntlet: alto-risco · wrapper de orquestração · G4 CORRIDO (job-x)`',
+    '`gauntlet: auditoria pedida pelo dono · autor≠crítico por construção`',
+    '`gauntlet: MODO CONSTRUÇÃO · 88/88 · mutação 6/6 vermelhas`',
+  ];
+  for (const l of reais) {
+    assert.equal(extrairDeclaracao(l).presente, true, `não vê: ${l}`);
+  }
+  // «alto-risco» com hífen tem de normalizar para a classe da régua.
+  assert.equal(extrairDeclaracao(reais[0]).classe, 'alto risco');
+});
+
+test('ver uma declaração não é aprová-la — as reais continuam a reprovar', () => {
+  // O ponto: passar a VER não pode virar passar a ACEITAR. Estas três são
+  // declarações a sério, mas nenhuma trata as 18 — reprovam pelo motivo certo.
+  const v = avaliar('`gauntlet: alto-risco · wrapper de orquestração · G4 CORRIDO (job-x)`',
+    { gauntlet: fake() });
+  assert.equal(v.estado, ESTADO.FALHA);
+  assert.ok(v.em_falta.length > 10, `em_falta=${v.em_falta.length}`);
+});
