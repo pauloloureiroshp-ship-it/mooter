@@ -19,6 +19,9 @@ on:
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
+      - 'tools/handoff-preflight*'
+      - 'AGENTS.md'
+      - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
@@ -46,6 +49,9 @@ on:
       # deixou de acordar para os dados que a suite le.
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
+      - 'tools/handoff-preflight*'
+      - 'AGENTS.md'
+      - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
@@ -130,6 +136,19 @@ jobs:
       # gesto do dono, nao do agente que o escreveu.
       - name: Portao do gauntlet (estagio 2)
         run: npm run test:gauntlet
+
+      # O irmao do portao acima, e o mesmo defeito noutro sitio.
+      # `tools/handoff-preflight.js` valida a seccao "Pre-Dispatch Red-Team
+      # Gate" do AGENTS.md — exige exactamente 8 perguntas, numeradas 1..8,
+      # sem duplicados, e com a regra anti-sycophancy presente (linhas ~198-203).
+      # Medido a 2026-09-01: NENHUM workflow o invocava. O validador existia,
+      # passava, e so corria quando alguem se lembrava de o correr a mao —
+      # que e a definicao do estagio 1 que o MEO_GAUNTLET.md descreve.
+      # Ambos passam hoje (32/32 e rc=0), por isso ligar nao parte nada.
+      - name: Preflight do handoff (as 8 do red-team gate)
+        run: npm run test:handoff-preflight
+      - name: Spec do handoff sem drift
+        run: npm run handoff:preflight:check
 
       # O guarda do ~/.mooter tem de ser mordido antes de se confiar nele: um
       # guarda que nunca falhou e indistinguivel de um guarda que nao funciona.
