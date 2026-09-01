@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai.mooter.router-suite.plist — a suite completa do router, de madrugada, a $0.
+
+  ⚠️ ISTO E UM MOLDE, NAO UM PLIST INSTALAVEL. Os `__ASSIM__` sao absolutos e
+  por-maquina: um plist commitado com `/Users/<alguem>/` funciona no computador
+  de quem o escreveu e falha em SILENCIO em todos os outros.
+
+  PORQUE DE MADRUGADA E NAO NUM PORTAO.
+
+  Medido a 2026-09-01: a suite corre em 4,3 s — quando corre. Ela PENDURA 3 em 5
+  vezes, e o culpado esta isolado em `tools/verify/render_medir.test.js` (ver
+  `docs/SUITE-DO-ROUTER.md`). Uma suite que pendura a maior parte das vezes nao
+  pode estar num portao: bloquearia o trabalho por um defeito do proprio
+  instrumento. Num agendamento nocturno, uma corrida perdida custa uma noite e
+  nao custa uma decisao — e o `--tecto` mata ao fim de 300 s em vez de deixar um
+  processo vivo (havia um com 2 h 11 m quando isto foi medido).
+
+  O portao de todos os dias e o `npm run test:router:quick`: 442 testes, 2,8 s,
+  e SEM o ficheiro que pendura.
+
+  $0 declarado e nao presumido: a suite injecta todo o I/O, nao faz chamadas de
+  rede e nao toca em motor pago nenhum. Ver `docs/SUITE-DO-ROUTER.md` § o que a
+  CI mocka.
+
+  `StartCalendarInterval` as 04:00 — antes do snapshot do Ledger (06:00), para
+  que uma suite vermelha ja esteja no log quando o dono se levanta.
+  SEM `RunAtLoad`: um reboot nao e uma noite. SEM `KeepAlive`: acaba.
+
+  NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    sed -e "s|__NODE__|$(command -v node)|" \
+        -e "s|__SUITE__|$HOME/frugal/tools/router/correr-suite.mjs|" \
+        -e "s|__REPO__|$HOME/frugal|" \
+        -e "s|__LOG__|$HOME/.mooter/router-suite.log|" \
+        tools/ops/moo/launchd/ai.mooter.router-suite.plist \
+        > ~/Library/LaunchAgents/ai.mooter.router-suite.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.router-suite.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ai.mooter.router-suite</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__SUITE__</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>4</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key><string>__LOG__</string>
+  <key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>

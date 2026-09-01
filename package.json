@@ -57,7 +57,9 @@
     "enrich": "node tools/cockpit/runner/enrich.mjs",
     "replay:50": "node tools/cockpit/runner/replay-sample.mjs",
     "score:sombra": "node tools/cockpit/runner/score-sombra.mjs",
-    "watchdog": "node tools/cockpit/runner/watchdog.mjs"
+    "watchdog": "node tools/cockpit/runner/watchdog.mjs",
+    "test:router:quick": "node tools/router/correr-suite.mjs --quick",
+    "test:router:full": "node tools/router/correr-suite.mjs"
   },
   "engines": {
     "node": ">=22"
