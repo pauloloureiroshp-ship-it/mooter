@@ -16,7 +16,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const { ciEPrs, TIMEOUT_MS, CORRIDAS } = await import('./ci-prs.mjs');
+const {
+  ciEPrs, TIMEOUT_MS, CORRIDAS,
+  ciEPrsCacheado, limparCache, espreitarCache, CACHE_TTL_MS,
+} = await import('./ci-prs.mjs');
 const { resolverBin, caminhosHabituais, redigirCasa } = await import('./gh-bin.mjs');
 
 /**
@@ -275,11 +278,93 @@ test('o timeout e curto — isto corre num launchd diario', () => {
 
 test('o snapshot leva o campo e a casca le-o', () => {
   const build = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'build-ledger-snapshot.mjs'), 'utf8');
-  assert.match(build, /ci_prs: ciPrsImpl\(\)/);
+  assert.match(build, /ci_prs: ciPrsImpl\(\{ agora: now \}\)/);
   const casca = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'moo-ledger-shell.html'), 'utf8');
   assert.match(casca, /S\.ci_prs/);
   assert.doesNotMatch(casca, /Not measured by this build/,
     'a seccao ainda declara que nunca perguntou');
   assert.match(casca, /An empty slot beats an invented one/,
     'o caminho de n/d tem de continuar la, para quando o gh falhar');
+});
+
+// ── a cache de 60 s (C1.1) ──────────────────────────────────────────────────
+//
+// O que estes testes defendem nao e "ser rapido": e que a rapidez nao custou
+// verdade. Um bloco cacheado que se apresente como medicao de agora seria pior
+// do que os 2368 ms que a cache poupa.
+
+test('a segunda leitura dentro do TTL nao volta a chamar o gh', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: true, prs_abertos: 7 }; };
+  const a = ciEPrsCacheado({ agora: 1_000_000, impl });
+  const b = ciEPrsCacheado({ agora: 1_000_000 + 59_000, impl });
+  assert.equal(chamadas, 1, 'perguntou duas vezes dentro do TTL');
+  assert.equal(a.prs_abertos, 7);
+  assert.equal(b.prs_abertos, 7);
+});
+
+test('passado o TTL volta a perguntar', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: true, prs_abertos: chamadas }; };
+  ciEPrsCacheado({ agora: 0, impl });
+  const b = ciEPrsCacheado({ agora: CACHE_TTL_MS, impl });
+  assert.equal(chamadas, 2);
+  assert.equal(b.prs_abertos, 2, 'serviu o valor velho depois de o TTL expirar');
+});
+
+test('a IDADE viaja com o numero — e e a idade real, nao zero', () => {
+  limparCache();
+  const impl = () => ({ disponivel: true, prs_abertos: 3 });
+  const a = ciEPrsCacheado({ agora: 1_000_000, impl });
+  assert.equal(a.idade_s, 0);
+  assert.equal(a.medido_em, new Date(1_000_000).toISOString());
+  const b = ciEPrsCacheado({ agora: 1_000_000 + 41_000, impl });
+  assert.equal(b.idade_s, 41, 'serviu um numero de ha 41 s a dizer que era de agora');
+  assert.equal(b.medido_em, a.medido_em, 'a marca temporal e a da MEDICAO, nao a da leitura');
+  assert.equal(b.cache_ttl_s, 60);
+});
+
+test('o `n/d` tambem se guarda — perguntar e falhar tambem e uma medicao', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: false, porque: 'n/d — sem sessao' }; };
+  ciEPrsCacheado({ agora: 5_000, impl });
+  const b = ciEPrsCacheado({ agora: 20_000, impl });
+  assert.equal(chamadas, 1);
+  assert.equal(b.disponivel, false);
+  assert.equal(b.idade_s, 15, 'o n/d cacheado tem de dizer a idade como qualquer outro');
+});
+
+test('um relogio que anda para tras nao serve um bloco do futuro', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: true, prs_abertos: chamadas }; };
+  ciEPrsCacheado({ agora: 1_000_000, impl });
+  const b = ciEPrsCacheado({ agora: 900_000, impl });
+  assert.equal(chamadas, 2, 'com o relogio para tras a cache ficava presa ate ao futuro');
+  assert.equal(b.idade_s, 0);
+});
+
+test('limparCache limpa mesmo — os testes nao herdam estado uns dos outros', () => {
+  limparCache();
+  ciEPrsCacheado({ agora: 1, impl: () => ({ disponivel: true }) });
+  assert.ok(espreitarCache());
+  limparCache();
+  assert.equal(espreitarCache(), null);
+});
+
+test('a casca mostra a idade nos DOIS caminhos — com dados e em n/d', () => {
+  const casca = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'moo-ledger-shell.html'), 'utf8');
+  assert.match(casca, /c\.idade_s/, 'a casca nunca le a idade');
+  const seccao = casca.slice(casca.indexOf('CI &amp; pull requests'));
+  const corpo = seccao.slice(0, seccao.indexOf('chapter VIII'));
+  const usos = (corpo.match(/\$\{idade\}/g) || []).length;
+  assert.ok(usos >= 2, `a idade so aparece ${usos}x — o caminho de n/d ou o de dados ficou sem ela`);
+});
+
+test('o snapshot importa a versao cacheada, nao a crua', () => {
+  const build = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'build-ledger-snapshot.mjs'), 'utf8');
+  assert.match(build, /import \{ ciEPrsCacheado \} from '\.\/ci-prs\.mjs'/);
 });

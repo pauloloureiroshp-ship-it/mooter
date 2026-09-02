@@ -912,9 +912,19 @@ function renderField(){
          "nao consegui perguntar" e outro, e confundi-los seria pior do que a
          seccao vazia que isto substitui. */
       const c = S.ci_prs;
+      /* A IDADE DO BLOCO, sempre — inclusive no `n/d`.
+         As duas chamadas ao `gh` sao rede e custavam 2368 ms dos 3468 ms de
+         cada `/ledger` (medido 2026-09-02). Passaram a ter cache de 60 s, e a
+         unica coisa que torna uma cache honesta e ela DIZER a idade: um numero
+         de ha 41 s apresentado como «agora» seria a primeira mentira desta
+         pagina. Quando o campo nao existe (payload de uma build anterior a
+         cache) diz-se `n/d`, nunca «agora». */
+      const idade = c && c.idade_s != null
+        ? `measured ${c.idade_s === 0 ? 'just now' : c.idade_s + 's ago'} · cached for up to ${c.cache_ttl_s != null ? c.cache_ttl_s : '?'}s`
+        : 'age <span class="nd">n/d</span> — this payload predates the cache';
       if (!c || !c.disponivel){
         return `<p class="note">${esc((c && c.porque) || 'n/d — this build did not ask')}. ` +
-          `An empty slot beats an invented one.</p>`;
+          `An empty slot beats an invented one.<br><span class="nd">${idade}</span></p>`;
       }
       const e = c.prs_por_estado || {};
       const ci = c.ci || {};
@@ -924,7 +934,8 @@ function renderField(){
         + linha('CI, last runs',
           ci.janela ? `${fmt(ci.verdes)} of ${fmt(ci.janela)} green` : 'n/d',
           ci.janela ? 'completed runs only — a run still going has no verdict yet'
-                    : esc(ci.porque || 'n/d'));
+                    : esc(ci.porque || 'n/d'))
+        + `<p class="note"><span class="nd">${idade}</span></p>`;
     })()}`;
 }
 

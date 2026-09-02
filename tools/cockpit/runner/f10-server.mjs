@@ -52,6 +52,7 @@ import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
 import { renderLedgerHtml, versaoInstalada } from './build-ledger-snapshot.mjs';
+import { ciEPrsCacheado } from './ci-prs.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -1005,5 +1006,23 @@ if (invokedDirectly) {
     if (bind.estado === 'exposto') {
       process.stdout.write('     esta porta responde fora desta maquina. Fecha o F10 e confirma o HOST.\n');
     }
+    /**
+     * AQUECER A CACHE DO `gh`, e so aqui.
+     *
+     * A cache de 60 s poe a mediana de `/ledger` em 0,42 s (medido, 5 GETs).
+     * Mas o PRIMEIRO pedido depois de arrancar continuava a pagar os 2368 ms
+     * inteiros — e o primeiro pedido e, por definicao, aquele em que o dono
+     * esta a olhar. Aquecer aqui gasta o mesmo tempo numa altura em que
+     * ninguem espera.
+     *
+     * `unref` e o ponto: um timer que impeca o processo de morrer transforma
+     * uma optimizacao de conforto num F10 que nao fecha. E `catch` vazio
+     * porque isto e aquecimento — se o `gh` falhar, falha outra vez no pedido
+     * real, e ai a resposta ja tem quem a leia.
+     */
+    const aquecer = setTimeout(() => {
+      try { ciEPrsCacheado(); } catch { /* aquecimento nunca derruba o F10 */ }
+    }, 250);
+    try { aquecer.unref(); } catch { /* ambiente sem unref */ }
   });
 }
