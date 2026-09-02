@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   holdout, bracoMooter, bracoSemRouter, bracoLlm,
-  contabilizar, custoEquivalente, imprimir, correr, correrVarias,
+  contabilizar, custoEquivalente, imprimir, correr, correrVarias, mcnemar,
 } from './mooter-vs-sem.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
@@ -119,6 +119,82 @@ test('contabilizar(): a precisão limpa exclui as co-autoradas, e as duas são p
     'quantas acertou nas contaminadas — é este número que denuncia o favorecimento');
   assert.ok(c.precisao_limpa < c.precisao_total,
     'neste caso construído a suja favorece, tal como favorecia na medição real (10/10)');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1b · DERIVA ≠ PRECISÃO — a correcção que matou a «fraqueza historical 68%»
+// ═══════════════════════════════════════════════════════════════════════════
+
+test('holdout(): carrega o `trust` que o próprio dataset declara', () => {
+  const h = holdout();
+  const v = JSON.parse(fs.readFileSync(path.join(RAIZ, 'tools', 'router', 'validation-set.json'), 'utf8'));
+
+  // A verdade vem da fonte. O `_description` do ficheiro é explícito: canonical
+  // e adversarial são ground truth; historical é «assumed-correct baseline for
+  // drift detection» — rotulada pela saída do PRÓPRIO classificador.
+  const esperado = {};
+  for (const sec of ['canonical', 'adversarial', 'historical']) {
+    for (const a of v[sec] || []) esperado[a.trust] = (esperado[a.trust] || 0) + 1;
+  }
+  const obtido = {};
+  for (const a of h) obtido[a.trust] = (obtido[a.trust] || 0) + 1;
+  assert.deepEqual(obtido, esperado, 'o trust tem de sobreviver do dataset até à amostra');
+  assert.ok((obtido.ground_truth || 0) > 0 && (obtido.assumed_correct || 0) > 0,
+    'se um dos dois desaparecer, a separação deixa de ter o que separar');
+});
+
+test('a precisão publicada NÃO inclui rótulos que o classificador escreveu', () => {
+  // Foi assim que nasceu a «fraqueza historical 68%»: 25 amostras cujo
+  // `expected_tier` É a saída do classify.js foram metidas na média com o
+  // ground truth. Comparar o classificador consigo mesmo não mede precisão —
+  // mede se ele mudou de ideias, que é útil e é outra coisa.
+  const c = contabilizar({ braco: 'x', linhas: [
+    { id: 'a', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'ground_truth' },
+    { id: 'b', esperado: 'T3', obtido: 'T0', ms: 1, trust: 'ground_truth' },
+    // as três de deriva estão TODAS certas — se entrassem na média, subiam-na
+    { id: 'c', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'assumed_correct' },
+    { id: 'd', esperado: 'T1', obtido: 'T1', ms: 1, trust: 'assumed_correct' },
+    { id: 'e', esperado: 'T2', obtido: 'T2', ms: 1, trust: 'assumed_correct' },
+  ] });
+
+  assert.equal(c.n_ground_truth, 2, 'só as duas de ground truth contam para a precisão');
+  assert.equal(c.precisao_ground_truth, 1 / 2);
+  assert.notEqual(c.precisao_ground_truth, c.precisao_total,
+    'construí este caso para que misturar mudasse o número — se forem iguais, não separou');
+  assert.equal(c.deriva_n, 3);
+  assert.equal(c.deriva_concordancia, 1, 'a deriva reporta-se à parte, e aqui é total');
+});
+
+test('a deriva declara quantas amostras guardam um PREVIEW em vez do prompt', () => {
+  // `inject_context.js:1017` grava `prompt_preview: prompt.slice(0, 80)` — o
+  // campo diz no nome que é um preview. Quem construiu a secção historical usou
+  // esse campo como se fosse o prompt. Medido a 2026-09-01: nas truncadas o
+  // Mooter faz 2/10; nas inteiras, 15/15. A «fraqueza» era isto.
+  const c = contabilizar({ braco: 'x', linhas: [
+    { id: 'a', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'assumed_correct', preview_truncado: true },
+    { id: 'b', esperado: 'T0', obtido: 'T0', ms: 1, trust: 'assumed_correct', preview_truncado: false },
+  ] });
+  assert.equal(c.deriva_com_preview_truncado, 1,
+    'enquanto isto não for zero, a deriva mede-se contra um texto que não é o que produziu o rótulo');
+});
+
+test('nos dados reais, a truncagem explica a falha — e a marca vê-a', () => {
+  const h = holdout();
+  const hist = h.filter((a) => a.trust === 'assumed_correct');
+  assert.ok(hist.length > 0, 'sem amostras de deriva este teste não mediu nada');
+
+  const r = bracoMooter(hist);
+  const grupo = (f) => { const L = r.linhas.filter(f); return { n: L.length, ok: L.filter((l) => l.obtido === l.esperado).length }; };
+  const trunc = grupo((l) => l.preview_truncado);
+  const inteiras = grupo((l) => !l.preview_truncado);
+
+  assert.ok(trunc.n > 0 && inteiras.n > 0, 'preciso dos dois grupos para comparar');
+  // A afirmação forte: a concordância nas inteiras é MUITO maior. Se um dia
+  // deixar de ser, ou o dataset foi reparado (bom) ou o classificador
+  // regrediu (mau) — e nos dois casos alguém tem de olhar.
+  assert.ok(inteiras.ok / inteiras.n > trunc.ok / trunc.n,
+    `concordância nas inteiras (${inteiras.ok}/${inteiras.n}) tinha de ser maior que nas ` +
+    `truncadas (${trunc.ok}/${trunc.n}) — é o que sustenta dizer que a «fraqueza» é do dataset`);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -321,6 +397,129 @@ test('correrVarias(): um braço que VARIA não pode ser declarado idêntico', as
     'um juiz que responde diferente na 2.ª corrida TEM de ser reportado como não idêntico');
   assert.ok(llm.precisao_limpa_max > llm.precisao_limpa_min,
     'e a faixa tem de mostrar a variação, senão a bandeira sozinha não prova nada');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5b · A DIFERENÇA AGUENTA-SE? — o teste que faltava a todas as versões
+// ═══════════════════════════════════════════════════════════════════════════
+
+const par = (id, certo) => ({ id, esperado: 'T2', obtido: certo ? 'T2' : 'T0', ms: 1, trust: 'ground_truth' });
+
+test('mcnemar(): conta só os discordantes — onde os dois concordam não há informação', () => {
+  // 10 pares: em 8 os dois acertam, em 2 só o B acerta. Só os 2 contam.
+  const A = [], B = [];
+  for (let i = 0; i < 8; i++) { A.push(par('c' + i, true)); B.push(par('c' + i, true)); }
+  for (let i = 0; i < 2; i++) { A.push(par('d' + i, false)); B.push(par('d' + i, true)); }
+  const m = mcnemar(A, B);
+  assert.equal(m.n_pares, 10);
+  assert.equal(m.discordantes, 2, 'os 8 concordantes não podem inflacionar o n do teste');
+  assert.equal(m.so_b, 2);
+  assert.equal(m.so_a, 0);
+});
+
+test('mcnemar(): 2 discordantes a 0 NÃO chegam para afirmar diferença', () => {
+  // Controlo derivado à mão, não copiado do instrumento: com n=2 e k=0, a
+  // binomial bicaudal dá 2·(1/4) = 0,5. Muito acima de 0,05.
+  const A = [par('d0', false), par('d1', false)];
+  const B = [par('d0', true), par('d1', true)];
+  const m = mcnemar(A, B);
+  assert.equal(m.p, 0.5, 'p tem de ser exactamente 0,5 — derivado, não medido');
+  assert.equal(m.significativo, false);
+});
+
+test('mcnemar(): 20 discordantes a 0 chegam — e por larga margem', () => {
+  const A = [], B = [];
+  for (let i = 0; i < 20; i++) { A.push(par('d' + i, false)); B.push(par('d' + i, true)); }
+  const m = mcnemar(A, B);
+  assert.ok(m.p < 0.0001, `p=${m.p} tinha de ser minúsculo com 20 a 0`);
+  assert.equal(m.significativo, true);
+});
+
+test('mcnemar(): sem discordantes é n/d, NUNCA «não significativo»', () => {
+  // Dois braços que acertam e erram exactamente nos mesmos sítios não dão
+  // informação nenhuma. Chamar a isso «não significativo» seria afirmar que se
+  // testou e não deu — quando não se testou nada.
+  const A = [par('a', true), par('b', false)];
+  const B = [par('a', true), par('b', false)];
+  const m = mcnemar(A, B);
+  assert.equal(m.discordantes, 0);
+  assert.equal(m.significativo, null, 'sem discordantes não há veredicto a dar');
+});
+
+test('mcnemar(): é simétrico na magnitude e nomeia quem ganha', () => {
+  const A = [par('x', true), par('y', false), par('z', false)];
+  const B = [par('x', false), par('y', true), par('z', true)];
+  const ab = mcnemar(A, B), ba = mcnemar(B, A);
+  assert.equal(ab.p, ba.p, 'o p não depende da ordem dos argumentos');
+  assert.equal(ab.so_a, ba.so_b, 'mas quem ganha cada discordante, sim');
+  assert.equal(ab.so_b, 2);
+});
+
+test('nos dados reais: vs SEM ROUTER aguenta-se; vs router-por-LLM não', async () => {
+  // A afirmação central desta sessão, ancorada no motor e não numa nota.
+  // Se um dia isto mudar, ou o dataset cresceu (bom) ou algo regrediu (mau).
+  const j = juizFixo('T3');
+  const r = await correrVarias({ holdout: true, callImpl: j }, 1);
+  assert.ok(Array.isArray(r.significancia) && r.significancia.length >= 1,
+    'o resumo tem de trazer a significância, senão volta-se a publicar diferenças cruas');
+
+  const semRouter = r.significancia.find((x) => /SEM ROUTER/i.test(x.contra));
+  assert.ok(semRouter, 'preciso do braço de controlo para a comparação que interessa');
+  assert.equal(semRouter.significativo, true,
+    `Mooter vs sem router tinha de ser distinguível de ruído (p=${semRouter.p}) — ` +
+    'é esta a alegação que o produto faz, e é a única que está provada');
+  assert.ok(semRouter.so_b > semRouter.so_a,
+    'e a diferença tem de ser A FAVOR do Mooter, não só grande');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5c · AUDITÁVEL PARA UM ESTRANHO — os dois defeitos que matavam a palavra
+// ═══════════════════════════════════════════════════════════════════════════
+
+test('um braço que NÃO correu vale n/d — nunca 0%', async () => {
+  // Sem Ollama (o estado por omissão de qualquer estranho) todas as chamadas
+  // falhavam, o braço marcava 0,0% e o Mooter «ganhava» 100 a 0. Um banco de
+  // ensaio que FABRICA uma vitória quando falta uma dependência dá a resposta
+  // que se quer ouvir precisamente a quem não a pode verificar.
+  const morto = async () => { throw new Error('connect ECONNREFUSED'); };
+  const r = await bracoLlm([am('a', 'T0', 'p'), am('b', 'T1', 'q')],
+    { modelo: 'ausente', callImpl: morto });
+
+  assert.equal(r.nao_correu, true, 'o braço tem de saber que não correu');
+  assert.match(r.nao_correu_porque, /nenhuma das 2 chamadas respondeu/);
+
+  const c = contabilizar(r);
+  assert.equal(c.precisao_total, null, '0% seria perder por incomparecimento');
+  assert.equal(c.precisao_ground_truth, null);
+  assert.equal(c.precisao_respondidas, null);
+  const comCusto = { ...c, custo: custoEquivalente(c, { PRICES: null }) };
+  assert.ok(imprimir([comCusto], { n: 2, total_gold: 2, dataset: 'x' }).includes('NÃO CORRERAM'),
+    'e o relatório tem de o gritar, não escondê-lo numa célula a zero');
+});
+
+test('um braço com UMA resposta já correu — o corte é «nenhuma», não «poucas»', async () => {
+  let n = 0;
+  const quase = async () => (n++ === 0 ? { text: 'T0', tokensIn: 1, tokensOut: 1 } : null);
+  const r = await bracoLlm([am('a', 'T0', 'p'), am('b', 'T1', 'q'), am('c', 'T2', 'r')],
+    { modelo: 'x', callImpl: quase });
+  assert.equal(r.nao_correu, false, 'uma resposta é uma medição parcial, não uma ausência');
+  assert.equal(contabilizar(r).sem_resposta, 2, 'e as que faltaram contam-se à parte');
+});
+
+test('o comando de reprodução imprime o MESMO número que se publica', async () => {
+  // `--corridas N` imprimia a mediana de `precisao_limpa` (81,7%) — o valor
+  // ANTERIOR à correcção do gabarito — enquanto a peça publicava
+  // `precisao_ground_truth` (91,4%). Um estranho que corresse o comando via
+  // números que não batiam com nada. É a diferença entre auditável e não.
+  const j = juizFixo('T3');
+  const r = await correrVarias({ holdout: true, callImpl: j }, 1);
+  const c = await correr({ holdout: true, callImpl: j });
+
+  for (const b of r.resumo) {
+    const único = c.resultados.find((x) => x.braco === b.braco);
+    assert.equal(b.precisao_limpa_mediana, único.precisao_ground_truth,
+      `o resumo de ${b.braco} tem de reportar o ground truth — é esse o número publicado`);
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

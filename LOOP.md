@@ -20,6 +20,78 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-01-o-instrumento-errava-cinco-vezes-e-so-a-quinta-nos-favorecia
+
+**Contexto:** o dono pediu um A/B «Mooter vs sem Mooter». Não existia nenhum.
+Construí-o, publiquei números, e depois pus agentes adversariais a tentar
+derrubá-los. Derrubaram **cinco vezes**.
+
+| # | alegação publicada | o que estava errado | efeito |
+|---|---|---|---|
+| 1 | 84,3% | 10 rótulos escritos no MESMO commit que afinou o `classify.js` | 84,3 → 81,7 |
+| 2 | «+36 pts» nas adversariais | o juiz não recebia as convenções privadas do repo | +36 → +12 |
+| 3 | «só o nosso é reprodutível» | corríamos o adversário a `temperature 0.2` por omissão NOSSA | retirada |
+| 4 | «fraqueza historical 68%» | rótulo = saída do próprio classificador; texto = preview de 80 chars | 81,7 → 91,4 |
+| 5 | «+8,5 pontos» | nunca testámos se a diferença existia | p=0,45 · retirada |
+
+**O padrão, que é o que interessa:** as quatro primeiras foram encontradas por
+auditoria adversarial, nunca por leitura. A quinta encontrei-a eu, mas só porque
+a auditoria me tinha ensinado a procurar. **Nenhuma foi apanhada por um teste** —
+todos passavam a verde em todas as versões.
+
+**E o sinal de que não é raciocínio motivado:** três das cinco baixaram o número.
+A quarta subiu-o, e por isso remedi o adversário no mesmo corte antes de publicar
+— ele subiu mais, e a vantagem encolheu de +10,0 para +8,5. Uma correcção que
+sobe o absoluto e baixa o relativo é o mais perto que consigo estar de saber que
+estou a corrigir e não a arranjar.
+
+**Duas classes novas, que valem para além deste ensaio:**
+
+1. **Um número cuja única fonte é a mensagem de um commit não é auditável.** A
+   peça dizia «mediana de 6 corridas» e o repositório guardava uma.
+2. **Um banco de ensaio sem a sua dependência FABRICA a vitória que se quer.**
+   Sem Ollama, o adversário marcava 0,0% em silêncio com exit 0, e o Mooter
+   «ganhava» 100 a 0 — precisamente a quem não tinha como verificar.
+
+**A SEXTA — e eu refutei-a antes de a confirmar.** Um agente afirmou que o
+holdout fora afinado pelo `patterns.js`, que o `classify.js` FROZEN importa e que
+não tinha sha nenhum. Medi, dei 91,4/94,3/94,3, e escrevi em commit, no `SYNC.md`
+e no `MEMORY.md` que «não se reproduz».
+
+**Não fui suficientemente atrás.** Testei revertendo a `~1` de quatro commits, e o
+mais antigo desses pontos já continha o `9530efae` — exactamente onde está o
+salto. Testei a janela errada e declarei refutado o que estava certo.
+
+A escada completa (`classify.js` byte-a-byte no estado congelado, só o
+`patterns.js` a variar, mesmos 35 rótulos):
+
+| `patterns.js` | nota | o que o commit diz de si |
+|---|---|---|
+| `b13262a1` 04-12 | **82,9%** | último antes dos rótulos |
+| `caf8a67d` 04-15 22:29 | — | **nascem os rótulos** |
+| `5e50cbb0` 04-15 22:46 | 85,7% | «three classifier safety fixes **found by validation-set**» |
+| `9530efae` 04-16 | **94,3%** | «Adversarial accuracy: 80% → 92%» |
+| `b57efa9e` 04-18 | 91,4% | «gaps **caught by adversarial probe**» |
+| HEAD | 91,4% | o número que publiquei |
+
+Dezassete minutos depois dos rótulos, um commit acrescenta
+`/\bmerg(ea|ear|eia)\b/i` com o comentário `// "mergea na main"` — texto **literal**
+de `adversarial-17`. **O holdout não era holdout: era o sinal de treino.**
+
+**O que sobra:** a alegação «melhor do que não ter router» aguenta nos dois
+extremos (82,9% → p=0,0015; 91,4% → p<0,0001). Contra o router-por-LLM é empate
+literal, 29/35 contra 29/35. O 91,4% passa a ser dito como score de **treino**.
+
+**Duas classes, e a segunda é sobre mim:**
+
+1. **Congelar um ficheiro que delega o que interessa a outro não congelado é um
+   invariante de papel.** 20 pontos de comportamento sem o sha mexer um bit.
+   Fechado: `patterns.js.sha256` + passo no CI.
+2. **Um contrafactual que não vai suficientemente atrás refuta o que está certo.**
+   A janela tem de começar *antes de os rótulos existirem* — não num ponto
+   qualquer do histórico que me pareça antigo. Refutar mal é pior do que não
+   refutar: dá confiança onde não há.
+
 ### 2026-08-25-a-forma-comparar-tambem-falha-e-o-sinal-esta-invertido
 
 **REFINES:** `2026-08-25-o-juiz-ancorado-medido-contra-verdade-conhecida-52-6-por-cento`

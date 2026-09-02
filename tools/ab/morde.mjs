@@ -52,8 +52,8 @@ const DEFEITOS = [
       coautorada: !!a.coautorada,`,
     para: '      tokens_in: 0, tokens_out: 0, // DEFEITO: marca perdida' },
 
-  { nome: 'o braço do LLM deixa de propagar a marca',
-    de: 'tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada });',
+  { nome: 'o braço do LLM deixa de propagar as marcas',
+    de: 'tokens_in: ti, tokens_out: to, coautorada: !!a.coautorada, trust: a.trust || null, preview_truncado: !!a.preview_truncado });',
     para: 'tokens_in: ti, tokens_out: to }); // DEFEITO' },
 
   { nome: 'o adversário volta a correr a temperature 0.2 (a variância falsa)',
@@ -97,6 +97,49 @@ const DEFEITOS = [
   { nome: 'a bandeira --corridas desaparece do CLI',
     de: "  const iC = argv.indexOf('--corridas');",
     para: '  const iC = -1; // DEFEITO' },
+
+  // ── a separacao deriva/precisao (a «fraqueza historical 68%») ──────────
+  { nome: 'o `trust` deixa de sair do dataset (deriva volta a misturar-se)',
+    de: '        trust: a.trust || null,\n        // E o prompt guardado nao e o prompt',
+    para: '        trust: null, // DEFEITO\n        // E o prompt guardado nao e o prompt' },
+
+  { nome: 'a precisao volta a incluir rotulos escritos pelo classificador',
+    de: "  const gt = r.linhas.filter((l) => l.trust === 'ground_truth' && !l.coautorada);",
+    para: '  const gt = r.linhas.filter((l) => !l.coautorada); // DEFEITO' },
+
+  { nome: 'a deriva deixa de declarar quantas guardam preview truncado',
+    de: '  const drTrunc = dr.filter((l) => l.preview_truncado);',
+    para: '  const drTrunc = []; // DEFEITO' },
+
+  { nome: 'a marca de preview truncado deixa de ser calculada',
+    de: "        preview_truncado: String(a.prompt || '').length >= 79,",
+    para: '        preview_truncado: false, // DEFEITO' },
+
+  // ── a significancia (McNemar) ──────────────────────────────────────────
+  { nome: 'o McNemar conta os concordantes (inflaciona o n e fabrica significancia)',
+    de: '    if (a && !b) soA++;\n    if (!a && b) soB++;',
+    para: '    soA++; soB++; // DEFEITO' },
+
+  { nome: 'a cauda deixa de ser duplicada (bicaudal vira unicaudal)',
+    de: '    p = Math.min(1, 2 * cauda / Math.pow(2, n));',
+    para: '    p = Math.min(1, cauda / Math.pow(2, n)); // DEFEITO' },
+
+  { nome: '«sem discordantes» passa a dizer «nao significativo» em vez de n/d',
+    de: '    significativo: n === 0 ? null : p < 0.05,',
+    para: '    significativo: p < 0.05, // DEFEITO' },
+
+  // ── auditabilidade para um estranho ────────────────────────────────────
+  { nome: 'um braco que nao correu volta a pontuar 0% (vitoria fabricada)',
+    de: '  const naoCorreu = linhas.length > 0 && respostas === 0;',
+    para: '  const naoCorreu = false; // DEFEITO' },
+
+  { nome: 'a reproducao volta a imprimir o numero ANTERIOR a correccao',
+    de: '    const lim = corridas.map((c) => c.resultados[i].precisao_ground_truth);',
+    para: '    const lim = corridas.map((c) => c.resultados[i].precisao_limpa); // DEFEITO' },
+
+  { nome: 'a significancia deixa de sair no resumo das corridas',
+    de: '  const significancia = alvo ? prim.filter((r) => r !== alvo).map((r) => ({',
+    para: '  const significancia = false ? prim.filter((r) => r !== alvo).map((r) => ({ // DEFEITO' },
 ];
 
 let mordeu = 0;

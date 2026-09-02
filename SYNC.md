@@ -322,7 +322,66 @@ E a mordida pagou-se à primeira: dos 13 defeitos plantados, **1 passou** — o 
 convenções casava com a linha que define os tiers em vez do bloco que devia guardar.
 22 testes verdes, e um deles não verificava nada.
 
-**Aberto:** ligar as 5 guardas inertes do `ci-coerencia` · a fraqueza `historical` 68,0% ·
-a obediência a 0% (43 de 112 pedidos marcados como trabalho de graça, 0 delegações).
+### O fecho do dia — a alegação que se pode fazer, e a que não se pode
+
+O PC reiniciou a meio; a cadeia de prova foi corrida **a frio** e reproduz em
+**32 segundos** (testes 4s, ensaio 6 corridas 32s), com o `classify.js` de sha
+intacto e o `OLLAMA_HOST` sem esquema a normalizar bem.
+
+| | sem router | por LLM | **MOOTER** |
+|---|---|---|---|
+| precisão (35 ground truth) | 40,0% | 82,9% | **91,4%** |
+| tokens para decidir | 0 | 23 182 | **0** |
+| latência p50 | — | 74,5 ms | **1,85 ms** |
+| idêntico em 6 corridas | sim | sim | sim |
+
+**A quinta correcção, encontrada ao fechar:** publicávamos «+8,5 pontos» sem
+nunca ter testado se a diferença existia. McNemar exacto emparelhado:
+
+- **vs sem router: 19 discordantes a 1, p < 0,0001 — PROVADO**
+- vs router-por-LLM: 5 a 2, p = 0,4531 — **não distinguível de ruído com n=35**
+
+Ou seja: em precisão **empatamos com o adversário até prova em contrário**, e a
+alegação que o produto realmente faz — *vs não ter router* — é a única provada,
+e está provada com folga. Contra o adversário o que sobra não é estatístico e não
+precisa de ser: 0 tokens contra 23 182, 47× mais rápido, 0 bytes para a rede.
+
+**Mais duas, da auditoria de 6 lentes ao próprio ensaio:** sem Ollama o adversário
+marcava 0,0% em silêncio (o banco **fabricava** a vitória para quem não a podia
+verificar), e o comando publicado como reprodução imprimia 81,7% — o valor
+anterior à correcção nº4. Os dois fechados; o comando imprime agora o número
+publicado e o veredicto McNemar por baixo.
+
+**A SEXTA correcção — e eu tinha-a refutado por engano.** Um agente afirmou que o
+holdout fora afinado pelo `patterns.js`, que o `classify.js` FROZEN importa e que
+não tinha sha nenhum. Medi, dei 91,4/94,3, e escrevi aqui que «não se reproduz».
+**Não fui suficientemente atrás:** testei revertendo a `~1` de quatro commits, e o
+mais antigo já continha o `9530efae`, que é onde está o salto.
+
+A escada real (`classify.js` congelado, só o `patterns.js` a variar, 35 rótulos):
+**74,3% → 94,3%**, com o último ponto *antes* de os rótulos nascerem em **82,9%**.
+Cinco commits afinaram padrões contra o `validation-set` depois disso, e dizem-no
+por escrito («three classifier safety fixes **found by validation-set**»,
+«Adversarial accuracy: 80% → 92%»). Um deles acrescenta `// "mergea na main"` —
+texto literal de `adversarial-17`.
+
+| `patterns.js` | Mooter | vs sem router | vs router-LLM |
+|---|---|---|---|
+| **anterior aos rótulos** | **82,9%** | 18 a 3 · **p = 0,0015** | 5 a 5 · p = 1,000 |
+| de hoje (**treino**) | 91,4% | 19 a 1 · p < 0,0001 | 5 a 2 · p = 0,45 |
+
+**A alegação sobrevive nos dois extremos.** O 91,4% passa a ser dito como score de
+treino. Fechado estruturalmente: `patterns.js.sha256` + passo próprio no CI —
+congelar um ficheiro que delega o que interessa a outro não congelado permitia
+mover **20 pontos** de comportamento sem o sha mexer um bit.
+
+Instrumento: **35 testes, 23 mordidas** (`test:ab`, `test:ab-morde`), ambos no CI.
+
+**Aberto:** ligar as 5 guardas inertes do `ci-coerencia` (tarefa lançada, commit
+`4b7c44cb` em `claude/sweet-wescoff-32b706`, sem PR) · **o holdout está queimado —
+precisa de rótulos novos que os padrões nunca tenham visto** · n=35 é pequeno demais
+para separar routers (efeito mínimo detectável ~20 pts) · nenhuma medição válida
+de prompts reais e longos — precisa de rótulos humanos · a obediência a 0%
+(43 de 112 pedidos marcados como trabalho de graça, 0 delegações).
 
 <!-- HUMANO:FIM -->
