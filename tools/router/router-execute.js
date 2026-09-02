@@ -972,27 +972,74 @@ async function executePinned(input = {}) {
   // (measured on Paulo's Mac: gemma4:e4b ~9.6GB → 79s cold-load, ~120s warm at
   // 69% CPU/31% GPU). The old 30s per-attempt default returned no_output before
   // the model even answered. Give LOCAL pins a generous default (env-overridable
-  // via MOOTER_LOCAL_PIN_TIMEOUT_MS); cloud pins keep the short 30s default.
+  // via MOOTER_LOCAL_PIN_TIMEOUT_MS).
+  //
+  // 2026-09-02 — the SAME defect, with the SAME symptom, on the cloud side. Every
+  // `/mooter-codex` dispatch returned {"ok":false,"error":{"code":"no_output"}}
+  // while `codex exec` itself worked (exit 0); the same prompt through
+  // executePinned({timeoutMs:600000}) answered in 283s. The 30s cloud default was
+  // the whole cause. It came from chat-completion latency, but `codex exec` is an
+  // agentic loop — it reads files and reasons for minutes. The reasoning that
+  // earned ollama its generous default applies verbatim here: a pin IS the user
+  // saying "this one, I'll wait". So cloud pins get MOOTER_CLOUD_PIN_TIMEOUT_MS
+  // (default 300s).
+  //
+  // MOOTER_PER_ATTEMPT_TIMEOUT_MS sits between the two: it is how a HOOK caps a
+  // dispatch to fit its own budget, so it must beat the defaults but lose to an
+  // explicit options.timeoutMs. The CLI already forwarded it on the pin path;
+  // reading it here too makes programmatic callers behave identically.
   const wrapperOpts = {};
   const explicitTimeout = Number(options.timeoutMs) || 0;
+  const envPerAttemptMs = Number(process.env.MOOTER_PER_ATTEMPT_TIMEOUT_MS) || 0;
   const localPinDefaultMs = Number(process.env.MOOTER_LOCAL_PIN_TIMEOUT_MS) || 240_000;
+  const cloudPinDefaultMs = Number(process.env.MOOTER_CLOUD_PIN_TIMEOUT_MS) || 300_000;
+  const pinDefaultMs = providerKey === 'ollama' ? localPinDefaultMs : cloudPinDefaultMs;
   wrapperOpts.timeoutMs = explicitTimeout > 0
     ? explicitTimeout
-    : (providerKey === 'ollama' ? localPinDefaultMs : 30_000);
+    : (envPerAttemptMs > 0 ? envPerAttemptMs : pinDefaultMs);
   if (model) wrapperOpts.model = model;
+
+  // Out-parameter for the wrapper to say WHY it failed. Adapters return a bare
+  // null on failure (a contract every caller already depends on), which cannot
+  // distinguish "killed at the deadline" from "answered nothing" — and those two
+  // ask for opposite fixes. Adapters that fill it (providers/codex-cli.js) let us
+  // report `timeout` instead of a misleading `no_output`; adapters that ignore it
+  // degrade to exactly the previous behaviour.
+  const diag = {};
+  wrapperOpts.diag = diag;
 
   let response = null;
   let threw = null;
+  const startedAt = Date.now();
   try {
     response = await wrapper(effectivePrompt, wrapperOpts);
   } catch (e) {
     threw = e;
   }
+  const elapsedMs = Date.now() - startedAt;
   if (threw) {
-    return { ok: false, error: { code: 'wrapper_threw', message: String((threw && threw.message) || threw), provider: providerKey } };
+    return { ok: false, error: { code: 'wrapper_threw', message: String((threw && threw.message) || threw), provider: providerKey, elapsed_ms: elapsedMs } };
   }
   if (!response || !response.ok || !response.text) {
-    return { ok: false, error: { code: 'no_output', message: 'provider returned no usable text', provider: providerKey } };
+    const spentMs = Number(diag.elapsedMs) > 0 ? Number(diag.elapsedMs) : elapsedMs;
+    if (diag.reason === 'timeout') {
+      const envName = providerKey === 'ollama' ? 'MOOTER_LOCAL_PIN_TIMEOUT_MS' : 'MOOTER_CLOUD_PIN_TIMEOUT_MS';
+      return { ok: false, error: {
+        code: 'timeout',
+        message: `${providerKey} was killed at the ${Math.round(wrapperOpts.timeoutMs / 1000)}s deadline after ${Math.round(spentMs / 1000)}s — it may still have been working. Raise ${envName} (or pass options.timeoutMs).`,
+        provider: providerKey,
+        elapsed_ms: spentMs,
+        timeout_ms: wrapperOpts.timeoutMs,
+      } };
+    }
+    const why = diag.reason ? ` (${diag.reason}${diag.detail ? `: ${String(diag.detail).slice(0, 200)}` : ''})` : '';
+    return { ok: false, error: {
+      code: 'no_output',
+      message: `provider returned no usable text${why}`,
+      provider: providerKey,
+      elapsed_ms: spentMs,
+      ...(diag.reason ? { reason: diag.reason } : {}),
+    } };
   }
   // Wave 65: record the local assistant turn + surface the context tax (honest).
   try { if (_sc && providerKey === 'ollama' && _sc.isEnabled()) _sc.appendTurn(_sc.currentSession(), { role: 'assistant', model, text: response.text, tokens: response.tokensOut }); } catch { /* best-effort */ }
