@@ -27,6 +27,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolverGh, redigirCasa } from './gh-bin.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(AQUI, '..', '..', '..');
@@ -163,14 +164,24 @@ function main() {
   if (!cap.pode) { process.stdout.write(`\nissue NAO aberta — ${cap.porque}\n`); return; }
   const corpo = corpoDaIssue(linhas);
   if (!corpo) { process.stdout.write('\nissue NAO aberta — nenhum n/d vencido.\n'); return; }
+  // O MESMO defeito do `ci-prs.mjs`, e pelo mesmo motivo: isto tambem corre sob
+  // launchd (`ai.mooter.nd-check.plist`), e o PATH que o launchd da nao tem o
+  // `gh`. Aqui nao havia mentira — havia silencio util a ninguem: a issue nunca
+  // se abria e o stderr dizia `spawn gh ENOENT`. Ver `gh-bin.mjs`.
+  const achado = resolverGh();
+  if (!achado.caminho) {
+    process.stderr.write('nao consegui abrir a issue: nao encontrei o `gh` no PATH deste processo '
+      + `(PATH=${process.env.PATH || 'vazio'}) nem em ${achado.procurados.length} caminhos habituais\n`);
+    process.exit(1);
+  }
   try {
-    execFileSync('gh', ['issue', 'create', '--title',
+    execFileSync(achado.caminho, ['issue', 'create', '--title',
       `n/d vencidos — ${new Date().toISOString().slice(0, 10)}`, '--body', corpo], { stdio: 'inherit' });
     const dir = path.join(os.homedir(), '.mooter');
     fs.writeFileSync(path.join(dir, 'nd-check-state.json'),
       `${JSON.stringify({ ultima_issue_ms: Date.now() }, null, 2)}\n`);
   } catch (e) {
-    process.stderr.write(`nao consegui abrir a issue: ${String(e.message).slice(0, 160)}\n`);
+    process.stderr.write(`nao consegui abrir a issue: ${redigirCasa(String(e.message)).slice(0, 160)}\n`);
     process.exit(1);
   }
 }

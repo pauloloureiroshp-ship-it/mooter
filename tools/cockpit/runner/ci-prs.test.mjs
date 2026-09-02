@@ -12,14 +12,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const { ciEPrs, TIMEOUT_MS, CORRIDAS } = await import('./ci-prs.mjs');
+const { resolverBin, caminhosHabituais, redigirCasa } = await import('./gh-bin.mjs');
+
+/**
+ * Um `gh` encontrado, sem tocar no disco desta bancada.
+ *
+ * Todo o teste abaixo passa um `resolverImpl` explicito: uma resolucao que le o
+ * disco real passaria ou falharia conforme a maquina, que e exactamente a
+ * classe de teste que nao prova nada.
+ */
+const achou = (fonte = 'PATH') => () => ({ caminho: '/qualquer/bin/gh', fonte, procurados: [] });
+const naoAchou = (pathDoProcesso = '/usr/bin:/bin:/usr/sbin:/sbin', quantos = 8) => () => ({
+  caminho: null, fonte: null, path_do_processo: pathDoProcesso,
+  procurados: Array.from({ length: quantos }, (_, i) => `/d${i}/gh`),
+});
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
+// O binario deixou de ser o literal `gh`: passou a ser o caminho RESOLVIDO
+// (ver `gh-bin.mjs`). A assercao continua a ser real — tem de ser o executavel
+// do `gh`, e nao outro qualquer — mas deixa de cravar o formato do caminho.
 const gh = (mapa) => (bin, args) => {
-  assert.equal(bin, 'gh');
+  assert.match(bin, /(^|[\\/])gh(\.exe|\.cmd|\.bat)?$/, `binario inesperado: ${bin}`);
   const qual = args[0] === 'pr' ? 'pr' : 'run';
   if (mapa[qual] instanceof Error) throw mapa[qual];
   return JSON.stringify(mapa[qual]);
@@ -27,17 +45,146 @@ const gh = (mapa) => (bin, args) => {
 
 // ── n/d COM MOTIVO, nunca zero ──────────────────────────────────────────────
 
-test('sem `gh` instalado diz isso — nao diz "0 PRs"', () => {
-  const r = ciEPrs({ execImpl: () => { const e = new Error('spawn gh ENOENT'); throw e; } });
+/**
+ * O ACHADO A1 DO LIVE TEST DO DONO (2026-09-01).
+ *
+ * O `/ledger` servido dizia `n/d — o gh nao esta instalado nesta maquina`. O
+ * `gh` estava instalado, em `~/.local/bin/gh`; o que faltava era o PATH do
+ * processo — o F10 corre sob launchd, com `PATH=/usr/bin:/bin:/usr/sbin:/sbin`.
+ *
+ * Estes dois testes guardam as DUAS mensagens que antes eram uma so, e a razao
+ * de serem duas e que mandam fazer coisas diferentes: uma manda instalar o
+ * `gh`, a outra manda olhar para o ambiente do processo. Um diagnostico errado
+ * e pior do que nenhum.
+ */
+test('nao encontrado em lado nenhum: diz ONDE procurou e NAO afirma que nao esta instalado', () => {
+  const r = ciEPrs({
+    resolverImpl: naoAchou('/usr/bin:/bin:/usr/sbin:/sbin', 8),
+    execImpl: () => { throw new Error('nunca devia chegar aqui'); },
+  });
   assert.equal(r.disponivel, false);
   assert.match(r.porque, /^n\/d/);
-  assert.match(r.porque, /nao esta instalado/);
+  assert.match(r.porque, /PATH deste processo/);
+  assert.match(r.porque, /PATH=\/usr\/bin:\/bin:\/usr\/sbin:\/sbin/, 'o PATH E o diagnostico — tem de viajar');
+  assert.match(r.porque, /8 caminhos habituais/);
+  assert.doesNotMatch(r.porque, /nao esta instalado nesta maquina/,
+    'esta e a afirmacao que o live test provou falsa — nunca mais pode ser feita');
+  assert.match(r.porque, /pode nao estar instalado, ou estar fora deles/,
+    'a duvida honesta fica dita, em vez de resolvida a favor da hipotese errada');
   assert.equal(r.prs_abertos, undefined, 'um numero aqui seria inventado');
 });
 
+test('fora do PATH mas encontrado: USA-O, responde a serio, e diz que a fonte foi outra', () => {
+  const r = ciEPrs({
+    resolverImpl: achou('fora-do-PATH'),
+    execImpl: gh({ pr: [{ number: 1, isDraft: false, statusCheckRollup: [{ conclusion: 'SUCCESS' }] }], run: [] }),
+  });
+  assert.equal(r.disponivel, true, 'era este o caso exacto do launchd — tem de responder');
+  assert.equal(r.prs_abertos, 1);
+  assert.equal(r.gh_fonte, 'fora-do-PATH',
+    'o ambiente pobre tem de ficar visivel, senao a proxima ferramenta reencontra o mesmo buraco em silencio');
+});
+
+test('as duas mensagens sao mesmo DISTINTAS — nao ha texto partilhado que as confunda', () => {
+  const semNada = ciEPrs({ resolverImpl: naoAchou(), execImpl: () => { throw new Error('x'); } });
+  const semSessao = ciEPrs({
+    resolverImpl: achou(),
+    execImpl: () => { throw new Error('gh auth login required'); },
+  });
+  assert.notEqual(semNada.porque, semSessao.porque);
+  assert.match(semSessao.porque, /sessao iniciada/);
+  assert.doesNotMatch(semSessao.porque, /PATH/, 'ter sessao e ter PATH sao problemas diferentes');
+});
+
+test('encontrado mas o binario desapareceu a correr: nao volta a dizer "nao instalado"', () => {
+  const r = ciEPrs({
+    resolverImpl: achou('fora-do-PATH'),
+    execImpl: () => { throw new Error('spawn /qualquer/bin/gh ENOENT'); },
+  });
+  assert.equal(r.disponivel, false);
+  assert.match(r.porque, /encontrei o `gh` \(via fora-do-PATH\) mas nao consegui corre-lo/);
+  assert.equal(r.gh_fonte, 'fora-do-PATH');
+});
+
 test('sem sessao iniciada diz isso, e nao se confunde com o anterior', () => {
-  const r = ciEPrs({ execImpl: () => { throw new Error('gh auth login required'); } });
+  const r = ciEPrs({ resolverImpl: achou(), execImpl: () => { throw new Error('gh auth login required'); } });
   assert.match(r.porque, /sessao iniciada/);
+});
+
+// ── o nome do dono nao viaja para dentro do HTML ────────────────────────────
+
+test('a mensagem de erro nao carrega o caminho da casa — este ficheiro partilha-se', () => {
+  // A casa REAL, porque e essa que `redigirCasa` conhece e e essa que revela
+  // quem e o dono. Uma casa inventada nao provaria nada.
+  const casa = os.homedir();
+  const r = ciEPrs({
+    resolverImpl: achou(),
+    execImpl: () => { throw new Error(`EACCES: ${casa}/.local/bin/gh`); },
+  });
+  assert.equal(r.porque.includes(casa), false,
+    'um `spawn /Users/<alguem>/... ENOENT` poria o nome do dono numa pagina que se envia a terceiros');
+  assert.match(r.porque, /~\/\.local\/bin\/gh/, 'a informacao util fica — so o nome sai');
+});
+
+test('o payload publica a FONTE, nunca o caminho', () => {
+  const r = ciEPrs({
+    resolverImpl: () => ({ caminho: '/Users/alguem/.local/bin/gh', fonte: 'fora-do-PATH', procurados: [] }),
+    execImpl: gh({ pr: [], run: [] }),
+  });
+  assert.equal(JSON.stringify(r).includes('/Users/alguem'), false,
+    'o caminho resolvido E o nome do utilizador');
+});
+
+// ── o resolvedor, sem tocar no disco ────────────────────────────────────────
+
+test('resolverBin prefere o PATH, e so depois os caminhos habituais', () => {
+  const r = resolverBin('gh', {
+    env: { PATH: '/a:/b' }, home: '/casa', plataforma: 'linux',
+    existsImpl: (p) => p === '/b/gh' || p === '/casa/.local/bin/gh',
+  });
+  assert.equal(r.caminho, '/b/gh');
+  assert.equal(r.fonte, 'PATH');
+});
+
+test('com o PATH do launchd, encontra-o na `~/.local/bin` — o caso medido a 2026-09-01', () => {
+  const r = resolverBin('gh', {
+    env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }, home: '/casa', plataforma: 'darwin',
+    existsImpl: (p) => p === '/casa/.local/bin/gh',
+  });
+  assert.equal(r.caminho, '/casa/.local/bin/gh');
+  assert.equal(r.fonte, 'fora-do-PATH');
+});
+
+test('nao encontrado devolve o PATH do processo — e ele o diagnostico', () => {
+  const r = resolverBin('gh', {
+    env: { PATH: '/usr/bin:/bin' }, home: '/casa', plataforma: 'darwin', existsImpl: () => false,
+  });
+  assert.equal(r.caminho, null);
+  assert.equal(r.path_do_processo, '/usr/bin:/bin');
+  assert.ok(r.procurados.length > 5, 'tem de dizer quantos sitios olhou, senao "procurei" nao quer dizer nada');
+});
+
+test('nao executa NADA para procurar — `which` precisaria do PATH que falta', () => {
+  const fonte = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'gh-bin.mjs'), 'utf8');
+  // Pelo IMPORT, nao pela palavra: o cabecalho do modulo cita `execFileSync` a
+  // explicar o defeito, e um teste que casse a palavra estaria a proibir a
+  // explicacao em vez do comportamento.
+  assert.doesNotMatch(fonte, /from 'node:child_process'|require\('child_process'\)|import\('node:child_process'\)/,
+    'procurar o binario com um binario e o mesmo buraco outra vez');
+});
+
+test('no Windows procura os nomes executaveis, nao um `gh` sem extensao', () => {
+  const r = resolverBin('gh', {
+    env: { PATH: 'C:\\bin' }, home: 'C:\\casa', plataforma: 'win32',
+    existsImpl: (p) => p === 'C:\\bin\\gh.exe',
+  });
+  assert.equal(r.fonte, 'PATH');
+  assert.ok(caminhosHabituais({ home: 'C:\\casa', env: {}, plataforma: 'win32' }).length > 0);
+});
+
+test('redigirCasa troca a casa por `~` e nao rebenta sem casa', () => {
+  assert.equal(redigirCasa('/casa/x/gh', { home: '/casa' }), '~/x/gh');
+  assert.equal(redigirCasa('/casa/x/gh', { home: '' }), '/casa/x/gh');
 });
 
 test('qualquer outra falha viaja com a mensagem, truncada', () => {

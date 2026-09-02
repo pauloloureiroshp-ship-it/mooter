@@ -23,6 +23,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { resolverGh, redigirCasa } from './gh-bin.mjs';
 
 export const TIMEOUT_MS = 8000;
 /** Quantas corridas de CI olhar para tras. Uma janela, nao a historia toda. */
@@ -30,8 +31,11 @@ export const CORRIDAS = 20;
 
 const nd = (porque) => ({ disponivel: false, porque: `n/d — ${porque}` });
 
-function gh(args, { execImpl = execFileSync, timeout = TIMEOUT_MS } = {}) {
-  const saida = String(execImpl('gh', args, {
+/** O PATH cabe na mensagem, mas nao pode despejar-se nela. */
+const PATH_NA_MENSAGEM = 80;
+
+function gh(bin, args, { execImpl = execFileSync, timeout = TIMEOUT_MS } = {}) {
+  const saida = String(execImpl(bin, args, {
     encoding: 'utf8', timeout, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 4 * 1024 * 1024,
   }));
   return saida.trim() ? JSON.parse(saida) : [];
@@ -41,20 +45,58 @@ function gh(args, { execImpl = execFileSync, timeout = TIMEOUT_MS } = {}) {
  * O estado do CI e dos PRs. Best-effort por desenho: uma seccao do Ledger nunca
  * pode derrubar a construcao do Ledger.
  */
-export function ciEPrs({ execImpl = execFileSync, timeout = TIMEOUT_MS, corridas = CORRIDAS } = {}) {
+export function ciEPrs({
+  execImpl = execFileSync, timeout = TIMEOUT_MS, corridas = CORRIDAS,
+  resolverImpl = resolverGh, ghBin = null,
+} = {}) {
+  /**
+   * PROCURAR ANTES DE CORRER, e depois dizer a verdade sobre o que se procurou.
+   *
+   * Ate 2026-09-01 isto nao procurava nada: chamava `gh` e, num ENOENT,
+   * afirmava «o `gh` nao esta instalado nesta maquina». Sob launchd — que da um
+   * PATH de quatro directorios — a afirmacao era FALSA e o dono leu-a no
+   * `/ledger` com o `gh` instalado a dois directorios de distancia. Um
+   * diagnostico errado e pior do que nenhum: manda arranjar o que nao esta
+   * partido e esconde o que esta.
+   *
+   * As duas saidas sao agora distintas E VERIFICAVEIS:
+   *   · nao encontrado em lado nenhum  -> diz onde procurou e nao afirma
+   *                                       instalacao nenhuma;
+   *   · encontrado fora do PATH        -> USA-O, e publica `gh_fonte` para que
+   *                                       o ambiente pobre fique visivel.
+   */
+  const achado = ghBin ? { caminho: ghBin, fonte: 'injectado' } : resolverImpl();
+  if (!achado.caminho) {
+    const p = String(achado.path_do_processo || '');
+    const pTrunc = p.length > PATH_NA_MENSAGEM ? `${p.slice(0, PATH_NA_MENSAGEM)}…` : (p || 'vazio');
+    return {
+      ...nd(`nao encontrei o \`gh\` no PATH deste processo (PATH=${pTrunc}) nem em `
+        + `${(achado.procurados || []).length} caminhos habituais — pode nao estar instalado, `
+        + 'ou estar fora deles'),
+      gh_fonte: null,
+    };
+  }
+
   let prs;
   try {
-    prs = gh(['pr', 'list', '--state', 'open', '--json', 'number,isDraft,statusCheckRollup'],
+    prs = gh(achado.caminho, ['pr', 'list', '--state', 'open', '--json', 'number,isDraft,statusCheckRollup'],
       { execImpl, timeout });
   } catch (e) {
-    const msg = String((e && e.message) || e);
-    return nd(/not found|ENOENT/i.test(msg) ? 'o `gh` nao esta instalado nesta maquina'
-      : /auth|login/i.test(msg) ? 'o `gh` nao tem sessao iniciada'
-        : `o \`gh\` falhou: ${msg.slice(0, 90)}`);
+    // `redigirCasa` porque um `spawn /Users/<alguem>/.local/bin/gh ENOENT` poria
+    // o nome do dono num HTML que se envia a terceiros — o que o cabecalho
+    // deste ficheiro proibe em maiusculas.
+    const msg = redigirCasa(String((e && e.message) || e));
+    return {
+      ...nd(/not found|ENOENT/i.test(msg)
+        ? `encontrei o \`gh\` (via ${achado.fonte}) mas nao consegui corre-lo: ${msg.slice(0, 90)}`
+        : /auth|login/i.test(msg) ? 'o `gh` nao tem sessao iniciada'
+          : `o \`gh\` falhou: ${msg.slice(0, 90)}`),
+      gh_fonte: achado.fonte,
+    };
   }
   let runs = null;
   try {
-    runs = gh(['run', 'list', '-L', String(corridas), '--json', 'conclusion,status'],
+    runs = gh(achado.caminho, ['run', 'list', '-L', String(corridas), '--json', 'conclusion,status'],
       { execImpl, timeout });
   } catch { /* os PRs sozinhos ja valem — o CI sai n/d dentro do bloco */ }
 
@@ -73,6 +115,9 @@ export function ciEPrs({ execImpl = execFileSync, timeout = TIMEOUT_MS, corridas
   return {
     disponivel: true,
     porque: null,
+    // A FONTE, nunca o caminho: `/Users/<alguem>/.local/bin/gh` e o nome do
+    // dono, e isto acaba num ficheiro que se partilha.
+    gh_fonte: achado.fonte,
     prs_abertos: prs.length,
     rascunhos: prs.filter((p) => p.isDraft).length,
     prs_por_estado: porEstado,
