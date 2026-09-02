@@ -1108,6 +1108,40 @@ document.addEventListener('keydown', e => {
   perguntarAoMoo();
 });
 
+/**
+ * O que a PAGINA sabe, num objecto que o servidor aceita — C1.2.
+ *
+ * O `S` desta pagina e o snapshot com que ela foi renderizada. Mandar isto
+ * junto com a pergunta e a diferenca entre uma doca que so sabe dizer `n/d` e
+ * uma que responde sobre o que o dono tem a frente.
+ *
+ * Manda-se o snapshot DESTA pagina e nao se pede um novo: um snapshot fresco
+ * daria numeros diferentes dos que estao no ecra, e a resposta deixaria de ser
+ * sobre a pagina. Chaves achatadas, todas na lista fechada do
+ * `contexto-da-pagina.mjs` — o que nao estiver la e descartado pelo servidor.
+ *
+ * `undefined` fica `undefined` de propósito: ausente e ausente, e um `0` aqui
+ * seria um numero inventado a entrar num prompt.
+ */
+function snapshotParaOMoo(){
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const t = (v) => (typeof v === 'string' && v ? v : undefined);
+  const C = S.counters || {}, T = S.triage || {}, N = S.night || {}, W = S.window || {};
+  return {
+    device: t(S.device), generated_at: t(S.generated_at), owner_tz: t(S.owner_tz),
+    connector: t((S.versions || {}).connector_latest),
+    window_lines: n(W.lines), window_receipts: n(W.window),
+    cited_verified: n(C.cited_verified), refuted: n(C.refuted), uncited: n(C.uncited),
+    no_finding: n(C.no_finding), inconclusive: n(C.inconclusive),
+    triage_total: n(T.total), triage_pending: n(T.pending), triage_accepted: n(T.accepted),
+    triage_issues: n(T.issues), triage_dismissed: n(T.dismissed_total),
+    night_rounds: n(N.rounds), night_cited: n(N.cited), night_tokens_out: n(N.tokens_out),
+    night_usd: n(N.usd),
+    prs_abertos: n((S.ci_prs || {}).prs_abertos), ci_idade_s: n((S.ci_prs || {}).idade_s),
+    fleet_devices: n((S.fleet || []).length),
+  };
+}
+
 /** O Moo responde na GPU deste device. Sem tool-calls, sem escalada, $0. */
 async function perguntarAoMoo(){
   const campo = $('moo-q'), saida = $('moo-a'), botao = $('moo-send');
@@ -1116,10 +1150,14 @@ async function perguntarAoMoo(){
   botao.disabled = true;
   saida.innerHTML = '<span class="nd">asking the local engine…</span>';
   try{
-    const r = await f10('/assist', {mensagem: q});
+    const r = await f10('/assist', {mensagem: q, pagina: snapshotParaOMoo()});
     if (r.status === 200 && r.body && r.body.ok){
       saida.textContent = r.body.texto;
-      $('moo-meta').textContent = `${r.body.modelo} · ${r.body.dur_s}s · ${fmt(r.body.tokens_out)} tokens · $0 · on this machine`;
+      /* O que o modelo VIU tem de ficar visivel: sem isto, um `n/d` e
+         indistinguivel de uma pagina que se esqueceu de mandar o campo. */
+      const p = r.body.pagina || {};
+      $('moo-meta').textContent = `${r.body.modelo} · ${r.body.dur_s}s · ${fmt(r.body.tokens_out)} tokens · $0 · on this machine`
+        + (p.tem != null ? ` · saw ${p.tem} of ${p.de} fields from this page` : '');
     } else {
       const porque = (r.body && r.body.porque) || ('HTTP ' + r.status);
       saida.innerHTML = `<span class="nd">no answer — ${esc(porque)}</span>`;

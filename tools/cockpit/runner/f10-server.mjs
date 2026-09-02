@@ -55,6 +55,7 @@ import { renderLedgerHtml, versaoInstalada } from './build-ledger-snapshot.mjs';
 import { ciEPrsCacheado } from './ci-prs.mjs';
 import { preFlight } from './preflight-motores.mjs';
 import { recibosPorHora } from './recibos-por-hora.mjs';
+import { normalizar as normalizarPagina, blocoDaPagina, cobertura as coberturaDaPagina } from './contexto-da-pagina.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -846,14 +847,43 @@ export function createServer({
         let state = {};
         try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { state = {}; }
         const { modelo, fonte } = escolherModelo({ residentes, state, env });
-        const r = await perguntar({ mensagem: v.mensagem, modelo, fetchImpl });
+        /**
+         * O SNAPSHOT DA PROPRIA PAGINA — C1.2.
+         *
+         * Ate aqui a doca mandava so a pergunta, e o sistema do `assist.mjs`
+         * diz com todas as letras que o modelo so ve o que lhe for citado. A
+         * pergunta obvia — «quantas citacoes conferidas nesta janela?» — so
+         * tinha duas respostas possiveis: `n/d`, ou um numero inventado.
+         *
+         * Os dados vem do CLIENTE de proposito: a pagina foi renderizada de um
+         * snapshot com data, e reconstrui-lo aqui daria numeros diferentes dos
+         * que o dono tem a frente — a resposta deixaria de ser sobre a pagina.
+         * O que o cliente manda e um objecto TIPADO contra uma lista fechada;
+         * a frase e escrita por este servidor, campo a campo. Ver o cabecalho
+         * de `contexto-da-pagina.mjs`.
+         */
+        const pag = normalizarPagina(body && body.pagina);
+        const bloco = blocoDaPagina(pag.valores);
+        const mensagem = bloco ? `${bloco}\nQUESTION: ${v.mensagem}` : v.mensagem;
+        const r = await perguntar({ mensagem, modelo, fetchImpl });
         if (!r.ok) {
           // 503 e nao 500: o motor local estar em baixo nao e um defeito deste
           // servidor, e a doca tem de o poder dizer com essas palavras.
           return sendJson(res, 503, { ok: false, modelo: r.modelo, porque: r.porque },
                           { origin: req.headers.origin });
         }
-        return sendJson(res, 200, { ...r, fonte_do_modelo: fonte }, { origin: req.headers.origin });
+        return sendJson(res, 200, {
+          ...r,
+          fonte_do_modelo: fonte,
+          // O que o modelo VIU. Sem isto, uma resposta `n/d` e indistinguivel
+          // de uma pagina que se esqueceu de mandar o campo — e o dono nao tem
+          // como saber qual das duas aconteceu.
+          pagina: {
+            ...coberturaDaPagina(pag.valores),
+            descartados: pag.descartados,
+            injectada: Boolean(bloco),
+          },
+        }, { origin: req.headers.origin });
       }
 
       /**
