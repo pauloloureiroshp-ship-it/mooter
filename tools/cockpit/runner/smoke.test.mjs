@@ -585,6 +585,96 @@ test('GET /ledger serve a casca do Ledger, com o payload injectado', async () =>
   } finally { await fechar(); }
 });
 
+/**
+ * HEAD — o achado A3 do live test do dono (2026-09-01).
+ *
+ * `curl -sI http://127.0.0.1:4290/ledger` respondia `404 not found` enquanto o
+ * GET no mesmo endereco respondia 200. HEAD e o metodo canonico de um health
+ * probe (nao puxa o corpo), portanto qualquer watchdog ou uptime checker
+ * externo lia o F10 como MORTO estando ele vivo — e um observador externo e
+ * exactamente o que o R7 do adversario exige.
+ *
+ * Estes testes atacam a correccao pelo lado por onde ela pode envelhecer mal:
+ * nao basta o `/ledger` responder. TODAS as rotas GET tem de responder, senao
+ * daqui a uma rota nova estamos no mesmo sitio.
+ */
+test('HEAD responde em TODAS as rotas GET, com o mesmo estado — nao so na que foi reportada', async () => {
+  const { base, fechar } = await servidorEfemero();
+  const ROTAS = ['/fleet.json', '/fleet', '/motores.json', '/saude.json', '/custo.json',
+    '/pilares.json', '/ledger', '/panel', '/'];
+  try {
+    for (const rota of ROTAS) {
+      const g = await fetch(`${base}${rota}`);
+      const h = await fetch(`${base}${rota}`, { method: 'HEAD' });
+      assert.equal(h.status, g.status, `HEAD ${rota} discorda do GET no estado`);
+      assert.notEqual(h.status, 404, `HEAD ${rota} caiu na cauda — e o defeito A3 outra vez`);
+      await g.text();
+    }
+  } finally { await fechar(); }
+});
+
+test('HEAD /ledger traz os cabecalhos do GET e um `Content-Length` util — sem corpo', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const h = await fetch(`${base}/ledger`, { method: 'HEAD' });
+    assert.equal(h.status, 200);
+    // Os cabecalhos que autenticam a peca servida sao os mesmos: um HEAD que
+    // responde 200 mas nao diz O QUE serviria nao vale mais do que um ping.
+    assert.equal(h.headers.get('x-moo-panel'), 'ledger');
+    assert.equal(h.headers.get('x-moo-panel-source'), 'tools/cockpit/moo-ledger-shell.html');
+    assert.ok(h.headers.get('x-moo-ledger-shell'), 'a versao de casca tem de viajar tambem no HEAD');
+    assert.equal(h.headers.get('content-type'), 'text/html; charset=utf-8');
+    // O UNICO ponto de um HEAD e o `Content-Length`. Um HEAD sem ele, ou com
+    // zero, mente sobre o tamanho da coisa que diz existir.
+    //
+    // Aqui NAO se compara com um GET, e a razao esta escrita na propria rota:
+    // o `/ledger` reconstroi-se a cada pedido, por desenho. Dois pedidos sao
+    // duas medicoes — a VRAM amostrada muda de casas decimais — e um teste que
+    // exigisse bytes iguais estaria a exigir que a pagina mentisse sobre ser
+    // viva. A igualdade exacta prova-se em baixo, numa rota determinista.
+    const n = Number(h.headers.get('content-length'));
+    assert.ok(n > 1000, `content-length improvavel: ${h.headers.get('content-length')}`);
+    assert.equal(await h.text(), '', 'HEAD com corpo nao e HEAD');
+  } finally { await fechar(); }
+});
+
+test('HEAD e GET anunciam EXACTAMENTE o mesmo tamanho onde a resposta e determinista', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    // O `/panel` serve um ficheiro do disco: duas leituras dao os mesmos bytes.
+    // E aqui, portanto, que a promessa de um HEAD — "os cabecalhos do GET" — se
+    // pode afirmar sem tolerancia nenhuma.
+    const g = await fetch(`${base}/panel`);
+    const corpo = await g.text();
+    const h = await fetch(`${base}/panel`, { method: 'HEAD' });
+    assert.equal(h.headers.get('content-length'), g.headers.get('content-length'));
+    assert.equal(Number(h.headers.get('content-length')), Buffer.byteLength(corpo, 'utf8'));
+    assert.equal(h.headers.get('x-moo-panel-source'), g.headers.get('x-moo-panel-source'));
+    assert.equal(await h.text(), '');
+  } finally { await fechar(); }
+});
+
+test('HEAD numa rota inexistente continua a ser 404 — a correccao nao inventou rotas', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const h = await fetch(`${base}/nao-existe`, { method: 'HEAD' });
+    assert.equal(h.status, 404);
+  } finally { await fechar(); }
+});
+
+test('HEAD nao ganha os verbos de escrita — parar o loop continua a exigir um POST', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    // Um HEAD normalizado para GET nao pode abrir a porta a `/stop` ou `/play`:
+    // eles sao POST, e um probe externo (ou um `<link rel=prefetch>`) nunca
+    // pode desligar a maquina do dono por acidente.
+    for (const rota of ['/stop', '/play', '/assist', '/triage']) {
+      const h = await fetch(`${base}${rota}`, { method: 'HEAD' });
+      assert.equal(h.status, 404, `HEAD ${rota} passou a ser servido — isso e uma escrita por GET`);
+    }
+  } finally { await fechar(); }
+});
+
 test('o /panel v1 continua a ser o painel do operador — o Ledger nao o substituiu', async () => {
   const { base, fechar } = await servidorEfemero();
   try {

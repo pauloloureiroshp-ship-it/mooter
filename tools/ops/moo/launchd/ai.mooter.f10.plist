@@ -32,6 +32,22 @@
   tentar de novo, e o `f10-launchd.log` fica legivel para se ver PORQUE nao
   levanta.
 
+  O AMBIENTE, E PORQUE NAO HA AQUI UM `EnvironmentVariables`.
+
+  O launchd nao le o perfil da shell. Este servico corre com
+  `PATH=/usr/bin:/bin:/usr/sbin:/sbin` — quatro directorios, nenhum deles com o
+  `gh`, o `ollama` ou qualquer coisa instalada pelo dono. A 2026-09-01 isso fez
+  o `/ledger` afirmar «o gh nao esta instalado nesta maquina» com o `gh`
+  instalado em `~/.local/bin`.
+
+  A correccao NAO esta aqui de proposito. Um `EnvironmentVariables/PATH`
+  commitado num molde e a mesma classe de defeito que o aviso la de cima
+  descreve: caminhos absolutos por-maquina que falham em silencio noutro
+  computador — e neste Mac o `gh` nem sequer esta num caminho de Homebrew. Quem
+  resolve e o codigo, em `tools/cockpit/runner/gh-bin.mjs`, que procura o
+  binario no PATH e nos sitios habituais sem executar nada. Ferramenta nova que
+  precise de um binario externo: usa-o, nao acrescentes PATH aqui.
+
   O STOP nao e tocado por nada disto. Levantar o painel e "mostra-me os
   controlos"; trabalhar continua a ser o botao do dono.
 -->

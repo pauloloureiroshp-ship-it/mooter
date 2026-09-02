@@ -93,6 +93,12 @@
   .operate .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
   .operate .dot.on{background:var(--spot)}
   .operate .dot.hold{background:#B57F6F}
+  /* O gesto de reconstruir tem DOIS significados, e o cursor tem de os separar:
+     ao vivo AGE (recarrega, e o device reconstroi); carimbado so pode COPIAR o
+     comando, porque nao ha device do outro lado. Um botao que parece agir e nao
+     age le-se como avaria — foi a queixa do live test. */
+  .operate .refaz.age{cursor:pointer}
+  .operate .refaz.copia{cursor:copy}
   .operate .idade{margin-left:auto;color:var(--ink-3);font-family:var(--f-mono)}
   .operate .idade.velho{color:#8A3B2A;font-weight:500}
   /* Sem esta almofada, a faixa tapa o rodape — e um rodape que nao se le e o
@@ -437,8 +443,9 @@
     <span id="op-estado">—</span>
     <a href="http://127.0.0.1:4290/panel" id="op-panel">open the cockpit</a>
     <span class="nd">·</span>
-    <span class="mono" data-copy="node tools/cockpit/runner/build-ledger-snapshot.mjs"
-      style="cursor:copy" data-tip="Copies the command that rebuilds this page from the device's own measurements.">rebuild this page</span>
+    <span class="mono refaz" id="op-rebuild"
+      data-copy="node tools/cockpit/runner/build-ledger-snapshot.mjs"
+      data-tip="—">rebuild this page</span>
     <span class="idade" id="op-idade">—</span>
   </div>
 </div>
@@ -549,6 +556,21 @@ function renderOperate(){
 
   const t = Date.parse(S.generated_at);
   const idade = isFinite(t) ? Date.now() - t : null;
+  /* O ACHADO A2 DO LIVE TEST (2026-09-01): "rebuild this page" nao reconstruia
+     nada — copiava um comando. Copiar e honesto; chamar-lhe "rebuild" nao era.
+     Ao vivo, o gesto certo ja existia e ninguem lhe tinha chamado nada: o
+     `/ledger` reconstroi-se A CADA PEDIDO, portanto RECARREGAR **e** a
+     reconstrucao. Carimbado nao ha device do outro lado, e ai copiar e o unico
+     gesto possivel — mas o rotulo passa a dize-lo. Um controlo, dois modos,
+     zero promessas por cumprir. */
+  const refaz = $('op-rebuild');
+  const aoVivoAqui = mode === 'live';
+  refaz.textContent = aoVivoAqui ? 'rebuild this page' : 'copy the rebuild command';
+  refaz.className = 'mono refaz ' + (aoVivoAqui ? 'age' : 'copia');
+  refaz.setAttribute('data-tip', aoVivoAqui
+    ? 'Rebuilds it now. This address builds the page fresh on every request, from the device\u2019s own measurements \u2014 so reloading IS the rebuild.'
+    : 'This is a stamped copy: there is no device here to rebuild it. Copies the command that rebuilds it ON the device (writes dist/moo-ledger.html).');
+
   const campo = $('op-idade');
   campo.textContent = idade == null ? 'stamped n/d' : `stamped ${dur(idade/1000)} ago`;
   campo.className = 'idade' + (idade != null && idade > SNAPSHOT_VELHO_MS ? ' velho' : '');
@@ -559,7 +581,7 @@ function renderOperate(){
 
 /* chapter I */
 function renderStory(){
-  $('story-meta').textContent = `${projecto()} · ${utilizadores()}`;
+  $('story-meta').innerHTML = `${esc(projecto())} · ${utilizadores()}`;
   $('act-was-n').textContent = fmt(S.window.lines);
   $('act-now-n').textContent = fmt(S.counters.cited_verified);
   $('act-next-n').textContent = fmt(RM.filter(g => g.status !== 'done').length);
@@ -570,9 +592,33 @@ function renderStory(){
     ? `The loop paused ITSELF, since ${dmy(S.hold.since)}. Reason recorded by the runner: ${S.hold.reason || 'n/d'}. The pause is the feature.`
     : 'The loop is not paused — the runner reports no hold.');
 }
+/**
+ * O ACHADO A4 DO LIVE TEST (2026-09-01): o cabecalho dizia `user n/d` e mais
+ * nada. `n/d` e honesto; um `n/d` SEM CAUSA manda o leitor adivinhar, e num
+ * documento que se abre para provar rigor isso le-se como campo por preencher.
+ *
+ * A causa e concreta e verificavel: o batimento de cada device nao transporta
+ * campo de utilizador nenhum — `writeBeacon` nunca o escreve e `readBeacons`
+ * nunca o le. Nao e "ainda nao medimos": e um campo que nao existe.
+ *
+ * E NAO SE INVENTA UM. Ha um identificador real a mao (a conta do sistema
+ * operativo que corre o loop) e nao entra aqui de proposito: a mesma regra que
+ * proibe nomes de utilizador no `ci-prs.mjs` vale para esta pagina — ela
+ * envia-se a terceiros, e um nome de conta e CONTEUDO. Alem disso a conta que
+ * corre um processo nao e a mesma coisa que um dono declarado; usa-la seria
+ * responder a pergunta errada com confianca a mais.
+ *
+ * Fica o rotulo a dizer PORQUE, com a explicacao por baixo do dedo.
+ */
+const PORQUE_SEM_UTILIZADOR = 'Device heartbeats carry no user field. That is deliberate: '
+  + 'this page is meant to be shareable, and an account name is content, not measurement. '
+  + 'The system account running the loop is not the same thing as a declared owner \u2014 '
+  + 'so nothing is guessed here.';
 function utilizadores(){
   const u = [...new Set((S.fleet || []).map(d => d.user).filter(Boolean))];
-  return u.length ? 'user ' + u.join(', ') : 'user n/d';
+  return u.length
+    ? 'user ' + esc(u.join(', '))
+    : `<span class="nd" data-tip="${esc(PORQUE_SEM_UTILIZADOR)}">user n/d \u2014 no heartbeat declares one</span>`;
 }
 
 /* chapter II */
@@ -603,7 +649,9 @@ function renderHerd(){
     return `<div class="cow-card ${stale ? 'asleep' : ''}">
       <div class="avatar">${stale ? COW_SLEEP + '<span class="zzz">z z</span>' : COW}</div>
       <div>
-        <h3>${esc(d.device || 'device n/d')}<span class="who">${esc(d.user || 'user n/d')}${d.self ? ' · this machine' : ''}</span></h3>
+        <h3>${esc(d.device || 'device n/d')}<span class="who">${d.user
+          ? esc(d.user)
+          : `<span class="nd" data-tip="${esc(PORQUE_SEM_UTILIZADOR)}">user n/d</span>`}${d.self ? ' · this machine' : ''}</span></h3>
         <p class="doing"><b>Working on:</b> ${esc(d.state || 'state n/d')}.</p>
         <p class="fresh">${stale
           ? `asleep · last signed heartbeat ${dmy(d.ts)} · numbers are last-known, never current`
@@ -1011,6 +1059,13 @@ function aoVivo(){ if (mode === 'live') return true; toast(SO_SNAPSHOT); return 
 
 /* interactions — every control acts or explains */
 document.addEventListener('click', async e => {
+  /* Antes do ramo generico de copiar, senao este elemento nunca chegava ca:
+     ele TEM `data-copy` — e o que faz no modo carimbado. */
+  if (mode === 'live' && e.target.closest('#op-rebuild')){
+    toast('Rebuilding from the device\u2019s measurements\u2026');
+    location.reload();
+    return;
+  }
   const cp = e.target.closest('[data-copy]');
   if (cp){ try { await navigator.clipboard.writeText(cp.dataset.copy); toast('Copied: ' + cp.dataset.copy); }
     catch { toast('Couldn’t copy here — select the command and copy manually.'); } return; }

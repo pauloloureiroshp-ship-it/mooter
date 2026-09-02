@@ -280,17 +280,42 @@ function domDeBolso() {
     return els.get(id);
   };
   const body = el('body');
+  // Os ouvintes ficam GUARDADOS, e nao deitados fora. Sem isto a bancada so
+  // consegue afirmar o que a casca DESENHA — e o achado A2 do live test foi
+  // sobre o que ela FAZ ao clique. Um controlo so se prova a disparar-lhe.
+  const ouvintes = new Map();
   const doc = {
     body,
     getElementById: el,
     querySelectorAll: () => [],
-    addEventListener: () => {},
+    addEventListener: (tipo, fn) => {
+      if (!ouvintes.has(tipo)) ouvintes.set(tipo, []);
+      ouvintes.get(tipo).push(fn);
+    },
   };
-  return { doc, els, el };
+  const disparar = async (tipo, evento) => {
+    for (const fn of ouvintes.get(tipo) || []) await fn(evento);
+  };
+  return { doc, els, el, disparar };
 }
 
-async function correrCasca(html, { location: loc = { protocol: 'file:', origin: 'null' } } = {}) {
-  const { doc, el } = domDeBolso();
+/**
+ * Um alvo de clique de bolso: responde ao `closest()` por uma tabela de
+ * selectores, que e exactamente o que o `document` real faz e o que a casca usa.
+ */
+function alvoQueCasa(mapa) {
+  return { closest: (sel) => (sel in mapa ? mapa[sel] : null) };
+}
+
+async function correrCasca(html, {
+  location: loc = { protocol: 'file:', origin: 'null' },
+  // `live` levanta o modo AO VIVO sem rede: o boot so precisa de um
+  // `/fleet.json` com a chave `recibos`. Sem isto nao ha forma de exercitar
+  // metade da casca — e e a metade que o dono usa.
+  live = false,
+  copiado = [],
+} = {}) {
+  const { doc, el, disparar } = domDeBolso();
   const sandbox = {
     document: doc,
     // A casca deriva o endereco do F10 de `location` desde 2026-09-01. A
@@ -298,9 +323,11 @@ async function correrCasca(html, { location: loc = { protocol: 'file:', origin: 
     // `ReferenceError` — que foi como este harness apanhou a falta de guarda.
     location: loc,
     window: { matchMedia: () => ({ matches: false }) },
-    navigator: { clipboard: { writeText: async () => {} } },
+    navigator: { clipboard: { writeText: async (t) => { copiado.push(t); } } },
     // O boot tenta o F10 primeiro; sem ele, cai honestamente em `snapshot`.
-    fetch: async () => { throw new Error('sem endpoint'); },
+    fetch: live
+      ? async () => ({ ok: true, status: 200, json: async () => ({ recibos: [] }) })
+      : async () => { throw new Error('sem endpoint'); },
     AbortSignal: { timeout: () => null },
     requestAnimationFrame: (fn) => fn(),
     setInterval: () => 0,
@@ -319,7 +346,7 @@ async function correrCasca(html, { location: loc = { protocol: 'file:', origin: 
   // O boot e assincrono (tenta o fetch); deixa-o assentar.
   await new Promise((r) => setImmediate(r));
   await new Promise((r) => setImmediate(r));
-  return { el, texto: () => [...Object.values(el)].join('') };
+  return { el, disparar, copiado, texto: () => [...Object.values(el)].join('') };
 }
 
 test('a casca RENDERIZA o payload: todo o numero no ecra saiu da medicao', async () => {
@@ -553,4 +580,126 @@ test('o endereço do F10 não está cravado no código da casca', () => {
   const codigo = CASCA.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const cravados = [...codigo.matchAll(/fetch\(\s*'http:\/\/127\.0\.0\.1:\d+/g)];
   assert.equal(cravados.length, 0, 'um fetch para uma porta cravada escreve no projecto errado');
+});
+
+// ── A2 · o botao que dizia "rebuild" e nao reconstruia nada ──────────────────
+//
+// Achado do live test do dono (2026-09-01). O elemento era um
+// `<span data-copy="node …build-ledger-snapshot.mjs">rebuild this page</span>`:
+// copiar e honesto, chamar-lhe "rebuild" nao era. E ao vivo o gesto certo ja
+// existia sem nome — o `/ledger` reconstroi-se A CADA PEDIDO, portanto
+// recarregar E a reconstrucao.
+//
+// Uma nota de rigor sobre a segunda metade da queixa: o kickoff dizia que o
+// comando copiado estava incompleto, que era preciso `MOOTER_HOME=… VAULT_PATH=…
+// MOOTER_DEVICE_NAME=… GIT_OPTIONAL_LOCKS=0`. MEDIDO, e refutado:
+//   env -i PATH=/usr/bin:/bin HOME=$HOME node …/build-ledger-snapshot.mjs --json
+// corre e resolve o device sozinho — `MOOTER_HOME` cai em `~/.mooter` e
+// `VAULT_PATH` ausente da uma frota sem remotos, que e o comportamento
+// documentado. O comando fica como estava; o que muda e o ROTULO.
+
+const bancadaLive = () => {
+  const dir = bancada();
+  return renderLedgerHtml({
+    repoRoot: REPO, mooDir: dir, now: Date.parse('2026-09-01T12:00:00Z'),
+    device: 'bancada', gpuImpl: semGpu, runGitImpl: gitFalso,
+    homeImpl: path.join(dir, 'sem-home'), vaultPath: path.join(dir, 'sem-vault'), shellPath: SHELL,
+  });
+};
+
+test('A2 ao vivo: o clique em "rebuild this page" RECARREGA — nao copia', async () => {
+  const { html } = await bancadaLive();
+  let recarregou = 0;
+  const copiado = [];
+  const { el, disparar } = await correrCasca(html, {
+    live: true,
+    copiado,
+    location: { protocol: 'http:', origin: 'http://127.0.0.1:4290', search: '', reload: () => { recarregou += 1; } },
+  });
+  assert.equal(el('op-rebuild').textContent, 'rebuild this page');
+  assert.match(el('op-rebuild').className, /\bage\b/, 'ao vivo o cursor tem de ser de accao');
+  assert.match(el('op-rebuild').getAttribute('data-tip'), /reloading IS the rebuild/i,
+    'o rotulo tem de dizer PORQUE recarregar chega — senao parece um atalho preguicoso');
+
+  await disparar('click', { target: alvoQueCasa({ '#op-rebuild': { id: 'op-rebuild' } }) });
+  assert.equal(recarregou, 1, 'o botao nao agiu — e exactamente a queixa do live test');
+  assert.deepEqual(copiado, [], 'ao vivo nao pode cair no ramo de copiar');
+});
+
+test('A2 carimbado: nao ha device para recarregar, entao COPIA — e o rotulo di-lo', async () => {
+  const { html } = await bancadaLive();
+  let recarregou = 0;
+  const copiado = [];
+  const { el, disparar } = await correrCasca(html, {
+    copiado,
+    location: { protocol: 'file:', origin: 'null', search: '', reload: () => { recarregou += 1; } },
+  });
+  assert.equal(el('op-rebuild').textContent, 'copy the rebuild command',
+    'um rotulo que promete reconstruir numa copia carimbada e uma promessa por cumprir');
+  assert.match(el('op-rebuild').className, /\bcopia\b/);
+  assert.match(el('op-rebuild').getAttribute('data-tip'), /no device here to rebuild it/i);
+
+  await disparar('click', {
+    target: alvoQueCasa({
+      '#op-rebuild': { id: 'op-rebuild' },
+      '[data-copy]': { dataset: { copy: 'node tools/cockpit/runner/build-ledger-snapshot.mjs' } },
+    }),
+  });
+  assert.equal(recarregou, 0, 'nao ha nada para recarregar num ficheiro carimbado');
+  assert.deepEqual(copiado, ['node tools/cockpit/runner/build-ledger-snapshot.mjs']);
+});
+
+test('A2: o comando copiado e o comando que CORRE — sem variaveis de ambiente por adivinhar', () => {
+  const m = CASCA.match(/id="op-rebuild"[\s\S]{0,200}?data-copy="([^"]+)"/)
+    || CASCA.match(/data-copy="([^"]*build-ledger-snapshot[^"]*)"/);
+  assert.ok(m, 'o comando de reconstruir desapareceu da casca');
+  assert.equal(m[1], 'node tools/cockpit/runner/build-ledger-snapshot.mjs');
+  // Se um dia o construtor passar a EXIGIR ambiente, este teste tem de cair
+  // junto com ele — e por isso a asserccao e sobre o ficheiro existir e ser
+  // executavel como esta, e nao sobre a string parecer bonita.
+  assert.ok(fs.existsSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'build-ledger-snapshot.mjs')));
+});
+
+// ── A4 · `user n/d` sem causa ───────────────────────────────────────────────
+//
+// O cabecalho dizia `project <nome do repo> · user n/d`. Honesto, e mudo. A causa e
+// concreta: o batimento de um device nao transporta campo de utilizador nenhum
+// — nao e "ainda nao medimos", e um campo que `writeBeacon` nunca escreveu.
+// Nao se inventa um: ha um identificador real a mao (a conta do sistema) e ele
+// NAO entra, porque esta pagina envia-se a terceiros e um nome de conta e
+// conteudo — a mesma regra que o `ci-prs.mjs` ja impoe.
+
+test('A4: sem utilizador declarado, o rotulo diz PORQUE e nao so `n/d`', async () => {
+  const { html } = await bancadaLive();
+  const { el } = await correrCasca(html);
+  const meta = el('story-meta').innerHTML;
+  assert.match(meta, /user n\/d/);
+  assert.match(meta, /no heartbeat declares one/,
+    'um `n/d` sem causa manda o leitor adivinhar — e este documento existe para o contrario');
+  assert.match(meta, /data-tip="[^"]*shareable[^"]*"/,
+    'a explicacao tem de estar debaixo do dedo, nao so no commit');
+});
+
+test('A4: NAO se inventa um utilizador a partir da conta do sistema', async () => {
+  const { html, snapshot } = await bancadaLive();
+  assert.equal(JSON.stringify(snapshot).includes(`"user":"${os.userInfo().username}"`), false,
+    'a conta que corre o processo nao e um dono declarado — e um nome que se partilharia');
+  const { el } = await correrCasca(html);
+  assert.equal(el('story-meta').innerHTML.includes(os.userInfo().username), false);
+});
+
+test('A4: havendo utilizador declarado, e ELE que aparece — o rotulo nao fica preso no n/d', async () => {
+  // Injecta-se um payload com `fleet[].user` preenchido: o dia em que o
+  // batimento passar a declarar um dono, a casca tem de o mostrar. Sem este
+  // teste, a correccao do rotulo podia ter cravado o `n/d` para sempre.
+  const { html, snapshot, roadmap, shell } = await bancadaLive();
+  const comDono = {
+    ...snapshot,
+    fleet: [{ device: 'bancada', user: 'ada', self: true, ts: '2026-09-01T12:00:00Z',
+      state: 'idle', vram_gb: null, vram_total_gb: null, last_known: { cited: 1, refuted: 0 } }],
+  };
+  const { el } = await correrCasca(injectPayload(stripPayload(html), { snapshot: comDono, roadmap, shell }));
+  assert.match(el('story-meta').innerHTML, /user ada/);
+  assert.equal(el('story-meta').innerHTML.includes('n/d'), false);
+  assert.match(el('herdlist').innerHTML, /ada/);
 });
