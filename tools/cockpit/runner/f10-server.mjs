@@ -54,6 +54,7 @@ import { autoVerificar } from './self-check.mjs';
 import { renderLedgerHtml, versaoInstalada } from './build-ledger-snapshot.mjs';
 import { ciEPrsCacheado } from './ci-prs.mjs';
 import { preFlight } from './preflight-motores.mjs';
+import { recibosPorHora } from './recibos-por-hora.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -544,6 +545,25 @@ export function createServer({
       // uma ronda inteira — medido a 2026-08-19: 6 cliques, 1 confirmado.
       // Dois campos, duas verdades, nenhuma mentira.
       estado.foco_pedido = lerFocoPedido(focusFile);
+      /**
+       * A METRICA QUE SUBSTITUI A % DE GPU no lugar de mais valor do painel.
+       *
+       * Uma GPU a 100% nao entrega nada — mede esforco. Um recibo `citacao-ok`
+       * e trabalho verificavel: a linha citada foi lida do disco e existe.
+       * A percentagem continua medida e continua no payload; o que mudou foi
+       * o que ocupa a manchete.
+       *
+       * Best-effort: um ledger ilegivel nao pode derrubar o `/fleet.json`.
+       */
+      try {
+        const { receipts } = readLedger(ledgerPath, { maxLines: 20000 });
+        estado.recibos_por_hora = recibosPorHora(receipts);
+      } catch (e) {
+        estado.recibos_por_hora = {
+          por_hora: null, serie: [],
+          porque: `n/d — não consegui ler o ledger: ${String((e && e.message) || e).slice(0, 80)}`,
+        };
+      }
       // A severidade viaja JA CALCULADA. Ate aqui o painel tinha a sua propria
       // copia da regra e o autopilot tinha a dele: duas verdades sobre o mesmo
       // achado, a um refactor de distancia de discordarem em silencio — que e

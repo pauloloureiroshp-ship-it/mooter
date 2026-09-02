@@ -18,10 +18,12 @@ import {
   verLedger, verIndiceDoVault, verBeacon, verProjectoActivo, verPreferencias,
   autoVerificar, LEDGER_TECTO_MB, BEACON_VELHO_MIN,
   provaDePublicacao, JANELA_DO_PUBLICADOR_MIN,
-  verCodigo, verConector, projectoActivo,
+  verCodigo, verConector, projectoActivo, mapaDoBundle,
 } from './self-check.mjs';
 
 const MB = 1024 * 1024;
+/** A raiz real do repo — so o teste do `mapaDoBundle` a usa, e de propósito. */
+const REPO_RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..');
 
 // ── a regra que faz isto valer alguma coisa ─────────────────────────────────
 
@@ -151,20 +153,43 @@ test('sem upstream, cai para origin/main antes de desistir', () => {
  * com "manifest", e por isso deixou de servir quando o verificador passou a ler
  * o artefacto instalado além do registo.
  */
-const disco = ({ repo = null, extensao = null, registo = null } = {}) => (p) => {
+const disco = ({ repo = null, extensao = null, registo = null, bundle = null, conteudo = null } = {}) => (p) => {
   const s = String(p).replace(/\\/g, '/');
   if (s.includes('mooter-bridge/manifest.json') && repo) return JSON.stringify(repo);
   if (s.includes('Claude Extensions/') && s.endsWith('manifest.json') && extensao) return JSON.stringify(extensao);
   if (s.includes('extensions-installations') && registo) return JSON.stringify(registo);
+  // C1.6 — a lista FILES do pack-mcpb, lida como TEXTO (importa-la executaria
+  // o empacotador). E o conteudo dos ficheiros dos dois lados, para o sha.
+  if (s.endsWith('pack-mcpb.mjs')) {
+    if (!bundle) throw new Error('ENOENT');
+    return 'const FILES = [\n' + bundle.map(([a, b]) => `  ['${a}', '${b}'],`).join('\n') + '\n];\n';
+  }
+  if (conteudo) {
+    for (const [chave, valor] of Object.entries(conteudo)) if (s.endsWith(chave)) return valor;
+  }
   throw new Error('ENOENT');
 };
+
+/** O caminho do ficheiro instalado, como o `pastaDoConectorInstalado` o monta. */
+const INSTALADO = 'Claude Extensions/local.mcpb.paulo-loureiro.mooter/server';
+/** Uma lista FILES minima: um ficheiro directo e um que muda de nome. */
+const BUNDLE = [['seamless.js', 'server/seamless.js'], ['bundle-package.json', 'server/package.json']];
+/** Os dois lados iguais. */
+const IGUAIS = {
+  [`${INSTALADO}/seamless.js`]: 'AAA', 'mooter-bridge/seamless.js': 'AAA',
+  [`${INSTALADO}/package.json`]: 'BBB', 'mooter-bridge/bundle-package.json': 'BBB',
+};
+const existeSe = (...ps) => (p) => ps.some((x) => String(p).replace(/\\/g, '/').endsWith(x));
 const registoCom = (v) => ({ extensions: { 'local.mcpb.x.mooter': { version: v, id: 'mooter' } } });
 
 test('o conector instalado tem de ser o do repo', () => {
   const igual = verConector('/r', {
-    readImpl: disco({ repo: { version: '1.49.3' }, extensao: { version: '1.49.3' } }),
+    readImpl: disco({ repo: { version: '1.49.3' }, extensao: { version: '1.49.3' }, bundle: BUNDLE, conteudo: IGUAIS }),
+    existsImpl: existeSe(INSTALADO, `${INSTALADO}/seamless.js`, `${INSTALADO}/package.json`),
   });
   assert.equal(igual.estado, 'ok');
+  assert.match(igual.porque, /byte a byte/, 'um ok sem sha e a mesma promessa vazia de antes');
+  assert.equal(igual.shas.comparados, 2);
 
   const dif = verConector('/r', {
     readImpl: disco({ repo: { version: '1.49.3' }, extensao: { version: '1.33.0' } }),
@@ -183,7 +208,10 @@ test('o MANIFEST instalado ganha ao registo — o registo fica stale', () => {
       repo: { version: '1.49.3' },
       extensao: { version: '1.49.3' },
       registo: registoCom('1.29.1'),
+      bundle: BUNDLE,
+      conteudo: IGUAIS,
     }),
+    existsImpl: existeSe(INSTALADO, `${INSTALADO}/seamless.js`, `${INSTALADO}/package.json`),
   });
   assert.equal(r.estado, 'ok', 'o artefacto e a prova; o registo e o que alguem disse que fez');
   assert.equal(r.valor, '1.49.3');
@@ -465,4 +493,62 @@ test('as duas fontes a concordar continuam OK', () => {
   }) });
   assert.equal(v.estado, 'ok');
   assert.equal(v.valor, 'mooter-gpu-local-strategy');
+});
+
+/* ── C1.6 — a versao igual e necessaria, nao suficiente ───────────────────── */
+
+test('mesma versao com conteudo diferente e MAU — e nomeia o ficheiro', () => {
+  const r = verConector('/r', {
+    readImpl: disco({
+      repo: { version: '1.53.0' }, extensao: { version: '1.53.0' }, bundle: BUNDLE,
+      conteudo: { ...IGUAIS, [`${INSTALADO}/seamless.js`]: 'OUTRO CODIGO' },
+    }),
+    existsImpl: existeSe(INSTALADO, `${INSTALADO}/seamless.js`, `${INSTALADO}/package.json`),
+  });
+  assert.equal(r.estado, 'mau', 'duas etiquetas iguais nao provam que o codigo e o mesmo');
+  assert.deepEqual(r.shas.diferentes, ['seamless.js']);
+  assert.match(r.porque, /seamless\.js/, 'um alarme sem o ficheiro nao e diagnostico');
+  assert.match(r.resolver, /pack-mcpb/, 'um alerta sem gesto e uma queixa');
+});
+
+test('o mapa segue a lista FILES, e nao o nome — senao dava vermelho para sempre', () => {
+  // `server/package.json` vem de `bundle-package.json`. Casar por nome
+  // compararia contra o `package.json` do pacote, que E outro ficheiro de
+  // propósito: dois falsos vermelhos permanentes, medidos a 2026-09-02.
+  const r = verConector('/r', {
+    readImpl: disco({ repo: { version: '1.53.0' }, extensao: { version: '1.53.0' }, bundle: BUNDLE, conteudo: IGUAIS }),
+    existsImpl: existeSe(INSTALADO, `${INSTALADO}/seamless.js`, `${INSTALADO}/package.json`),
+  });
+  assert.equal(r.estado, 'ok');
+  assert.deepEqual(r.shas.diferentes, []);
+});
+
+test('sem conseguir ler a lista FILES responde n/d — nunca ok', () => {
+  const r = verConector('/r', {
+    readImpl: disco({ repo: { version: '1.53.0' }, extensao: { version: '1.53.0' } }),
+    existsImpl: existeSe(INSTALADO),
+  });
+  assert.equal(r.estado, 'n/d', 'nao conseguir comparar nao pode virar "esta alinhado"');
+  assert.match(r.porque, /não consegui comparar o código/);
+});
+
+test('um ficheiro da lista que nao esta instalado sai em `em_falta`, nao em `diferentes`', () => {
+  const r = verConector('/r', {
+    readImpl: disco({ repo: { version: '1.53.0' }, extensao: { version: '1.53.0' }, bundle: BUNDLE, conteudo: IGUAIS }),
+    existsImpl: existeSe(INSTALADO, `${INSTALADO}/seamless.js`),   // falta o package.json
+  });
+  assert.deepEqual(r.shas.em_falta, ['package.json']);
+  assert.deepEqual(r.shas.diferentes, []);
+  assert.equal(r.estado, 'ok', 'em falta e diferente sao coisas distintas, com gestos distintos');
+});
+
+test('`mapaDoBundle` le a lista REAL do repo — e nao a executa', () => {
+  const mapa = mapaDoBundle(REPO_RAIZ);
+  assert.ok(Array.isArray(mapa) && mapa.length > 40, `so ${mapa && mapa.length} pares — a lista deixou de se ler`);
+  const dest = mapa.map(([, d]) => d);
+  assert.ok(dest.includes('server/seamless.js'));
+  assert.ok(dest.includes('server/package.json'));
+  const origem = Object.fromEntries(mapa.map(([o, d]) => [d, o]));
+  assert.equal(origem['server/package.json'], 'bundle-package.json',
+    'o mapa perdeu a origem verdadeira e voltou a casar por nome');
 });

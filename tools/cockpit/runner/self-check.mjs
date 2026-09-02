@@ -28,6 +28,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { MINUTOS_OMISSAO } from './beacon-publisher.mjs';
 
@@ -526,7 +527,104 @@ export function versaoInstalada({ readImpl = fs.readFileSync, home = os.homedir(
  * Nenhuma ferramenta MCP declara a versão que corre, por isso compara-se o
  * manifest do repo com o do conector instalado em disco (ver `versaoInstalada`).
  */
-export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.homedir() } = {}) {
+/** Onde o Claude Desktop poe os ficheiros do conector instalado. */
+export function pastaDoConectorInstalado({ home = os.homedir(), existsImpl = fs.existsSync } = {}) {
+  for (const raiz of RAIZES_CLAUDE) {
+    const dir = path.join(home, ...raiz, 'Claude Extensions', ID_EXTENSAO, 'server');
+    if (existsImpl(dir)) return dir;
+  }
+  return null;
+}
+
+/**
+ * DE ONDE VEM CADA FICHEIRO DO BUNDLE — lido da lista do `pack-mcpb.mjs`.
+ *
+ * A tentacao era casar por nome: `server/x.js` contra `packages/mooter-bridge/x.js`.
+ * Medido a 2026-09-02, antes disto existir: dois falsos vermelhos PERMANENTES.
+ * `server/package.json` vem de `bundle-package.json` (o bundle leva um
+ * package.json minimo, escrito de proposito) e `server/version.json` vem de
+ * `tools/router/version.json`. Um verificador que gritasse sempre seria
+ * desligado na primeira semana, e passaria a nao verificar nada.
+ *
+ * Le-se o TEXTO do `pack-mcpb.mjs` e nao se importa o modulo: importa-lo
+ * EXECUTA-O — ele constroi o `.mcpb` no topo do ficheiro, sem `main()`. Um
+ * `/saude.json` que escrevesse um zip de 1,2 MB a cada pedido seria um
+ * defeito muito pior do que o que esta a tentar apanhar. (Verificado: o
+ * primeiro esboco desta funcao fez exactamente isso.)
+ *
+ * Falha ALTO: se a lista deixar de ser legivel, devolve `null` e quem chama
+ * responde `n/d` — nunca `ok`.
+ *
+ * @returns {Array<[string,string]>|null} pares [origem-relativa-ao-pacote, destino-no-bundle]
+ */
+export function mapaDoBundle(repoRoot, { readImpl = fs.readFileSync } = {}) {
+  let fonte;
+  try { fonte = String(readImpl(path.join(repoRoot, 'packages', 'mooter-bridge', 'pack-mcpb.mjs'), 'utf8')); }
+  catch { return null; }
+  const i = fonte.indexOf('const FILES = [');
+  if (i < 0) return null;
+  const fim = fonte.indexOf('\n];', i);
+  if (fim < 0) return null;
+  const bloco = fonte.slice(i, fim);
+  const pares = [];
+  const re = /\[\s*'([^']+)'\s*,\s*'([^']+)'\s*\]/g;
+  let m;
+  while ((m = re.exec(bloco)) !== null) pares.push([m[1], m[2]]);
+  return pares.length ? pares : null;
+}
+
+/** Extensoes cujo conteudo faz o conector correr. Um `.log` nao e codigo. */
+const EXT_DE_CODIGO = /\.(js|mjs|cjs|json|html)$/i;
+
+/**
+ * COMPARAR SHAS, e nao versoes — C1.6.
+ *
+ * `1.53.0 instalado === 1.53.0 no repo` prova que dois ficheiros de texto tem a
+ * mesma etiqueta. Nao prova que o codigo e o mesmo: um `.mcpb` construido antes
+ * do ultimo commit da onda leva a mesma versao e outro conteudo, e o painel
+ * dizia «o instalado e o que este repo traz» com toda a confianca. E a mesma
+ * classe do `versaoInstalada`, que ja tinha aprendido isto uma vez: o
+ * ARTEFACTO e a prova, o registo e o que alguem disse que fez. Aqui o artefacto
+ * e o BYTE.
+ *
+ * Um ficheiro da lista que nao esteja instalado sai em `em_falta` — nao se
+ * transforma numa divergencia de conteudo, que e coisa diferente e com outro
+ * gesto.
+ *
+ * @returns {{comparados:number, diferentes:string[], em_falta:string[], porque:(string|null)}}
+ */
+export function shasDoConector(repoRoot, {
+  home = os.homedir(), readImpl = fs.readFileSync, existsImpl = fs.existsSync,
+  readdirImpl = fs.readdirSync,
+} = {}) {
+  const dir = pastaDoConectorInstalado({ home, existsImpl });
+  if (!dir) return { comparados: 0, diferentes: [], em_falta: [], porque: 'não encontrei a pasta do conector instalado' };
+  const mapa = mapaDoBundle(repoRoot, { readImpl });
+  if (!mapa) return { comparados: 0, diferentes: [], em_falta: [], porque: 'não consegui ler a lista FILES do pack-mcpb.mjs' };
+  const pacote = path.join(repoRoot, 'packages', 'mooter-bridge');
+  const sha = (p) => {
+    try { return crypto.createHash('sha256').update(readImpl(p)).digest('hex'); } catch { return null; }
+  };
+  const diferentes = []; const emFalta = [];
+  let comparados = 0;
+  for (const [origem, destino] of mapa) {
+    const nome = destino.replace(/^server\//, '');
+    if (!EXT_DE_CODIGO.test(nome)) continue;
+    const noRepo = path.resolve(pacote, origem);
+    const instalado = path.join(dir, nome);
+    if (!existsImpl(instalado)) { emFalta.push(nome); continue; }
+    const a = sha(instalado);
+    const b = sha(noRepo);
+    // Um `null` de qualquer lado e ilegivel, nao "diferente": afirmar
+    // divergencia sem conseguir ler seria inventar o alarme.
+    if (a == null || b == null) continue;
+    comparados += 1;
+    if (a !== b) diferentes.push(nome);
+  }
+  return { comparados, diferentes, em_falta: emFalta, porque: comparados ? null : 'nenhum ficheiro comparável dos dois lados' };
+}
+
+export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.homedir(), existsImpl = fs.existsSync, readdirImpl = fs.readdirSync } = {}) {
   const ler = (p) => { try { return JSON.parse(String(readImpl(p, 'utf8'))); } catch { return null; } };
   const manifest = ler(path.join(repoRoot, 'packages', 'mooter-bridge', 'manifest.json'));
   const noRepo = manifest && typeof manifest.version === 'string' ? manifest.version : null;
@@ -538,7 +636,36 @@ export function verConector(repoRoot, { readImpl = fs.readFileSync, home = os.ho
     return { id: 'conector', estado: ND, o_que: 'conector', valor: `${noRepo} no repo`, porque: 'não encontrei o registo de extensões do Claude Desktop nesta máquina', resolver: null };
   }
   if (instalado === noRepo) {
-    return { id: 'conector', estado: OK, o_que: 'conector', valor: instalado, porque: 'o instalado é o que este repo traz', resolver: null };
+    /**
+     * A VERSAO IGUAL E NECESSARIA, NAO SUFICIENTE. Ate 2026-09-02 este ramo
+     * devolvia `ok` so por as duas etiquetas coincidirem — e um `.mcpb`
+     * construido a meio da onda leva a mesma etiqueta e outro codigo.
+     */
+    const shas = shasDoConector(repoRoot, { home, readImpl, existsImpl, readdirImpl });
+    if (shas.diferentes.length) {
+      return {
+        id: 'conector', estado: MAU, o_que: 'conector',
+        valor: `${instalado} nos dois lados, mas ${shas.diferentes.length} de ${shas.comparados} ficheiro(s) diferem`,
+        porque: `mesma versão, código diferente: ${shas.diferentes.slice(0, 4).join(', ')}`
+          + (shas.diferentes.length > 4 ? ` (+${shas.diferentes.length - 4})` : ''),
+        resolver: 'reconstrói e reinstala: `node packages/mooter-bridge/pack-mcpb.mjs` e instala o .mcpb no Claude Desktop',
+        shas: { comparados: shas.comparados, diferentes: shas.diferentes, em_falta: shas.em_falta },
+      };
+    }
+    if (!shas.comparados) {
+      return {
+        id: 'conector', estado: ND, o_que: 'conector', valor: instalado,
+        porque: `a versão bate certo, mas não consegui comparar o código: ${shas.porque}`,
+        resolver: null,
+        shas: { comparados: 0, diferentes: [], em_falta: shas.em_falta },
+      };
+    }
+    return {
+      id: 'conector', estado: OK, o_que: 'conector', valor: instalado,
+      porque: `o instalado é o que este repo traz — ${shas.comparados} ficheiro(s) conferidos byte a byte (sha256)`,
+      resolver: null,
+      shas: { comparados: shas.comparados, diferentes: [], em_falta: shas.em_falta },
+    };
   }
   return {
     id: 'conector', estado: MAU, o_que: 'conector', valor: `${instalado} instalado ≠ ${noRepo} no repo`,
