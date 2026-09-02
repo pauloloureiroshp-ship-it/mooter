@@ -95,6 +95,10 @@ const FILES = [
   ['capacidades.js', 'server/capacidades.js'],
   ['fosso.js', 'server/fosso.js'],
   ['context.js', 'server/context.js'],
+  // C1.4 (2026-09-02): seamless.js passou a resolver o binario antes do spawn.
+  // O B1 apanhou esta linha em falta antes de custar uma release — que e
+  // exactamente o trabalho dele, e ja a tinha feito para o retrato-mapa.js.
+  ['bin-resolver.js', 'server/bin-resolver.js'],
   ['paths.js', 'server/paths.js'],
   ['arvore.js', 'server/arvore.js'],
   ['probe.js', 'server/probe.js'],

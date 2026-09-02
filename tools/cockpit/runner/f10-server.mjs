@@ -53,6 +53,7 @@ import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
 import { renderLedgerHtml, versaoInstalada } from './build-ledger-snapshot.mjs';
 import { ciEPrsCacheado } from './ci-prs.mjs';
+import { preFlight } from './preflight-motores.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -659,6 +660,32 @@ export function createServer({
        * Entra em `itens` SO quando ha alerta: o cartao da saude do painel mostra
        * apenas o que precisa de mao, e um verde a mais ensina a ignorar o cartao.
        */
+      /**
+       * O PRE-FLIGHT DOS MOTORES — «qual deles arranca, aqui, agora?».
+       *
+       * A 2026-09-02 quatro de seis tarefas nao chegaram a existir (`spawn
+       * codex ENOENT`, `Not logged in`) e o painel nao dizia nada: um motor que
+       * nao arranca era, no cockpit, indistinguivel de um motor que ninguem
+       * usou. Nao executa nada e nao gasta um token — le o disco e o ambiente.
+       *
+       * `motorLocalVivo` vem do mesmo `engineAlive` que o `/fleet.json` usa,
+       * para nao haver duas verdades sobre o mesmo Ollama.
+       */
+      let vivoLocal = null;
+      try { vivoLocal = await engineAlive(fetchImpl); } catch { vivoLocal = null; }
+      const pf = preFlight({ motorLocalVivo: vivoLocal });
+      saude.motores = pf;
+      for (const m of pf.motores) {
+        if (m.estado !== 'mau') continue;
+        saude.itens = [...(saude.itens || []), {
+          o_que: `o motor \`${m.id}\` nao arranca nesta maquina`,
+          valor: m.rotulo,
+          estado: 'mau',
+          porque: m.porque,
+          resolver: m.resolver,
+        }];
+      }
+
       const wd = uptimeDoF10(lerRegistoDoWatchdog({ mooDir: paths.base }));
       saude.watchdog = wd;
       if (wd.alerta) {

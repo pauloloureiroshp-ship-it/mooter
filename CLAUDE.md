@@ -129,6 +129,47 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `"1.50": []`. Provado por `node pack-mcpb.mjs` (335 verificações de conteúdo
   OK, sha256 `9100e0dfaf5724fbb5845122c64ef3e89e10c0d49a7385f95fa3774004f96ad6`)
   e por `packages/mooter-bridge/versao-coerente.test.js`.
+  **2026-09-02 · as duas causas-raiz da medicao de eficiencia** allowlists
+  **modificacoes** a `packages/mooter-bridge/seamless.js` e
+  `packages/mooter-bridge/context.js`, e **adicoes**:
+  `packages/mooter-bridge/bin-resolver.js` e
+  `packages/mooter-bridge/cadeia-nao-silenciosa.test.js` (mais as tres linhas de
+  registo em `pack-mcpb.mjs`, `entregas-por-versao.json` e `entrega.test.js` que
+  os gates B1/entrega exigem). Autorizado pelo dono no master prompt «Moo Pilot
+  Perfeito», item **C1.4**, que nomeia os ficheiros: «linhas numeradas no
+  contexto injetado (`context.js:149`); resolvedor de binários (generalizar
+  `gh-bin.mjs`) usado em `seamless.js` antes do spawn; … cadeia moo→cc nunca
+  falha em silêncio».
+  Não é cosmético: a 2026-09-02, seis tarefas despachadas pelo conector deram
+  **duas** entregas locais e **quatro** falhas, e as quatro eram de ambiente.
+  · `context.js` — injectava o ficheiro CRU. Os dois jobs que chegaram ao fim
+  acertaram **3/3 dos factos e 0/3 das linhas**. Medido em A/B nesta bancada,
+  mesmo modelo e mesmo prompt: contexto cru **0/7** linhas certas, contexto
+  numerado **5/7**.
+  · `seamless.js` — três linhas, três defeitos medidos. (1) `spawn codex ENOENT`
+  com o `codex` instalado em `~/.local/node/bin`: o Claude Desktop lança o
+  conector com um PATH que não o tem — mesma classe do `gh` sob launchd, mesma
+  solução (`bin-resolver.js`, e resolve-se no spawn e não no `buildCommand`
+  para o caminho com o nome do dono não entrar no ledger). (2) `USER` e
+  `LOGNAME` fora do `CHILD_ENV_BASE_KEYS`: o job `cc` morria em 2 s com «Not
+  logged in · Please run /login», `<synthetic>`, 0 tokens — **com a sessão
+  válida**. Reproduzido a frio: `env -i PATH=$PATH HOME=$HOME claude -p` diz
+  «Not logged in»; a mesma linha com `USER=$USER` responde. Em macOS a
+  credencial vive no chaveiro indexada pela conta, e a conta é o `$USER`. Isto
+  **refuta** o diagnóstico do kickoff («encontra um binário (ou outro HOME) que
+  não está logado»): não era o binário nem o HOME. (3) uma escalada recusada só
+  ia para o `log()` — reproduzido no mesmo dia, a cadeia `moo → kimi` fechou com
+  `settled:true, failed:0` e **zero** eventos sobre o job pago que nunca
+  existiu; passa a `chain_refused` no ledger, com destino e motivo.
+  · `bin-resolver.js` é uma segunda cópia por uma fronteira de **empacotamento**,
+  não de conhecimento (AGENTS.md § Conventions) — precedente exacto:
+  `packages/cli/src/ollama-host.ts`. As duas cópias são provadas contra a MESMA
+  tabela, `tools/cockpit/runner/bin-resolver.casos.json`; mordida verificada:
+  alterar um caso reprova **os dois lados**.
+  Provado por `packages/mooter-bridge` (1176/1176), `context.test.js` (18),
+  `cadeia-nao-silenciosa.test.js` (5, end-to-end com um Ollama de mentira em
+  loopback), `tools/cockpit/runner/bin-resolver.test.mjs` (22) e
+  `preflight-motores.test.mjs` (13).
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

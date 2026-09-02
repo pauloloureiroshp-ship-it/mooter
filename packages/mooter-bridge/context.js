@@ -101,6 +101,43 @@ function procurar(worktree, nome, maxDepth) {
 }
 
 /**
+ * NUMERAR AS LINHAS — a causa-raiz nº1 da medição de eficiência de 2026-09-02.
+ *
+ * O experimento correu 6 tarefas fechadas com verdade por `grep`. Os dois jobs
+ * locais que chegaram ao fim acertaram **3/3 dos factos e 0/3 das linhas**:
+ *
+ *   ci-prs.mjs   disse 103 / 10 / 43-50      real 48 / 28 / 37-49
+ *   gh-bin.mjs   disse 103 / 106 / 120       real 117 / 41 / 125
+ *
+ * Não é o modelo a mentir: é este ficheiro a injectar o conteúdo CRU. Sem
+ * números, qualquer `ficheiro:linha` que o modelo escreva é um palpite sobre
+ * uma coisa que ele nunca viu — e alimenta o bucket `linha-errada`, 18,8% dos
+ * 1.072 achados do `receipts-check`.
+ *
+ * Formato `NNN│ texto`, largura fixa por ficheiro. Três escolhas, e nenhuma é
+ * arbitrária:
+ *
+ *  · **`│` (U+2502) e não `:`** — um `:` colaria a `48: const x` e o modelo, ao
+ *    citar, tem de decidir onde acaba o número. A barra vertical não aparece em
+ *    código real e não se confunde com conteúdo.
+ *  · **Largura fixa**, alinhada à direita, calculada sobre o TOTAL de linhas do
+ *    ficheiro e não sobre as que couberam — senão um corte mudava o alinhamento
+ *    a meio e o modelo via duas colunas onde só há uma.
+ *  · **Começa em 1**, que é o que um editor mostra e o que um `sed -n 48p` lê.
+ *    Qualquer outra base seria uma segunda convenção de linha neste projecto.
+ *
+ * @returns {{linhas: string[], largura: number}}
+ */
+function numerarLinhas(texto) {
+  const linhas = String(texto == null ? '' : texto).split('\n');
+  const largura = Math.max(3, String(linhas.length).length);
+  return {
+    linhas: linhas.map((l, i) => String(i + 1).padStart(largura, ' ') + '\u2502 ' + l),
+    largura,
+  };
+}
+
+/**
  * Lê os ficheiros que o goal cita e devolve um bloco pronto a injectar.
  *
  * @returns {{bloco:string|null, lidos:Array, falhados:Array, chars:number, truncados:Array}}
@@ -134,18 +171,27 @@ function lerParaPrompt(texto, worktree, budgetChars) {
 
     const relFinal = path.relative(worktree, alvo).replace(/\\/g, '/');
     const restante = budget - usado;
-    let corpo = conteudo;
+    // Numerar ANTES de cortar: o orçamento tem de contar o que é MESMO
+    // injectado. Numerar depois faria o bloco passar do tecto em silêncio —
+    // exactamente o tipo de corte mudo que o cabeçalho deste ficheiro proíbe.
+    const num = numerarLinhas(conteudo);
+    let linhasFinais = num.linhas;
+    const totais = num.linhas.length;
+    let corpo = linhasFinais.join('\n');
     if (corpo.length > restante) {
       // cortar por linhas, não a meio de uma — e DIZER que se cortou
-      const linhas = corpo.split('\n');
       const mantidas = [];
       let n = 0;
-      for (const l of linhas) { if (n + l.length + 1 > restante) break; mantidas.push(l); n += l.length + 1; }
+      for (const l of linhasFinais) { if (n + l.length + 1 > restante) break; mantidas.push(l); n += l.length + 1; }
+      linhasFinais = mantidas;
       corpo = mantidas.join('\n');
-      truncados.push({ path: relFinal, linhas_dadas: mantidas.length, linhas_totais: linhas.length });
+      truncados.push({ path: relFinal, linhas_dadas: mantidas.length, linhas_totais: totais });
     }
     usado += corpo.length;
-    lidos.push({ path: relFinal, chars: corpo.length, linhas: corpo.split('\n').length, como: comoAchou });
+    lidos.push({
+      path: relFinal, chars: corpo.length, linhas: linhasFinais.length, como: comoAchou,
+      numerado: true, largura_do_numero: num.largura,
+    });
     partes.push('### ' + relFinal + '\n```\n' + corpo + '\n```');
   }
 
@@ -158,6 +204,11 @@ function lerParaPrompt(texto, worktree, budgetChars) {
     '',
     'Tu não tens ferramentas de ficheiro. O conector leu-os por ti e colou-os aqui.',
     'Trabalha SÓ sobre este conteúdo. ❌ Não inventes funções, ficheiros ou linhas que não estejam abaixo.',
+    '',
+    '📏 CADA LINHA VEM PREFIXADA COM O SEU NÚMERO REAL NO FICHEIRO, no formato `NNN│ texto`.',
+    'São os números do ficheiro em disco, a começar em 1 — os mesmos que um editor mostra.',
+    'Quando citares uma linha, usa ESSE número e nunca um que tenhas contado.',
+    'O prefixo `NNN│ ` não faz parte do código: não o incluas em nada que cites como conteúdo.',
     truncados.length ? '⚠️ ' + truncados.map((t) => t.path + ' foi cortado (' + t.linhas_dadas + ' de ' + t.linhas_totais + ' linhas)').join(' · ') : '',
     falhados.length ? '⚠️ não consegui ler: ' + falhados.map((f) => f.path + ' (' + f.porque + ')').join(' · ') : '',
     '',
@@ -166,4 +217,4 @@ function lerParaPrompt(texto, worktree, budgetChars) {
   return { bloco: cabecalho + '\n' + partes.join('\n\n') + '\n---\n', lidos, falhados, chars: usado, truncados };
 }
 
-module.exports = { lerParaPrompt, pathsCitados, resolverDentro, procurar, TEXTO };
+module.exports = { lerParaPrompt, pathsCitados, resolverDentro, procurar, numerarLinhas, TEXTO };

@@ -120,6 +120,58 @@ t('sem ficheiros citados devolve null sem barulho', () => {
   assert.strictEqual(r.falhados.length, 0);
 });
 
+/* ── os numeros de linha (causa-raiz 1 da medicao de 2026-09-02) ───────────── */
+
+t('cada linha vem prefixada com o seu numero real, comecando em 1', () => {
+  const r = ctx.lerParaPrompt('analisa o src/deep/beta.js', ROOT, 20000);
+  const corpo = r.bloco.split('```')[1];
+  assert.ok(/^\s*1│ const beta = 2;$/m.test(corpo), 'a linha 1 nao esta numerada:\n' + corpo.slice(0, 200));
+});
+
+t('a largura do numero e fixa e alinhada a direita — senao o modelo ve duas colunas', () => {
+  const { linhas, largura } = ctx.numerarLinhas('a\n'.repeat(120).trim());
+  assert.strictEqual(largura, 3, 'largura devia ser 3 para 120 linhas');
+  const prefixos = linhas.map((l) => l.slice(0, largura + 2));
+  assert.strictEqual(prefixos[0], '  1│ ');
+  assert.strictEqual(prefixos[99], '100│ ');
+  for (const pfx of prefixos) assert.strictEqual(pfx.length, largura + 2, 'prefixo de largura variavel: ' + JSON.stringify(pfx));
+});
+
+t('a largura sai do TOTAL de linhas, nao das que couberam no orcamento', () => {
+  // 5000 linhas -> largura 4. Com um orcamento pequeno so cabem umas dezenas,
+  // mas o alinhamento tem de continuar a ser o do ficheiro inteiro.
+  const r = ctx.lerParaPrompt('le o src/grande.js', ROOT, 3000);
+  assert.strictEqual(r.lidos[0].largura_do_numero, 4);
+  const corpo = r.bloco.split('```')[1];
+  assert.ok(/^   1│ linha$/m.test(corpo), 'a primeira linha nao usa a largura do ficheiro inteiro');
+});
+
+t('o numero conta para o ORCAMENTO — senao o bloco passava do tecto em silencio', () => {
+  const budget = 3000;
+  const r = ctx.lerParaPrompt('le o src/grande.js', ROOT, budget);
+  assert.ok(r.chars <= budget, 'o bloco injectado (' + r.chars + ') passou o tecto de ' + budget);
+  // e o que foi cortado continua a ser dito
+  assert.strictEqual(r.truncados.length, 1);
+  assert.strictEqual(r.truncados[0].linhas_totais, 5001);
+  assert.ok(r.truncados[0].linhas_dadas < r.truncados[0].linhas_totais);
+});
+
+t('o cabecalho DIZ que os numeros sao os do ficheiro real', () => {
+  const r = ctx.lerParaPrompt('analisa o src/deep/beta.js', ROOT, 20000);
+  assert.ok(/NÚMERO REAL NO FICHEIRO/.test(r.bloco), 'o modelo nao e avisado de que os numeros sao reais');
+  assert.ok(/não o incluas em nada que cites/.test(r.bloco), 'nada impede o modelo de citar o prefixo como se fosse codigo');
+});
+
+t('numerarLinhas nao rebenta com vazio nem com null', () => {
+  assert.deepStrictEqual(ctx.numerarLinhas('').linhas, ['  1│ ']);
+  assert.deepStrictEqual(ctx.numerarLinhas(null).linhas, ['  1│ ']);
+});
+
+t('o separador nao e `:` — um `:` colava ao codigo e nao se distinguia de conteudo', () => {
+  const { linhas } = ctx.numerarLinhas('const a = { b: 1 };');
+  assert.ok(linhas[0].includes('│'), 'o separador mudou e o modelo deixa de saber onde acaba o numero');
+});
+
 setTimeout(() => {
   console.log('\n' + pass + ' testes de contexto' + (process.exitCode ? ' — COM FALHAS' : ' — tudo verde') + '\n');
   try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch { /* */ }

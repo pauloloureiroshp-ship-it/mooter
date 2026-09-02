@@ -34,6 +34,7 @@ const os = require('os');
 const fs = require('fs');
 const crypto = require('crypto');
 const { spawn, execFileSync } = require('child_process');
+const binResolver = require('./bin-resolver.js');
 const { PassThrough } = require('stream');
 const telemetry = require('./telemetry.js');
 const moo = require('./moo.js');
@@ -806,6 +807,27 @@ function assertSingleLineArgs(cmd) {
 const CHILD_ENV_BASE_KEYS = Object.freeze([
   'PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR',
   'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH',
+  // ⚠️ `USER` E `LOGNAME` — medido a 2026-09-02, e custou 4 de 6 tarefas.
+  //
+  // O job `cc` do experimento morria em 2 s com `Not logged in · Please run
+  // /login`, exit 1, modelo `<synthetic>`, 0 tokens — com o Claude Code
+  // instalado e a sessao VALIDA. O kickoff atribuiu-o ao binario ou ao HOME.
+  // Nao era nem um nem outro. Reproduzido a frio:
+  //
+  //   env -i PATH=$PATH HOME=$HOME              claude -p 'PONG'
+  //     -> «Not logged in · Please run /login»
+  //   env -i PATH=$PATH HOME=$HOME USER=$USER   claude -p 'PONG'
+  //     -> «PONG»
+  //   env -i PATH=$PATH HOME=$HOME LOGNAME=$LOGNAME claude -p 'PONG'
+  //     -> «Not logged in» (LOGNAME sozinho NAO chega)
+  //
+  // Em macOS a credencial vive no chaveiro indexada pela CONTA, e a conta e o
+  // `$USER`. Sem a variavel, a procura falha e o CLI conclui — de boa-fe — que
+  // ninguem se autenticou. Esta lista existia para nao vazar segredos; `USER`
+  // e `LOGNAME` nao sao segredo nenhum (qualquer processo do dono os le) e a
+  // ausencia deles transformava um motor pago pronto a correr numa falha muda.
+  // `LOGNAME` entra por ser o equivalente POSIX que outras ferramentas leem.
+  'USER', 'LOGNAME',
   'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP', 'TMPDIR',
   'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME',
   'LANG', 'LC_ALL', 'TERM', 'COLORTERM', 'NO_COLOR',
@@ -859,9 +881,27 @@ function childEnvFor(agent) {
 function realSpawnJob(cmd, cwd, outStream, errStream, agent) {
   const isWin = process.platform === 'win32';
   const opts = { cwd, env: childEnvFor(agent || 'cc'), stdio: ['ignore', 'pipe', 'pipe'] };
+  /**
+   * RESOLVER ANTES DE CORRER — medido a 2026-09-02: `spawn codex ENOENT`, com
+   * o `codex` instalado em `~/.local/node/bin`. O Claude Desktop lanca este
+   * conector com um PATH que nao o tem.
+   *
+   * Resolve-se AQUI e nao no `buildCommand` de proposito: o `commandText` que
+   * o `buildCommand` produz vai para o `meta.json` e para o ledger, e um
+   * caminho absoluto poria `/Users/<nome>/…` num registo que se partilha. O
+   * comando publicado continua a dizer `claude`; quem muda e so o que o
+   * `spawn` recebe. Se nao encontrar nada, cai no nome cru — e o ENOENT que
+   * daí vier e a verdade, nao um palpite escondido.
+   */
+  const achado = binResolver.resolverBin(cmd.bin, { env: opts.env });
+  const bin = achado.caminho || cmd.bin;
   const child = isWin
-    ? spawn([cmd.bin, ...cmd.args.map(quoteArg)].join(' '), Object.assign({ shell: true, windowsHide: true }, opts))
-    : spawn(cmd.bin, cmd.args, opts);
+    ? spawn([quoteArg(bin), ...cmd.args.map(quoteArg)].join(' '), Object.assign({ shell: true, windowsHide: true }, opts))
+    : spawn(bin, cmd.args, opts);
+  // A FONTE, nunca o caminho. `fora-do-PATH` e o sinal de que este processo
+  // corre com um ambiente mais pobre do que o do dono — e e o unico aviso que
+  // existe antes de o proximo binario faltar.
+  cmd.bin_fonte = achado.fonte;
   if (child.stdout) child.stdout.pipe(outStream);
   if (child.stderr) child.stderr.pipe(errStream);
   return child;
@@ -2552,10 +2592,38 @@ async function toolDispatch(args) {
       next.__note = note;
       next.__prep_from = job_id;
     }
+    /**
+     * A ESCALADA QUE FALHA TEM DE FICAR ESCRITA — causa-raiz 2 (c).
+     *
+     * Ate aqui uma recusa da cadeia so ia para o `log()`, que e o stdout deste
+     * processo. O ledger nao via nada, o `mooter_check` nao via nada, e a wave
+     * fechava com `settled:true` a dizer que estava tudo bem. Reproduzido a
+     * 2026-09-02: a cadeia `moo -> kimi` desapareceu sem UM evento — o job
+     * local dizia `done` e o pago nunca existiu. O chamador ficava a olhar
+     * para um resultado local a acreditar que tinha sido o pedido.
+     *
+     * Agora a recusa e um evento do ledger, preso ao job que a originou. O
+     * resultado local FICA (e valido e foi pago com $0); o que muda e que a
+     * escalada em falta passa a ter nome, motivo e gesto.
+     */
+    const escaladaFalhou = (porque) => {
+      const motivo = String(porque || 'motivo n/d').slice(0, 300);
+      log('chain dispatch recusado: ' + motivo);
+      try {
+        ledgerAppend({
+          job_id, wave, agent, worktree: wtNorm, event: 'chain_refused', mp_hash,
+          escalada_para: next.agent || 'n/d',
+          nota: 'escalada indisponivel: ' + motivo,
+          porque: motivo,
+        });
+      } catch { /* o ledger nunca derruba o job que ja terminou */ }
+    };
     setImmediate(() => {
       toolDispatch(next)
-        .then((r2) => { if (r2 && r2.error) log('chain dispatch recusado: ' + JSON.stringify(r2.reasons || r2.error)); })
-        .catch((e) => log('chain falhou: ' + ((e && e.message) || e)));
+        .then((r2) => {
+          if (r2 && r2.error) escaladaFalhou(JSON.stringify(r2.reasons || r2.error));
+        })
+        .catch((e) => escaladaFalhou((e && e.message) || e));
     });
   }
 

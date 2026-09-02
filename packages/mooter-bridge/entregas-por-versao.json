@@ -100,5 +100,9 @@
   "1.52": [
     "seamless.js"
   ],
-  "1.53": []
+  "1.53": [
+    "bin-resolver.js",
+    "seamless.js",
+    "context.js"
+  ]
 }
