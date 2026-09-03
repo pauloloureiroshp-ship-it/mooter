@@ -9,7 +9,7 @@ Claude-specific instructions live in `CLAUDE.md` (root) — read that too if you
 every day: it sets up, watches, and pilots a real multi-agent project from inside VS Code with
 total visibility — alerting foundation gaps (skills, memory, loops, file structure), applying
 vibe-coding best practices automatically, and making the magic visible (Live Preview).
-Under the hood, the engine: a deterministic local-first router (<50ms, $0 to classify)
+Under the hood, the engine: a deterministic local-first router (1 ms cached, 134 ms p50 when it spawns; the rule is $0, the low-confidence arbiter is not)
 that orchestrates multiple LLM subscriptions (Anthropic, OpenAI, Google) plus the user's own
 GPU (Ollama), routing every prompt to the minimum viable tier and learning forever from local
 telemetry — never proxying prompts, never fabricating metrics. The moat is trust: an auditable

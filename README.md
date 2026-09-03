@@ -12,7 +12,7 @@ Mooter sets up, watches, and pilots your project with total visibility: foundati
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Wave 1: shipped](https://img.shields.io/badge/Wave%201-shipped%202026--06--03-brightgreen.svg)](docs/wave1-validation.md)
 [![Routing](https://img.shields.io/badge/routed%20to%20cheap-101%2F123%20prompts-blue.svg)](#honest-numbers)
-[![Classifier latency](https://img.shields.io/badge/classifier-%3C50ms-blue.svg)](#how-the-classifier-works)
+[![Classifier latency](https://img.shields.io/badge/classifier-1ms%20cached%20%C2%B7%20134ms%20p50-blue.svg)](#how-the-classifier-works)
 [![Skills](https://img.shields.io/badge/skills-11%20built--in-blue.svg)](#slash-commands-10-built-in)
 [![CI](https://github.com/pauloloureiroshp-ship-it/mooter/actions/workflows/test.yml/badge.svg)](.github/workflows/test.yml)
 [![Sync: live](https://img.shields.io/badge/sync-live-brightgreen.svg)](docs/observability/WAVE26_PROD_TELEMETRY_DAY0.md)
@@ -21,10 +21,12 @@ Mooter sets up, watches, and pilots your project with total visibility: foundati
 ---
 
 ```
-⬆ main·a1b2 │ 🐮 mooter v1.0 · 🐮 Moo · CrazyMoo · LazyMoo │ [T3] ops arch 2.5s │ qwen 61% · hku 22% · son 13% · ops 4% │ 💰 $12.80 (90%) │ 💻 RTX 4090 61% │ ●●◐○○○
+⬆ main·a1b2 │ 🐮 mooter v1.0 · 🐮 Moo · CrazyMoo · LazyMoo │ [T3] ops arch 2.5s │ qwen 61% · hku 22% · son 13% · ops 4% │ 💻 RTX 4090 61% │ ●●◐○○○
 ```
 
-*Your statusline after a day of work: git · 🐮 brand + mode trio · current tier + classify · tier distribution · savings + budget · GPU · provider availability. No router. No proxy. No extra bill.*
+*Your statusline after a day of work: git · 🐮 brand + mode trio · current tier + classify · tier distribution · GPU · provider availability. No router. No proxy. No extra bill.*
+
+> **No savings figure appears above, and none appears anywhere in this repository.** Since 2026-08-24 this project publishes no "% saved" or "$ saved" until a telemetry file records tokens. See [Honest numbers](#honest-numbers).
 
 **Tier emojis** — 🏠 T0 (local) · 🌸 T1 (Haiku) · 🎵 T2 (Sonnet) · 💎 T3 (Opus)
 
@@ -165,7 +167,7 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | T2 routing (Sonnet) | 12.4% |
 | T3 routing (Opus) | 3.6% |
 | Hook p50 (v0.7) | 113ms (was ~3s pre-v0.7) |
-| Classifier latency | <50ms (regex, zero LLM) |
+| Classifier latency | **1ms cached** (n=264) · **134ms p50 when a process spawns** (n=498) — measured 2026-09-03 |
 | Low-confidence rate | 2.0% |
 | **Savings vs naive Opus** | **not measured** — see [Honest numbers](#honest-numbers) |
 | Guaranteed savings (Option-A hits) | measured per-session |
@@ -199,6 +201,17 @@ That gap — recommendation vs execution — is the honest state of the project,
 
 `guaranteed_saved` (Option-A hits, where a local answer demonstrably replaced a paid one) **is** measured per session. It is the only dollar figure here with a denominator.
 
+### Two more numbers, corrected 2026-09-03
+
+An audit of the live hook log (762 classifications) found two claims in this README, in `CLAUDE.md` and in `AGENTS.md` that described the minority case:
+
+| number | what it actually is |
+|---|---|
+| `<50ms` | true for **34.6%** of sizings. The cache path is 1.0ms p50 (n=264); the spawn path is **134ms p50, 326ms max, and 0% under 50ms** (n=498). The regex rule really does cost ~2ms — starting the process does not. |
+| `$0 to classify` | true of the rule, not of the shipped hook. When confidence is low it asks a cloud arbiter: **98 paid calls** in the same log. |
+
+Both were fixed in place rather than quietly deleted, because the sentence they lived in is the one every agent reads at startup.
+
 ---
 
 ## Who is this for?
@@ -226,7 +239,7 @@ It is **not** for: production AI workloads where latency matters more than cost,
 │       ▼                                                                 │
 │   UserPromptSubmit hook ──► inject_context.js ──► classify.js           │
 │                                                        │                │
-│                                                        │ <50ms, regex   │
+│                                                        │ 1-134ms, regex │
 │                                                        ▼                │
 │                                              <router-hint> injected     │
 │                                                        │                │
