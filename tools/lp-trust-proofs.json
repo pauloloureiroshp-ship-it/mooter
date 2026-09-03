@@ -1,0 +1,192 @@
+{
+  "schema": 1,
+  "title": "Live Preview trust proof set",
+  "spec": "_handoff/MOOTER_20_H2_TRUST_HARNESS.md",
+  "note": [
+    "Declarative manifest consumed by tools/lp-trust-runner.js. It asserts ABOUT the existing",
+    "tests; it never replaces them. No test or engine file is touched by this harness.",
+    "The gate is not 'the tests are green' — it is 'the proof still EXISTS'. Deleting a proof's",
+    "tests makes the plain suite greener; here it fails as proof-unbacked (see minCount).",
+    "Counts below were measured on this tree (origin/main @71340b2, extension 0.16.78), never cited."
+  ],
+  "extensionDir": "packages/vscode-extension",
+  "classifyFreeze": {
+    "file": "tools/router/classify.js",
+    "shaFile": "tools/router/classify.js.sha256",
+    "why": "S0 mirrors .github/workflows/test.yml — the frozen classifier is a repo-wide invariant."
+  },
+  "receipt": {
+    "path": "_handoff/live-preview/trust-receipt.json",
+    "mustBeGitIgnored": true,
+    "why": [
+      "The receipt is a PROJECTION of a run, never a source of truth. A committed receipt is a",
+      "stale claim that outlives the run that earned it, so the runner fail-closes if the path is",
+      "not git-ignored. Same pattern as _handoff/agent-sync/ and _handoff/loop/* in .gitignore."
+    ]
+  },
+  "skipAllowlist": [
+    {
+      "file": "src/host-extra-git.test.js",
+      "namePattern": "^prepared content lease hashes a real symlink target",
+      "platform": "win32",
+      "reason": "Symlink creation needs elevation on Windows; the test runs for real on the CI ubuntu runner. Documented in the spec as the only known skip. NOTE: this file is not in the proof set, so this entry is currently inert — it is kept so the policy stays declarative if the file is ever pulled in."
+    }
+  ],
+  "proofs": [
+    {
+      "id": "P1",
+      "name": "Origin lease — an origin swap voids root+selection and bumps the epoch",
+      "backing": "COH-01 (P0) LP_COHERENCE_AUDIT_REPORT.md:51 §6:148-168 · COH-04 :54",
+      "anchor": "finding-id",
+      "files": ["src/lp-lease-host.test.js"],
+      "match": [
+        {
+          "pattern": "^C0/COH-01: ",
+          "minCount": 5,
+          "note": "Origin swap voids root+selection; same-origin HMR survives (negative control); a pending prompt-apply across the swap writes nothing; the new origin stays blocked until a fresh lp-ready."
+        },
+        {
+          "pattern": "^C0/COH-04: ",
+          "minCount": 1,
+          "note": "Server up but identity unproven → readiness.tree === 'unknown', never absent."
+        },
+        {
+          "pattern": "^C0/adversarial: ",
+          "minCount": 1,
+          "note": "Adversarial epoch race: a write echoing an OLD epoch refuses even on a reconfirmed tree. 4 present today; floor is the 1 the spec names."
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "SHA-guard on undo/revert and stale apply",
+      "backing": "No open finding — this is a CERTIFIED INVARIANT (spec :360), i.e. a regression lock, not a fix. Said plainly.",
+      "anchor": "behaviour-regex",
+      "residualRisk": [
+        "P2 has NO formal finding ID embedded in its test names, so it is matched by BEHAVIOUR regex",
+        "instead of an ID prefix. A determined rename can still escape it. This weakness is declared",
+        "here, in the manifest, rather than hidden in a habit. Spec follow-up F7 (give the SHA-guard a",
+        "formal ID, e.g. INV-01, and put it in the test names) closes this — F7 edits test files, so it",
+        "is explicitly OUT of this wave's allowlist and stays open."
+      ],
+      "files": ["src/live-edit-undo.test.js", "src/lp-edit-host.test.js"],
+      "match": [
+        {
+          "file": "src/live-edit-undo.test.js",
+          "pattern": "sha-guarded|undo-stale|preview-tree-mismatch",
+          "minCount": 3,
+          "note": "applyUndo is sha-gated; a foreign write after ours → undo-stale, nothing written, entry kept; a changed served tree → preview-tree-mismatch."
+        },
+        {
+          "file": "src/lp-edit-host.test.js",
+          "pattern": "FAIL-CLOSED|bad-request",
+          "minCount": 2,
+          "note": "Stale TEXT/CLASS apply fail-closes writing nothing; apply without the preview hash is bad-request. The spec's published regex (sha-guarded|undo-stale|preview-tree-mismatch|bad-request) matched only 1 of the 3 tests in this file — the two FAIL-CLOSED titles carry no such token — so it would have failed its own minCount:5. Corrected here against the real titles."
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "Security fail-closed — no scan / failed / stale / Critical never spawns",
+      "backing": "D6 (P0) LP_CODEX_AUDIT_REPORT.md:127 · overrideCritical ignored :131",
+      "anchor": "finding-id",
+      "files": ["src/lp-publish-host.test.js"],
+      "match": [
+        {
+          "pattern": "^D6 ",
+          "minCount": 6,
+          "note": "Each asserts r.reason AND that vercel is never spawned: critical-open · overrideCritical IGNORED · security-scan-required · security-scan-failed · security-scan-stale · npm-audit prod critical. 11 D6 tests present today; floor is the 6 the spec names."
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "Publish only with explicit acceptance — a forged payload authorizes nothing",
+      "backing": "D6 (P1) LP_CODEX_AUDIT_REPORT.md:131 · COH-10 :60",
+      "anchor": "behaviour-regex",
+      "residualRisk": [
+        "MEASURED DEVIATION FROM THE SPEC: spec §5 claims P2 is the only proof without a finding ID.",
+        "It is not. P4's tests carry NO ID prefix either ('Publish approval gate is global…',",
+        "'A forged Publish payload…') — no COH-10:, no D6 . So the manifest anchors 5/7 proofs by ID,",
+        "not 6/7 as the spec states. P4 therefore uses the same behaviour-regex fallback as P2, and",
+        "carries the same rename risk. Declared, not hidden. F7 should cover P4 as well as P2."
+      ],
+      "files": ["src/lp-publish-host.test.js"],
+      "match": [
+        {
+          "pattern": "approval gate is global",
+          "minCount": 1,
+          "note": "The approval gate is global: node A pending still vetoes while node B is selected."
+        },
+        {
+          "pattern": "forged",
+          "minCount": 2,
+          "note": "A forged payload authorizes neither parallel files outside approval nor pre-existing dirt in the exact same approved path."
+        },
+        {
+          "pattern": "identity lease",
+          "minCount": 1,
+          "note": "Vercel deploy requires the status identity lease even when the visible project name matches."
+        },
+        {
+          "pattern": "immutable commit",
+          "minCount": 1,
+          "note": "Production deploy refuses the mutable workspace until this panel has pushed an immutable commit."
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "Zero writes outside the preview path",
+      "backing": "COH-01 §6:164 ('can edit the workspace while the iframe shows another app') · D2 :74",
+      "anchor": "finding-id",
+      "files": ["src/lp-tree-host.test.js"],
+      "match": [
+        {
+          "pattern": "^G2: ",
+          "minCount": 8,
+          "note": "A sibling/null servedRoot refuses in _applyEdit/_deleteNode/_promptApply/_taskRun; _promptEdit refuses BEFORE shipping node bytes to the model. 9 present today; floor is the 8 the spec names."
+        },
+        {
+          "pattern": "incident regression",
+          "minCount": 1,
+          "note": "The twin-worktree incident regression asserts the workspace target is left BYTE-IDENTICAL. Carries no G2: prefix, so it is matched by behaviour."
+        }
+      ]
+    },
+    {
+      "id": "P6",
+      "name": "Telemetry honesty — a cloud/agent event is never local:true",
+      "backing": "COH-08 (P1) :58 — 'the cost/model narrative becomes materially false'",
+      "anchor": "finding-id",
+      "files": ["src/lp-routing-host.test.js"],
+      "match": [
+        {
+          "pattern": "^COH-08: ",
+          "minCount": 4,
+          "note": "An agent/cloud event carries the real tier/model and is never local:true; local:false is inferred from a cloud tier; a deploy event is never local."
+        },
+        {
+          "pattern": "^COH-15: ",
+          "minCount": 1,
+          "note": "The lifecycle phase rides the event (started/succeeded/failed/cancelled)."
+        }
+      ]
+    },
+    {
+      "id": "P7",
+      "name": "Lease revalidation on Ask→Apply",
+      "backing": "COH-07 (P1) :57",
+      "anchor": "finding-id",
+      "why": "The only write path whose id comes from the webview. Without it P1's lease has a bypass and a green P1 would OVERSTATE the safety.",
+      "files": ["src/lp-ask-apply-host.test.js"],
+      "match": [
+        {
+          "pattern": "^COH-07: ",
+          "minCount": 4,
+          "note": "An unknown/expired askId refuses; a valid apply composes from the STORED question+answer and ignores a tampered payload; apply is one-shot. 7 present today; floor is the 4 the spec names."
+        }
+      ]
+    }
+  ]
+}

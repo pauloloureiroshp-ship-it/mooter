@@ -11,6 +11,15 @@
  * exhaustion or any failure (caller falls through to the next provider in
  * `suggested_providers`).
  *
+ * The null return is the CONTRACT and does not change — every caller already
+ * branches on falsy. But a bare null cannot say WHY, and "timed out at 30s"
+ * and "answered nothing" ask for opposite fixes. Measured 2026-09-02: every
+ * `/mooter-codex` dispatch surfaced as `no_output` while `codex exec` itself
+ * exited 0 — the reason (SIGTERM at the deadline) was thrown away here, in
+ * `catch { return null; }` and in the `status !== 0` branch. So callers may
+ * pass `opts.diag` — a plain object this function fills with the reason. It is
+ * a pure out-parameter: absent diag ⇒ byte-identical behaviour.
+ *
  * Updates quota-tracker.js after every call so the classifier can decide
  * whether to keep preferring Codex on the next prompt.
  *
@@ -76,6 +85,22 @@ const QUOTA_HINTS = [
 const DEFAULT_TIMEOUT_MS = 90_000;
 
 /**
+ * Did the child die because WE killed it at the deadline?
+ *
+ * spawnSync signals a timeout by returning `error.code === 'ETIMEDOUT'` and
+ * killing with SIGTERM. On some platforms (notably Windows with shell:true, which
+ * this adapter must use — see CODEX_BIN) only the signal survives, so we accept a
+ * bare signal too — but guard it with elapsed time, otherwise a genuine external
+ * SIGTERM one second in would be mislabelled as our own deadline.
+ */
+function killedByDeadline(res, elapsedMs, timeoutMs) {
+  if (!res) return false;
+  const err = res.error;
+  if (err && (err.code === 'ETIMEDOUT' || /etimedout|timed?\s*out/i.test(String(err.message || '')))) return true;
+  return !!res.signal && elapsedMs >= timeoutMs * 0.9;
+}
+
+/**
  * Invoke Codex CLI with a prompt.
  *
  * @param {string} prompt
@@ -84,6 +109,9 @@ const DEFAULT_TIMEOUT_MS = 90_000;
  * @param {'read-only'|'workspace-write'} [opts.sandbox='read-only']
  * @param {number} [opts.timeoutMs=90000]
  * @param {boolean} [opts.skipGitRepoCheck=true]
+ * @param {object} [opts.diag]   out-param: filled with {reason, detail, elapsedMs,
+ *                               timeoutMs, status, signal} on failure. Never read.
+ * @param {Function} [opts.__run] test-only injection point for runCodex.
  * @returns {{ok:true,text:string,durationMs:number,model:string|null}|null}
  */
 function callCodex(prompt, opts = {}) {
@@ -94,6 +122,14 @@ function callCodex(prompt, opts = {}) {
   const sandbox      = opts.sandbox || 'read-only';
   const timeoutMs    = Number(opts.timeoutMs) || DEFAULT_TIMEOUT_MS;
   const skipGitCheck = opts.skipGitRepoCheck !== false;
+  const run          = typeof opts.__run === 'function' ? opts.__run : runCodex;
+  // Out-param (optional). `note` is the only writer — a caller that passed no
+  // diag gets a no-op, so no failure path needs to branch on its presence.
+  const diag         = opts.diag && typeof opts.diag === 'object' ? opts.diag : null;
+  const note = (reason, extra) => {
+    if (diag) Object.assign(diag, { reason, timeoutMs }, extra || {});
+    return null;
+  };
 
   // Internal-only flags here. Prompt arrives via stdin (`-`), never via
   // argv. See CODEX_BIN/runCodex comment above.
@@ -106,17 +142,21 @@ function callCodex(prompt, opts = {}) {
   const t0 = Date.now();
   let res;
   try {
-    res = runCodex(parts, {
+    res = run(parts, {
       timeout: timeoutMs,
       maxBuffer: 10 * 1024 * 1024,
       input: prompt,
     });
-  } catch {
-    return null;
+  } catch (e) {
+    return note('spawn_failed', { elapsedMs: Date.now() - t0, detail: String((e && e.message) || e) });
   }
   const durationMs = Date.now() - t0;
 
-  if (res.error) return null;
+  if (res.error) {
+    return killedByDeadline(res, durationMs, timeoutMs)
+      ? note('timeout', { elapsedMs: durationMs, signal: res.signal || null })
+      : note('spawn_error', { elapsedMs: durationMs, detail: String((res.error && res.error.message) || res.error), status: res.status ?? null });
+  }
 
   const stdout = res.stdout || '';
   const stderr = res.stderr || '';
@@ -133,7 +173,18 @@ function callCodex(prompt, opts = {}) {
     });
   } catch { /* tracker is best-effort */ }
 
-  if (status !== 0 || exhausted) return null;
+  if (status !== 0 || exhausted) {
+    if (exhausted) return note('quota_exhausted', { elapsedMs: durationMs, status });
+    // status === null with a signal is the shell:true shape of a deadline kill:
+    // `error` never arrives, so this is the only branch that can catch it.
+    if (killedByDeadline(res, durationMs, timeoutMs)) {
+      return note('timeout', { elapsedMs: durationMs, signal: res.signal || null });
+    }
+    return note('nonzero_exit', {
+      elapsedMs: durationMs, status, signal: res.signal || null,
+      detail: (stderr.trim() || stdout.trim()).slice(0, 300) || null,
+    });
+  }
 
   return {
     ok: true,

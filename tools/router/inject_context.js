@@ -29,6 +29,11 @@ const { spawnSync, execFile } = require('child_process');
 // kill-switch if anything regresses.
 const V07_DISABLED = process.env.MOOTER_V07_DISABLE === '1' || process.env.FRUGAL_V07_DISABLE === '1';
 
+// Dedicated friend-build kill-switch for the Haiku Arbiter only. Unlike the
+// broad v0.7 switch above, this leaves cache/budget/quality routing intact.
+// It is enforced again inside arbiter.js so direct callers cannot bypass it.
+const ARBITER_DISABLED = process.env.MOOTER_ARBITER_DISABLE === '1';
+
 // frugal savings-tracker + Ollama warmup — auto-start if pid file is stale.
 // v0.7: pid-file check replaces the fire-and-forget HTTP GET /health socket
 // (avoids TCP connect overhead on every hook invocation) and also drives the
@@ -893,6 +898,7 @@ try {
 // `git push --force` prompt, we override it back to T3.
 //
 // Skip entirely when:
+//   - dedicated Arbiter kill-switch is active (MOOTER_ARBITER_DISABLE=1)
 //   - v0.7 kill-switch is active (FRUGAL_V07_DISABLE=1)
 //   - No ANTHROPIC_API_KEY in env (arbitrate() handles this as a no-op)
 //   - Cache hit on the classifier cache (already decided)
@@ -900,6 +906,7 @@ try {
 //   - Regex was confident (>= 0.75) AND not in an ambiguous_* category
 const AMBIGUOUS_CATEGORIES = new Set(['ambiguous_medium', 'ambiguous_long', 'ambiguous_short']);
 if (
+  !ARBITER_DISABLED &&
   !V07_DISABLED &&
   !cacheHit &&
   !(decision.user_override && decision.user_override.honored) &&

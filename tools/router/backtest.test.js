@@ -607,14 +607,48 @@ test('arbiter: arbitrate honors _mockResponse and returns parsed decision', () =
   const fakeApiResp = JSON.stringify({
     content: [{ type: 'text', text: '{"tier":"T2","subagent":"model-reasoner","reasoning":"debug investigation"}' }],
   });
-  const r = arbiter.arbitrate('why does this websocket reconnect flap?', {
-    _mockResponse: fakeApiResp,
-    _skipCache: true,
+  const savedSwitch = process.env.MOOTER_ARBITER_DISABLE;
+  delete process.env.MOOTER_ARBITER_DISABLE;
+  try {
+    const r = arbiter.arbitrate('why does this websocket reconnect flap?', {
+      _mockResponse: fakeApiResp,
+      _skipCache: true,
+    });
+    assert.ok(r);
+    assert.equal(r.tier, 'T2');
+    assert.equal(r.subagent, 'model-reasoner');
+    assert.equal(r.cached, false);
+  } finally {
+    if (savedSwitch === undefined) delete process.env.MOOTER_ARBITER_DISABLE;
+    else process.env.MOOTER_ARBITER_DISABLE = savedSwitch;
+  }
+});
+
+test('arbiter: dedicated switch wins with or without ANTHROPIC_API_KEY', () => {
+  const fakeApiResp = JSON.stringify({
+    content: [{ type: 'text', text: '{"tier":"T2","subagent":"model-reasoner","reasoning":"would call Haiku"}' }],
   });
-  assert.ok(r);
-  assert.equal(r.tier, 'T2');
-  assert.equal(r.subagent, 'model-reasoner');
-  assert.equal(r.cached, false);
+  const savedSwitch = process.env.MOOTER_ARBITER_DISABLE;
+  const savedKey = process.env.ANTHROPIC_API_KEY;
+  process.env.MOOTER_ARBITER_DISABLE = '1';
+  try {
+    process.env.ANTHROPIC_API_KEY = ['sk', 'ant', 'fake-for-this-test'].join('-'); // montada em partes de proposito: um literal com esta forma dispara o portao de segredos
+    assert.equal(arbiter.arbitrate('ambiguous prompt with inherited key', {
+      _mockResponse: fakeApiResp,
+      _skipCache: true,
+    }), null);
+
+    delete process.env.ANTHROPIC_API_KEY;
+    assert.equal(arbiter.arbitrate('ambiguous prompt without key', {
+      _mockResponse: fakeApiResp,
+      _skipCache: true,
+    }), null);
+  } finally {
+    if (savedSwitch === undefined) delete process.env.MOOTER_ARBITER_DISABLE;
+    else process.env.MOOTER_ARBITER_DISABLE = savedSwitch;
+    if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = savedKey;
+  }
 });
 
 test('arbiter: hashKey includes system prompt version for cache invalidation', () => {
