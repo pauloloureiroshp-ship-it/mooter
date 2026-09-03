@@ -95,6 +95,10 @@ const FILES = [
   ['capacidades.js', 'server/capacidades.js'],
   ['fosso.js', 'server/fosso.js'],
   ['context.js', 'server/context.js'],
+  // C1.4 (2026-09-02): seamless.js passou a resolver o binario antes do spawn.
+  // O B1 apanhou esta linha em falta antes de custar uma release — que e
+  // exactamente o trabalho dele, e ja a tinha feito para o retrato-mapa.js.
+  ['bin-resolver.js', 'server/bin-resolver.js'],
   ['paths.js', 'server/paths.js'],
   ['arvore.js', 'server/arvore.js'],
   ['probe.js', 'server/probe.js'],
@@ -125,6 +129,10 @@ const FILES = [
   ['../../tools/router/classify.js', 'server/classify.js'],
   ['../../tools/router/patterns.js', 'server/patterns.js'],
   ['../../tools/router/tuning-state.defaults.json', 'server/tuning-state.defaults.json'],
+  // C1.3 (2026-09-02): o conector passou a escrever no corpus de routing os
+  // tokens que MEDIU. E codigo do router, resolvido repo-primeiro como o
+  // classify.js — mas o conector instalado nao tem repo, e por isso vem aqui.
+  ['../../tools/router/decisions_v2.js', 'server/decisions_v2.js'],
   ['../../tools/router/version.json', 'server/version.json'],
 ];
 

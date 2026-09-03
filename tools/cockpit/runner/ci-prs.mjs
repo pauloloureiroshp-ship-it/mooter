@@ -133,6 +133,71 @@ export function ciEPrs({
   };
 }
 
+/**
+ * ── A CACHE, e porque um Ledger «vivo» pode servir um numero de ha 60 s ──────
+ *
+ * MEDIDO a 2026-09-02 nesta maquina, com o F10 sob launchd:
+ *
+ *     GET /ledger x5   ->  3,71 / 3,39 / 3,04 / 3,99 / 2,84 s   (mediana 3,39 s)
+ *     perfil do snapshot:  ciEPrs() 2368 ms de 3468 ms  (68%)
+ *     mesmo snapshot sem o `gh`:            492 ms
+ *
+ * As duas chamadas ao `gh` sao rede: `pr list` e `run list` batem na API do
+ * GitHub. Nao ha optimizacao possivel dentro delas — o custo E a viagem.
+ *
+ * DUAS HIPOTESES, E PORQUE ESTA.
+ *
+ *  (a) Preencher depois do primeiro paint (o Ledger renderiza e o bloco de CI
+ *      chega por um segundo pedido). Recusada: o `/ledger` e uma pagina servida
+ *      com o payload la dentro, sem estado no cliente e sem sondagem — e essa
+ *      e a razao de ela poder ser guardada, enviada e lida offline. Um bloco
+ *      que so existe depois de um segundo pedido morre no ficheiro guardado, e
+ *      passaria a haver duas versoes da mesma pagina.
+ *  (b) Cache com TTL curto e IDADE VISIVEL — esta.
+ *
+ * A regra que a torna honesta: **a idade viaja com o numero.** Um cache que
+ * mente e um cache que se apresenta como medicao de agora; um cache que diz
+ * «medido ha 41 s» nao mente nenhuma. E por isso `idade_s` e `medido_em` sao
+ * campos do proprio bloco, e nao um detalhe de implementacao escondido aqui.
+ *
+ * O `n/d` tambem se guarda, de proposito. Se o `gh` nao tiver sessao, a
+ * resposta e igualmente uma medicao — «perguntei e nao consegui» — e repeti-la
+ * a cada pedido custaria o mesmo timeout sem mudar de resposta.
+ */
+export const CACHE_TTL_MS = 60_000;
+
+/** Estado do modulo. Um so, porque um so processo serve o `/ledger`. */
+let cache = null;
+
+/** Os testes nao podem herdar a cache de outro teste. */
+export function limparCache() { cache = null; }
+
+/** So para testes/diagnostico: o que esta guardado, sem o refrescar. */
+export function espreitarCache() { return cache ? { ...cache } : null; }
+
+/**
+ * O mesmo bloco que `ciEPrs`, mas no maximo uma ida a rede por `ttlMs`.
+ *
+ * `agora` e injectavel porque um teste de TTL que dorme 60 s nao e um teste, e
+ * `impl` porque o teste nao pode depender de haver `gh` com sessao.
+ */
+export function ciEPrsCacheado({
+  agora = Date.now(), ttlMs = CACHE_TTL_MS, impl = ciEPrs, ...opts
+} = {}) {
+  const t = Number(agora);
+  if (!cache || !Number.isFinite(cache.em) || t - cache.em >= ttlMs || t < cache.em) {
+    cache = { em: t, dados: impl(opts) };
+  }
+  const idadeMs = Math.max(0, t - cache.em);
+  return {
+    ...cache.dados,
+    // A IDADE VIAJA COM O NUMERO. Sem isto a cache seria uma mentira barata.
+    medido_em: new Date(cache.em).toISOString(),
+    idade_s: Math.round(idadeMs / 1000),
+    cache_ttl_s: Math.round(ttlMs / 1000),
+  };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.stdout.write(`${JSON.stringify(ciEPrs(), null, 2)}\n`);
 }

@@ -6,6 +6,13 @@
  * Run: node v12.test.js   (no deps, no network, no real CLI)
  */
 
+// ⚠️ Este ficheiro DESPACHA, e um despacho escreve no corpus de routing. O
+// `--require` do `npm test` cobre a suite; correr o ficheiro a mao (o
+// cabecalho acima ensina a faze-lo) contornava-o e escrevia no corpus do
+// dono. Carregado aqui tambem — e idempotente. Guardado por
+// `corpus-de-routing.test.js`.
+require('./testes-nao-escrevem-no-corpus.cjs');
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');

@@ -285,6 +285,17 @@
   .arc-fg{stroke:var(--accent);transition:stroke-dashoffset .45s cubic-bezier(.2,.8,.2,1),stroke .3s}
   .gpu .val{font:700 34px/1 var(--mono);letter-spacing:-.02em}
   .gpu .sub{font-size:12px;color:var(--ink-3);text-align:center}
+  /* recibos que passam o check, por hora --------------------------------- */
+  /* Substitui a % de GPU acima da dobra. Sem animacao e sem raio novo de
+     proposito: o portao `moo-design-check` varre o repo inteiro e nao pede
+     licenca ao caminho, e uma metrica nova nao precisa de se mexer. */
+  .rph{display:grid;gap:6px;justify-items:center}
+  .rph .val{font:700 34px/1 var(--mono);letter-spacing:-.02em}
+  .rph .sub{font-size:12px;color:var(--ink-3);text-align:center}
+  .rph svg.serie{width:100%;height:64px;display:block}
+  .rph .serie rect{fill:var(--accent)}
+  .rph .serie .base{fill:var(--line)}
+  .rph .serie text{fill:var(--ink-3);font:10px/1 var(--mono)}
   .spark{width:100%;height:44px;display:block}
   .spark path{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round}
   .spark .fill{fill:var(--accent);opacity:.13;stroke:none}
@@ -595,19 +606,17 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   </div>
 
   <div class="row">
-  <div class="card gpu vouched">
-      <h2>This device's GPU</h2>
-      <svg class="dial" viewBox="0 0 190 112" aria-hidden="true">
-        <path class="arc-bg" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14" stroke-linecap="round"/>
-        <path class="arc-fg" id="arc" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14"
-              stroke-linecap="round" stroke-dasharray="248" stroke-dashoffset="248"/>
-      </svg>
-      <div class="val" id="gpu-val">n/a</div>
-      <div class="sub" id="gpu-sub">no sample yet</div>
-      <svg class="spark" id="spark" viewBox="0 0 240 44" preserveAspectRatio="none" aria-hidden="true">
-        <path class="fill" id="spark-fill" d=""/><path id="spark-line" d=""/>
-      </svg>
-      <div class="sub" id="spark-sub">history for this panel session</div>
+  <!-- O lugar de mais valor do ecra deixou de medir ESFORCO e passa a medir
+       RESULTADO. Uma GPU a 100% nao entrega nada; um recibo que passa o check
+       e trabalho verificavel. A % de GPU nao desapareceu — desceu para baixo
+       da dobra, com a mesma sparkline. -->
+  <div class="card rph vouched">
+      <h2>Receipts that pass the check — per hour</h2>
+      <div class="val" id="rph-val">n/d</div>
+      <div class="sub" id="rph-sub">no sample yet</div>
+      <svg class="serie" id="rph-serie" viewBox="0 0 240 64" preserveAspectRatio="none" role="img"
+           aria-label="receipts that pass the check, per day, last 7 owner-days"></svg>
+      <div class="sub" id="rph-fonte">last 7 days · owner time</div>
     </div>
 
     <div class="card vouched">
@@ -637,6 +646,26 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
     <div class="fleet" id="fleet"></div>
     <p class="note" id="fleet-note"></p>
   </div>
+
+  <!-- A % de GPU: continua medida, continua visivel, deixou de ser a manchete.
+       Ids inalterados de propósito — o `renderGpu` nao muda uma linha. -->
+  <div class="card gpu vouched" id="gpu-card">
+      <h2>This device's GPU — effort, not outcome</h2>
+      <svg class="dial" viewBox="0 0 190 112" aria-hidden="true">
+        <path class="arc-bg" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14" stroke-linecap="round"/>
+        <path class="arc-fg" id="arc" d="M16 98 A79 79 0 0 1 174 98" fill="none" stroke-width="14"
+              stroke-linecap="round" stroke-dasharray="248" stroke-dashoffset="248"/>
+      </svg>
+      <div class="val" id="gpu-val">n/a</div>
+      <div class="sub" id="gpu-sub">no sample yet</div>
+      <svg class="spark" id="spark" viewBox="0 0 240 44" preserveAspectRatio="none" aria-hidden="true">
+        <path class="fill" id="spark-fill" d=""/><path id="spark-line" d=""/>
+      </svg>
+      <div class="sub" id="spark-sub">history for this panel session</div>
+      <p class="note">A GPU at 100% ships nothing by itself. This card measures how hard the
+        machine worked; the card at the top measures what came out of it.</p>
+    </div>
+
 
   <div class="card vouched">
     <h2>The pillars — what each one hunts in this repo</h2>
@@ -741,6 +770,13 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   const hhmm = (iso) => { const t = Date.parse(iso); return Number.isFinite(t)
     ? new Date(t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—'; };
   const ago = (s) => s == null ? 'n/a' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)} min` : `${Math.round(s/3600)} h`;
+  /* Esta casca nao tinha `esc`/`num` porque nunca tinha escrito HTML a partir
+     de dados. O grafico de 7 dias escreve — e um `innerHTML` sem escape num
+     painel que le um ledger local e uma porta que nao precisa de existir. */
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('en-GB') : 'n/a');
+  const esc = (v) => String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   let state = null, source = null, fails = 0, busy = false, lastFetchAt = 0;
   /* `throttled` e um terceiro estado, e nao um sabor de `stale`: os dados sao
@@ -969,6 +1005,7 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
             state.usd === 0 ? '$0 · local GPU only' : `the loop spent ${state.usd}`);
 
     if (changed('gpu', [state.gpu, spark.length, spark[spark.length-1]])) renderGpu(state.gpu || {});
+    if (changed('rph', [state.recibos_por_hora])) renderRecibosPorHora(state.recibos_por_hora);
     if (changed('tally', state.recibos))   renderTally(state.recibos || {});
     // Os dois cartoes novos correm dentro de uma rede: um erro num deles nao
     // pode levar o painel inteiro. Falha visivel no proprio cartao, resto vivo.
@@ -1010,6 +1047,51 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
           : velho
             ? `data is ${ago(Math.round(idadeMs / 1000))} old — arrived at ${new Date(lastFetchAt).toLocaleTimeString()}`
             : `data ${Math.round(idadeMs / 1000)}s old`);
+  }
+
+  /**
+   * Recibos que passam o check, por hora — a manchete do painel.
+   *
+   * DUAS RECUSAS:
+   *  · `null` nunca vira `0`. Sem um recibo no ledger nao ha janela para
+   *    dividir, e `0/h` leria-se como "a maquina falhou" quando o que se
+   *    passa e "nunca correu aqui".
+   *  · `0` NAO se esconde. Zero nas ultimas 24 h e um facto, e neste momento e
+   *    um facto explicado (o loop esta parado por portao de medicao). Esconder
+   *    um zero verdadeiro e o mesmo defeito de mostrar um numero inventado.
+   */
+  function renderRecibosPorHora(m) {
+    const val = $('rph-val'), sub = $('rph-sub'), fonte = $('rph-fonte'), svg = $('rph-serie');
+    if (!m) {
+      val.textContent = 'n/d'; val.className = 'val nd';
+      sub.textContent = 'this device did not report the metric';
+      svg.innerHTML = ''; return;
+    }
+    const n = m.por_hora;
+    val.textContent = n == null ? 'n/d' : `${n}/h`;
+    val.className = n == null ? 'val nd' : 'val';
+    sub.textContent = n == null
+      ? (m.porque || 'not measured')
+      : `${num(m.passam_24h)} of ${num(m.rondas_24h)} rounds in the last ${m.janela_h}h`
+        + (m.idade_h != null ? ` · last receipt ${ago(Math.round(m.idade_h * 3600))} ago` : '');
+    fonte.textContent = m.porque && n != null ? m.porque : (m.fonte || '');
+
+    /* Barras: sem animacao, sem gradiente, sem cor nova. A altura e o unico
+       canal — e o eixo comeca em zero, porque um eixo truncado e a maneira
+       mais barata de mentir com um grafico verdadeiro. */
+    const serie = Array.isArray(m.serie) ? m.serie : [];
+    if (!serie.length) { svg.innerHTML = '<text x="4" y="34">no day with receipts yet</text>'; return; }
+    const max = Math.max(...serie.map(d => d.passam), 1);
+    const larg = 240 / serie.length;
+    const barra = Math.max(4, larg - 6);
+    const partes = ['<rect class="base" x="0" y="47" width="240" height="1"/>'];
+    serie.forEach((d, i) => {
+      const h = Math.round((d.passam / max) * 42);
+      const x = Math.round(i * larg + (larg - barra) / 2);
+      partes.push(`<rect x="${x}" y="${48 - h}" width="${Math.round(barra)}" height="${h}"><title>${esc(d.date)}: ${d.passam} of ${d.rounds} rounds</title></rect>`);
+      partes.push(`<text x="${x}" y="60">${esc(d.date.slice(5))}</text>`);
+    });
+    svg.innerHTML = partes.join('');
   }
 
   function renderGpu(gpu) {

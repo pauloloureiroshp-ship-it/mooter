@@ -16,7 +16,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const { ciEPrs, TIMEOUT_MS, CORRIDAS } = await import('./ci-prs.mjs');
+const {
+  ciEPrs, TIMEOUT_MS, CORRIDAS,
+  ciEPrsCacheado, limparCache, espreitarCache, CACHE_TTL_MS,
+} = await import('./ci-prs.mjs');
 const { resolverBin, caminhosHabituais, redigirCasa } = await import('./gh-bin.mjs');
 
 /**
@@ -188,7 +191,7 @@ test('redigirCasa troca a casa por `~` e nao rebenta sem casa', () => {
 });
 
 test('qualquer outra falha viaja com a mensagem, truncada', () => {
-  const r = ciEPrs({ execImpl: () => { throw new Error('x'.repeat(500)); } });
+  const r = ciEPrs({ resolverImpl: achou(), execImpl: () => { throw new Error('x'.repeat(500)); } });
   assert.equal(r.disponivel, false);
   assert.ok(r.porque.length < 160, 'o motivo nao pode despejar 500 caracteres no HTML');
 });
@@ -196,7 +199,7 @@ test('qualquer outra falha viaja com a mensagem, truncada', () => {
 // ── contagens reais ─────────────────────────────────────────────────────────
 
 test('classifica os PRs pelo rollup dos checks', () => {
-  const r = ciEPrs({
+  const r = ciEPrs({ resolverImpl: achou(),
     execImpl: gh({
       pr: [
         { number: 1, isDraft: false, statusCheckRollup: [{ conclusion: 'SUCCESS' }, { conclusion: 'SUCCESS' }] },
@@ -214,7 +217,7 @@ test('classifica os PRs pelo rollup dos checks', () => {
 });
 
 test('UM check vermelho pinta o PR de vermelho — a media esconderia o que interessa', () => {
-  const r = ciEPrs({
+  const r = ciEPrs({ resolverImpl: achou(),
     execImpl: gh({
       pr: [{ number: 1, isDraft: false, statusCheckRollup: Array(19).fill({ conclusion: 'SUCCESS' }).concat({ conclusion: 'FAILURE' }) }],
       run: [],
@@ -224,7 +227,7 @@ test('UM check vermelho pinta o PR de vermelho — a media esconderia o que inte
 });
 
 test('corridas AINDA A CORRER nao entram no numerador nem no denominador', () => {
-  const r = ciEPrs({
+  const r = ciEPrs({ resolverImpl: achou(),
     execImpl: gh({
       pr: [],
       run: [{ status: 'completed', conclusion: 'success' }, { status: 'in_progress', conclusion: null }],
@@ -234,14 +237,14 @@ test('corridas AINDA A CORRER nao entram no numerador nem no denominador', () =>
 });
 
 test('sem corridas terminadas, o CI e n/d — nunca "0% verde"', () => {
-  const r = ciEPrs({ execImpl: gh({ pr: [], run: [] }) });
+  const r = ciEPrs({ resolverImpl: achou(), execImpl: gh({ pr: [], run: [] }) });
   assert.equal(r.disponivel, true, 'os PRs sozinhos ja valem');
   assert.equal(r.ci.verdes, null);
   assert.match(r.ci.porque, /^n\/d/);
 });
 
 test('os PRs respondem e as corridas falham: metade medida, metade n/d', () => {
-  const r = ciEPrs({
+  const r = ciEPrs({ resolverImpl: achou(),
     execImpl: (bin, args) => {
       if (args[0] === 'run') throw new Error('rede em baixo');
       return JSON.stringify([{ number: 1, isDraft: false, statusCheckRollup: [{ conclusion: 'SUCCESS' }] }]);
@@ -256,7 +259,7 @@ test('os PRs respondem e as corridas falham: metade medida, metade n/d', () => {
 
 test('so se pedem campos sem conteudo — isto acaba num HTML que se envia', () => {
   let pedidos = [];
-  ciEPrs({ execImpl: (bin, args) => { pedidos.push(args.join(' ')); return '[]'; } });
+  ciEPrs({ resolverImpl: achou(), execImpl: (bin, args) => { pedidos.push(args.join(' ')); return '[]'; } });
   const tudo = pedidos.join(' ');
   for (const proibido of ['title', 'body', 'author', 'headRefName', 'comments']) {
     assert.ok(!tudo.includes(proibido), `pede \`${proibido}\` — conteudo nao entra no Ledger`);
@@ -267,7 +270,7 @@ test('o timeout e curto — isto corre num launchd diario', () => {
   assert.ok(TIMEOUT_MS <= 10000);
   assert.ok(CORRIDAS <= 30, 'uma janela, nao a historia toda');
   let opcoes = null;
-  ciEPrs({ execImpl: (bin, args, o) => { opcoes = o; return '[]'; } });
+  ciEPrs({ resolverImpl: achou(), execImpl: (bin, args, o) => { opcoes = o; return '[]'; } });
   assert.equal(opcoes.timeout, TIMEOUT_MS);
 });
 
@@ -275,11 +278,150 @@ test('o timeout e curto — isto corre num launchd diario', () => {
 
 test('o snapshot leva o campo e a casca le-o', () => {
   const build = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'build-ledger-snapshot.mjs'), 'utf8');
-  assert.match(build, /ci_prs: ciPrsImpl\(\)/);
+  assert.match(build, /ci_prs: ciPrsImpl\(\{ agora: now \}\)/);
   const casca = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'moo-ledger-shell.html'), 'utf8');
   assert.match(casca, /S\.ci_prs/);
   assert.doesNotMatch(casca, /Not measured by this build/,
     'a seccao ainda declara que nunca perguntou');
   assert.match(casca, /An empty slot beats an invented one/,
     'o caminho de n/d tem de continuar la, para quando o gh falhar');
+});
+
+// ── a cache de 60 s (C1.1) ──────────────────────────────────────────────────
+//
+// O que estes testes defendem nao e "ser rapido": e que a rapidez nao custou
+// verdade. Um bloco cacheado que se apresente como medicao de agora seria pior
+// do que os 2368 ms que a cache poupa.
+
+test('a segunda leitura dentro do TTL nao volta a chamar o gh', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: true, prs_abertos: 7 }; };
+  const a = ciEPrsCacheado({ agora: 1_000_000, impl });
+  const b = ciEPrsCacheado({ agora: 1_000_000 + 59_000, impl });
+  assert.equal(chamadas, 1, 'perguntou duas vezes dentro do TTL');
+  assert.equal(a.prs_abertos, 7);
+  assert.equal(b.prs_abertos, 7);
+});
+
+test('passado o TTL volta a perguntar', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: true, prs_abertos: chamadas }; };
+  ciEPrsCacheado({ agora: 0, impl });
+  const b = ciEPrsCacheado({ agora: CACHE_TTL_MS, impl });
+  assert.equal(chamadas, 2);
+  assert.equal(b.prs_abertos, 2, 'serviu o valor velho depois de o TTL expirar');
+});
+
+test('a IDADE viaja com o numero — e e a idade real, nao zero', () => {
+  limparCache();
+  const impl = () => ({ disponivel: true, prs_abertos: 3 });
+  const a = ciEPrsCacheado({ agora: 1_000_000, impl });
+  assert.equal(a.idade_s, 0);
+  assert.equal(a.medido_em, new Date(1_000_000).toISOString());
+  const b = ciEPrsCacheado({ agora: 1_000_000 + 41_000, impl });
+  assert.equal(b.idade_s, 41, 'serviu um numero de ha 41 s a dizer que era de agora');
+  assert.equal(b.medido_em, a.medido_em, 'a marca temporal e a da MEDICAO, nao a da leitura');
+  assert.equal(b.cache_ttl_s, 60);
+});
+
+test('o `n/d` tambem se guarda — perguntar e falhar tambem e uma medicao', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: false, porque: 'n/d — sem sessao' }; };
+  ciEPrsCacheado({ agora: 5_000, impl });
+  const b = ciEPrsCacheado({ agora: 20_000, impl });
+  assert.equal(chamadas, 1);
+  assert.equal(b.disponivel, false);
+  assert.equal(b.idade_s, 15, 'o n/d cacheado tem de dizer a idade como qualquer outro');
+});
+
+test('um relogio que anda para tras nao serve um bloco do futuro', () => {
+  limparCache();
+  let chamadas = 0;
+  const impl = () => { chamadas += 1; return { disponivel: true, prs_abertos: chamadas }; };
+  ciEPrsCacheado({ agora: 1_000_000, impl });
+  const b = ciEPrsCacheado({ agora: 900_000, impl });
+  assert.equal(chamadas, 2, 'com o relogio para tras a cache ficava presa ate ao futuro');
+  assert.equal(b.idade_s, 0);
+});
+
+test('limparCache limpa mesmo — os testes nao herdam estado uns dos outros', () => {
+  limparCache();
+  ciEPrsCacheado({ agora: 1, impl: () => ({ disponivel: true }) });
+  assert.ok(espreitarCache());
+  limparCache();
+  assert.equal(espreitarCache(), null);
+});
+
+test('a casca mostra a idade nos DOIS caminhos — com dados e em n/d', () => {
+  const casca = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'moo-ledger-shell.html'), 'utf8');
+  assert.match(casca, /c\.idade_s/, 'a casca nunca le a idade');
+  const seccao = casca.slice(casca.indexOf('CI &amp; pull requests'));
+  const corpo = seccao.slice(0, seccao.indexOf('chapter VIII'));
+  const usos = (corpo.match(/\$\{idade\}/g) || []).length;
+  assert.ok(usos >= 2, `a idade so aparece ${usos}x — o caminho de n/d ou o de dados ficou sem ela`);
+});
+
+test('o snapshot importa a versao cacheada, nao a crua', () => {
+  const build = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'build-ledger-snapshot.mjs'), 'utf8');
+  assert.match(build, /import \{ ciEPrsCacheado \} from '\.\/ci-prs\.mjs'/);
+});
+
+/* ── a classe inteira: sem `gh` na maquina (C1.7) ─────────────────────────── */
+
+/**
+ * O DEFEITO DE CLASSE, medido a 2026-09-01 num Linux limpo sem `gh`:
+ *
+ *     node --test tools/cockpit/runner/ci-prs.test.mjs
+ *     # tests 22 · pass 15 · fail 7
+ *
+ * A mesma suite passava no Mac (tem `gh` em `~/.local/bin`) e passou no CI
+ * (os runners do GitHub trazem `gh`). O verde nao provava a propriedade —
+ * provava que o ambiente era generoso. E o padrao «provado na maquina do
+ * autor» apanhado dentro do proprio instrumento de medicao.
+ *
+ * REPRODUZIDO AQUI a 2026-09-02, com `HOME` e `PATH` vazios:
+ *
+ *     env -i PATH=/usr/bin:/bin HOME=/tmp/casa-vazia node --test ci-prs.test.mjs
+ *     # fail 6
+ *
+ * SEIS, e nao sete — e a diferenca vale a pena. O setimo
+ * («so se pedem campos sem conteudo») nao FALHAVA: passava VAZIO. Sem `gh`, o
+ * `execImpl` nunca corria, a lista de pedidos ficava a zero e o `for` que
+ * procura campos proibidos nao iterava nada. Um teste que passa por nao ter
+ * corrido e pior do que um que falha: o vermelho chama, o verde cala.
+ *
+ * Este teste trava a classe: se algum caso voltar a depender do disco, o
+ * numero de chamadas ao resolvedor real deixa de ser zero.
+ */
+test('NENHUM caso de logica consulta o disco a procura do `gh`', () => {
+  const fonte = fs.readFileSync(path.join(REPO, 'tools', 'cockpit', 'runner', 'ci-prs.test.mjs'), 'utf8');
+  const chamadas = [...fonte.matchAll(/ciEPrs\(\{/g)];
+  const semResolver = [];
+  for (const m of chamadas) {
+    const fatia = fonte.slice(m.index, m.index + 120);
+    if (!/resolverImpl|ghBin/.test(fatia)) semResolver.push(fonte.slice(Math.max(0, m.index - 90), m.index + 40));
+  }
+  assert.deepEqual(semResolver, [],
+    'ha chamadas a ciEPrs sem resolvedor injectado — numa maquina sem `gh` elas testam o ambiente, nao o codigo');
+});
+
+test('o caso dos campos sem conteudo prova mesmo alguma coisa — nao passa vazio', () => {
+  // Sem esta guarda, `pedidos` a zero fazia o `for` nao iterar e o teste
+  // passava numa maquina onde o `gh` nao existe. Um verde por ausencia.
+  const pedidos = [];
+  ciEPrs({ resolverImpl: achou(), execImpl: (bin, args) => { pedidos.push(args.join(' ')); return '[]'; } });
+  assert.ok(pedidos.length >= 2, `so ${pedidos.length} chamada(s) ao gh — o teste dos campos passaria sem olhar para nada`);
+});
+
+test('com o `gh` em lado nenhum, a resposta e n/d — e continua a ser um teste, nao o ambiente', () => {
+  const r = ciEPrs({
+    resolverImpl: naoAchou(),
+    execImpl: () => { throw new Error('nunca devia ser chamado'); },
+  });
+  assert.equal(r.disponivel, false);
+  assert.match(r.porque, /nao encontrei o `gh`/);
+  assert.equal(r.gh_fonte, null);
 });

@@ -350,16 +350,26 @@ jobs:
       # e 357 asserções. Antes disto o pacote inteiro corria fora do CI e uma
       # sessão chegou a anunciar "140 testes verdes" tendo corrido 11 dos 29
       # ficheiros. Um número que ninguém verifica não é uma prova.
+      # ⚠️ `npm test`, e nao `node --test` cru. O script carrega
+      # `testes-nao-escrevem-no-corpus.cjs` por `--require`, sem o qual dois
+      # testes desta pasta escrevem no corpus de routing REAL de quem os corre
+      # (`~/.claude/tools/router/decisions_v2.jsonl`). Correr aqui um comando
+      # diferente do que se corre a mao poria o merge a ser decidido por outra
+      # coisa — e a regressao passava em verde. Guardado por
+      # `corpus-de-routing.test.js`.
       - name: Test mooter-bridge
         working-directory: packages/mooter-bridge
-        run: node --test
+        run: npm test
 
       # O gate de conteúdo isolado, para o vermelho dizer JÁ o que se partiu:
       # se uma entrega declarada foi regredida, isto falha com o ficheiro e o
       # marcador em falta, em vez de se perder no meio da bateria.
       - name: Delivery content gate (mooter-bridge)
         working-directory: packages/mooter-bridge
-        run: node --test entrega.test.js
+        # `npm test --` e nao `node --test` cru: o script carrega o isolamento
+        # do corpus. Este ficheiro nao despacha, mas um passo que corre outro
+        # comando e uma porta aberta para o proximo que despache.
+        run: npm test -- entrega.test.js
 
       # ⚠️ `sync:check` NÃO entra aqui como gate, de propósito.
       #

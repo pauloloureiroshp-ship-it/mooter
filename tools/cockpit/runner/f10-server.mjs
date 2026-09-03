@@ -52,6 +52,10 @@ import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
 import { renderLedgerHtml, versaoInstalada } from './build-ledger-snapshot.mjs';
+import { ciEPrsCacheado } from './ci-prs.mjs';
+import { preFlight } from './preflight-motores.mjs';
+import { recibosPorHora } from './recibos-por-hora.mjs';
+import { normalizar as normalizarPagina, blocoDaPagina, cobertura as coberturaDaPagina } from './contexto-da-pagina.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -542,6 +546,25 @@ export function createServer({
       // uma ronda inteira — medido a 2026-08-19: 6 cliques, 1 confirmado.
       // Dois campos, duas verdades, nenhuma mentira.
       estado.foco_pedido = lerFocoPedido(focusFile);
+      /**
+       * A METRICA QUE SUBSTITUI A % DE GPU no lugar de mais valor do painel.
+       *
+       * Uma GPU a 100% nao entrega nada — mede esforco. Um recibo `citacao-ok`
+       * e trabalho verificavel: a linha citada foi lida do disco e existe.
+       * A percentagem continua medida e continua no payload; o que mudou foi
+       * o que ocupa a manchete.
+       *
+       * Best-effort: um ledger ilegivel nao pode derrubar o `/fleet.json`.
+       */
+      try {
+        const { receipts } = readLedger(ledgerPath, { maxLines: 20000 });
+        estado.recibos_por_hora = recibosPorHora(receipts);
+      } catch (e) {
+        estado.recibos_por_hora = {
+          por_hora: null, serie: [],
+          porque: `n/d — não consegui ler o ledger: ${String((e && e.message) || e).slice(0, 80)}`,
+        };
+      }
       // A severidade viaja JA CALCULADA. Ate aqui o painel tinha a sua propria
       // copia da regra e o autopilot tinha a dele: duas verdades sobre o mesmo
       // achado, a um refactor de distancia de discordarem em silencio — que e
@@ -658,6 +681,32 @@ export function createServer({
        * Entra em `itens` SO quando ha alerta: o cartao da saude do painel mostra
        * apenas o que precisa de mao, e um verde a mais ensina a ignorar o cartao.
        */
+      /**
+       * O PRE-FLIGHT DOS MOTORES — «qual deles arranca, aqui, agora?».
+       *
+       * A 2026-09-02 quatro de seis tarefas nao chegaram a existir (`spawn
+       * codex ENOENT`, `Not logged in`) e o painel nao dizia nada: um motor que
+       * nao arranca era, no cockpit, indistinguivel de um motor que ninguem
+       * usou. Nao executa nada e nao gasta um token — le o disco e o ambiente.
+       *
+       * `motorLocalVivo` vem do mesmo `engineAlive` que o `/fleet.json` usa,
+       * para nao haver duas verdades sobre o mesmo Ollama.
+       */
+      let vivoLocal = null;
+      try { vivoLocal = await engineAlive(fetchImpl); } catch { vivoLocal = null; }
+      const pf = preFlight({ motorLocalVivo: vivoLocal });
+      saude.motores = pf;
+      for (const m of pf.motores) {
+        if (m.estado !== 'mau') continue;
+        saude.itens = [...(saude.itens || []), {
+          o_que: `o motor \`${m.id}\` nao arranca nesta maquina`,
+          valor: m.rotulo,
+          estado: 'mau',
+          porque: m.porque,
+          resolver: m.resolver,
+        }];
+      }
+
       const wd = uptimeDoF10(lerRegistoDoWatchdog({ mooDir: paths.base }));
       saude.watchdog = wd;
       if (wd.alerta) {
@@ -798,14 +847,43 @@ export function createServer({
         let state = {};
         try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { state = {}; }
         const { modelo, fonte } = escolherModelo({ residentes, state, env });
-        const r = await perguntar({ mensagem: v.mensagem, modelo, fetchImpl });
+        /**
+         * O SNAPSHOT DA PROPRIA PAGINA — C1.2.
+         *
+         * Ate aqui a doca mandava so a pergunta, e o sistema do `assist.mjs`
+         * diz com todas as letras que o modelo so ve o que lhe for citado. A
+         * pergunta obvia — «quantas citacoes conferidas nesta janela?» — so
+         * tinha duas respostas possiveis: `n/d`, ou um numero inventado.
+         *
+         * Os dados vem do CLIENTE de proposito: a pagina foi renderizada de um
+         * snapshot com data, e reconstrui-lo aqui daria numeros diferentes dos
+         * que o dono tem a frente — a resposta deixaria de ser sobre a pagina.
+         * O que o cliente manda e um objecto TIPADO contra uma lista fechada;
+         * a frase e escrita por este servidor, campo a campo. Ver o cabecalho
+         * de `contexto-da-pagina.mjs`.
+         */
+        const pag = normalizarPagina(body && body.pagina);
+        const bloco = blocoDaPagina(pag.valores);
+        const mensagem = bloco ? `${bloco}\nQUESTION: ${v.mensagem}` : v.mensagem;
+        const r = await perguntar({ mensagem, modelo, fetchImpl });
         if (!r.ok) {
           // 503 e nao 500: o motor local estar em baixo nao e um defeito deste
           // servidor, e a doca tem de o poder dizer com essas palavras.
           return sendJson(res, 503, { ok: false, modelo: r.modelo, porque: r.porque },
                           { origin: req.headers.origin });
         }
-        return sendJson(res, 200, { ...r, fonte_do_modelo: fonte }, { origin: req.headers.origin });
+        return sendJson(res, 200, {
+          ...r,
+          fonte_do_modelo: fonte,
+          // O que o modelo VIU. Sem isto, uma resposta `n/d` e indistinguivel
+          // de uma pagina que se esqueceu de mandar o campo — e o dono nao tem
+          // como saber qual das duas aconteceu.
+          pagina: {
+            ...coberturaDaPagina(pag.valores),
+            descartados: pag.descartados,
+            injectada: Boolean(bloco),
+          },
+        }, { origin: req.headers.origin });
       }
 
       /**
@@ -1005,5 +1083,23 @@ if (invokedDirectly) {
     if (bind.estado === 'exposto') {
       process.stdout.write('     esta porta responde fora desta maquina. Fecha o F10 e confirma o HOST.\n');
     }
+    /**
+     * AQUECER A CACHE DO `gh`, e so aqui.
+     *
+     * A cache de 60 s poe a mediana de `/ledger` em 0,42 s (medido, 5 GETs).
+     * Mas o PRIMEIRO pedido depois de arrancar continuava a pagar os 2368 ms
+     * inteiros — e o primeiro pedido e, por definicao, aquele em que o dono
+     * esta a olhar. Aquecer aqui gasta o mesmo tempo numa altura em que
+     * ninguem espera.
+     *
+     * `unref` e o ponto: um timer que impeca o processo de morrer transforma
+     * uma optimizacao de conforto num F10 que nao fecha. E `catch` vazio
+     * porque isto e aquecimento — se o `gh` falhar, falha outra vez no pedido
+     * real, e ai a resposta ja tem quem a leia.
+     */
+    const aquecer = setTimeout(() => {
+      try { ciEPrsCacheado(); } catch { /* aquecimento nunca derruba o F10 */ }
+    }, 250);
+    try { aquecer.unref(); } catch { /* ambiente sem unref */ }
   });
 }

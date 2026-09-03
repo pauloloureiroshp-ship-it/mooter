@@ -1,0 +1,97 @@
+{
+  "_porque": "A tabela unica que prova os DOIS resolvedores de binario deste repo: `tools/cockpit/runner/gh-bin.mjs` (ESM, corre no F10) e `packages/mooter-bridge/bin-resolver.js` (CJS, entra no bundle esbuild do conector). A mesma regra escrita duas vezes, por uma razao de EMPACOTAMENTO e nao de conhecimento: o bundle do conector nao arrasta codigo de fora do pacote (AGENTS.md, Conventions). Precedente exacto: `tools/router/ollama-host.casos.json`.",
+  "_mordida": "Um caso com `aplica_a: [\"ambos\"]` tem de reprovar OS DOIS lados quando se altera. Se so reprovar um, a paridade ja se perdeu.",
+  "_porque_nem_tudo_e_partilhado": "As LISTAS de caminhos habituais divergem de propósito e a divergencia e correcta: o `gh` instala-se em `Program Files/GitHub CLI` e em `~/.local/bin`; os CLIs de agente (`claude`, `codex`, `kimi`, `gemini`) instalam-se por npm e vivem em `~/.local/node/bin` e em `AppData/Roaming/npm`. Uma lista unica seria mais curta de escrever e cobriria pior os dois. O que TEM de ser identico e o ALGORITMO — e e isso que os casos `ambos` fixam.",
+  "casos": [
+    {
+      "nome": "o PATH ganha sempre a qualquer caminho habitual",
+      "aplica_a": ["ambos"],
+      "binario": "gh",
+      "plataforma": "linux",
+      "home": "/home/alguem",
+      "env": { "PATH": "/opt/x/bin:/usr/bin" },
+      "existe": ["/opt/x/bin/gh", "/home/alguem/.local/bin/gh"],
+      "espera": { "caminho": "/opt/x/bin/gh", "fonte": "PATH" }
+    },
+    {
+      "nome": "fora do PATH e encontrado — o caso medido do launchd e do Claude Desktop",
+      "aplica_a": ["ambos"],
+      "binario": "gh",
+      "plataforma": "darwin",
+      "home": "/Users/alguem",
+      "env": { "PATH": "/usr/bin:/bin:/usr/sbin:/sbin" },
+      "existe": ["/Users/alguem/.local/bin/gh"],
+      "espera": { "caminho": "/Users/alguem/.local/bin/gh", "fonte": "fora-do-PATH" }
+    },
+    {
+      "nome": "em lado nenhum devolve null — nunca um palpite",
+      "aplica_a": ["ambos"],
+      "binario": "gh",
+      "plataforma": "linux",
+      "home": "/home/alguem",
+      "env": { "PATH": "/tmp/vazio" },
+      "existe": [],
+      "espera": { "caminho": null, "fonte": null }
+    },
+    {
+      "nome": "a ordem dos habituais e estavel: ~/.local/bin antes de /opt/homebrew/bin",
+      "aplica_a": ["ambos"],
+      "binario": "gh",
+      "plataforma": "darwin",
+      "home": "/Users/alguem",
+      "env": { "PATH": "" },
+      "existe": ["/opt/homebrew/bin/gh", "/Users/alguem/.local/bin/gh"],
+      "espera": { "caminho": "/Users/alguem/.local/bin/gh", "fonte": "fora-do-PATH" }
+    },
+    {
+      "nome": "um PATH ausente nao rebenta — cai nos habituais",
+      "aplica_a": ["ambos"],
+      "binario": "gh",
+      "plataforma": "linux",
+      "home": "/home/alguem",
+      "env": {},
+      "existe": ["/usr/local/bin/gh"],
+      "espera": { "caminho": "/usr/local/bin/gh", "fonte": "fora-do-PATH" }
+    },
+    {
+      "nome": "windows usa o separador de windows e procura .cmd",
+      "aplica_a": ["ambos"],
+      "binario": "gh",
+      "plataforma": "win32",
+      "home": "C:\\Users\\Nome Apelido",
+      "env": { "PATH": "C:\\bin" },
+      "existe": ["C:\\bin\\gh.cmd"],
+      "espera": { "caminho": "C:\\bin\\gh.cmd", "fonte": "PATH" }
+    },
+    {
+      "nome": "windows: o .exe ganha ao .cmd no mesmo directorio",
+      "aplica_a": ["ambos"],
+      "binario": "gh",
+      "plataforma": "win32",
+      "home": "C:\\Users\\Nome Apelido",
+      "env": { "PATH": "C:\\bin" },
+      "existe": ["C:\\bin\\gh.exe", "C:\\bin\\gh.cmd"],
+      "espera": { "caminho": "C:\\bin\\gh.exe", "fonte": "PATH" }
+    },
+    {
+      "nome": "o conector procura tambem em ~/.local/node/bin — onde o codex ESTA nesta maquina",
+      "aplica_a": ["bin-resolver"],
+      "binario": "codex",
+      "plataforma": "darwin",
+      "home": "/Users/alguem",
+      "env": { "PATH": "/usr/bin:/bin:/usr/sbin:/sbin" },
+      "existe": ["/Users/alguem/.local/node/bin/codex"],
+      "espera": { "caminho": "/Users/alguem/.local/node/bin/codex", "fonte": "fora-do-PATH" }
+    },
+    {
+      "nome": "o gh-bin procura nos directorios do GitHub CLI em Windows",
+      "aplica_a": ["gh-bin"],
+      "binario": "gh",
+      "plataforma": "win32",
+      "home": "C:\\Users\\Nome Apelido",
+      "env": { "PATH": "C:\\vazio", "ProgramFiles": "C:\\Program Files" },
+      "existe": ["C:\\Program Files\\GitHub CLI\\bin\\gh.exe"],
+      "espera": { "caminho": "C:\\Program Files\\GitHub CLI\\bin\\gh.exe", "fonte": "fora-do-PATH" }
+    }
+  ]
+}

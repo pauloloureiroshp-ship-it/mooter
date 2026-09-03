@@ -11,7 +11,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  metricaMae, quotaPorMotor, cobertura, emUmaLinha,
+  metricaMae, quotaPorMotor, cobertura, emUmaLinha, foiMedido,
   TIERS_FORTES, TIERS_LOCAIS, SEM_QUALIDADE, OWNER_TZ,
 } from './metrica-mae.mjs';
 
@@ -94,14 +94,18 @@ test('cobertura devolve presentes/total/pct, e não rebenta com zero linhas', ()
 test('tokens a zero dão n/d COM os números — nunca um n/d mudo', () => {
   const m = metricaMae([dec({}), dec({}), dec({})]);
   assert.equal(m.tokens.pct_cobertura, 0);
-  assert.match(m.tokens.porque, /nenhuma das 3 decisões traz tokens/);
-  assert.match(m.tokens.porque, /0\/3 entrada/);
+  assert.match(m.tokens.porque, /nenhuma das 3 decisões traz tokens medidos/);
+  assert.match(m.tokens.porque, /escritas ANTES da execução/,
+    'o n/d tem de dizer a razao ESTRUTURAL, senao le-se como preguica');
 });
 
 test('cobertura parcial de tokens diz que é parcial', () => {
-  const m = metricaMae([dec({ tokens_in: 100, tokens_out: 20 }), dec({}), dec({}), dec({})]);
+  const m = metricaMae([
+    dec({ tokens_in: 100, tokens_out: 20, tokens_fonte: 'medido' }), dec({}), dec({}), dec({}),
+  ]);
   assert.equal(m.tokens.pct_cobertura, 25);
-  assert.match(m.tokens.porque, /cobertura parcial/);
+  assert.match(m.tokens.porque, /cobertura: 25% entrada/);
+  assert.equal(m.tokens.medidos.presentes, 1);
 });
 
 test('uma linha corrompida é contada, não engolida', () => {
@@ -150,7 +154,8 @@ test('USD é sempre null, e o motivo distingue "sem preço" de "sem tokens"', ()
   assert.equal(semTokens[0].motores[0].usd, null);
   assert.match(semTokens[0].motores[0].porque_usd, /zero aqui quer dizer não-medido/);
 
-  const comTokens = quotaPorMotor([dec({ llm: 'opus', tier: 'T3', tokens_out: 500 })]);
+  // `tokens_fonte`, senao sao 500 tokens que ninguem declara ter contado.
+  const comTokens = quotaPorMotor([dec({ llm: 'opus', tier: 'T3', tokens_out: 500, tokens_fonte: 'medido' })]);
   assert.equal(comTokens[0].motores[0].usd, null);
   assert.match(comTokens[0].motores[0].porque_usd, /preço por modelo ainda não/);
 });
@@ -163,4 +168,50 @@ test('tokens_out é null quando nenhuma chamada os trouxe — nunca 0', () => {
 
 test('um ts ilegível não cria um dia fantasma', () => {
   assert.deepEqual(quotaPorMotor([dec({ ts: 'qualquer coisa' })]), []);
+});
+
+/* ── C1.3: cobertura e «foi medido», nao «nao e null» ─────────────────────── */
+
+test('os 403 zeros legados NAO contam como cobertura — a metrica nao salta para 100%', () => {
+  // O caso real: ate 2026-09-02 o ledger tinha 403 decisoes com `tokens_in: 0`
+  // escrito pelo hook de UserPromptSubmit, que corre ANTES da execucao. Um
+  // predicado «nao e null» contaria as 403 e a cobertura saltava para 100% sem
+  // uma unica medicao nova. A cobertura subia; a verdade nao.
+  const legado = Array.from({ length: 10 }, () => dec({}));   // tokens_in: 0, sem fonte
+  const m = metricaMae(legado);
+  assert.equal(m.tokens.pct_cobertura, 0);
+  assert.equal(m.tokens.medidos.presentes, 0);
+});
+
+test('um zero MEDIDO conta — e para isso que o campo existe', () => {
+  const m = metricaMae([dec({ tokens_in: 0, tokens_out: 0, tokens_fonte: 'medido' })]);
+  assert.equal(m.tokens.pct_cobertura, 100);
+  assert.equal(m.tokens.medidos.presentes, 1);
+});
+
+test('`null` nao conta como medido', () => {
+  const m = metricaMae([dec({ tokens_in: null, tokens_out: null, tokens_fonte: null })]);
+  assert.equal(m.tokens.pct_cobertura, 0);
+});
+
+/* ── o adversario (codex, 2026-09-03) ─────────────────────────────────────── */
+
+test('um zero MEDIDO conta na quota por motor — nao so na cobertura', () => {
+  // A linha contava por `tokens_out > 0`, o que classificava um zero realmente
+  // medido como nao-medido: a mesma confusao entre «gastou zero» e «ninguem
+  // contou» que o C1.3 desfaz, a sobreviver dentro do ficheiro que a desfaz.
+  const q = quotaPorMotor([dec({ llm: 'qwen2.5:3b', tier: 'T0', tokens_out: 0, tokens_fonte: 'medido' })]);
+  assert.equal(q[0].motores[0].tokens_out, 0, 'um zero medido virou n/d');
+  assert.match(q[0].motores[0].porque_usd, /preço por modelo/);
+});
+
+test('tokens sem fonte declarada NAO contam, por maiores que sejam', () => {
+  const q = quotaPorMotor([dec({ llm: 'opus', tier: 'T3', tokens_out: 9999 })]);
+  assert.equal(q[0].motores[0].tokens_out, null,
+    '9999 tokens que ninguem declara ter contado nao sao uma medicao');
+});
+
+test('um negativo nao e uma contagem de tokens', () => {
+  assert.equal(foiMedido({ tokens_out: -1, tokens_fonte: 'medido' }, 'tokens_out'), false);
+  assert.equal(foiMedido({ tokens_out: 0, tokens_fonte: 'medido' }, 'tokens_out'), true);
 });

@@ -44,7 +44,18 @@ const MARCADORES = {
   'board.js': ['custo_total_usd', 'cobertura_custo_pct'],
   'seamless.js': ['relocacao_recusada', 'stepsTotalFor', 'requireClassify', '🐄 Mooter · ',
     // +v1.52 — o A6: o conector acusa a varredura que nao pode fazer
-    'varreduraSemFerramentas', 'SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO'],
+    'varreduraSemFerramentas', 'SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO',
+    // +v1.53 — as duas causas-raiz da medicao de 2026-09-02. `USER` propagado
+    // aos filhos (sem ele o `claude` filho diz «Not logged in» com a sessao
+    // valida); o binario resolvido antes do spawn (`spawn codex ENOENT` com o
+    // codex instalado); e a escalada recusada a ficar ESCRITA no ledger.
+    "'USER', 'LOGNAME'", 'binResolver.resolverBin', 'chain_refused'],
+  // +v1.53 — a segunda copia do resolvedor de binario, provada contra a mesma
+  // tabela que o `gh-bin.mjs`. Ver `tools/cockpit/runner/bin-resolver.casos.json`.
+  'bin-resolver.js': ['resolverBin', 'caminhosHabituais', '.local/node/bin', 'redigirCasa'],
+  // +v1.53 — os numeros de linha no contexto injectado. Sem eles, 0/7 das
+  // linhas citadas pelo modelo local estavam certas; com eles, 5/7.
+  'context.js': ['numerarLinhas', 'NÚMERO REAL NO FICHEIRO', 'largura_do_numero'],
   'tools6.js': ['permissoes_diferenca', 'primeira_vez', '🐄 Mooter · '],
   'server-apps.js': ['resourceUri', "process.pid + '.log'", 'faz assim: '], // +v1.49
   // v1.24 — a ETA e o SYNC gerado

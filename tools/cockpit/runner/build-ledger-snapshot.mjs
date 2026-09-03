@@ -40,7 +40,7 @@ import { portoes } from './autopilot.mjs';
 import { sampleGpu } from './gpu-sampler.mjs';
 import { beaconDir, readBeacons, deviceName } from './fleet-beacon.mjs';
 import { versaoDoConector } from './project.mjs';
-import { ciEPrs } from './ci-prs.mjs';
+import { ciEPrsCacheado } from './ci-prs.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..', '..');
@@ -377,7 +377,7 @@ export function injectPayload(html, { snapshot, roadmap, shell }) {
  */
 export async function buildLedgerSnapshot({
   // Injectavel: os testes nao podem depender de haver `gh` com sessao.
-  ciPrsImpl = ciEPrs,
+  ciPrsImpl = ciEPrsCacheado,
   repoRoot = REPO,
   mooDir = MOO_DIR,
   now = Date.now(),
@@ -531,7 +531,7 @@ export async function buildLedgerSnapshot({
      * Best-effort: se o `gh` nao existir, nao tiver sessao ou nao responder, o
      * campo sai `n/d` COM O MOTIVO — e uma seccao nunca derruba a construcao.
      */
-    ci_prs: ciPrsImpl(),
+    ci_prs: ciPrsImpl({ agora: now }),
     night: agregarNoite(receipts),
     needs_you: needsYou,
     receipts: receipts.slice(-MAX_RECIBOS).reverse().map((r) => ({
