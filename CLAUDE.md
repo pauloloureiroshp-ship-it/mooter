@@ -166,6 +166,53 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `packages/cli/src/ollama-host.ts`. As duas cópias são provadas contra a MESMA
   tabela, `tools/cockpit/runner/bin-resolver.casos.json`; mordida verificada:
   alterar um caso reprova **os dois lados**.
+  **Mesma autorizacao, item C1.3**: `seamless.js` ganha `requireDecisoes()` e
+  uma escrita `appendMeasured` depois do evento terminal, e `pack-mcpb.mjs`
+  ganha a linha `decisions_v2.js` (o conector instalado nao tem repo de onde o
+  ler). O `decisions_v2.jsonl` tinha **403 decisoes e 0 com tokens**, e nao por
+  descuido: quem o escreve e o hook de UserPromptSubmit, que corre ANTES da
+  execucao. Quem tem os tokens e o despachante, e ate agora esse numero morria
+  no ledger do conector.
+  ⚠️ **Cobertura em producao: `n/d`, a 2026-09-03.** Um esboco desta entrada
+  dizia «medido depois: 5/5 despachos com tokens medidos (100%)». Nao ha esse
+  numero em lado nenhum: o corpus real tem 420 linhas e **4** com
+  `tokens_fonte: 'medido'`, que sao **dois pares identicos** (10/5 e 100/80,
+  um par por corrida da suite) escritos pelos proprios testes — ver a entrada
+  seguinte. Zero vinham de um motor. O caminho esta provado end-to-end
+  (`cadeia-nao-silenciosa.test.js`, `corpus-de-routing.test.js`); a cobertura
+  VIVA so pode ser medida depois de o dono reinstalar o conector, porque o que
+  corre nesta maquina e anterior a mudanca.
+  **2026-09-03 · os testes escreviam no corpus do dono** allowlists uma
+  **adicao** — `packages/mooter-bridge/testes-nao-escrevem-no-corpus.cjs` e
+  `corpus-de-routing.test.js` — e **uma linha** em
+  `packages/mooter-bridge/package.json` (`scripts.test` passa a carrega-lo por
+  `--require`). Mesma autorizacao, e e a continuacao directa do C1.3: o
+  `appendMeasured` sem `logPath` resolve para
+  `~/.claude/tools/router/decisions_v2.jsonl`, e dois testes desta pasta fazem
+  despachos a serio contra motores de mentira (`cadeia-nao-silenciosa.test.js`
+  com um Ollama em loopback, `v12.test.js:288` com `usage:{100,80}`). Cada
+  `npm test` injectava DUAS linhas rotuladas `tokens_fonte: 'medido'` no corpus
+  REAL. A mudanca escrita para impedir que um numero nao medido entrasse no
+  corpus era a unica coisa a por la numeros inventados. Redirecciona-se
+  `MOOTER_CLAUDE_DIR` (a raiz, nao o ficheiro) para que qualquer escritor
+  futuro nasca coberto — presenca nao e cobertura, a licao de 2026-08-29.
+  Medido: 420 linhas antes, **420 depois** de uma suite completa. O passo do CI
+  passa de `node --test` a `npm test` (`.github/workflows/test.yml`) porque um
+  gate que corre outro comando nao gateia isto.
+  **2026-09-03 · 1.53.0 -> 1.53.1** allowlists **uma linha** em cada um de
+  `packages/mooter-bridge/manifest.json`, `packages/mooter-bridge/version.json`,
+  `tools/router/version.json` e `plugin/mooter/.claude-plugin/plugin.json`
+  (mais o `released` nos dois `version.json`). Autorizado pelo dono no kickoff
+  de 2026-09-03: «usa-o para gerar um pacote novo do conector com estes fixes».
+  Nao e cosmetico e o precedente e exacto — `72b8e31f`, «1.48.0 -> 1.48.1 para
+  o .mcpb do piloto poder instalar»: `update.js:354` recusa qualquer bundle
+  cuja versao nao seja ESTRITAMENTE maior do que a instalada. Com 1.53.0 nos
+  dois lados, o `.mcpb` com as correccoes do C1.4/C1.3 seria recusado com «ja
+  tens a 1.53.0» e o conector continuaria a correr o codigo de antes — que e
+  exactamente o estado medido nesta maquina hoje. Nao tocado:
+  `landing/app/version.json` («Generated — never hand-edit»).
+  `entregas-por-versao.json` ja declara a chave minor `"1.53"`, e 1.53.1 cai na
+  mesma. Zero linhas de logica.
   Provado por `packages/mooter-bridge` (1176/1176), `context.test.js` (18),
   `cadeia-nao-silenciosa.test.js` (5, end-to-end com um Ollama de mentira em
   loopback), `tools/cockpit/runner/bin-resolver.test.mjs` (22) e
