@@ -4,9 +4,10 @@
 // prd-strategy, data-spreadsheet):
 //   - each new pack.yaml validates against the canonical schema (validate.ts)
 //   - each new pack declares ≥ 6 embedding_seeds, distinct within the pack
-//   - the full registry is exactly 7 packs and 56 (7 × 8) embedding seeds, all
-//     globally distinct so cosine sim discriminates cleanly
-//   - the store initialises the 56 seed embeddings inside the ≤ 5s budget
+//   - the registry carries ≥ 7 packs and its embedding seeds are all globally
+//     distinct so cosine sim discriminates cleanly (count is derived, not pinned —
+//     the registry has grown past the original 7)
+//   - the store initialises every seed embedding inside the ≤ 5s budget
 //     (batch-embed from Day 4 — EMBED_BATCH_SIZE). Skipped when Ollama is down.
 
 import { test } from "node:test";
@@ -49,17 +50,19 @@ for (const id of NEW_PACKS) {
   });
 }
 
-test("registry: exactly 7 packs with 56 globally-distinct embedding seeds", () => {
+test("registry: 7+ seeded packs, all embedding seeds globally distinct", () => {
+  // Self-healing (was a brittle `=== 7` / `=== 56`): the registry legitimately
+  // grew past the Wave-2 seven (caveman, obsidian-vault-sync, code-graph, …), so
+  // we assert the floor + the real invariant — every seed globally distinct so
+  // cosine sim discriminates cleanly — not an exact, drift-prone count.
   const packs = loadPackSeeds();
-  assert.equal(packs.length, 7, `expected 7 packs, found ${packs.length}`);
-  const total = packs.reduce((n, p) => n + p.seeds.length, 0);
-  assert.equal(total, 56, `expected 56 seeds (7 × 8), found ${total}`);
+  assert.ok(packs.length >= 7, `expected >= 7 seeded packs, found ${packs.length}`);
   const all = packs.flatMap((p) => p.seeds);
   assert.equal(new Set(all).size, all.length, "seeds must be distinct across the registry");
 });
 
 test(
-  "EmbeddingStore.init() embeds all 56 seeds within the 5s budget",
+  "EmbeddingStore.init() embeds every seed within the 5s budget",
   { timeout: 15_000 },
   async (t) => {
     if (!(await ollamaReachable())) return t.skip("Ollama unreachable");
