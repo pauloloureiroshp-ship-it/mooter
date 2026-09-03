@@ -74,10 +74,34 @@ function ler(linhas) {
  * Devolve `{presentes, total, pct}`. É o que permite dizer «n/d **porque** 0 de
  * 224» em vez de um `n/d` mudo, que é indistinguível de não se ter tentado.
  */
-export function cobertura(decisoes, campo, util = (v) => Number(v) > 0) {
+export function cobertura(decisoes, campo, util = (v) => Number(v) > 0, utilRegisto = null) {
   const total = decisoes.length;
-  const presentes = decisoes.filter((d) => util(d && d[campo])).length;
+  // `utilRegisto` vê o registo inteiro. Existe porque «este token foi medido?»
+  // não se responde olhando só para o token: responde-se olhando para o campo
+  // que diz de onde ele veio.
+  const presentes = utilRegisto
+    ? decisoes.filter((d) => utilRegisto(d)).length
+    : decisoes.filter((d) => util(d && d[campo])).length;
   return { presentes, total, pct: total ? Math.round((1000 * presentes) / total) / 10 : null };
+}
+
+/**
+ * Cobertura de tokens: quantas decisões trazem um número que ALGUÉM MEDIU.
+ *
+ * ⚠️ NÃO é «> 0», e não é «não é null» — é `tokens_fonte === 'medido'`.
+ *
+ * As 403 linhas que este ledger já tinha a 2026-09-02 trazem `tokens_in: 0`
+ * escrito pelo hook de UserPromptSubmit, que corre ANTES da execução e nunca
+ * pôde medir nada. Um predicado «não é null» contaria essas 403 como cobertura
+ * total e a métrica saltaria para 100% sem uma única medição nova. A cobertura
+ * subiria; a verdade não. Um zero legado sem proveniência declarada não conta,
+ * e um zero MEDIDO conta — é para isso que o campo existe.
+ */
+export function coberturaDeTokens(decisoes, campo) {
+  return cobertura(decisoes, campo, () => false, (d) => d
+    && d.tokens_fonte === 'medido'
+    && typeof d[campo] === 'number'
+    && Number.isFinite(d[campo]));
 }
 
 /**
@@ -120,8 +144,19 @@ export function metricaMae(linhas, { agora = Date.now(), janelaDias = null } = {
   const forte = d.filter((x) => TIERS_FORTES.has(String(x && x.tier))).length;
   const local = d.filter((x) => TIERS_LOCAIS.has(String(x && x.tier))).length;
 
-  const covIn = cobertura(d, 'tokens_in');
-  const covOut = cobertura(d, 'tokens_out');
+  /**
+   * ⚠️ COBERTURA E «FOI MEDIDO», NAO «E MAIOR QUE ZERO» — C1.3.
+   *
+   * O predicado por omissao (`Number(v) > 0`) contava um zero medido como
+   * ausencia, e — pior — nao conseguia distingui-lo de um zero inventado.
+   * Ate 2026-09-02 o `decisions_v2.jsonl` escrevia `0` para todas as decisoes
+   * do hook (que corre ANTES da execucao e nunca pode ter tokens), e a
+   * cobertura de 0% estava certa por acidente: lia zeros que se apresentavam
+   * como medicoes. Agora ausente e `null` e medido traz `tokens_fonte`.
+   */
+  const covIn = coberturaDeTokens(d, 'tokens_in');
+  const covOut = coberturaDeTokens(d, 'tokens_out');
+  const covFonte = cobertura(d, 'tokens_fonte', (v) => v === 'medido');
 
   return {
     total,
@@ -148,9 +183,14 @@ export function metricaMae(linhas, { agora = Date.now(), janelaDias = null } = {
       pct_cobertura: covIn.pct,
       entrada: covIn,
       saida: covOut,
+      // Quem DECLAROU ter medido. `pct_cobertura` conta o campo presente;
+      // isto conta a proveniencia declarada, e as duas juntas dizem se um
+      // numero presente veio de algum lado.
+      medidos: covFonte,
       porque: covIn.presentes === 0 && covOut.presentes === 0
-        ? `nenhuma das ${total} decisões traz tokens (${covIn.presentes}/${total} entrada, ${covOut.presentes}/${total} saída) — o custo por chamada não é derivável`
-        : `cobertura parcial: ${covIn.pct}% entrada, ${covOut.pct}% saída`,
+        ? `nenhuma das ${total} decisões traz tokens medidos — as decisões do hook são escritas ANTES da execução e nunca podem trazê-los; `
+          + 'o custo por chamada só é derivável para os despachos que medem (conector)'
+        : `cobertura: ${covIn.pct}% entrada, ${covOut.pct}% saída · ${covFonte.presentes}/${total} com fonte declarada`,
     },
     por_tier: porTier,
     por_motor: porMotor,

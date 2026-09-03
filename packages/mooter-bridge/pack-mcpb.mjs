@@ -129,6 +129,10 @@ const FILES = [
   ['../../tools/router/classify.js', 'server/classify.js'],
   ['../../tools/router/patterns.js', 'server/patterns.js'],
   ['../../tools/router/tuning-state.defaults.json', 'server/tuning-state.defaults.json'],
+  // C1.3 (2026-09-02): o conector passou a escrever no corpus de routing os
+  // tokens que MEDIU. E codigo do router, resolvido repo-primeiro como o
+  // classify.js — mas o conector instalado nao tem repo, e por isso vem aqui.
+  ['../../tools/router/decisions_v2.js', 'server/decisions_v2.js'],
   ['../../tools/router/version.json', 'server/version.json'],
 ];
 

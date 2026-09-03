@@ -142,6 +142,21 @@ function requireClassify() {
     }
   }
 }
+/**
+ * O escritor de decisoes do router — C1.3.
+ *
+ * Mesmo padrao do `requireClassify` (repo primeiro, bundle a seguir) e pela
+ * mesma razao: e codigo do router, nao deste pacote, e o conector instalado
+ * leva-o dentro. `null` quando nao existe — a telemetria e best-effort e nunca
+ * pode impedir um job de fechar.
+ */
+function requireDecisoes() {
+  for (const alvo of [path.join(REPO, 'tools', 'router', 'decisions_v2.js'), path.join(BUNDLE_DIR(), 'decisions_v2.js')]) {
+    try { return require(alvo); } catch { /* proximo */ }
+  }
+  return null;
+}
+
 const MOOTER_HOME = process.env.MOOTER_HOME || path.join(os.homedir(), '.mooter');
 const LEDGER_PATH = () => path.join(MOOTER_HOME_DIR(), 'ledger.jsonl');
 const JOBS_DIR = () => path.join(MOOTER_HOME_DIR(), 'jobs');
@@ -2808,6 +2823,36 @@ async function toolDispatch(args) {
       files_touched_reason: touched ? touched.reason : null,
       step: stepId,
     }, prep || {}));
+
+    /**
+     * OS TOKENS MEDIDOS CHEGAM AO CORPUS DE ROUTING — C1.3.
+     *
+     * O `decisions_v2.jsonl` tinha 403 decisoes e 0 com tokens, e nao por
+     * descuido: quem o escreve e o hook de UserPromptSubmit, que corre ANTES de
+     * a execucao existir. Nunca pode trazer tokens.
+     *
+     * Quem os tem e este sitio — `r.telemetry` vem do stream do proprio motor.
+     * Ate aqui esse numero morria no ledger do conector sem nunca chegar ao
+     * corpus que a metrica-mae le.
+     *
+     * Escreve-se SO com tokens finitos (o `appendMeasured` recusa o resto), e
+     * envolto em try/catch: um job que ja terminou nao pode falhar por causa de
+     * telemetria.
+     */
+    try {
+      const dec = requireDecisoes();
+      if (dec && typeof dec.appendMeasured === 'function' && r.telemetry) {
+        dec.appendMeasured({
+          op: (args && args.__category) || 'dispatch',
+          tier: tierDoMotor(agent, r.model_used || model) || tier,
+          llm: r.model_used || model,
+          tokens_in: r.telemetry.tokens_in,
+          tokens_out: r.telemetry.tokens_out,
+          reason: 'measured from the engine stream (mooter connector)',
+          via: 'mooter-' + agent,
+        });
+      }
+    } catch { /* telemetria e best-effort */ }
     if (ok && agent !== 'moo' && args && args.__cross_check === true) {
       setImmediate(() => {
         runCrossCheckForJob({

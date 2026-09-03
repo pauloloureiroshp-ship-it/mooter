@@ -24,6 +24,11 @@ const path = require('path');
 const SCHEMA_FIELDS = [
   'ts', 'op', 'tier', 'llm', 'tokens_in', 'tokens_out', 'reason', 'via',
   'auto_skill', 'auto_skill_conf',
+  // C1.3 (2026-09-02) — 'medido' quando os tokens vieram do stream do proprio
+  // motor; null quando ninguem os mediu. Sem este campo, um leitor nao tem como
+  // distinguir "gastou zero" de "ninguem contou", e as duas coisas escreviam-se
+  // com o mesmo caractere.
+  'tokens_fonte',
 ];
 
 function routerDir() {
@@ -62,6 +67,19 @@ function deriveReason(d = {}) {
 }
 
 /**
+ * Um numero medido, ou `null`. Nunca uma coacao.
+ *
+ * `Number('')` e 0 e `Number(true)` e 1: aceitar qualquer um poria uma medicao
+ * inventada no ledger, que e a unica coisa que este ficheiro nao pode fazer.
+ */
+function numeroOuNulo(v) {
+  // `typeof`, e nao `Number()`. Medido a escrever este teste: `Number('')` e 0
+  // e `Number(true)` e 1 — os dois passariam por medicoes. A direccao segura da
+  // falha e `null` (n/d), nunca um numero que ninguem contou.
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/**
  * Build a v2 record from a classify decision object. Pure. Only emits schema
  * fields — token counts default to 0 when the decision predates execution
  * (they are not invented; real per-tier token totals live in token_tracker.js).
@@ -74,8 +92,23 @@ function recordFromDecision(d = {}, opts = {}) {
     op: d.task_category || d.op || 'classify',
     tier: d.tier || null,
     llm: shortLlm(d.recommended_model || d.llm, d.tier),
-    tokens_in: Number(d.tokens_in) || 0,
-    tokens_out: Number(d.tokens_out) || 0,
+    /**
+     * ⚠️ `null`, e nao `0` — o defeito que C1.3 fecha.
+     *
+     * Esta funcao corre no hook de UserPromptSubmit, ou seja ANTES de a
+     * execucao existir. Escrever `0` afirmava uma medicao («esta chamada
+     * gastou zero tokens») onde a verdade era «ainda nao ha o que medir». Em
+     * 2026-09-02 o ledger tinha 403 decisoes e 0/403 com tokens > 0 — e a
+     * metrica-mae lia isso como cobertura zero, o que era certo por acidente:
+     * lia zeros que se apresentavam como medicoes.
+     *
+     * `null` e a resposta honesta, e sobrevive a `Number(x) || 0` nos leitores
+     * antigos (stop_hook.js:258, statusline) sem lhes mudar o comportamento.
+     */
+    tokens_in: numeroOuNulo(d.tokens_in),
+    tokens_out: numeroOuNulo(d.tokens_out),
+    tokens_fonte: (numeroOuNulo(d.tokens_in) != null || numeroOuNulo(d.tokens_out) != null)
+      ? (d.tokens_fonte || 'medido') : null,
     reason: deriveReason(d),
     via: d.suggested_subagent || d.via || d.recommended_backend || 'inline',
     // Auto-skill (Cockpit v2 W1): only set when a directive actually fired.
@@ -88,8 +121,9 @@ function recordFromDecision(d = {}, opts = {}) {
 function sanitize(rec = {}) {
   const out = {};
   for (const k of SCHEMA_FIELDS) {
-    if (rec[k] !== undefined) out[k] = rec[k];
-    else out[k] = (k === 'tokens_in' || k === 'tokens_out') ? 0 : null;
+    // Um campo ausente e `null` para TODOS, tokens incluidos. Ate 2026-09-02 os
+    // tokens caiam para `0` — um zero que se lia como medicao.
+    out[k] = rec[k] !== undefined ? rec[k] : null;
   }
   return out;
 }
@@ -171,8 +205,46 @@ function recordCount(opts = {}) {
   return n;
 }
 
+/**
+ * Uma decisao com tokens MEDIDOS, escrita por quem os mediu — C1.3.
+ *
+ * O `appendFromDecision` corre antes da execucao e por isso nunca pode trazer
+ * tokens: exigir-lhos seria exigir um numero que ainda nao existe. Quem OS TEM
+ * e o despachante — o conector le `tokens_in`/`tokens_out` do stream do proprio
+ * motor, e ate aqui esse numero morria no ledger dele sem nunca chegar ao
+ * corpus de routing.
+ *
+ * Recusa escrever sem tokens finitos. Um `appendMeasured` que aceitasse `null`
+ * seria o `appendFromDecision` com outro nome e voltaria a poluir a cobertura.
+ *
+ * @returns {object|null} o registo escrito, ou null se nao havia o que medir
+ */
+function appendMeasured(d = {}, opts = {}) {
+  const tin = numeroOuNulo(d.tokens_in);
+  const tout = numeroOuNulo(d.tokens_out);
+  if (tin == null && tout == null) return null;
+  try {
+    const rec = sanitize({
+      ts: opts.ts || d.ts || new Date(opts.now || Date.now()).toISOString(),
+      op: d.op || 'dispatch',
+      tier: d.tier || null,
+      llm: shortLlm(d.llm || d.model, d.tier),
+      tokens_in: tin,
+      tokens_out: tout,
+      tokens_fonte: 'medido',
+      reason: d.reason || 'measured after execution',
+      via: d.via || 'inline',
+    });
+    fs.appendFileSync(opts.logPath || logPath(), JSON.stringify(rec) + '\n', 'utf8');
+    return rec;
+  } catch {
+    return null; // telemetria e best-effort — nunca parte o chamador
+  }
+}
+
 module.exports = {
   SCHEMA_FIELDS,
+  appendMeasured,
   shortLlm,
   deriveReason,
   recordFromDecision,

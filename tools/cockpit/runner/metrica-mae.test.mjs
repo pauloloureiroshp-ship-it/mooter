@@ -94,14 +94,18 @@ test('cobertura devolve presentes/total/pct, e não rebenta com zero linhas', ()
 test('tokens a zero dão n/d COM os números — nunca um n/d mudo', () => {
   const m = metricaMae([dec({}), dec({}), dec({})]);
   assert.equal(m.tokens.pct_cobertura, 0);
-  assert.match(m.tokens.porque, /nenhuma das 3 decisões traz tokens/);
-  assert.match(m.tokens.porque, /0\/3 entrada/);
+  assert.match(m.tokens.porque, /nenhuma das 3 decisões traz tokens medidos/);
+  assert.match(m.tokens.porque, /escritas ANTES da execução/,
+    'o n/d tem de dizer a razao ESTRUTURAL, senao le-se como preguica');
 });
 
 test('cobertura parcial de tokens diz que é parcial', () => {
-  const m = metricaMae([dec({ tokens_in: 100, tokens_out: 20 }), dec({}), dec({}), dec({})]);
+  const m = metricaMae([
+    dec({ tokens_in: 100, tokens_out: 20, tokens_fonte: 'medido' }), dec({}), dec({}), dec({}),
+  ]);
   assert.equal(m.tokens.pct_cobertura, 25);
-  assert.match(m.tokens.porque, /cobertura parcial/);
+  assert.match(m.tokens.porque, /cobertura: 25% entrada/);
+  assert.equal(m.tokens.medidos.presentes, 1);
 });
 
 test('uma linha corrompida é contada, não engolida', () => {
@@ -163,4 +167,28 @@ test('tokens_out é null quando nenhuma chamada os trouxe — nunca 0', () => {
 
 test('um ts ilegível não cria um dia fantasma', () => {
   assert.deepEqual(quotaPorMotor([dec({ ts: 'qualquer coisa' })]), []);
+});
+
+/* ── C1.3: cobertura e «foi medido», nao «nao e null» ─────────────────────── */
+
+test('os 403 zeros legados NAO contam como cobertura — a metrica nao salta para 100%', () => {
+  // O caso real: ate 2026-09-02 o ledger tinha 403 decisoes com `tokens_in: 0`
+  // escrito pelo hook de UserPromptSubmit, que corre ANTES da execucao. Um
+  // predicado «nao e null» contaria as 403 e a cobertura saltava para 100% sem
+  // uma unica medicao nova. A cobertura subia; a verdade nao.
+  const legado = Array.from({ length: 10 }, () => dec({}));   // tokens_in: 0, sem fonte
+  const m = metricaMae(legado);
+  assert.equal(m.tokens.pct_cobertura, 0);
+  assert.equal(m.tokens.medidos.presentes, 0);
+});
+
+test('um zero MEDIDO conta — e para isso que o campo existe', () => {
+  const m = metricaMae([dec({ tokens_in: 0, tokens_out: 0, tokens_fonte: 'medido' })]);
+  assert.equal(m.tokens.pct_cobertura, 100);
+  assert.equal(m.tokens.medidos.presentes, 1);
+});
+
+test('`null` nao conta como medido', () => {
+  const m = metricaMae([dec({ tokens_in: null, tokens_out: null, tokens_fonte: null })]);
+  assert.equal(m.tokens.pct_cobertura, 0);
 });
