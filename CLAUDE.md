@@ -129,6 +129,25 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `"1.50": []`. Provado por `node pack-mcpb.mjs` (335 verificações de conteúdo
   OK, sha256 `9100e0dfaf5724fbb5845122c64ef3e89e10c0d49a7385f95fa3774004f96ad6`)
   e por `packages/mooter-bridge/versao-coerente.test.js`.
+  **2026-09-03 · o ciclo de aprendizagem ligado, desligado por omissão** allowlists
+  **modificações** a `packages/router/src/decide-agent.ts` e o ficheiro novo
+  `packages/router/tests/decide-agent-learned.test.ts` (autorizado pelo dono nesta data,
+  a pedido explícito: «segue com o #256 e o #239»). É a segunda entrada a autorizar mexer
+  neste ficheiro de motor, e o motivo é o mesmo que o livro já imprime como o maior defeito
+  do repositório (slide 53): o `adaptive-learner` tinha **0 callers desde 2026-07-03** e o
+  `AGENTS.md` promete «learning forever from local telemetry». Uma frase que o código
+  desmente não se corrige documentando — corrige-se ligando o código ou apagando a frase.
+  Acrescentado: o parâmetro `use_learned` (**default false**), `overrides`/`overrides_path`
+  para injecção em testes, e um `resolveOverrides()` que lê o ficheiro **uma vez** por
+  chamada. Sem `use_learned`, o `buildCandidate` chama `getCell` directamente — comportamento
+  **byte-idêntico** ao motor de antes, que é a razão pela qual isto pode entrar num package
+  congelado. Uma célula aprendida carrega `source:"adaptive-learned"`, para nunca ser
+  apresentada como benchmark citado. Zero alterações à ordenação por TES, ao `force_model`
+  ou aos portões de `min_score` e orçamento. Provado por
+  `packages/router/tests/decide-agent-learned.test.ts` (6/6) e pela suite existente
+  `decide-agent.test.ts` (25/25, sem regressão). **Nota honesta:** isto liga o caminho,
+  não acende o ciclo — o R-17 do roadmap só fecha com 1 caller real, 1 corrida agendada e
+  1 actualização de peso registada no ledger.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)
