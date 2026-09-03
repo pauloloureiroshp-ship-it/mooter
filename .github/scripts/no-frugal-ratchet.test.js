@@ -74,3 +74,42 @@ test('a base ref that no longer exists falls back instead of crashing', () => {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('a live legacy identifier does not count as rebrand debt', () => {
+  // FRUGAL_CLAUDE_DIR is read as a fallback in 12+ places on main. A gate that
+  // fails a PR for naming an environment variable the product still honours is
+  // punishing the truth, and teaches people to route around the gate.
+  const { cwd, base } = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'tools', 'env-compat.js'),
+      'const dir = process.env.MOOTER_CLAUDE_DIR || process.env.FRUGAL_CLAUDE_DIR;'
+    );
+    commit(cwd, 'add legacy env fallback');
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', base, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, `exempt identifier must not fail: ${result.stderr}`);
+    assert.match(result.stdout, /1 .* -> 1 /);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('an exemption on the line does not launder a real occurrence beside it', () => {
+  // The dangerous failure mode of any allowlist: one exempt token buys the
+  // whole file a pass. Here the same file carries a live env var AND real
+  // rebrand debt, and the debt must still be caught.
+  const { cwd, base } = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'tools', 'mixed.js'),
+      'const dir = process.env.FRUGAL_CLAUDE_DIR;' + String.fromCharCode(10) +
+      'export const productName = "frugal";'
+    );
+    commit(cwd, 'add mixed file');
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', base, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 1, `real debt beside an exemption must still fail: ${result.stdout}`);
+    assert.match(result.stderr, /tools\/mixed\.js/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

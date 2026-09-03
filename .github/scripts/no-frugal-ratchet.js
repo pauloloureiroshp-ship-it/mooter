@@ -6,6 +6,39 @@ const { spawnSync } = require('node:child_process');
 const LIVE_CODE_SCOPES = ['tools', 'packages', 'hub', 'landing', 'scripts'];
 const ZERO_SHA = /^0+$/;
 
+const fs = require('node:fs');
+const path = require('node:path');
+const EXEMPT_FILE = path.join(__dirname, '..', 'no-frugal-exempt.json');
+
+/**
+ * Not every 'frugal' is rebrand debt. Some are live identifiers the product
+ * still depends on — legacy env vars the code reads as a fallback, the
+ * Cloudflare account subdomain inside the production hub URL, captured real
+ * paths. A file counts against the ratchet only when it holds at least one
+ * occurrence that NONE of the exempt patterns explains. Without this the gate
+ * blocks a PR for naming a hostname we serve traffic on, and a gate that
+ * punishes the truth teaches people to route around it.
+ */
+function loadExemptions(file = EXEMPT_FILE) {
+  let raw;
+  try {
+    raw = fs.readFileSync(file, 'utf8');
+  } catch {
+    return []; // absent file → no exemptions, i.e. the strict original behaviour
+  }
+  return (JSON.parse(raw).exempt || []).map((e) => new RegExp(e.pattern, 'gi'));
+}
+
+/** True when every 'frugal' on this line is explained by an exemption. */
+function lineIsExplained(line, exemptions) {
+  let rest = line;
+  for (const re of exemptions) {
+    re.lastIndex = 0;
+    rest = rest.replace(re, '');
+  }
+  return !/frugal/i.test(rest);
+}
+
 function runGit(args, options = {}) {
   const result = spawnSync('git', args, {
     cwd: options.cwd,
@@ -41,20 +74,29 @@ function mergeBase(baseRef, headRef, cwd) {
   return result.stdout.trim();
 }
 
-function matchingFiles(ref, cwd) {
+function matchingFiles(ref, cwd, exemptions) {
+  const exempt = exemptions === undefined ? loadExemptions() : exemptions;
+  // -n so we can read each matching LINE: a file is debt only when at least one
+  // of its matches is not an exempt identifier.
   const result = runGit(
-    ['grep', '-Iilz', '--full-name', '-e', 'frugal', ref, '--', ...LIVE_CODE_SCOPES],
+    ['grep', '-Iin', '--full-name', '-e', 'frugal', ref, '--', ...LIVE_CODE_SCOPES],
     { cwd, encoding: null }
   );
   if (result.status === 1) return [];
   if (result.status !== 0) {
     throw new Error(`git grep failed for ${ref}: ${result.stderr.toString('utf8').trim()}`);
   }
-  return result.stdout
-    .toString('utf8')
-    .split('\0')
-    .filter(Boolean)
-    .map((entry) => entry.slice(entry.indexOf(':') + 1));
+  const prefix = `${ref}:`;
+  const debt = new Set();
+  for (const rawLine of result.stdout.toString('utf8').split(String.fromCharCode(10))) {
+    if (!rawLine) continue;
+    const body = rawLine.startsWith(prefix) ? rawLine.slice(prefix.length) : rawLine;
+    const m = /^(.*?):([0-9]+):([\s\S]*)$/.exec(body);
+    if (!m) continue;
+    if (lineIsExplained(m[3], exempt)) continue;
+    debt.add(m[1]);
+  }
+  return [...debt];
 }
 
 function evaluateRatchet({ baseRef, headRef = 'HEAD', cwd = process.cwd() }) {
@@ -100,4 +142,6 @@ if (require.main === module) {
   }
 }
 
-module.exports = { evaluateRatchet, matchingFiles, mergeBase };
+module.exports = {
+  loadExemptions,
+  lineIsExplained, evaluateRatchet, matchingFiles, mergeBase };
