@@ -56,3 +56,21 @@ test('untracked build artifacts cannot change the Git-tree count', () => {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('a base ref that no longer exists falls back instead of crashing', () => {
+  // After a force-push, `github.event.before` names a commit the remote no
+  // longer has. Before this fallback the gate exited 2 with "Not a valid commit
+  // name" — an error, not a verdict. A guard that crashes is not a guard.
+  const { cwd } = fixture();
+  try {
+    fs.writeFileSync(path.join(cwd, 'tools', 'regression.js'), 'export const brand = "FRUGAL";');
+    commit(cwd, 'add regression');
+    const ghost = '0123456789abcdef0123456789abcdef01234567';
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', ghost, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.notEqual(result.status, 2, `must not error out: ${result.stderr}`);
+    assert.equal(result.status, 1, `expected the real verdict, got stdout=${result.stdout} stderr=${result.stderr}`);
+    assert.match(result.stderr, /frugal references INCREASED/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

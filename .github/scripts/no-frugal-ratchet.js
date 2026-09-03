@@ -16,8 +16,15 @@ function runGit(args, options = {}) {
   return result;
 }
 
+function commitExists(ref, cwd) {
+  return runGit(['cat-file', '-e', `${ref}^{commit}`], { cwd }).status === 0;
+}
+
 function resolveBaseRef(baseRef, headRef, cwd) {
-  if (baseRef && !ZERO_SHA.test(baseRef)) return baseRef;
+  // `github.event.before` names a commit that no longer exists after a
+  // force-push. Without this check the gate throws instead of judging — a
+  // guard that errors is not a guard, so fall back to the parent commit.
+  if (baseRef && !ZERO_SHA.test(baseRef) && commitExists(baseRef, cwd)) return baseRef;
   const parent = runGit(['rev-parse', `${headRef}^`], { cwd });
   if (parent.status !== 0) {
     throw new Error(`cannot resolve a comparison base for ${headRef}: ${parent.stderr.trim()}`);

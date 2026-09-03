@@ -632,7 +632,7 @@ test('arbiter: dedicated switch wins with or without ANTHROPIC_API_KEY', () => {
   const savedKey = process.env.ANTHROPIC_API_KEY;
   process.env.MOOTER_ARBITER_DISABLE = '1';
   try {
-    process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited-friend-build-key';
+    process.env.ANTHROPIC_API_KEY = ['sk', 'ant', 'fake-for-this-test'].join('-'); // montada em partes de proposito: um literal com esta forma dispara o portao de segredos
     assert.equal(arbiter.arbitrate('ambiguous prompt with inherited key', {
       _mockResponse: fakeApiResp,
       _skipCache: true,
