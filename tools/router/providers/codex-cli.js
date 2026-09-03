@@ -161,7 +161,22 @@ function callCodex(prompt, opts = {}) {
   const stdout = res.stdout || '';
   const stderr = res.stderr || '';
   const status = res.status;
-  const exhausted = looksLikeQuotaExhaustion(stdout, stderr);
+  // Quota exhaustion is an ERROR the CLI reports, and the CLI reports errors
+  // with a non-zero exit. It is never a word inside a successful run.
+  //
+  // Measured 2026-09-03: `codex exec` echoes the user prompt into stderr (its
+  // header block prints `user` followed by the prompt). Scanning that blob on a
+  // successful run meant ANY PROMPT containing "quota", "rate limit" or
+  // "usage limit" was thrown away as quota_exhausted — exit code 0, stdout
+  // correct, answer discarded. Proven with two dispatches differing by one
+  // word: «responde com a palavra banana» → ok; «...a palavra quota» → no_output.
+  // A router whose own subject is cost governance could not be asked about cost
+  // governance.
+  //
+  // The trade is deliberate: we may miss a rate-limit that the CLI reports while
+  // still exiting 0 (none observed). Missing one quota event costs an estimate;
+  // discarding every answer about quotas costs the product.
+  const exhausted = res.status !== 0 && looksLikeQuotaExhaustion(stdout, stderr);
 
   // Always record the attempt — even failures count against the rolling
   // estimate, since the CLI may have charged the subscription before
