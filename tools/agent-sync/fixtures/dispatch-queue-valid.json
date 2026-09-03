@@ -1,0 +1,12 @@
+{
+  "severity": "high",
+  "id": "vs-w1-registry-20260719",
+  "lane": "registry",
+  "destino": {
+    "agente": "claude-code",
+    "sessao_id": "cc-d108a40-session-registry"
+  },
+  "created_at": "2026-07-19T12:00:00.000Z",
+  "corpo": "Implement the VS-W1 wiring from the approved terminal-receipts seam.",
+  "estado": "pending"
+}

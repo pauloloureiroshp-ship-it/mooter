@@ -1,0 +1,20 @@
+[
+  {
+    "severity": "critical",
+    "id": "vs-val-blocker-20260719",
+    "lane": "registry",
+    "destino": { "agente": "claude-code", "sessao_id": "cc-registry-parked" },
+    "created_at": "2026-07-19T14:00:00.000Z",
+    "corpo": "🚨 DEMO VS-VAL — blocker para a sessão registry: pára tudo e resolve isto primeiro.",
+    "estado": "pending"
+  },
+  {
+    "severity": "high",
+    "id": "vs-val-paste-20260719",
+    "lane": "receipts",
+    "destino": { "agente": "claude-code", "sessao_id": "cc-vsw1-active" },
+    "created_at": "2026-07-19T14:05:00.000Z",
+    "corpo": "📥 DEMO VS-VAL — dispatch normal pré-endereçado à sessão vs-w1. Cole isto na aba certa.",
+    "estado": "pending"
+  }
+]

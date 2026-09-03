@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mooter.ai/schemas/dispatch-queue-item.v1.json",
+  "title": "Mooter dispatch queue item",
+  "description": "Deterministic contract for one pre-addressed dispatch. severity is intentionally the first declared field; destino is keyed by session id, never by session title.",
+  "type": "object",
+  "required": [
+    "severity",
+    "id",
+    "lane",
+    "destino",
+    "created_at",
+    "estado"
+  ],
+  "properties": {
+    "severity": {
+      "type": "string",
+      "enum": [
+        "critical",
+        "high",
+        "routine",
+        "fyi"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "lane": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "destino": {
+      "type": "object",
+      "required": [
+        "agente",
+        "sessao_id"
+      ],
+      "properties": {
+        "agente": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "sessao_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      },
+      "additionalProperties": false
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "corpo_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "corpo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "estado": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "pasted",
+        "done"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "required": [
+        "corpo_path"
+      ]
+    },
+    {
+      "required": [
+        "corpo"
+      ]
+    }
+  ],
+  "additionalProperties": false
+}

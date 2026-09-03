@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-19T14:00:00.000Z",
+  "sessions": {
+    "cc-vsw1-active": {
+      "id": "cc-vsw1-active",
+      "surface": "cc",
+      "title": "VS-W1 Semaforo — sessao ativa (demo)",
+      "worktree": "C:/Users/Paulo Loureiro/frugal-vs-w1",
+      "worktree_key": "c:/users/paulo loureiro/frugal-vs-w1",
+      "branch": "feat/vs-w1-semaforo",
+      "started_at": "2026-07-19T13:00:00.000Z",
+      "last_seen": "2026-07-19T14:00:00.000Z",
+      "state": "active"
+    },
+    "cc-registry-parked": {
+      "id": "cc-registry-parked",
+      "surface": "cc",
+      "title": "Registry — sessao parked (demo)",
+      "worktree": "C:/Users/Paulo Loureiro/frugal-session-registry",
+      "worktree_key": "c:/users/paulo loureiro/frugal-session-registry",
+      "branch": "feat/session-registry",
+      "started_at": "2026-07-19T12:00:00.000Z",
+      "last_seen": "2026-07-19T13:30:00.000Z",
+      "state": "parked"
+    }
+  }
+}
