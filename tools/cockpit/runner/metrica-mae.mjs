@@ -98,10 +98,25 @@ export function cobertura(decisoes, campo, util = (v) => Number(v) > 0, utilRegi
  * e um zero MEDIDO conta — é para isso que o campo existe.
  */
 export function coberturaDeTokens(decisoes, campo) {
-  return cobertura(decisoes, campo, () => false, (d) => d
+  return cobertura(decisoes, campo, () => false, (d) => foiMedido(d, campo));
+}
+
+/**
+ * O predicado UNICO de «este numero foi medido».
+ *
+ * Existe como funcao, e nao copiado em dois sitios, porque estava copiado em
+ * dois sitios e os dois discordavam: o `quotaPorMotor` contava por
+ * `tokens_out > 0`, o que classificava um zero REALMENTE MEDIDO como
+ * nao-medido — a mesma confusao entre «gastou zero» e «ninguem contou» que o
+ * C1.3 veio desfazer, sobrevivendo dentro do proprio ficheiro que a desfaz.
+ * Apanhado pelo adversario (codex, 2026-09-03).
+ */
+export function foiMedido(d, campo) {
+  return !!d
     && d.tokens_fonte === 'medido'
     && typeof d[campo] === 'number'
-    && Number.isFinite(d[campo]));
+    && Number.isFinite(d[campo])
+    && d[campo] >= 0;
 }
 
 /**
@@ -226,7 +241,9 @@ export function quotaPorMotor(linhas, { tz = OWNER_TZ } = {}) {
     if (!m.has(motor)) m.set(motor, { chamadas: 0, tier: x && x.tier ? String(x.tier) : 'n/d', tokens_out: 0, tokens_medidos: 0 });
     const e = m.get(motor);
     e.chamadas += 1;
-    if (Number(x.tokens_out) > 0) { e.tokens_out += Number(x.tokens_out); e.tokens_medidos += 1; }
+    // `foiMedido`, e nao `> 0`: um zero medido e uma medicao. Ver o comentario
+    // do predicado — ate 2026-09-03 esta linha discordava do resto do ficheiro.
+    if (foiMedido(x, 'tokens_out')) { e.tokens_out += x.tokens_out; e.tokens_medidos += 1; }
   }
   return [...dias.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : -1))

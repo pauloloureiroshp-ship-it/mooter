@@ -76,7 +76,11 @@ function numeroOuNulo(v) {
   // `typeof`, e nao `Number()`. Medido a escrever este teste: `Number('')` e 0
   // e `Number(true)` e 1 — os dois passariam por medicoes. A direccao segura da
   // falha e `null` (n/d), nunca um numero que ninguem contou.
-  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  //
+  // `>= 0` porque finitude nao chega: `-1` e finito e nao e uma contagem de
+  // tokens. Sem esta metade, um negativo entrava rotulado `medido` e passava a
+  // contar como cobertura valida — apanhado pelo adversario (codex, 2026-09-03).
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
 /**

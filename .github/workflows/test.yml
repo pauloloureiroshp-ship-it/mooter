@@ -366,7 +366,10 @@ jobs:
       # marcador em falta, em vez de se perder no meio da bateria.
       - name: Delivery content gate (mooter-bridge)
         working-directory: packages/mooter-bridge
-        run: node --test entrega.test.js
+        # `npm test --` e nao `node --test` cru: o script carrega o isolamento
+        # do corpus. Este ficheiro nao despacha, mas um passo que corre outro
+        # comando e uma porta aberta para o proximo que despache.
+        run: npm test -- entrega.test.js
 
       # ⚠️ `sync:check` NÃO entra aqui como gate, de propósito.
       #

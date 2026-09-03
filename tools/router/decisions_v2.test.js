@@ -107,6 +107,10 @@ test('appendMeasured recusa escrever sem tokens finitos', () => {
   assert.equal(v2.appendMeasured({ tier: 'T2', tokens_in: '', tokens_out: null }, { logPath }), null,
     'Number("") e 0 — coagir isso poria um zero inventado no corpus');
   assert.equal(v2.appendMeasured({ tier: 'T2', tokens_in: NaN }, { logPath }), null);
+  // Finitude nao chega: `-1` e finito e nao e uma contagem de tokens. Sem esta
+  // metade, um negativo entrava rotulado `medido` e contava como cobertura.
+  assert.equal(v2.appendMeasured({ tier: 'T2', tokens_in: -1, tokens_out: -20 }, { logPath }), null,
+    'um negativo nao e uma medicao');
   assert.equal(fs_.existsSync(logPath), false, 'criou o ficheiro sem ter escrito nada');
   fs_.rmSync(dir, { recursive: true, force: true });
 });

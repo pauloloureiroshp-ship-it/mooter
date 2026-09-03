@@ -12,6 +12,13 @@
  * Corre: node path.test.js
  */
 
+// ⚠️ Este ficheiro DESPACHA e ensina a correr-se a mao (o cabecalho acima),
+// o que contorna o `--require` do `npm test`. Hoje o caminho nao chega a
+// escrever no corpus de routing — mas «hoje nao chega» e precisamente o
+// que muda em silencio. Carregado aqui; e idempotente. Guardado por
+// `corpus-de-routing.test.js`.
+require('./testes-nao-escrevem-no-corpus.cjs');
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');

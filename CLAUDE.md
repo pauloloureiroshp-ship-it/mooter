@@ -177,11 +177,19 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   dizia «medido depois: 5/5 despachos com tokens medidos (100%)». Nao ha esse
   numero em lado nenhum: o corpus real tem 420 linhas e **4** com
   `tokens_fonte: 'medido'`, que sao **dois pares identicos** (10/5 e 100/80,
-  um par por corrida da suite) escritos pelos proprios testes — ver a entrada
-  seguinte. Zero vinham de um motor. O caminho esta provado end-to-end
-  (`cadeia-nao-silenciosa.test.js`, `corpus-de-routing.test.js`); a cobertura
-  VIVA so pode ser medida depois de o dono reinstalar o conector, porque o que
-  corre nesta maquina e anterior a mudanca.
+  um par por corrida da suite) — ver a entrada seguinte.
+  Que nenhuma delas veio de um motor a serio nao esta *no esquema* (o registo
+  guarda `via` e uma razao textual, nao a identidade da execucao — objeccao do
+  adversario, codex 2026-09-03). O que esta medido e: os valores sao
+  exactamente as fixtures (`10/5` = `prompt_eval_count:10, eval_count:5` do
+  stub do Ollama; `100/80` = `v12.test.js:288`), aparecem em pares nos
+  timestamps das corridas da suite, e **redireccionar `MOOTER_CLAUDE_DIR` fez o
+  par de hoje aterrar no temporario em vez do corpus** — prova directa para o
+  par de 2026-09-03, inferencia forte para o de 2026-09-02.
+  O caminho esta provado end-to-end (`cadeia-nao-silenciosa.test.js`,
+  `corpus-de-routing.test.js`); a cobertura VIVA so pode ser medida depois de o
+  dono reinstalar o conector, porque o que corre nesta maquina e anterior a
+  mudanca.
   **2026-09-03 · os testes escreviam no corpus do dono** allowlists uma
   **adicao** — `packages/mooter-bridge/testes-nao-escrevem-no-corpus.cjs` e
   `corpus-de-routing.test.js` — e **uma linha** em
@@ -196,9 +204,30 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   corpus era a unica coisa a por la numeros inventados. Redirecciona-se
   `MOOTER_CLAUDE_DIR` (a raiz, nao o ficheiro) para que qualquer escritor
   futuro nasca coberto — presenca nao e cobertura, a licao de 2026-08-29.
-  Medido: 420 linhas antes, **420 depois** de uma suite completa. O passo do CI
-  passa de `node --test` a `npm test` (`.github/workflows/test.yml`) porque um
-  gate que corre outro comando nao gateia isto.
+  Medido (reproduzivel — `L=~/.claude/tools/router/decisions_v2.jsonl;
+  wc -l <$L; npm test; wc -l <$L`): 420 linhas antes, **420 depois** de uma
+  suite completa (1182/1182). Os dois passos do CI com
+  `working-directory: packages/mooter-bridge` passam de `node --test` a
+  `npm test` (`.github/workflows/test.yml`) porque um gate que corre outro
+  comando nao gateia isto.
+  **Segunda ronda, depois do adversario (codex, 2026-09-03).** O `--require`
+  nao cobre um humano a correr o ficheiro a mao — e `v12.test.js:6` ENSINA a
+  faze-lo («Run: node v12.test.js»). Allowlist estende-se a **uma linha** em
+  cada um de `v12.test.js`, `path.test.js` e `cadeia-nao-silenciosa.test.js`
+  (`require('./testes-nao-escrevem-no-corpus.cjs')`, idempotente, zero logica).
+  A guarda e sobre a **interseccao** «ensina a correr-se a mao» ∩ «despacha»,
+  e nao sobre «tudo o que despacha»: dez ficheiros desta pasta chamam
+  `toolWork` e nunca escrevem, e exigir-lhes a linha seria ruido que ninguem
+  mantem. Verificado por medicao: `node v12.test.js` directo, 420 -> 420.
+  Do mesmo adversario, e no mesmo commit: `quotaPorMotor` contava tokens por
+  `tokens_out > 0` — classificava um zero REALMENTE MEDIDO como nao-medido,
+  a mesma confusao que o C1.3 desfaz, a sobreviver dentro do ficheiro que a
+  desfaz. Passa a usar o predicado unico `foiMedido()`. E o `numeroOuNulo`
+  ganha `>= 0`: finitude nao chega, `-1` e finito e nao e uma contagem.
+  **Objeccao do adversario recusada, e porque:** «falta `landing/app/version.json`
+  no bump». Fica a 1.53.0 de proposito — o ficheiro diz «Generated — never
+  hand-edit» e e o `version-sync.yml` que o escreve no push da tag. Mesma
+  decisao, com as mesmas palavras, de `72b8e31f`.
   **2026-09-03 · 1.53.0 -> 1.53.1** allowlists **uma linha** em cada um de
   `packages/mooter-bridge/manifest.json`, `packages/mooter-bridge/version.json`,
   `tools/router/version.json` e `plugin/mooter/.claude-plugin/plugin.json`

@@ -55,6 +55,51 @@ test('o isolamento esta LIGADO ao `npm test` — senao e um ficheiro decorativo'
   assert.match(pkg.scripts.test, /--test/, 'o script deixou de correr os testes');
 });
 
+/**
+ * O BURACO QUE O `--require` NAO TAPA — e exactamente esse, nem mais nem menos.
+ *
+ * O preload cobre tudo o que passe pelo `npm test` (que e o que o CI corre e o
+ * que qualquer pessoa corre). Fica de fora UM caminho: um humano a correr o
+ * ficheiro a mao. E a unica forma de um humano aprender a faze-lo e o cabecalho
+ * do proprio ficheiro lho ensinar — `v12.test.js:6` diz «Run: node v12.test.js»,
+ * e esse ficheiro despacha e escreve no corpus (a fixture 100/80).
+ *
+ * Por isso a guarda e sobre a interseccao, e nao sobre «tudo o que despacha»:
+ * dez ficheiros desta pasta chamam `toolWork` e nunca chegam a escrever (param
+ * antes, ou sem `telemetry`), e exigir-lhes a linha seria ruido que ninguem
+ * mantem. O que nao pode existir e um ficheiro que ENSINE a correr-se a mao E
+ * despache. Apanhado pelo adversario (codex, 2026-09-03).
+ */
+test('nenhum teste ensina a correr-se a mao E despacha sem carregar o isolamento', () => {
+  const ficheiros = fs.readdirSync(AQUI).filter((f) => /\.test\.(js|cjs|mjs)$/.test(f));
+  assert.ok(ficheiros.length > 20, `so ${ficheiros.length} testes encontrados — a varredura nao esta a ver a pasta`);
+  const descobertos = [];
+  let comCabecalho = 0;
+  for (const f of ficheiros) {
+    const src = fs.readFileSync(path.join(AQUI, f), 'utf8');
+    const cabecalho = src.slice(0, 1200);
+    if (!new RegExp(`node\\s+(\\./)?${f.replace(/\./g, '\\.')}`).test(cabecalho)) continue;
+    comCabecalho += 1;
+    if (!/\b(toolWork|toolDispatch)\s*\(/.test(src)) continue;
+    if (!src.includes(ISOLAMENTO)) descobertos.push(f);
+  }
+  assert.ok(comCabecalho >= 2,
+    `so ${comCabecalho} ficheiro(s) com cabecalho de corrida directa — a deteccao partiu-se`);
+  assert.deepEqual(descobertos, [],
+    `ensinam a correr-se a mao, despacham, e nao carregam o isolamento: ${descobertos.join(', ')}`);
+});
+
+test('os dois que ESCREVEM no corpus carregam o isolamento — nomeados, porque sao medidos', () => {
+  // Medido a 2026-09-03: uma suite completa produzia exactamente DUAS escritas,
+  // destes dois ficheiros. Nao e uma lista de estilo — e a lista dos que a
+  // medicao apanhou. Se aparecer um terceiro, a assercao de 420->420 do
+  // cabecalho deste ficheiro cai primeiro.
+  for (const f of ['v12.test.js', 'cadeia-nao-silenciosa.test.js']) {
+    const src = fs.readFileSync(path.join(AQUI, f), 'utf8');
+    assert.ok(src.includes(ISOLAMENTO), `${f} escreve no corpus e nao carrega o isolamento`);
+  }
+});
+
 test('o CI corre o MESMO comando — um gate que nao carrega o isolamento nao o gateia', () => {
   // O passo do CI corria `node --test` cru (test.yml:355). Com o isolamento no
   // `npm test`, isso punha o merge a ser decidido por um comando diferente do
@@ -64,6 +109,17 @@ test('o CI corre o MESMO comando — um gate que nao carrega o isolamento nao o 
   assert.ok(i > 0, 'o passo `Test mooter-bridge` desapareceu do CI');
   const bloco = wf.slice(i, i + 220);
   assert.match(bloco, /run:\s*npm test/, `o passo do CI corre outra coisa:\n${bloco}`);
+
+  // E NENHUM passo com `working-directory: packages/mooter-bridge` pode correr
+  // `node --test` cru — senao a cobertura depende de qual passo apanha o teste
+  // novo. O adversario apanhou o passo do `entrega.test.js` a faze-lo.
+  const crus = [];
+  const re = /working-directory:\s*packages\/mooter-bridge\s*\n(?:\s*#[^\n]*\n)*\s*run:\s*([^\n]+)/g;
+  for (let m = re.exec(wf); m; m = re.exec(wf)) {
+    if (/^node\s+--test/.test(m[1].trim())) crus.push(m[1].trim());
+  }
+  assert.deepEqual(crus, [],
+    `passos do CI a correr \`node --test\` cru no bridge (sem isolamento): ${crus.join(' | ')}`);
 });
 
 test('o isolamento MORDE: sem ele o corpus e o do dono, com ele nao', () => {
