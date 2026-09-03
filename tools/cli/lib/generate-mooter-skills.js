@@ -106,7 +106,12 @@ Claude Code's session model is Claude, not ${m.displayName}. The reply from ${m.
 
 - Single-message dispatch — no session-level pin.
 - Cost is recorded in \`~/.claude/tools/router/quota-state.json\`.
-- Provider call timeout: 30s default (override with \`MOOTER_PER_ATTEMPT_TIMEOUT_MS\`).
+- Provider call timeout: **300s** for cloud pins, 240s for local (Ollama) ones. A pin
+  means "this model, I'll wait" — \`codex exec\` is an agentic loop, and a 283s answer
+  is normal. Override with \`MOOTER_PER_ATTEMPT_TIMEOUT_MS\`, \`MOOTER_CLOUD_PIN_TIMEOUT_MS\`
+  or \`MOOTER_LOCAL_PIN_TIMEOUT_MS\`.
+- A dispatch killed at the deadline reports \`error.code: "timeout"\` with the elapsed
+  seconds — distinct from \`no_output\`, which means the provider genuinely said nothing.
 - On provider failure the error is surfaced — there is NO silent fallback to Anthropic.
 
 ## Instructions for the agent
