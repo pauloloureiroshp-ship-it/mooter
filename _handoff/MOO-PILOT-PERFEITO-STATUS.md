@@ -34,8 +34,9 @@ carne viva: duas etiquetas iguais não provam que o código é o mesmo. O
 > número, é uma linha em cada um dos quatro.
 
 Artefacto: **`_handoff/mooter-v1531.mcpb`**
-· 63 ficheiros · 1 260 280 bytes · 384 verificações de conteúdo OK
-· sha256 `2d3f5130b6edf51488735c0e8c4946571498e8710bbbee8a6054b04133ab4e80`
+· 63 ficheiros · 384 verificações de conteúdo OK · sha256
+`2f6363d75eef0acdad5b354b77367ddce672bb871ef92ffe00bb8f44f1faf636`
+(reconstruído depois da ronda do adversário — ver §3b)
 
 Verificado dentro do zip: `server/decisions_v2.js`, `server/bin-resolver.js`,
 `'USER', 'LOGNAME'` nas `CHILD_ENV_BASE_KEYS`, `server/version.json` a 1.53.1.
@@ -67,8 +68,12 @@ de mentira. Cada `npm test` injectava lá **duas linhas rotuladas
 ```
 
 Medido: 420 linhas no corpus, **4** com `tokens_fonte:'medido'` — **dois pares
-idênticos**, um por corrida da suite (02/09 12:13 e 03/09 10:30). **Zero vinham
-de um motor.** A mudança escrita para impedir que um número não medido entrasse
+idênticos**, um por corrida da suite (02/09 12:13 e 03/09 10:30).
+Que nenhuma tenha vindo de um motor a sério **não é demonstrável pelo esquema**
+(objecção do adversário — ver §3b); o que está medido é que os valores são
+exactamente as fixtures, que aparecem em pares nos timestamps das corridas, e
+que redireccionar `MOOTER_CLAUDE_DIR` fez o par de hoje aterrar no temporário.
+A mudança escrita para impedir que um número não medido entrasse
 no corpus era a única coisa a pôr lá números inventados — e pior que o zero
 legado, porque o zero pelo menos não mentia sobre a proveniência.
 
@@ -81,7 +86,8 @@ no `scripts.test` — e não no topo dos dois ficheiros, porque uma lista envelh
 (a lição de 29/08: presença não é cobertura). Redirecciona `MOOTER_CLAUDE_DIR`,
 a raiz, para que qualquer escritor futuro nasça coberto. O passo do CI passou de
 `node --test` a `npm test`: um portão que corre outro comando não portaria isto.
-Medido: **420 linhas antes, 420 depois** de uma suite completa (1180/1180).
+Medido: **420 linhas antes, 420 depois** de uma suite completa (1182/1182), e
+também com `node v12.test.js` corrido à mão.
 
 > **Gesto teu (não toquei):** as 4 linhas continuam no teu ledger e continuam a
 > alimentar o painel. São as linhas 415, 416, 419 e 420. Se quiseres limpá-las:
@@ -105,11 +111,11 @@ pelos próprios testes. Substituído por `n/d` com a razão.
 |---|---|---|
 | C1.1 · cache do ledger | **feito** (sessão anterior, `08431dc8`) | 3,39 s → 0,41 s, com a idade da cache visível |
 | C1.2 · Ask vê a página | **feito** (sessão anterior, `8b6398b1`) | — |
-| C1.3 · tokens no `decisions_v2` | **feito no código · cobertura viva `n/d`** | `bb37068b`. Testes: decisions_v2 (6), metrica-mae, bridge 1180/1180 |
+| C1.3 · tokens no `decisions_v2` | **feito no código · cobertura viva `n/d`** | `bb37068b` + `43eca1d4`. Testes: decisions_v2 (6), metrica-mae (24), bridge 1182/1182 |
 | C1.4 · as 2 causas-raiz | **feito no código · por instalar** | `78befc60`; o conector vivo ainda é o de 01/09 — ver §0 |
 | C1.5 · manchete mede resultado | **feito** (sessão anterior, `13803acd`) | — |
 | C1.6 · «conector ok» é um sha | **feito e a morder** | `verConector()` agora diz `mau · 1.53.0 instalado ≠ 1.53.1 no repo`; antes do bump dizia `1.53.0 nos dois lados, mas 2 de 56 ficheiros diferem — seamless.js, context.js`. Correcto nos dois casos |
-| C1.7 · testes sem `gh` | **feito** | `8c266c9e`. `env -i PATH=<node>:/usr/bin:/bin HOME=/tmp/casa-vazia node --test 'tools/cockpit/runner/*.test.mjs'` → **1360 testes, 1358 pass, 0 fail** (idêntico com `gh` presente) |
+| C1.7 · testes sem `gh` | **feito** | `8c266c9e`. `env -i PATH=<node>:/usr/bin:/bin HOME=/tmp/casa-vazia node --test 'tools/cockpit/runner/*.test.mjs'` → **1363 testes, 1361 pass, 0 fail, 2 todo** (idêntico com `gh` presente) |
 | C1.8 · 5 `workflow_dispatch` verdes | **feito** | 5/5 `success` em `main`, runs `33745717051`, `…25271`, `…34506`, `…44066`, `…53341` |
 
 **Premissa do kickoff refutada (C1.3).** A meta «cobertura ≥80% nas decisões
