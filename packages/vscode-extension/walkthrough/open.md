@@ -1,12 +1,13 @@
-# Open the Cockpit
+# Open the project cockpit
 
-Click the **🐮 Mooter** icon in the Activity Bar (left edge).
+Click the **🐮 Mooter** icon in the Activity Bar.
 
-You'll see:
+You'll see the five working experiences:
 
-- **Saved vs all-Opus** — real $ counterfactual from your own decisions
-- **Tier mix** — how much went local (T0) vs Haiku/Sonnet/Opus
-- **Decisions** — every prompt's tier, model, confidence, and *why*
-- **Doctor** — engine, tracker, and pipeline health
+- **Resume** — recent sessions, pending asks, repository state, and handoffs
+- **Plan** — roadmap waves, dependencies, WIP, gates, and available forecasts
+- **Route** — local-first tier, model, confidence, escalation, and savings evidence
+- **Watch** — agents, sessions, Mission Control, and Live Preview
+- **Review** — guarded edits, Security Review, Git publishing, and Vercel deploy
 
-Everything is read-only and refreshes on its own while the panel is open.
+The cockpit refreshes evidence automatically. Actions that write files or contact external tools are named in the UI and remain behind their specific confirmation and safety gates.
