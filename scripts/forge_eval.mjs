@@ -7,7 +7,7 @@
 //                        (a different model family than base/candidate → no self-preference).
 //   - per-SLICE gate (AF-05): fail if ANY capability slice regresses > ε (not the mean).
 //   - Wilson score CI on every proportion.
-// Methodology mirrors the council harness (frugal-council quality-eval.ts / quality-grade.ts).
+// Methodology mirrors the council harness (packages/council quality-eval.ts / quality-grade.ts).
 //
 // NULL-CALIBRATION (the $0 proof with no trained adapter): run base == candidate.
 // A sound harness returns delta ≈ 0 and open win-share ≈ 0.5 → it does not fabricate gain.
