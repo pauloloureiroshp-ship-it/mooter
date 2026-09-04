@@ -192,6 +192,14 @@
       "path": "tools/ab/mooter-use-ab.test.mjs",
       "sha256": "926eb5bd33319055bde290c9fff0035bf6cc1594185fc0d98763844d78650540"
     },
+    "executor": {
+      "path": "tools/ab/correr-r24.mjs",
+      "sha256": "4f63d771ea47695d10e20ec49dd46e372eacff48cda6a5956b9e705f55e8735c"
+    },
+    "testes_do_executor": {
+      "path": "tools/ab/correr-r24.test.mjs",
+      "sha256": "d3659c5c80ebc2b33d62c4c286ce5f6d962f015930347a671a6219f73ecc0494"
+    },
     "manifest": {
       "path": "tools/ab/r24-manifest.json",
       "sha256": "d79957ccbfa51ced56e9e6c6d056ceab470a9c1fb2d4195ced2a2d9f310284ab"
@@ -221,5 +229,38 @@
     "ambiente": "terminal fora de uma sessão Claude Code; o controlador recusa correr com CLAUDE_CODE_CHILD_SESSION presente",
     "medido_2026_09_03": "claude -p de dentro de uma sessão devolve is_error:true, duration_api_ms:0, input_tokens:0 — e exit 0"
   },
-  "este_ficheiro": "não contém o seu próprio sha256; é congelado pelo commit git que o introduz"
+  "este_ficheiro": "não contém o seu próprio sha256; é congelado pelo commit git que o introduz",
+  "ledger": {
+    "path": "_handoff/r24/ledger.jsonl",
+    "formato": "JSONL append-only, uma linha por braço; escritor único é o executor",
+    "nota": "um par (task_id, braço) já escrito nunca se repete — repetir seria escolher qual das medições conta"
+  },
+  "emendas": [
+    {
+      "n": 1,
+      "data": "2026-09-03",
+      "decisao": "do dono",
+      "o_que": "corta o critério «prompt existente antes da solução»",
+      "porque": "insatisfazível neste repositório — 6 de 1.997 commits têm ligação a sessão",
+      "custo": "a alegação final encolhe para «tarefas derivadas de commits reais»",
+      "desfecho": "melhor do que a emenda previa: os prompts passaram a ser gerados mecanicamente do teste que falha, e o viés de reconstrução deixou de existir em vez de ser mitigado"
+    },
+    {
+      "n": 2,
+      "data": "2026-09-04",
+      "decisao": "do executante, registada antes de existir um único resultado",
+      "o_que": "acrescenta ao congelamento o executor (tools/ab/correr-r24.mjs) e os seus testes",
+      "porque": "A fase de execução não existia quando o pré-registo foi congelado: main() saía com 3 e dizia «ainda não implementado». Escrevê-la dentro do controlador partia o sha congelado, por isso vive num ficheiro novo que importa o congelado e não toma nenhuma decisão. Mas «só sequencia» não é «não pode falsear» — um executor livre salta uma tarefa que correu mal, repete um braço, ou corre o teste no sítio errado. Deixá-lo fora do congelamento era deixar a porta aberta exactamente onde o protocolo se fecha.",
+      "porque_e_legitima": "Só ACRESCENTA uma restrição: nenhum número, limiar, seed, atribuição ou tarefa muda. E acontece com o ledger VAZIO — nenhum resultado foi visto. Apertar antes de ver não compra nada; a suspeita legítima é sobre afrouxar depois de ver.",
+      "prova": "10 defeitos plantados em tools/ab/morde-r24.mjs, 10 apanhados pelo teste nomeado"
+    }
+  ],
+  "controlo_do_corpus": {
+    "data": "2026-09-04",
+    "custo": "$0 — nenhuma chamada ao modelo",
+    "metodo": "para cada uma das 25 tarefas: snapshot do PAI (o teste tem de falhar) e snapshot do FILHO (o teste tem de passar), ambos com a maquinaria do executor congelado",
+    "resultado": "25 de 25 falham no pai e passam no filho",
+    "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
+    "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
+  }
 }
