@@ -112,6 +112,19 @@ const cl = m.resolverClaude();
 linha('executável do agente responde --version', cl.ok,
   cl.ok ? `${cl.versao} · ${cl.caminho}` : `tentados: ${cl.tentados.join(' · ')} — define MOOTER_CLAUDE_BIN`);
 
+// ── 6b. a sonda: chega mesmo ao modelo? ─────────────────────────────────────
+// Ligada por omissão. `--version` responde 0 com a conta sem crédito, com o
+// OAuth expirado e de dentro de uma sessão — as três condições que rebentam as
+// 46 corridas. Uma chamada minúscula responde à pergunta a sério.
+// `--sem-sonda` salta-a (fica $0, mas fica sem saber).
+if (cl.ok && !argv.includes('--sem-sonda')) {
+  const sonda = m.sondarAgente({ caminho: cl.caminho });
+  linha('a sonda chega ao modelo', sonda.ok,
+    sonda.ok ? `${sonda.duracao_api_ms} ms · ${sonda.tokens_in} tokens de entrada` : sonda.motivo);
+} else if (cl.ok) {
+  linha('a sonda chega ao modelo', null, 'saltada por --sem-sonda — não sabemos');
+}
+
 // ── 7. o tratamento ─────────────────────────────────────────────────────────
 const raiz = path.join(os.tmpdir(), 'r24-snapshots');
 try {

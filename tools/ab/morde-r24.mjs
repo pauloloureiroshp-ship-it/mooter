@@ -209,6 +209,13 @@ const DEFEITOS = [
     para: '  if (false) {',
     apanhado_por: 'MORDE: --correr recusa se o router pinado não bater',
   },
+  {
+    nome: 'a sonda passa a confiar no exit code',
+    porque: 'medido: --version responde 0 com a conta sem credito, com o OAuth expirado e de dentro de uma sessao',
+    de: '  const v = validarCorrida(json);',
+    para: '  const v = { invalido: false, motivo: null };',
+    apanhado_por: 'MORDE: a sonda recusa o que o --version aceita',
+  },
 ];
 
 function correrSuite() {

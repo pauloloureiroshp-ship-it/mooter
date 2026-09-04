@@ -81,6 +81,7 @@ import {
   atribuicao,
   analisar,
   limiarMinimo,
+  validarCorrida,
 } from './mooter-use-ab.mjs';
 
 import {
@@ -181,6 +182,45 @@ export function resolverClaude({
     ok: false,
     motivo: 'nenhum executavel do agente responde `--version` com exit 0',
     tentados,
+  };
+}
+
+/**
+ * A SONDA. Não pergunta se o executável existe — pergunta se ele CHEGA AO
+ * MODELO, que é a única coisa que interessa antes de 23 horas de corrida.
+ *
+ * Medido 2026-09-04, e é por isso que existe: `claude --version` devolve exit
+ * 0 com a conta sem crédito, com o OAuth expirado, e de dentro de uma sessão
+ * Claude Code. As três condições passavam a pré-condição e rebentavam as 46
+ * corridas — cada uma delas com `is_error`, que `validarCorrida` marca como
+ * inválida. Vinte e três pares inválidos são `ENSAIO INVALIDO`, portanto não
+ * há veredicto falso; há 23 horas de máquina deitadas fora e um relatório que
+ * não diz nada.
+ *
+ * A sonda custa uma chamada minúscula e devolve o motivo verdadeiro:
+ * «Credit balance is too low», «OAuth session expired», ou o silêncio de quem
+ * nunca chegou lá. Corre UMA vez, no arranque — nunca por tarefa.
+ */
+export function sondarAgente({
+  caminho, spawnImpl = spawnSync, tectoS = 120, prompt = 'Responde apenas: OK',
+} = {}) {
+  const args = ['-p', prompt, '--output-format', 'json',
+    '--permission-mode', 'bypassPermissions', '--allow-dangerously-skip-permissions'];
+  const r = spawnImpl(caminho || 'claude', args, {
+    encoding: 'utf8', timeout: tectoS * 1000, maxBuffer: 16 * 1024 * 1024, input: '',
+  });
+  if (r.error) return { ok: false, motivo: `spawn:${r.error.code}` };
+  if (r.signal) return { ok: false, motivo: `timeout apos ${tectoS}s` };
+  let json = null;
+  try { json = JSON.parse(r.stdout || 'null'); } catch { /* fica null */ }
+  const v = validarCorrida(json);
+  if (v.invalido) return { ok: false, motivo: v.motivo, bruto: json };
+  return {
+    ok: true,
+    motivo: null,
+    duracao_api_ms: json.duration_api_ms,
+    tokens_in: json?.usage?.input_tokens ?? null,
+    custo: json.total_cost_usd ?? null,
   };
 }
 
@@ -819,6 +859,16 @@ export function main(argv = process.argv.slice(2), io = {}) {
   // ── a corrida ────────────────────────────────────────────────────────────
   const cl = resolverClaude({ env: envImpl, spawnImpl, fsImpl });
   const spawnDaCorrida = spawnComClaude(cl.caminho, spawnImpl);
+
+  const sonda = sondarAgente({ caminho: cl.caminho, spawnImpl });
+  if (!sonda.ok) {
+    err('RECUSO CORRER.');
+    err(`  a sonda nao chegou ao modelo: ${sonda.motivo}`);
+    err('  `--version` responde 0 com a conta vazia, com o OAuth expirado e de dentro de uma sessao.');
+    err('  Sem esta sonda, as 46 corridas davam todas invalidas e as 23 horas eram deitadas fora.');
+    return 2;
+  }
+  log(`  sonda: chegou ao modelo em ${sonda.duracao_api_ms} ms · ${sonda.tokens_in} tokens de entrada`);
 
   const tranca = tomarTranca(raiz, { fsImpl });
   if (!tranca.ok) { err('RECUSO CORRER.'); err(`  ${tranca.motivo}`); return 2; }

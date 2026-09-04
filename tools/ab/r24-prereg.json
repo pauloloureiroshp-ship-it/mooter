@@ -194,11 +194,11 @@
     },
     "executor": {
       "path": "tools/ab/correr-r24.mjs",
-      "sha256": "73c5d226d97f840db0440f96c786a6c9ca4b52ba9995ed6885fbe40321267ffa"
+      "sha256": "68fa275776c92fe3a75fd05f27a919fc6ce06c74157caaf9dde1b2e11498409d"
     },
     "testes_do_executor": {
       "path": "tools/ab/correr-r24.test.mjs",
-      "sha256": "e3d48a810bb1221d01fee9291ff6af40b26ccb620b82b5c5defc5a2e9d983746"
+      "sha256": "47531f070f9a343d500f9ab18df31177c00c0fcdec384282f0c21370cc9a93c1"
     },
     "manifest": {
       "path": "tools/ab/r24-manifest.json",
@@ -306,7 +306,7 @@
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
   },
-  "sha_do_prereg": "206dc91fadac360ba4694bf1da4623977297fb9f3e8985577576f85416b5c1ef",
+  "sha_do_prereg": "f9fc05952e3164ea1c69db43d4f2d21d93d56cd815c24ee83b9aad759e5327f2",
   "tratamento": {
     "decisao": "do dono, 2026-09-04: isolar o router",
     "o_que_e": "o hook UserPromptSubmit do Mooter, e mais nada",

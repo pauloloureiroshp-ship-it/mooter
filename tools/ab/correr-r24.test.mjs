@@ -18,7 +18,7 @@ import {
   prepararSnapshot, testeDoFilho, prepararTarefa, prepararControlo, tvaFinal, correrUmBraco,
   primarias, primeiroDe, idsPrimarias, desta, guardas, main,
   candidatosClaude, resolverClaude, spawnComClaude,
-  lerLedgerCru, shaDoPrereg, tomarTranca, largarTranca, prepararSnapshot as _ps,
+  lerLedgerCru, shaDoPrereg, tomarTranca, largarTranca, prepararSnapshot as _ps, sondarAgente,
 } from './correr-r24.mjs';
 import { verificarCongelamento } from './mooter-use-ab.mjs';
 import {
@@ -683,4 +683,41 @@ test('MORDE: --correr recusa se o router pinado não bater com o pré-registo', 
     { fsImpl: fsi, spawnImpl: fakeSpawn(), envImpl: {}, log: (m) => linhas.push(m), err: (m) => linhas.push(m) });
   assert.equal(code, 2);
   assert.ok(linhas.some((l) => /router pinado nao bate/.test(l)), linhas.join(' | '));
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// A SONDA · `--version` não é uma pré-condição, é um cumprimento
+// ───────────────────────────────────────────────────────────────────────────
+
+test('MORDE: a sonda recusa o que o --version aceita', () => {
+  // Medido 2026-09-04: `claude --version` devolve exit 0 com a conta sem
+  // crédito, com o OAuth expirado, e de dentro de uma sessão. As três davam
+  // 46 corridas inválidas e 23 horas de máquina deitadas fora.
+  const casos = [
+    ['conta sem crédito', { is_error: true, duration_api_ms: 0, usage: { input_tokens: 0 }, result: 'Credit balance is too low' }],
+    ['OAuth expirado', { is_error: true, duration_api_ms: 0, usage: { input_tokens: 0 }, result: 'Failed to authenticate: OAuth session expired' }],
+    ['nunca chegou ao modelo', { is_error: false, duration_api_ms: 0, usage: { input_tokens: 0 } }],
+    ['envelope de outra forma', { ok: true }],
+  ];
+  for (const [nome, envelope] of casos) {
+    const r = sondarAgente({ caminho: 'x', spawnImpl: () => ({ status: 0, stdout: JSON.stringify(envelope) }) });
+    assert.equal(r.ok, false, `a sonda deixou passar: ${nome}`);
+    assert.ok(r.motivo, `sem motivo para: ${nome}`);
+  }
+});
+
+test('a sonda aceita uma resposta que chegou mesmo ao modelo', () => {
+  const r = sondarAgente({ caminho: 'x', spawnImpl: () => ({ status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 1234, usage: { input_tokens: 7 }, total_cost_usd: 0.0004 }) }) });
+  assert.equal(r.ok, true);
+  assert.equal(r.duracao_api_ms, 1234);
+  assert.equal(r.tokens_in, 7);
+});
+
+test('MORDE: a sonda distingue timeout de spawn partido', () => {
+  const t = sondarAgente({ caminho: 'x', spawnImpl: () => ({ signal: 'SIGTERM' }) });
+  assert.equal(t.ok, false);
+  assert.match(t.motivo, /timeout/);
+  const e = sondarAgente({ caminho: 'x', spawnImpl: () => ({ error: Object.assign(new Error('x'), { code: 'ENOENT' }) }) });
+  assert.equal(e.ok, false);
+  assert.match(e.motivo, /spawn:ENOENT/);
 });
