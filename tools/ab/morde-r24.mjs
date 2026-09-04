@@ -54,9 +54,9 @@ const DEFEITOS = [
   },
   {
     nome: 'congelamento verificado só no arranque',
-    porque: 'validar uma vez e correr 23 horas é validar nada; a janela fica aberta o tempo todo',
-    de: "    const g2 = guardas(prereg, { fsImpl, envImpl });\n    if (!g2.ok) { err(`PÁRA a meio: ${g2.motivo}`); return 2; }",
-    para: '',
+    porque: 'validar uma vez e correr 23 horas e validar nada; a janela fica aberta o tempo todo',
+    de: '    const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente });',
+    para: '    const g2 = { ok: true };',
     apanhado_por: 'MORDE: --correr revalida o congelamento a CADA tarefa',
   },
   {
@@ -107,6 +107,34 @@ const DEFEITOS = [
     de: "  if (!r.aceite) return { ok: false, motivo: `teste_nao_passa_no_filho:status=${r.status}` };",
     para: '',
     apanhado_por: 'MORDE: o controlo exige PASSAR, e reprova quando falha',
+  },
+  {
+    nome: 'erro de spawn conta como derrota do agente',
+    porque: 'o defeito real de 2026-09-04: ENOENT nos dois bracos dava 23 pares validos, X=0, PERDEU com p=1,0',
+    de: '  const invalido = res.invalido === true || spawnPartido;',
+    para: '  const invalido = res.invalido === true;',
+    apanhado_por: 'MORDE: um erro de spawn é INVÁLIDO, não uma derrota de 1800 s',
+  },
+  {
+    nome: 'sem pre-voo do executavel do agente',
+    porque: 'sem ele a corrida arranca, falha 46 vezes em 4 ms cada, e imprime um veredicto',
+    de: '  if (exigirAgente) {',
+    para: '  if (false) {',
+    apanhado_por: 'MORDE: --correr recusa arrancar sem executável do agente',
+  },
+  {
+    nome: 'candidatos sem o exe escondido do npm',
+    porque: 'no Windows o claude do PATH e um shim; sem este candidato nunca se resolve nada',
+    de: "      cands.push(path.join(d, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'));",
+    para: '',
+    apanhado_por: 'candidatosClaude procura o exe escondido do npm no Windows',
+  },
+  {
+    nome: 'o wrapper de spawn nao reescreve nada',
+    porque: 'o controlador congelado tem o nome claude cravado; sem reescrita volta o ENOENT',
+    de: "  return (cmd, args, opts) => spawnImpl(cmd === 'claude' ? caminho : cmd, args, opts);",
+    para: '  return spawnImpl;',
+    apanhado_por: 'MORDE: o spawn da corrida reescreve claude, e só claude',
   },
 ];
 

@@ -194,11 +194,11 @@
     },
     "executor": {
       "path": "tools/ab/correr-r24.mjs",
-      "sha256": "4f63d771ea47695d10e20ec49dd46e372eacff48cda6a5956b9e705f55e8735c"
+      "sha256": "5b8b970b0d6b3988619611fbc2f6531d2f540fb27bac56413c96c75d4aa64167"
     },
     "testes_do_executor": {
       "path": "tools/ab/correr-r24.test.mjs",
-      "sha256": "d3659c5c80ebc2b33d62c4c286ce5f6d962f015930347a671a6219f73ecc0494"
+      "sha256": "37a34edb2db70b78eea8083c98e25e6de8e7aab3f510f37985b8418e5a9704e4"
     },
     "manifest": {
       "path": "tools/ab/r24-manifest.json",
@@ -253,6 +253,16 @@
       "porque": "A fase de execução não existia quando o pré-registo foi congelado: main() saía com 3 e dizia «ainda não implementado». Escrevê-la dentro do controlador partia o sha congelado, por isso vive num ficheiro novo que importa o congelado e não toma nenhuma decisão. Mas «só sequencia» não é «não pode falsear» — um executor livre salta uma tarefa que correu mal, repete um braço, ou corre o teste no sítio errado. Deixá-lo fora do congelamento era deixar a porta aberta exactamente onde o protocolo se fecha.",
       "porque_e_legitima": "Só ACRESCENTA uma restrição: nenhum número, limiar, seed, atribuição ou tarefa muda. E acontece com o ledger VAZIO — nenhum resultado foi visto. Apertar antes de ver não compra nada; a suspeita legítima é sobre afrouxar depois de ver.",
       "prova": "10 defeitos plantados em tools/ab/morde-r24.mjs, 10 apanhados pelo teste nomeado"
+    },
+    {
+      "n": 3,
+      "data": "2026-09-04",
+      "decisao": "do executante, com o ledger ainda vazio",
+      "o_que": "o executor passa a exigir um executavel do agente que responda --version com exit 0, e trata qualquer erro de spawn como corrida INVALIDA",
+      "porque": "MEDIDO nesta maquina a 2026-09-04: spawnSync(\"claude\", ...) devolve ENOENT. No Windows o \"claude\" do PATH e um shim (.cmd/.ps1/sh) e o CreateProcess do Node so lanca executaveis; o binario real esta em <dir>/node_modules/@anthropic-ai/claude-code/bin/claude.exe. O controlador congelado trata r.error como falha do AGENTE (invalido:false, tva_s=1800, aceite:false). Com o ENOENT os DOIS bracos das 23 tarefas davam exactamente isso: 23 pares contavam como VALIDOS, X=0, e analisar imprimia PERDEU com p=1,0. Uma derrota fabricada, produzida em 46 corridas de 4 milissegundos, com toda a aparelhagem estatistica a dar-lhe cobertura. Um instrumento partido a produzir um numero e pior do que instrumento nenhum, porque o numero e citavel.",
+      "onde": "no executor, nao no controlador congelado: resolverClaude() + spawnComClaude() + spawn:* passa a invalido",
+      "porque_e_legitima": "so acrescenta restricoes; nenhum numero, limiar, seed, atribuicao ou tarefa muda; ledger vazio",
+      "prova": "resolverClaude() devolve claude.exe 2.1.224 nesta maquina; correrBraco com o spawn envolvido lanca o processo (6,64 s) e a falha de autenticacao sai como INVALIDA com tva_s null, nao como derrota. 16 defeitos plantados / 16 apanhados. 28 testes do executor verdes."
     }
   ],
   "controlo_do_corpus": {

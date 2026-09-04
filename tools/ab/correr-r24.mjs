@@ -116,6 +116,79 @@ export function dividirComando(cmd) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// O executavel do agente — a guarda que faltava, e que quase custou tudo.
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * MEDIDO 2026-09-04, nesta maquina: `spawnSync('claude', ...)` devolve ENOENT.
+ * No Windows o `claude` do PATH e um shim (`claude.cmd` / `claude.ps1` / um
+ * script sh), e o `CreateProcess` do Node so lanca executaveis. O binario a
+ * serio existe, escondido: `<dir do shim>/node_modules/@anthropic-ai/claude-code/bin/claude.exe`.
+ *
+ * PORQUE ISTO ERA CATASTROFICO, e nao apenas chato:
+ * `correrBraco` (congelado) trata `r.error` como falha do AGENTE — devolve
+ * `invalido: false`, `tva_s = 1800`, `aceite: false`. Com o ENOENT, os DOIS
+ * bracos das 23 tarefas davam exactamente isso. Todos os 23 pares contavam
+ * como VALIDOS, X = 0, e `analisar` imprimia **PERDEU com p = 1,0** — uma
+ * derrota fabricada, produzida em 46 corridas de 4 milissegundos, com toda a
+ * aparelhagem estatistica a dar-lhe cobertura.
+ *
+ * Um instrumento partido a produzir um numero e pior do que instrumento
+ * nenhum: o numero e citavel.
+ *
+ * As duas correccoes vivem aqui, no executor, e nao no controlador congelado:
+ *   1. `resolverClaude()` encontra um binario que responde `--version` com 0,
+ *      e o executor RECUSA-SE a arrancar se nao encontrar nenhum. Barulho ao
+ *      segundo zero, em vez de um veredicto ao fim de 23 horas.
+ *   2. `spawn:*` passa a INVALIDO. Um comando que nao arranca nao e o agente a
+ *      falhar a tarefa — e o aparato a falhar, e um par assim nao vota.
+ */
+export function candidatosClaude(env = process.env, plataforma = process.platform) {
+  const cands = [];
+  if (env.MOOTER_CLAUDE_BIN) cands.push(env.MOOTER_CLAUDE_BIN);
+  cands.push('claude');
+  if (plataforma === 'win32') {
+    const dirs = String(env.PATH || env.Path || '').split(';').filter(Boolean);
+    for (const d of dirs) {
+      cands.push(path.join(d, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'));
+      cands.push(path.join(d, 'claude.exe'));
+    }
+  }
+  return [...new Set(cands)];
+}
+
+/** Devolve o primeiro candidato que responde `--version` com exit 0. */
+export function resolverClaude({
+  env = process.env, plataforma = process.platform,
+  spawnImpl = spawnSync, fsImpl = fs, tectoS = 60,
+} = {}) {
+  const tentados = [];
+  for (const c of candidatosClaude(env, plataforma)) {
+    if (c !== 'claude' && !fsImpl.existsSync(c)) continue;
+    const r = spawnImpl(c, ['--version'], { encoding: 'utf8', timeout: tectoS * 1000, input: '' });
+    tentados.push(`${c}:${r.error ? r.error.code : `exit${r.status}`}`);
+    if (!r.error && r.status === 0) {
+      return { ok: true, caminho: c, versao: String(r.stdout || '').trim().slice(0, 60), tentados };
+    }
+  }
+  return {
+    ok: false,
+    motivo: 'nenhum executavel do agente responde `--version` com exit 0',
+    tentados,
+  };
+}
+
+/**
+ * Envolve o spawn para que o `'claude'` cravado no controlador congelado
+ * chegue ao binario que existe mesmo. So reescreve esse nome; tudo o resto
+ * (git, tar, node) passa intacto.
+ */
+export function spawnComClaude(caminho, spawnImpl = spawnSync) {
+  if (caminho === 'claude') return spawnImpl;
+  return (cmd, args, opts) => spawnImpl(cmd === 'claude' ? caminho : cmd, args, opts);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Ledger — leitura e retoma.
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -315,8 +388,14 @@ export function correrUmBraco({
     spawnImpl, ...(clockImpl ? { clockImpl } : {}),
   });
 
+  // O controlador congelado devolve `invalido: false` para um erro de spawn —
+  // trata-o como falha do agente. Nao e: um comando que nao arranca e o
+  // aparato partido, e um par assim nao pode votar. Corrigido aqui.
+  const spawnPartido = typeof res.motivo === 'string' && res.motivo.startsWith('spawn:');
+  const invalido = res.invalido === true || spawnPartido;
+
   let aceite = null;
-  if (!res.invalido) {
+  if (!invalido) {
     const a = correrAceitacao({
       cwd: path.join(destino, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, spawnImpl,
     });
@@ -326,9 +405,9 @@ export function correrUmBraco({
   return {
     tipo: 'braco', ts: nowImpl(), experiment_id: prereg.experiment_id, seed: prereg.seed,
     task_id: tarefa.task_id, braco,
-    invalido: res.invalido === true,
+    invalido,
     motivo: res.motivo ?? null,
-    tva_s: tvaFinal(res, aceite),
+    tva_s: invalido ? null : tvaFinal(res, aceite),
     aceite,
     decorrido_s: res.decorrido_s ?? null,
     session_id: res.session_id ?? null,
@@ -369,9 +448,19 @@ export function primeiroDe(prereg, taskId) {
  *
  * O próprio executor está na lista: se ele mudar a meio da corrida, pára.
  */
-export function guardas(prereg, { fsImpl = fs, envImpl = process.env } = {}) {
+export function guardas(prereg, {
+  fsImpl = fs, envImpl = process.env, spawnImpl = spawnSync, exigirAgente = false,
+} = {}) {
   const amb = ambienteApto(envImpl);
   if (!amb.apto) return { ok: false, motivo: amb.motivo };
+  if (exigirAgente) {
+    const cl = resolverClaude({ env: envImpl, spawnImpl, fsImpl });
+    if (!cl.ok) {
+      return { ok: false, motivo: `${cl.motivo}. Tentados: ${cl.tentados.join(' · ')}. `
+        + 'Define MOOTER_CLAUDE_BIN com o caminho do executavel. '
+        + 'Sem esta guarda, os dois bracos falhavam identicamente e a experiencia imprimia PERDEU com p=1,0.' };
+    }
+  }
   if (prereg.estado !== 'CONGELADO') return { ok: false, motivo: `pré-registo ${prereg.estado}` };
   const c = verificarCongelamento(prereg, { readImpl: fsImpl.readFileSync });
   if (!c.ok) return { ok: false, motivo: `congelamento: ${c.falhas.map((f) => `${f.nome}=${f.motivo}`).join(', ')}` };
@@ -425,7 +514,10 @@ export function main(argv = process.argv.slice(2), io = {}) {
     return r.veredicto === 'ENSAIO INVALIDO' ? 1 : 0;
   }
 
-  const g = guardas(prereg, { fsImpl, envImpl });
+  // `--verificar` e `--controlo` nunca chamam o agente, por isso nao exigem um.
+  // `--correr` exige — e falha ao segundo zero se nao houver.
+  const precisaDeAgente = argv.includes('--correr');
+  const g = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente });
   if (!g.ok) { err('RECUSO CORRER.'); err(`  ${g.motivo}`); return 2; }
 
   const tarefas = primarias(manifest, prereg);
@@ -472,16 +564,20 @@ export function main(argv = process.argv.slice(2), io = {}) {
   }
 
   // ── a corrida ────────────────────────────────────────────────────────────
+  const cl = resolverClaude({ env: envImpl, spawnImpl, fsImpl });
+  const spawnDaCorrida = spawnComClaude(cl.caminho, spawnImpl);
+
   const feitos = jaFeitos(lerLedger(ledgerPath, fsImpl.readFileSync));
   log(`R-24 · ${alvo.length} tarefas · ${feitos.size} braços já no ledger · ledger: ${ledgerPath}`);
+  log(`  agente: ${cl.caminho} ${cl.versao ? `(${cl.versao})` : ''}`);
 
   for (const t of alvo) {
-    const g2 = guardas(prereg, { fsImpl, envImpl });
+    const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente });
     if (!g2.ok) { err(`PÁRA a meio: ${g2.motivo}`); return 2; }
 
     for (const braco of ordemDosBracos(primeiroDe(prereg, t.task_id))) {
       if (feitos.has(chave(t.task_id, braco))) { log(`  · ${t.task_id} ${braco} — já feito`); continue; }
-      const linha = correrUmBraco({ braco, tarefa: t, repo, raizSnapshots: raiz, prereg, spawnImpl, fsImpl });
+      const linha = correrUmBraco({ braco, tarefa: t, repo, raizSnapshots: raiz, prereg, spawnImpl: spawnDaCorrida, fsImpl });
       escreverLedger(linha, { ledgerPath, appendImpl: fsImpl.appendFileSync, mkdirImpl: fsImpl.mkdirSync });
       feitos.add(chave(t.task_id, braco));
       const estado = linha.invalido ? `INVÁLIDO (${linha.motivo})` : `${linha.aceite ? 'passa' : 'falha'} · ${linha.tva_s?.toFixed(1)}s`;

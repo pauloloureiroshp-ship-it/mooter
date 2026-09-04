@@ -15,6 +15,7 @@ import {
   dividirComando, lerLedger, jaFeitos, paresDoLedger, ordemDosBracos,
   prepararSnapshot, testeDoFilho, prepararTarefa, prepararControlo, tvaFinal, correrUmBraco,
   primarias, primeiroDe, guardas, main,
+  candidatosClaude, resolverClaude, spawnComClaude,
 } from './correr-r24.mjs';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -325,6 +326,89 @@ test('MORDE: --correr revalida o congelamento a CADA tarefa', () => {
   // a 1.ª tarefa chegou a correr; a 2.ª não
   assert.ok(linhas.some((l) => /t01-abc ON/.test(l)));
   assert.ok(!linhas.some((l) => /t02-def/.test(l)));
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// O executável do agente. Ver o comentário em correr-r24.mjs: o ENOENT do
+// Windows dava PERDEU com p=1,0 em 46 corridas de 4 ms.
+// ───────────────────────────────────────────────────────────────────────────
+
+test('MORDE: um erro de spawn é INVÁLIDO, não uma derrota de 1800 s', () => {
+  // Esta é a linha que separa «o agente falhou» de «o aparato está partido».
+  // Sem ela, os dois braços davam 1800, os 23 pares contavam como válidos,
+  // X=0, e o relatório imprimia PERDEU com aparelhagem estatística completa.
+  const sp = fakeSpawn([
+    { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
+    { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 't' }) },
+    { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
+    { quando: (c) => c === 'claude', responde: () => ({ error: Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' }) }) },
+  ]);
+  const l = correrUmBraco({ braco: 'ON', tarefa: TAREFA, repo: '/r', raizSnapshots: '/s', prereg: PREREG, spawnImpl: sp, fsImpl: fakeFs() });
+  assert.equal(l.invalido, true, 'ENOENT tem de ser INVÁLIDO');
+  assert.equal(l.tva_s, null, 'um par inválido não pode trazer um tempo');
+  assert.match(l.motivo, /^spawn:/);
+});
+
+test('MORDE: --correr recusa arrancar sem executável do agente', () => {
+  const manifestStr = JSON.stringify({ tarefas: [{ ...TAREFA }, { ...TAREFA, task_id: 't02-def' }] });
+  const fsi = fakeFs({ 'r24-prereg.json': JSON.stringify(preregPara(manifestStr)), 'r24-manifest.json': manifestStr });
+  fsi.existsSync = () => false; // nenhum candidato existe no disco
+  const sp = fakeSpawn([{ quando: () => true, responde: () => ({ error: Object.assign(new Error('x'), { code: 'ENOENT' }) }) }]);
+  const linhas = [];
+  const code = main(['--prereg', 'tools/ab/r24-prereg.json', '--correr'],
+    { fsImpl: fsi, spawnImpl: sp, envImpl: {}, log: (m) => linhas.push(m), err: (m) => linhas.push(m) });
+  assert.equal(code, 2);
+  assert.ok(linhas.some((l) => /executavel do agente/.test(l)), `esperava recusa por falta de agente, veio: ${linhas.join(' | ')}`);
+  assert.equal(sp.chamadas.some((c) => c.args?.[0] === 'archive'), false, 'não pode preparar snapshot nenhum');
+});
+
+test('os modos grátis NÃO exigem agente — só --correr exige', () => {
+  const manifestStr = JSON.stringify({ tarefas: [{ ...TAREFA }, { ...TAREFA, task_id: 't02-def' }] });
+  const fsi = fakeFs({ 'r24-prereg.json': JSON.stringify(preregPara(manifestStr)), 'r24-manifest.json': manifestStr });
+  fsi.existsSync = () => false;
+  const sp = fakeSpawn([
+    { quando: (c) => c === 'claude', responde: () => ({ error: Object.assign(new Error('x'), { code: 'ENOENT' }) }) },
+    { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
+    { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 't' }) },
+    { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
+  ]);
+  const code = main(['--prereg', 'tools/ab/r24-prereg.json', '--verificar'],
+    { fsImpl: fsi, spawnImpl: sp, envImpl: {}, log: () => {}, err: () => {} });
+  assert.equal(code, 0);
+});
+
+test('MORDE: o spawn da corrida reescreve claude, e só claude', () => {
+  const chamadas = [];
+  const base = (cmd) => { chamadas.push(cmd); return { status: 0, stdout: '' }; };
+  const env = spawnComClaude('C:/x/claude.exe', base);
+  env('claude', []); env('git', []); env('node', []); env('tar', []);
+  assert.deepEqual(chamadas, ['C:/x/claude.exe', 'git', 'node', 'tar']);
+  // quando já resolve pelo nome, não envolve nada
+  assert.equal(spawnComClaude('claude', base), base);
+});
+
+test('resolverClaude respeita MOOTER_CLAUDE_BIN e reporta o que tentou', () => {
+  const sp = fakeSpawn([
+    { quando: (c) => c === '/meu/claude', responde: () => ({ status: 0, stdout: '9.9.9 (Claude Code)' }) },
+  ]);
+  const r = resolverClaude({ env: { MOOTER_CLAUDE_BIN: '/meu/claude' }, plataforma: 'linux', spawnImpl: sp, fsImpl: { existsSync: () => true } });
+  assert.equal(r.ok, true);
+  assert.equal(r.caminho, '/meu/claude');
+  assert.equal(r.versao, '9.9.9 (Claude Code)');
+
+  const mau = resolverClaude({ env: {}, plataforma: 'linux', fsImpl: { existsSync: () => false },
+    spawnImpl: fakeSpawn([{ quando: () => true, responde: () => ({ error: Object.assign(new Error('x'), { code: 'ENOENT' }) }) }]) });
+  assert.equal(mau.ok, false);
+  assert.ok(mau.tentados.some((t) => /ENOENT/.test(t)), 'tem de dizer o que tentou');
+});
+
+test('candidatosClaude procura o exe escondido do npm no Windows', () => {
+  const c = candidatosClaude({ PATH: 'C:\npm;C:\outro' }, 'win32');
+  assert.ok(c.includes('claude'));
+  assert.ok(c.some((x) => x.includes('@anthropic-ai') && x.endsWith('claude.exe')),
+    'sem isto o shim .cmd do npm nunca é resolvido e o spawn dá ENOENT');
+  // em POSIX o nome basta
+  assert.deepEqual(candidatosClaude({}, 'linux'), ['claude']);
 });
 
 test('sem modo escolhido, não corre nada', () => {
