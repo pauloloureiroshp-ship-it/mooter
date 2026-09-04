@@ -20,6 +20,7 @@ import {
   candidatosClaude, resolverClaude, spawnComClaude,
   lerLedgerCru, shaDoPrereg, tomarTranca, largarTranca, prepararSnapshot as _ps,
 } from './correr-r24.mjs';
+import { verificarCongelamento } from './mooter-use-ab.mjs';
 import {
   EFFORT, MARCA, argsComuns, definicoesDoBraco, escreverDefinicoes, exposicaoValida,
 } from './r24-exposicao.mjs';
@@ -459,7 +460,21 @@ test('CONTRATO: o pré-registo real fecha-se sobre si próprio', () => {
     'o ficheiro que fixa o n tem de estar fixado');
 });
 
-test('CONTRATO: as guardas aceitam o pré-registo real (só o ambiente as trava)', () => {
+test('CONTRATO: o congelamento bate para tudo o que está no repositório', () => {
+  // O `desenho` da experiência vive no vault do dono, fora do repositório: em
+  // CI é `ilegivel:ENOENT` e não há nada a fazer quanto a isso. O que NÃO pode
+  // acontecer é um ficheiro DO REPOSITÓRIO divergir, ou o desenho divergir por
+  // BYTES DIFERENTES em vez de ausência — isso seria o congelamento a cair.
+  const c = verificarCongelamento(PREREG_REAL);
+  for (const f of c.falhas) {
+    assert.equal(f.nome, 'desenho', `entrada do repositório fora do congelamento: ${f.nome}=${f.motivo}`);
+    assert.match(f.motivo, /^ilegivel:ENOENT$/, 'o desenho pode faltar; não pode ter bytes diferentes');
+  }
+});
+
+test('CONTRATO: as guardas aceitam o pré-registo real na máquina que tem o vault', (t) => {
+  const c = verificarCongelamento(PREREG_REAL);
+  if (c.falhas.length) { t.skip('sem o vault montado — coberto pelo teste acima'); return; }
   const g = guardas(PREREG_REAL, { envImpl: {}, exigirAgente: false });
   assert.equal(g.ok, true, `guardas recusaram o ficheiro real: ${g.motivo}`);
 });
@@ -471,9 +486,19 @@ test('MORDE: mexer no n do pré-registo trava as guardas', () => {
   // qualquer executante alcança depois de 3 pares inválidos.
   const adulterado = JSON.parse(JSON.stringify(PREREG_REAL));
   adulterado.estatistica.n = 20;
+  // afirmado directamente sobre o selo, para não depender do vault estar montado
+  assert.notEqual(shaDoPrereg(adulterado), adulterado.sha_do_prereg, 'o selo do pré-registo tem de partir');
   const g = guardas(adulterado, { envImpl: {}, exigirAgente: false });
   assert.equal(g.ok, false);
-  assert.match(g.motivo, /pre-registo mudou|limiar recalculado/);
+
+  // E mexer numa coisa que o limiar NÃO apanha tem de ser apanhada na mesma:
+  // sem isto, o selo do pré-registo podia desaparecer e o teste continuava
+  // verde por causa da verificação do limiar, que é outra guarda.
+  const outraSeed = JSON.parse(JSON.stringify(PREREG_REAL));
+  outraSeed.seed = 7;
+  const g2 = guardas(outraSeed, { envImpl: {}, exigirAgente: false });
+  assert.equal(g2.ok, false, 'trocar a seed tem de partir o selo');
+  assert.match(g2.motivo, /pre-registo mudou/);
 });
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -625,19 +650,20 @@ test('escreverDefinicoes põe o ficheiro em .claude/settings.json e devolve o sh
 });
 
 test('MORDE: o node_modules do snapshot vem do CACHE, nunca do repositório vivo', () => {
-  // Os braços correm com bypassPermissions. Uma junção para ~/frugal deixava
-  // um agente sem travões escrever no repositório do dono.
+  // Os braços correm com bypassPermissions. Uma junção para o repositório vivo
+  // do dono deixava um agente sem travões escrever lá dentro.
   const ligacoes = [];
   const fsi = {
     rmSync() {}, mkdirSync() {}, existsSync: (p2) => /node_modules$/.test(String(p2)) && !/snap/.test(String(p2)),
     symlinkSync: (alvo, lig) => ligacoes.push(String(alvo)),
   };
   const sp = fakeSpawn([{ quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) }]);
-  _ps({ repo: 'C:/Users/Paulo Loureiro/frugal', parent: 'p', destino: '/snap', acceptanceCwd: 'tools/router', cacheNm: 'C:/cache', spawnImpl: sp, fsImpl: fsi });
+  const REPO_VIVO = 'C:/um/repositorio/vivo';
+  _ps({ repo: REPO_VIVO, parent: 'p', destino: '/snap', acceptanceCwd: 'tools/router', cacheNm: 'C:/cache', spawnImpl: sp, fsImpl: fsi });
   assert.ok(ligacoes.length > 0, 'tem de ligar alguma coisa');
   for (const a of ligacoes) {
     assert.ok(a.includes('cache'), `ligou para fora do cache: ${a}`);
-    assert.ok(!a.includes('Loureiro\frugal') && !a.includes('Loureiro/frugal'), `ligou para o repositório vivo: ${a}`);
+    assert.ok(!a.includes('vivo'), `ligou para o repositório vivo: ${a}`);
   }
 });
 
