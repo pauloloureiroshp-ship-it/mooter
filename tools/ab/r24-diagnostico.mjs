@@ -27,9 +27,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import crypto from 'node:crypto';
 
-const azul = (t) => t;
 let bloqueios = 0;
 
 function linha(nome, ok, detalhe) {
@@ -68,7 +66,7 @@ linha('limiar pré-registado bate com o recalculado', c.limiarMinimo(e.n, 0.5, e
 
 // ── 3. o congelamento, entrada a entrada ────────────────────────────────────
 const cong = c.verificarCongelamento(prereg);
-linha('congelamento dos 7 ficheiros', cong.ok,
+linha('congelamento dos ficheiros', cong.ok,
   cong.ok ? `${Object.keys(prereg.congelados).length} entradas` : cong.falhas.map((f) => `${f.nome}=${f.motivo}`).join(', '));
 
 // ── 4. corpus e atribuição ──────────────────────────────────────────────────
