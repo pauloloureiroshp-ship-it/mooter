@@ -22,6 +22,13 @@
  * de imprecisão que este ficheiro existe para apanhar.
  *
  * Devolve 0 se o `--correr` pode arrancar, 1 se não pode.
+ *
+ * E ESCREVE O RELATÓRIO EM DISCO, em `_handoff/r24/ultimo-diagnostico.txt`.
+ * Isto é a terceira vez, no mesmo dia, que a mesma classe de defeito morde:
+ * o `no_output` que escondia quatro causas, a recusa do `--correr` que vivia
+ * só em stderr, e agora um diagnóstico cujo resultado existia apenas no ecrã
+ * de quem o correu. Um relatório que mais ninguém consegue ler depois não é
+ * um relatório — é uma conversa.
  */
 
 import fs from 'node:fs';
@@ -30,17 +37,33 @@ import os from 'node:os';
 
 let bloqueios = 0;
 
+const relatorio = [];
+function diz(texto) { relatorio.push(texto); console.log(texto); }
 function linha(nome, ok, detalhe) {
   const marca = ok === null ? '  · ' : ok ? '  ok  ' : '  BLOQUEIA  ';
   if (ok === false) bloqueios++;
-  console.log(`${marca}${nome}${detalhe ? `  ${detalhe}` : ''}`);
+  diz(`${marca}${nome}${detalhe ? `  ${detalhe}` : ''}`);
+}
+
+const NL = String.fromCharCode(10);
+function guardar(repoDir) {
+  try {
+    const dir = path.join(repoDir, '_handoff', 'r24');
+    fs.mkdirSync(dir, { recursive: true });
+    const alvo = path.join(dir, 'ultimo-diagnostico.txt');
+    fs.writeFileSync(alvo, relatorio.join(NL) + NL, 'utf8');
+    console.log(NL + `(relatório guardado em ${alvo})`);
+  } catch (err) {
+    console.log(NL + `(não consegui guardar o relatório: ${err.code || err.message})`);
+  }
 }
 
 const argv = process.argv.slice(2);
 const iP = argv.indexOf('--prereg');
 const preregPath = iP >= 0 ? argv[iP + 1] : 'tools/ab/r24-prereg.json';
 
-console.log('r24 · diagnóstico das pré-condições de --correr\n');
+diz(`r24 · diagnóstico das pré-condições de --correr · ${new Date().toISOString()} · node ${process.version} · ${process.platform}`);
+diz('');
 linha('cwd', null, process.cwd());
 
 // ── 1. os ficheiros estão aqui? ─────────────────────────────────────────────
@@ -119,10 +142,9 @@ linha('ledger', null, fs.existsSync(ledger)
 const dirs = fs.existsSync(raiz) ? fs.readdirSync(raiz).filter((d) => /^t\d\d-/.test(d)) : [];
 linha('snapshots de corrida', null, dirs.length ? `${dirs.length}: ${dirs.slice(0, 4).join(', ')}` : 'nenhum — o --correr nunca chegou a preparar um');
 
-console.log();
-if (bloqueios === 0) {
-  console.log('VEREDICTO: --correr pode arrancar.');
-  process.exit(0);
-}
-console.log(`VEREDICTO: --correr NÃO arranca. ${bloqueios} pré-condição(ões) a bloquear, marcadas acima.`);
-process.exit(1);
+diz('');
+diz(bloqueios === 0
+  ? 'VEREDICTO: --correr pode arrancar.'
+  : `VEREDICTO: --correr NÃO arranca. ${bloqueios} pré-condição(ões) a bloquear, marcadas acima.`);
+guardar(repo);
+process.exit(bloqueios === 0 ? 0 : 1);
