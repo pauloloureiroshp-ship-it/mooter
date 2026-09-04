@@ -1,0 +1,225 @@
+{
+  "schema": "mooter-prereg/1",
+  "experiment_id": "use-vs-none-v1",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-04",
+  "congelado_por": "decisão do dono; seed fornecida por ele",
+  "nota_estado": "A partir daqui nenhum número deste ficheiro pode mudar. Se mudar, a experiência recomeça e isso fica escrito no relatório.",
+  "seed": 42,
+  "seed_origem": "fornecida pelo dono em 2026-09-04; o controlador recusa correr sem ela, e não tem valor por omissão",
+  "variavel_dependente": {
+    "nome": "TVA",
+    "unidade": "s",
+    "tecto_s": 1800,
+    "relogio": "process.hrtime.bigint (monotónico)",
+    "penaliza_com_tecto": [
+      "timeout",
+      "crash",
+      "recusa",
+      "patch_invalido",
+      "teste_falhado"
+    ],
+    "proibido": [
+      "avaliacao_humana",
+      "llm_juiz",
+      "precisao_routing",
+      "custo_estimado"
+    ]
+  },
+  "metrica_Z": {
+    "ratio": 0.8,
+    "conjuncao_obrigatoria": true,
+    "predicado": "Z=1 sse TVA_ON <= 0.8*TVA_OFF E o braço ON passa mecanicamente"
+  },
+  "estatistica": {
+    "H0": "p <= 0.50",
+    "H1": "p = 0.75",
+    "teste": "binomial exacto unilateral, cauda superior",
+    "alfa": 0.05,
+    "n": 23,
+    "limiar_X": 16,
+    "p_no_limiar": 0.04657,
+    "potencia_em_p075": 0.8037,
+    "porque_16": "P(X>=15|23,0.5)=0.10502 viola o alfa; 16 é o menor admissível",
+    "analise": "intention-to-treat: a não-obediência conta como aconteceu"
+  },
+  "corpus": {
+    "manifest": "tools/ab/r24-manifest.json",
+    "total": 25,
+    "regra_de_seleccao": "cronológica, congelada antes de qualquer corrida",
+    "primarias": [
+      "t01-2e7599e021",
+      "t02-7bb45751d8",
+      "t03-8014c12435",
+      "t04-8617d5fc95",
+      "t05-cc706fa255",
+      "t06-e408ea0afe",
+      "t07-030073bef4",
+      "t08-1f5a793294",
+      "t09-07bdf37783",
+      "t10-a6bf1a20b0",
+      "t11-4bf34eb7c6",
+      "t12-bf358e765c",
+      "t13-ddb0cf50e1",
+      "t14-01cebb9409",
+      "t15-03039e0b33",
+      "t16-057bfc121a",
+      "t17-4b8090599c",
+      "t18-5d72b4c9e3",
+      "t19-99f47261be",
+      "t20-e96defd8e0",
+      "t21-96171ef138",
+      "t22-11f81c79b7",
+      "t23-1b929f35f1"
+    ],
+    "reservas": [
+      "t24-318a3f63d7",
+      "t25-125b9a27b7"
+    ],
+    "max_substituicoes": 3,
+    "nota_substituicao": "uma reserva só entra por invalidez técnica, e sempre antes de revelar resultados"
+  },
+  "atribuicao": {
+    "metodo": "sha256(seed:task_id), ordenado, primeira metade ON-primeiro",
+    "on_primeiro": 12,
+    "off_primeiro": 11,
+    "sha256": "9dff8395dfd6a4ec9e2667371856d38a6c30c3a839bf7b3c9d2fc9e013a2c55b",
+    "pares": [
+      {
+        "id": "t05-cc706fa255",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t10-a6bf1a20b0",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t18-5d72b4c9e3",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t09-07bdf37783",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t07-030073bef4",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t19-99f47261be",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t13-ddb0cf50e1",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t02-7bb45751d8",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t08-1f5a793294",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t04-8617d5fc95",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t14-01cebb9409",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t15-03039e0b33",
+        "primeiro": "ON"
+      },
+      {
+        "id": "t03-8014c12435",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t16-057bfc121a",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t12-bf358e765c",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t06-e408ea0afe",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t20-e96defd8e0",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t11-4bf34eb7c6",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t17-4b8090599c",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t22-11f81c79b7",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t01-2e7599e021",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t21-96171ef138",
+        "primeiro": "OFF"
+      },
+      {
+        "id": "t23-1b929f35f1",
+        "primeiro": "OFF"
+      }
+    ]
+  },
+  "congelados": {
+    "desenho": {
+      "path": "../paulo-vault/40-strategy/pitch-deck-mooter/book/experimento-usar-vs-nao-usar-2026-09-03.md",
+      "sha256": "d8c47ad1d29674de05eb1db4c3eec56a244f41c72ed033294ddd32ae77916c67"
+    },
+    "controlador": {
+      "path": "tools/ab/mooter-use-ab.mjs",
+      "sha256": "12ca8b2e186284b9178e0e235aff084b299040cac6fe2217ff12588aff9bb82d"
+    },
+    "testes_do_controlador": {
+      "path": "tools/ab/mooter-use-ab.test.mjs",
+      "sha256": "926eb5bd33319055bde290c9fff0035bf6cc1594185fc0d98763844d78650540"
+    },
+    "manifest": {
+      "path": "tools/ab/r24-manifest.json",
+      "sha256": "d79957ccbfa51ced56e9e6c6d056ceab470a9c1fb2d4195ced2a2d9f310284ab"
+    },
+    "classify": {
+      "path": "tools/router/classify.js",
+      "sha256": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f"
+    },
+    "patterns": {
+      "path": "tools/router/patterns.js",
+      "sha256": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5"
+    }
+  },
+  "run_invalido": {
+    "definicao": [
+      "is_error do CLI",
+      "duration_api_ms === 0",
+      "usage.input_tokens === 0",
+      "corrupção do snapshot",
+      "braço mal exposto"
+    ],
+    "nao_e_invalido": [
+      "timeout — é falha observada, TVA = 1800"
+    ]
+  },
+  "pre_condicoes_de_execucao": {
+    "ambiente": "terminal fora de uma sessão Claude Code; o controlador recusa correr com CLAUDE_CODE_CHILD_SESSION presente",
+    "medido_2026_09_03": "claude -p de dentro de uma sessão devolve is_error:true, duration_api_ms:0, input_tokens:0 — e exit 0"
+  },
+  "este_ficheiro": "não contém o seu próprio sha256; é congelado pelo commit git que o introduz"
+}
