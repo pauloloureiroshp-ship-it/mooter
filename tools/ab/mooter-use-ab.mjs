@@ -221,19 +221,29 @@ export function verificarCongelamento(prereg, { readImpl = fs.readFileSync } = {
  * Corre um braço. `spawnImpl` e `clockImpl` são injectáveis: os testes nunca
  * lançam um processo real, e o relógio é determinístico.
  *
- * O braço OFF usa `--setting-sources project,local`, que foi a única forma
- * medida de o hook não correr (log cresceu 0 bytes contra 770 e 1.152 por
- * omissão). Repõe explicitamente o que esse filtro arrasta — effortLevel e
- * permissões — para os braços diferirem só na variável em estudo.
+ * OS DOIS BRAÇOS RECEBEM EXACTAMENTE OS MESMOS ARGUMENTOS.
+ *
+ * Havia aqui um `if (braco === 'OFF') args.push('--setting-sources',
+ * 'project,local')` e, logo acima, um comentário a prometer que `extraArgs`
+ * reporia «effortLevel e permissões» para os braços diferirem só na variável
+ * em estudo. `extraArgs` nunca era passado por chamador nenhum: a compensação
+ * existia em prosa e não em código. E como `.claude/settings.json` não está
+ * versionado e o snapshot vem de `git archive`, as fontes que sobravam ao OFF
+ * resolviam para nada — o filtro não era «project+local em vez de user», era
+ * «nada em vez de tudo». O braço ON levava effort xhigh, 4 plugins, 22 hooks
+ * (só um é o router) e 31 regras de permissão; o OFF levava zero.
+ *
+ * A exposição do tratamento passou para o `.claude/settings.json` que o
+ * executor escreve dentro do snapshot: os dois ficheiros são idênticos excepto
+ * a chave `hooks`, que só o ON tem. Aqui, `braco` não toca na linha de
+ * comando. Ver `tools/ab/r24-exposicao.mjs`.
  */
 export function correrBraco({
   braco, prompt, cwd, tectoS = TECTO_S,
   spawnImpl = spawnSync, clockImpl = () => process.hrtime.bigint(),
   extraArgs = [],
 }) {
-  const args = ['-p', prompt, '--output-format', 'json'];
-  if (braco === 'OFF') args.push('--setting-sources', 'project,local');
-  args.push(...extraArgs);
+  const args = ['-p', prompt, '--output-format', 'json', ...extraArgs];
 
   const t0 = clockImpl();
   const r = spawnImpl('claude', args, {

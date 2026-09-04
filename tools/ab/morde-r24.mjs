@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const ALVO = path.join(AQUI, 'correr-r24.mjs');
+const EXPOSICAO = path.join(AQUI, 'r24-exposicao.mjs');
 const SUITE = path.join(AQUI, 'correr-r24.test.mjs');
 
 const DEFEITOS = [
@@ -55,7 +56,7 @@ const DEFEITOS = [
   {
     nome: 'congelamento verificado só no arranque',
     porque: 'validar uma vez e correr 23 horas e validar nada; a janela fica aberta o tempo todo',
-    de: '    const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente });',
+    de: '    const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente, exigirAmbiente: precisaDeAgente });',
     para: '    const g2 = { ok: true };',
     apanhado_por: 'MORDE: --correr revalida o congelamento a CADA tarefa',
   },
@@ -88,17 +89,10 @@ const DEFEITOS = [
     apanhado_por: 'MORDE: o snapshot vem de git archive e nunca traz .git',
   },
   {
-    nome: 'o braço ON também leva --setting-sources',
-    porque: 'se os dois braços desligarem o hook, a experiência mede a diferença entre nada e nada',
-    de: "    braco, prompt: tarefa.prompt, cwd: destino,",
-    para: "    braco: 'OFF', prompt: tarefa.prompt, cwd: destino,",
-    apanhado_por: 'MORDE: o braço OFF leva --setting-sources e o ON não',
-  },
-  {
     nome: 'o controlo prepara a partir do pai',
     porque: 'um controlo que mede a mesma coisa que o instrumento concorda com ele por construcao',
-    de: '    repo, parent: tarefa.commit, destino, acceptanceCwd: tarefa.acceptance_cwd, spawnImpl, fsImpl,',
-    para: '    repo, parent: tarefa.parent, destino, acceptanceCwd: tarefa.acceptance_cwd, spawnImpl, fsImpl,',
+    de: '    repo, parent: tarefa.commit, destino, acceptanceCwd: tarefa.acceptance_cwd, cacheNm, spawnImpl, fsImpl,',
+    para: '    repo, parent: tarefa.parent, destino, acceptanceCwd: tarefa.acceptance_cwd, cacheNm, spawnImpl, fsImpl,',
     apanhado_por: 'MORDE: o controlo prepara a partir do FILHO, não do pai',
   },
   {
@@ -111,8 +105,8 @@ const DEFEITOS = [
   {
     nome: 'erro de spawn conta como derrota do agente',
     porque: 'o defeito real de 2026-09-04: ENOENT nos dois bracos dava 23 pares validos, X=0, PERDEU com p=1,0',
-    de: '  const invalido = res.invalido === true || spawnPartido;',
-    para: '  const invalido = res.invalido === true;',
+    de: '  const invalido = res.invalido === true || spawnPartido || !exp.ok;',
+    para: '  const invalido = res.invalido === true || !exp.ok;',
     apanhado_por: 'MORDE: um erro de spawn é INVÁLIDO, não uma derrota de 1800 s',
   },
   {
@@ -178,6 +172,43 @@ const DEFEITOS = [
     para: '    fsImpl.writeFileSync(alvo, JSON.stringify({ pid, agora }), {});',
     apanhado_por: 'MORDE: duas instâncias não correm ao mesmo tempo',
   },
+  {
+    nome: 'o braco OFF tambem leva o hook',
+    alvo: 'exposicao',
+    porque: 'com os dois bracos a levar o tratamento, a experiencia mede a diferenca entre a mesma coisa e a mesma coisa',
+    de: "  if (braco !== 'ON') return base;",
+    para: '  if (false) return base;',
+    apanhado_por: 'MORDE: os dois braços diferem em UMA chave, e é `hooks`',
+  },
+  {
+    nome: 'exposicao deixa de ser verificada',
+    alvo: 'exposicao',
+    porque: '«braco mal exposto» era um motivo de invalidez que o pre-registo listava e ninguem calculava',
+    de: "  if (braco === 'ON' && !marcaExiste) return { ok: false, motivo: 'braco_mal_exposto:ON_sem_hook' };",
+    para: '',
+    apanhado_por: 'MORDE: braço mal exposto é INVÁLIDO — nos dois sentidos',
+  },
+  {
+    nome: 'um braco mal exposto conta como resultado',
+    porque: 'um ON cujo hook nao disparou e uma corrida sem tratamento — e contava como derrota do ON',
+    de: '  const invalido = res.invalido === true || spawnPartido || !exp.ok;',
+    para: '  const invalido = res.invalido === true || spawnPartido;',
+    apanhado_por: 'MORDE: um ON cujo hook não disparou não conta como derrota',
+  },
+  {
+    nome: 'node_modules volta a ligar ao repositorio vivo',
+    porque: 'os bracos correm com bypassPermissions; uma juncao para ~/frugal deixa o agente escrever no repo do dono',
+    de: "    const origem = cacheNm ? path.join(cacheNm, 'nm', dir, 'node_modules') : path.join(repo, dir, 'node_modules');",
+    para: "    const origem = path.join(repo, dir, 'node_modules');",
+    apanhado_por: 'MORDE: o node_modules do snapshot vem do CACHE',
+  },
+  {
+    nome: 'o sha do router pinado deixa de ser verificado',
+    porque: 'sem isso as 23 tarefas podiam deixar de partilhar o mesmo tratamento sem ninguem saber',
+    de: '  if (shaEsperado && router.sha !== shaEsperado) {',
+    para: '  if (false) {',
+    apanhado_por: 'MORDE: --correr recusa se o router pinado não bater',
+  },
 ];
 
 function correrSuite() {
@@ -189,7 +220,7 @@ function correrSuite() {
   return { verde: r.status === 0, falhas, saida };
 }
 
-const original = fs.readFileSync(ALVO, 'utf8');
+const originais = new Map([[ALVO, fs.readFileSync(ALVO, 'utf8')], [EXPOSICAO, fs.readFileSync(EXPOSICAO, 'utf8')]]);
 let escapou = 0;
 
 console.log('morde-r24 · o defeito plantado no executor tem de ser apanhado\n');
@@ -204,12 +235,14 @@ console.log('  linha de base: suite verde\n');
 
 try {
   for (const d of DEFEITOS) {
+    const alvo = d.alvo === 'exposicao' ? EXPOSICAO : ALVO;
+    const original = originais.get(alvo);
     if (!original.includes(d.de)) {
       console.log(`  ⚠ ${d.nome}: âncora não encontrada — o defeito NÃO foi plantado, logo não prova nada`);
       escapou++;
       continue;
     }
-    fs.writeFileSync(ALVO, original.replace(d.de, d.para), 'utf8');
+    fs.writeFileSync(alvo, original.replace(d.de, d.para), 'utf8');
     const r = correrSuite();
     const apanhado = r.falhas.some((f) => f.includes(d.apanhado_por));
     if (r.verde) {
@@ -226,7 +259,7 @@ try {
     }
   }
 } finally {
-  fs.writeFileSync(ALVO, original, 'utf8');
+  for (const [f, txt] of originais) fs.writeFileSync(f, txt, 'utf8');
 }
 
 const fim = correrSuite();

@@ -212,15 +212,20 @@ test('a atribuição é determinística e equilibrada', () => {
 
 // ── Braços, com costura de injecção (nenhum processo real é lançado) ──────
 
-test('o braço OFF filtra as fontes de definições; o ON não', () => {
+test('MORDE: os dois braços recebem argumentos IDÊNTICOS', () => {
+  // A assimetria vivia aqui e era invisível: o OFF perdia a camada `user`
+  // inteira (effort xhigh, 4 plugins, 22 hooks, 31 permissões), não só o hook
+  // do router. Agora o braço não toca na linha de comando — a exposição vive
+  // no .claude/settings.json do snapshot. Este teste é a guarda dessa regra.
   const vistos = [];
-  const spawnImpl = (cmd, args) => { vistos.push(args); return { status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 100, usage: { input_tokens: 10 }, session_id: 's' }) }; };
-  let t = 0n; const clockImpl = () => (t += 1_000_000_000n);
-  correrBraco({ braco: 'ON', prompt: 'p', cwd: '.', spawnImpl, clockImpl });
-  correrBraco({ braco: 'OFF', prompt: 'p', cwd: '.', spawnImpl, clockImpl });
-  assert.ok(!vistos[0].includes('--setting-sources'), 'o braço ON não filtra');
-  assert.ok(vistos[1].includes('--setting-sources'), 'o braço OFF filtra');
-  assert.ok(vistos[1].includes('project,local'));
+  const spawnImpl = (cmd, args) => { vistos.push(args); return { status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 9, usage: { input_tokens: 1 } }) }; };
+  const extra = ['--setting-sources', 'project', '--effort', 'xhigh'];
+  for (const braco of ['ON', 'OFF']) {
+    correrBraco({ braco, prompt: 'p', cwd: '/x', spawnImpl, clockImpl: () => 0n, extraArgs: extra });
+  }
+  assert.deepEqual(vistos[0], vistos[1], 'os argv dos dois braços têm de ser iguais byte a byte');
+  assert.ok(!JSON.stringify(vistos[0]).includes('project,local'), 'o filtro assimétrico não pode voltar');
+  assert.deepEqual(vistos[0], ['-p', 'p', '--output-format', 'json', ...extra]);
 });
 
 test('um timeout do braço conta como TVA no tecto, e não como inválido', () => {

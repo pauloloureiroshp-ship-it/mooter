@@ -83,6 +83,11 @@ import {
   limiarMinimo,
 } from './mooter-use-ab.mjs';
 
+import {
+  EFFORT, MARCA, argsComuns, definicoesDoBraco, escreverDefinicoes,
+  exposicaoValida, FONTE_DO_INVOLUCRO, shaDaArvore,
+} from './r24-exposicao.mjs';
+
 // ───────────────────────────────────────────────────────────────────────────
 // O comando de aceitação — parsing, porque `acceptance_cmd` é uma linha de sh.
 // ───────────────────────────────────────────────────────────────────────────
@@ -256,6 +261,66 @@ export function ordemDosBracos(primeiro) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// O tratamento, pinado — e uma cópia de node_modules que protege o repo vivo.
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Os braços correm com `--permission-mode bypassPermissions`, porque sem isso
+ * um `claude -p` não escreve ficheiro nenhum e as 46 corridas falhavam todas.
+ * Mas o snapshot tinha uma junção para o `node_modules` do repositório VIVO —
+ * e um agente sem travões escreve através de uma junção. Um `npm install`
+ * dentro do snapshot mexia em `~/frugal`.
+ *
+ * A junção passa a apontar para uma cópia descartável, feita UMA vez.
+ */
+export function prepararCacheNodeModules({ repo, cache, dirs, fsImpl = fs, log = () => {} }) {
+  const feitos = [];
+  for (const dir of dirs) {
+    const origem = path.join(repo, dir, 'node_modules');
+    const destino = path.join(cache, 'nm', dir, 'node_modules');
+    if (!fsImpl.existsSync(origem)) continue;
+    if (fsImpl.existsSync(destino)) { feitos.push(dir); continue; }
+    log(`  a copiar node_modules de ${dir} (uma vez)…`);
+    fsImpl.mkdirSync(path.dirname(destino), { recursive: true });
+    fsImpl.cpSync(origem, destino, { recursive: true, dereference: false, force: true });
+    feitos.push(dir);
+  }
+  return feitos;
+}
+
+/**
+ * O router do tratamento, copiado uma vez e imutável a partir daí.
+ *
+ * Medido 2026-09-04: `classify.js` difere do sha congelado em 4 dos 23
+ * commits-pai. Se o hook apontasse para o `tools/router/` do snapshot, quatro
+ * tarefas corriam um classificador diferente — e três das 23 tarefas MEXEM em
+ * `tools/router/`, portanto o agente podia alterar o próprio tratamento a meio
+ * da corrida. Pinar torna o tratamento idêntico nas 23 e dá-lhe um sha.
+ */
+export function prepararRouterPinado({ repo, cache, fsImpl = fs, refazer = false }) {
+  const destino = path.join(cache, 'router-pinado');
+  if (refazer) fsImpl.rmSync(destino, { recursive: true, force: true });
+  if (!fsImpl.existsSync(path.join(destino, 'inject_context.js'))) {
+    fsImpl.mkdirSync(path.dirname(destino), { recursive: true });
+    fsImpl.cpSync(path.join(repo, 'tools', 'router'), destino, {
+      recursive: true, force: true,
+      filter: (src) => !src.includes('node_modules'),
+    });
+    fsImpl.writeFileSync(path.join(destino, 'r24-hook.cjs'), FONTE_DO_INVOLUCRO);
+  }
+  const nmCache = path.join(cache, 'nm', 'tools/router', 'node_modules');
+  const nmAlvo = path.join(destino, 'node_modules');
+  if (fsImpl.existsSync(nmCache) && !fsImpl.existsSync(nmAlvo)) {
+    try { fsImpl.symlinkSync(nmCache, nmAlvo, process.platform === 'win32' ? 'junction' : 'dir'); } catch { /* n/d */ }
+  }
+  return {
+    caminho: destino,
+    hook: path.join(destino, 'r24-hook.cjs'),
+    sha: shaDaArvore(destino, { fsImpl }),
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Preparação do snapshot.
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -267,7 +332,7 @@ export function ordemDosBracos(primeiro) {
  * no Git for Windows. `maxBuffer` generoso porque o tar passa em memória.
  */
 export function prepararSnapshot({
-  repo, parent, destino, acceptanceCwd,
+  repo, parent, destino, acceptanceCwd, cacheNm = null,
   spawnImpl = spawnSync, fsImpl = fs,
 }) {
   fsImpl.rmSync(destino, { recursive: true, force: true });
@@ -294,7 +359,9 @@ export function prepararSnapshot({
   // nenhuma — e falharia nos DOIS braços, transformando o par em ruído.
   const ligados = [];
   for (const dir of new Set([acceptanceCwd, '.'])) {
-    const origem = path.join(repo, dir, 'node_modules');
+    // do CACHE, nunca do repositório vivo: os braços correm com
+    // bypassPermissions e um agente sem travões escreve através de uma junção
+    const origem = cacheNm ? path.join(cacheNm, 'nm', dir, 'node_modules') : path.join(repo, dir, 'node_modules');
     const alvo = path.join(destino, dir, 'node_modules');
     if (!fsImpl.existsSync(origem) || fsImpl.existsSync(alvo)) continue;
     try {
@@ -322,10 +389,10 @@ export function testeDoFilho({ repo, commit, testFile, spawnImpl = spawnSync }) 
  * Se passa, não há tarefa — e não há trabalho a medir.
  */
 export function prepararTarefa({
-  repo, tarefa, destino, spawnImpl = spawnSync, fsImpl = fs, tectoS = TECTO_S,
+  repo, tarefa, destino, cacheNm = null, spawnImpl = spawnSync, fsImpl = fs, tectoS = TECTO_S,
 }) {
   const snap = prepararSnapshot({
-    repo, parent: tarefa.parent, destino, acceptanceCwd: tarefa.acceptance_cwd, spawnImpl, fsImpl,
+    repo, parent: tarefa.parent, destino, acceptanceCwd: tarefa.acceptance_cwd, cacheNm, spawnImpl, fsImpl,
   });
   if (!snap.ok) return { ok: false, motivo: snap.motivo };
 
@@ -361,10 +428,10 @@ export function prepararTarefa({
  * do único sítio incontestável: o commit onde o autor humano fez o teste passar.
  */
 export function prepararControlo({
-  repo, tarefa, destino, spawnImpl = spawnSync, fsImpl = fs, tectoS = TECTO_S,
+  repo, tarefa, destino, cacheNm = null, spawnImpl = spawnSync, fsImpl = fs, tectoS = TECTO_S,
 }) {
   const snap = prepararSnapshot({
-    repo, parent: tarefa.commit, destino, acceptanceCwd: tarefa.acceptance_cwd, spawnImpl, fsImpl,
+    repo, parent: tarefa.commit, destino, acceptanceCwd: tarefa.acceptance_cwd, cacheNm, spawnImpl, fsImpl,
   });
   if (!snap.ok) return { ok: false, motivo: snap.motivo };
 
@@ -398,11 +465,11 @@ export function tvaFinal(res, aceite, tectoS = TECTO_S) {
 }
 
 export function correrUmBraco({
-  braco, tarefa, repo, raizSnapshots, prereg,
+  braco, tarefa, repo, raizSnapshots, prereg, router = null, cacheNm = null,
   spawnImpl = spawnSync, fsImpl = fs, clockImpl, nowImpl = () => new Date().toISOString(),
 }) {
   const destino = path.join(raizSnapshots, `${tarefa.task_id}-${braco}`);
-  const prep = prepararTarefa({ repo, tarefa, destino, spawnImpl, fsImpl });
+  const prep = prepararTarefa({ repo, tarefa, destino, cacheNm, spawnImpl, fsImpl });
   if (!prep.ok) {
     return {
       tipo: 'braco', ts: nowImpl(), experiment_id: prereg.experiment_id, seed: prereg.seed,
@@ -411,18 +478,27 @@ export function correrUmBraco({
     };
   }
 
+  // A ÚNICA diferença entre os braços: o `.claude/settings.json` do snapshot.
+  // A linha de comando é idêntica — ver `r24-exposicao.mjs`.
+  const defs = escreverDefinicoes({ snapshotDir: destino, braco, caminhoDoHook: router ? router.hook : '', fsImpl });
+
   const res = correrBraco({
     // O braço corre na RAIZ do snapshot — é um repositório, não um pacote.
     // `acceptance_cwd` é só onde o TESTE corre.
-    braco, prompt: tarefa.prompt, cwd: destino,
+    braco, prompt: tarefa.prompt, cwd: destino, extraArgs: argsComuns(),
     spawnImpl, ...(clockImpl ? { clockImpl } : {}),
   });
+
+  // «Braço mal exposto» era um motivo de invalidez que o pré-registo listava e
+  // que nenhuma linha de código calculava. Passa a ser calculado.
+  const marcaExiste = fsImpl.existsSync(path.join(destino, MARCA));
+  const exp = exposicaoValida({ braco, marcaExiste });
 
   // O controlador congelado devolve `invalido: false` para um erro de spawn —
   // trata-o como falha do agente. Nao e: um comando que nao arranca e o
   // aparato partido, e um par assim nao pode votar. Corrigido aqui.
   const spawnPartido = typeof res.motivo === 'string' && res.motivo.startsWith('spawn:');
-  const invalido = res.invalido === true || spawnPartido;
+  const invalido = res.invalido === true || spawnPartido || !exp.ok;
 
   // D5 · O teste é REINSTALADO depois de o agente correr e antes de correr.
   //
@@ -462,13 +538,17 @@ export function correrUmBraco({
     tipo: 'braco', ts: nowImpl(), experiment_id: prereg.experiment_id, seed: prereg.seed,
     task_id: tarefa.task_id, braco,
     invalido,
-    motivo: res.motivo ?? null,
+    motivo: res.motivo ?? exp.motivo ?? null,
     tva_s: invalido ? null : tvaFinal(res, aceite),
     aceite,
     decorrido_s: res.decorrido_s ?? null,
     session_id: res.session_id ?? null,
     sha_teste: prep.sha_teste,
     tocou_no_teste: tocouNoTeste,
+    definicoes_sha: defs.sha,
+    router_sha: router ? router.sha : null,
+    hook_disparou: marcaExiste,
+    effort: EFFORT,
     prompt_sha256: tarefa.prompt_sha256,
     commit: tarefa.commit,
     parent: tarefa.parent,
@@ -672,7 +752,11 @@ export function main(argv = process.argv.slice(2), io = {}) {
   // `--verificar` e `--controlo` nunca chamam o agente, por isso nao exigem um.
   // `--correr` exige — e falha ao segundo zero se nao houver.
   const precisaDeAgente = argv.includes('--correr');
-  const g = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente });
+  // `--verificar` e `--controlo` tambem nao exigem AMBIENTE: nunca lancam o
+  // agente. Exigi-lo era a razao pela qual o CLI nunca era corrido de dentro de
+  // uma sessao — e foi assim que um TypeError em `primarias()` sobreviveu a 28
+  // testes verdes: eu corria scripts por baixo do CLI em vez do CLI.
+  const g = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente, exigirAmbiente: precisaDeAgente });
   if (!g.ok) { err('RECUSO CORRER.'); err(`  ${g.motivo}`); return 2; }
 
   const tarefas = primarias(manifest, prereg);
@@ -680,13 +764,27 @@ export function main(argv = process.argv.slice(2), io = {}) {
   const alvo = tarefas.slice(0, limite);
   const raiz = flag(argv, 'snapshots') || raizPadrao();
 
+  // O cache de node_modules e o router pinado servem os três modos: assim o
+  // que o `--controlo` valida é a MESMA maquinaria que o `--correr` usa.
+  const dirsNm = [...new Set(['.', ...alvo.map((t) => t.acceptance_cwd), 'tools/router'])];
+  prepararCacheNodeModules({ repo, cache: raiz, dirs: dirsNm, fsImpl, log });
+  const router = prepararRouterPinado({ repo, cache: raiz, fsImpl });
+  const shaEsperado = prereg?.tratamento?.router_sha ?? null;
+  if (shaEsperado && router.sha !== shaEsperado) {
+    err('RECUSO CORRER.');
+    err(`  o router pinado nao bate com o pre-registo: ${router.sha.slice(0, 12)} != ${shaEsperado.slice(0, 12)}`);
+    err(`  apaga ${router.caminho} para o refazer a partir do repositorio, ou emenda o pre-registo.`);
+    return 2;
+  }
+  log(`  tratamento: router pinado ${router.sha.slice(0, 12)}… · effort ${EFFORT}`);
+
   // ── modo controlo: $0. Prova que o teste PASSA no commit-filho ───────────
   if (argv.includes('--controlo')) {
     log(`R-24 · controlo de ${alvo.length} tarefas — o teste tem de PASSAR no filho`);
     let mau = 0;
     for (const t of alvo) {
       const destino = path.join(raiz, `controlo-${t.task_id}`);
-      const c = prepararControlo({ repo, tarefa: t, destino, spawnImpl, fsImpl });
+      const c = prepararControlo({ repo, tarefa: t, destino, cacheNm: raiz, spawnImpl, fsImpl });
       log(`  ${c.ok ? 'passa' : 'FALHA'} ${t.task_id}  ${t.area}${c.ok ? '' : `  · ${c.motivo}`}`);
       if (!c.ok) mau++;
       fsImpl.rmSync(destino, { recursive: true, force: true });
@@ -703,7 +801,7 @@ export function main(argv = process.argv.slice(2), io = {}) {
     let mau = 0;
     for (const t of alvo) {
       const destino = path.join(raiz, `verificar-${t.task_id}`);
-      const p = prepararTarefa({ repo, tarefa: t, destino, spawnImpl, fsImpl });
+      const p = prepararTarefa({ repo, tarefa: t, destino, cacheNm: raiz, spawnImpl, fsImpl });
       log(`  ${p.ok ? 'ok  ' : 'FALHA'} ${t.task_id}  ${t.area}${p.ok ? '' : `  · ${p.motivo}`}`);
       if (!p.ok) mau++;
       fsImpl.rmSync(destino, { recursive: true, force: true });
@@ -732,12 +830,12 @@ export function main(argv = process.argv.slice(2), io = {}) {
   log(`  agente: ${cl.caminho} ${cl.versao ? `(${cl.versao})` : ''}`);
 
   for (const t of alvo) {
-    const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente });
+    const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente, exigirAmbiente: precisaDeAgente });
     if (!g2.ok) { largarTranca(tranca.caminho, { fsImpl }); err(`PÁRA a meio: ${g2.motivo}`); return 2; }
 
     for (const braco of ordemDosBracos(primeiroDe(prereg, t.task_id))) {
       if (feitos.has(chave(t.task_id, braco))) { log(`  · ${t.task_id} ${braco} — já feito`); continue; }
-      const linha = correrUmBraco({ braco, tarefa: t, repo, raizSnapshots: raiz, prereg, spawnImpl: spawnDaCorrida, fsImpl });
+      const linha = correrUmBraco({ braco, tarefa: t, repo, raizSnapshots: raiz, prereg, router, cacheNm: raiz, spawnImpl: spawnDaCorrida, fsImpl });
       escreverLedger(linha, { ledgerPath, appendImpl: fsImpl.appendFileSync, mkdirImpl: fsImpl.mkdirSync });
       feitos.add(chave(t.task_id, braco));
       const estado = linha.invalido ? `INVÁLIDO (${linha.motivo})` : `${linha.aceite ? 'passa' : 'falha'} · ${linha.tva_s?.toFixed(1)}s`;

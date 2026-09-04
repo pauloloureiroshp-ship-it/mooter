@@ -186,19 +186,19 @@
     },
     "controlador": {
       "path": "tools/ab/mooter-use-ab.mjs",
-      "sha256": "134aa00726580fb78d899026d25a431d9ec622e1fcf3a8521e257d44f4e47776"
+      "sha256": "fd343d816a4da05efed7ce598542d38f909259069e29e8af131f38be0e2ed4d2"
     },
     "testes_do_controlador": {
       "path": "tools/ab/mooter-use-ab.test.mjs",
-      "sha256": "e980e145b914a088506d2b826b7547a75ec9a24f4238cfc55617eacb2bca25c6"
+      "sha256": "8073a874d07b3c4c78f0a98d4360dc3cb4e23d71e792e906721ae64d69086885"
     },
     "executor": {
       "path": "tools/ab/correr-r24.mjs",
-      "sha256": "8fb64972358a93b25a9dc7611aed789c69974f570ecd879878972fa358dd1f8e"
+      "sha256": "73c5d226d97f840db0440f96c786a6c9ca4b52ba9995ed6885fbe40321267ffa"
     },
     "testes_do_executor": {
       "path": "tools/ab/correr-r24.test.mjs",
-      "sha256": "b03dca11edbacd56b5c13e55c703b6e73a37d663939a6bfc803634149bb0c2ee"
+      "sha256": "3aa17baf45a43cda4ade204455393fc9436b37fa846bea3c2cfdb4fedfb94bb5"
     },
     "manifest": {
       "path": "tools/ab/r24-manifest.json",
@@ -211,6 +211,10 @@
     "patterns": {
       "path": "tools/router/patterns.js",
       "sha256": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5"
+    },
+    "exposicao": {
+      "path": "tools/ab/r24-exposicao.mjs",
+      "sha256": "1aca1e8e3956c26718b6449408f39bef44cf790fc4cf4c2de2d71795205e0c19"
     }
   },
   "run_invalido": {
@@ -282,6 +286,16 @@
       "porque_e_legitima": "todas sao APERTOS — mais pares excluidos, mais condicoes para haver veredicto, mais corridas declaradas invalidas. Nenhuma mexe em seed, n, limiar_X, alfa, p0, p1, corpus ou atribuicao. Ledger vazio: nenhum resultado foi visto.",
       "metodo": "workflow adversarial: 6 lentes independentes, cada achado atacado por 3 cepticos com lentes distintas (existe-mesmo / ja-esta-guardado / produz-veredicto-falso), sobrevivencia por 2-de-3",
       "fica_por_decidir": "D1 — o braco OFF perde a camada user INTEIRA (effortLevel xhigh, 4 plugins, 22 hooks, 31 regras de permissao), nao so o hook do router. O parametro extraArgs existe no controlador para compensar isso e NUNCA e passado. Isto muda o que a experiencia mede e e decisao do dono."
+    },
+    {
+      "n": 5,
+      "data": "2026-09-04",
+      "decisao": "do dono, escolhida entre tres opcoes apresentadas",
+      "o_que": "o braco OFF deixa de perder a camada user inteira; o tratamento passa a ser so o hook do router",
+      "porque": "o comentario do controlador prometia repor effortLevel e permissoes via extraArgs, e extraArgs nunca era passado. Como .claude/settings.json nao esta versionado e o snapshot vem de git archive, o filtro nao era «project+local em vez de user» — era «nada em vez de tudo». Medido: o ON levava effort xhigh, 4 plugins, 22 hooks (so um e o router) e 31 regras de permissao; o OFF levava zero. X teria medido dois perfis de CLI.",
+      "como": "linha de comando identica nos dois bracos (zero if(braco) nos args); a unica diferenca e a chave hooks do settings.json do snapshot; router pinado com sha proprio; exposicao verificada por marca depois da corrida",
+      "porque_e_legitima": "faz o aparato CUMPRIR o desenho congelado, que ja dizia «mesmas definicoes» e «o hook exposto apenas no ON». Nenhum numero muda. Ledger vazio.",
+      "alegacao_resultante": "«ligar o hook de routing do Mooter altera o tempo ate trabalho mecanicamente valido», num corpus de tarefas derivadas de commits reais"
     }
   ],
   "controlo_do_corpus": {
@@ -292,5 +306,17 @@
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
   },
-  "sha_do_prereg": "ac126126c532df76de02089b923da164f7451fd06ba2d7a78d36ca80959e5c73"
+  "sha_do_prereg": "a3c5fe5c7a3b30641b7ad6904e41488ad881b2796a3a51b1d3ad1a47365eaa0d",
+  "tratamento": {
+    "decisao": "do dono, 2026-09-04: isolar o router",
+    "o_que_e": "o hook UserPromptSubmit do Mooter, e mais nada",
+    "como_e_exposto": ".claude/settings.json escrito dentro do snapshot; os dois bracos partilham TUDO menos a chave hooks",
+    "linha_de_comando": "identica nos dois bracos: --setting-sources project --permission-mode bypassPermissions --allow-dangerously-skip-permissions --effort xhigh",
+    "effort": "xhigh",
+    "effort_porque": "fixa-lo era obrigatorio (era um confundidor); qual fixar e escolha, e esta e a que o dono corre no dia-a-dia — a alegacao e sobre o trabalho dele",
+    "router_sha": "46180cf5adfa4d392eebd4b42531d1f022f19de417fb80df7adc456343f461a1",
+    "router_pinado_porque": "medido 2026-09-04: classify.js difere do sha congelado em 4 dos 23 commits-pai, e 3 tarefas mexem em tools/router — o agente podia alterar o proprio tratamento a meio",
+    "node_modules": "ligado a uma copia descartavel, nunca ao repositorio vivo: os bracos correm com bypassPermissions e um agente sem travoes escreve atraves de uma juncao",
+    "exposicao_verificada": "o hook do ON deixa uma marca no snapshot; ON sem marca e OFF com marca sao ambos «braco mal exposto» = corrida INVALIDA"
+  }
 }

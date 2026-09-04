@@ -18,13 +18,17 @@ import {
   prepararSnapshot, testeDoFilho, prepararTarefa, prepararControlo, tvaFinal, correrUmBraco,
   primarias, primeiroDe, idsPrimarias, desta, guardas, main,
   candidatosClaude, resolverClaude, spawnComClaude,
-  lerLedgerCru, shaDoPrereg, tomarTranca, largarTranca,
+  lerLedgerCru, shaDoPrereg, tomarTranca, largarTranca, prepararSnapshot as _ps,
 } from './correr-r24.mjs';
+import {
+  EFFORT, MARCA, argsComuns, definicoesDoBraco, escreverDefinicoes, exposicaoValida,
+} from './r24-exposicao.mjs';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Duplos
 // ───────────────────────────────────────────────────────────────────────────
 
+let marcaLigada = true;
 function fakeFs(ficheiros = {}) {
   const disco = new Map(Object.entries(ficheiros));
   const dirs = new Set();
@@ -43,8 +47,13 @@ function fakeFs(ficheiros = {}) {
     },
     mkdirSync(p) { dirs.add(String(p)); },
     rmSync(p) { dirs.delete(String(p)); },
-    existsSync(p) { return /node_modules$/.test(String(p)) && !/snap/.test(String(p)); },
+    // a marca da exposição existe sse o braço for ON — os testes que a querem
+    // ausente sobrepõem este existsSync
+    existsSync(p) { return String(p).includes(MARCA) ? marcaLigada : (/node_modules$/.test(String(p)) && !/snap/.test(String(p))); },
     symlinkSync(alvo, ligacao) { ligacoes.push([String(alvo), String(ligacao)]); },
+    cpSync() {},
+    readdirSync() { return []; },
+    statSync() { return { isDirectory: () => false, isFile: () => false }; },
   };
 }
 
@@ -91,6 +100,9 @@ function preregPara(manifestStr, mexer = () => {}) {
   p.corpus.reservas = [];
   p.atribuicao.pares = [{ id: 't01-abc', primeiro: 'ON' }, { id: 't02-def', primeiro: 'OFF' }];
   p.congelados = { manifest: { path: 'tools/ab/r24-manifest.json', sha256: crypto.createHash('sha256').update(manifestStr).digest('hex') } };
+  // o sha do router pinado é verificado por um teste próprio; aqui desliga-se
+  // para os testes de fluxo não dependerem de uma cópia real em disco
+  p.tratamento = { ...p.tratamento, router_sha: null };
   mexer(p);
   p.sha_do_prereg = null;
   p.sha_do_prereg = shaDoPrereg(p);
@@ -181,26 +193,6 @@ test('MORDE: um braço inválido vale null, nunca o tecto', () => {
   assert.equal(tvaFinal({ invalido: false, tva_s: 12 }, true), 12);
 });
 
-test('MORDE: o braço OFF leva --setting-sources e o ON não', () => {
-  const spawn = fakeSpawn([
-    { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
-    { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 't' }) },
-    { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
-    { quando: (c) => c === 'claude', responde: () => ({ status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 10 }, session_id: 's' }) }) },
-  ]);
-  void spawn;
-  for (const braco of ['ON', 'OFF']) {
-    const sp = fakeSpawn([
-      { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
-      { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 't' }) },
-      { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
-      { quando: (c) => c === 'claude', responde: () => ({ status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 10 } }) }) },
-    ]);
-    correrUmBraco({ braco, tarefa: TAREFA, repo: '/r', raizSnapshots: '/s', prereg: PREREG, spawnImpl: sp, fsImpl: fakeFs() });
-    const cl = sp.chamadas.find((c) => c.cmd === 'claude');
-    assert.equal(cl.args.includes('--setting-sources'), braco === 'OFF', `${braco} tem a flag errada`);
-  }
-});
 
 test('MORDE: um braço já no ledger não repete', () => {
   // Repetir um braço é escolher qual das duas medições conta.
@@ -528,13 +520,14 @@ test('MORDE: o teste é reinstalado depois do agente, e a alteração fica regis
   let conteudoNoDisco = 'teste original';
   fsi.writeFileSync = (p2, c) => { if (String(p2).includes('x.test.js')) conteudoNoDisco = c; };
   fsi.readFileSync = (p2) => { if (String(p2).includes('x.test.js')) return conteudoNoDisco; throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); };
+  fsi.existsSync = (p2) => String(p2).includes(MARCA); // braço ON bem exposto
   const sp = fakeSpawn([
     { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
     { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 'teste original' }) },
     { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
     { quando: (c) => c === 'claude', responde: () => { conteudoNoDisco = 'it.skip(...)'; return { status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 10 } }) }; } },
   ]);
-  const l = correrUmBraco({ braco: 'ON', tarefa: TAREFA, repo: '/r', raizSnapshots: '/s', prereg: PREREG, spawnImpl: sp, fsImpl: fsi });
+  const l = correrUmBraco({ braco: 'ON', tarefa: TAREFA, repo: '/r', raizSnapshots: '/s', prereg: PREREG, router: { hook: '/pin/h.cjs', sha: 'r' }, spawnImpl: sp, fsImpl: fsi });
   assert.equal(l.tocou_no_teste, true, 'tem de registar que o agente mexeu no teste');
   assert.equal(conteudoNoDisco, 'teste original', 'o teste do commit-filho tem de ser reposto antes da aceitação');
 });
@@ -560,4 +553,104 @@ test('MORDE: duas instâncias não correm ao mesmo tempo', () => {
   assert.match(b.motivo, /ja corre outra instancia/);
   largarTranca(a.caminho, { fsImpl: fsi });
   assert.equal(tomarTranca('/raiz', { fsImpl: fsi, pid: 333 }).ok, true, 'largada, a tranca liberta');
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// D1 · A EXPOSIÇÃO DO TRATAMENTO (decisão do dono: isolar o router)
+// ───────────────────────────────────────────────────────────────────────────
+
+test('MORDE: os dois braços diferem em UMA chave, e é `hooks`', () => {
+  // A assimetria era «nada em vez de tudo»: o OFF perdia effort xhigh, 4
+  // plugins, 22 hooks e 31 permissões. Agora a diferença tem de ser exactamente
+  // a chave que representa o tratamento, e nada mais.
+  const on = definicoesDoBraco('ON', 'C:/pin/r24-hook.cjs');
+  const off = definicoesDoBraco('OFF', 'C:/pin/r24-hook.cjs');
+  const diferentes = [...new Set([...Object.keys(on), ...Object.keys(off)])]
+    .filter((k) => JSON.stringify(on[k]) !== JSON.stringify(off[k]));
+  assert.deepEqual(diferentes, ['hooks']);
+  assert.equal(off.hooks, undefined, 'o braço OFF não pode ter hooks nenhuns');
+  assert.match(JSON.stringify(on.hooks), /UserPromptSubmit/);
+});
+
+test('MORDE: o hook aponta para o router PINADO, não para o do snapshot', () => {
+  // classify.js difere do sha congelado em 4 dos 23 commits-pai, e 3 tarefas
+  // MEXEM em tools/router — o agente podia alterar o próprio tratamento.
+  const on = definicoesDoBraco('ON', 'C:/cache/router-pinado/r24-hook.cjs');
+  const cmd = on.hooks.UserPromptSubmit[0].hooks[0].command;
+  assert.match(cmd, /router-pinado/);
+  assert.ok(!/tools[\/]router[\/]inject_context/.test(cmd), 'nunca o router do snapshot');
+});
+
+test('MORDE: os args comuns fixam effort e permissões, iguais nos dois braços', () => {
+  const a = argsComuns();
+  assert.ok(a.includes('--effort') && a.includes(EFFORT), 'o effort tem de ser fixado');
+  assert.ok(a.includes('--setting-sources') && a.includes('project'));
+  assert.ok(!a.join(' ').includes('project,local'), 'o filtro assimétrico não pode voltar');
+});
+
+test('MORDE: braço mal exposto é INVÁLIDO — nos dois sentidos', () => {
+  // O pré-registo listava «braço mal exposto» como motivo de invalidez e
+  // nenhuma linha de código o calculava.
+  assert.equal(exposicaoValida({ braco: 'ON', marcaExiste: false }).ok, false, 'ON sem hook a disparar');
+  assert.match(exposicaoValida({ braco: 'ON', marcaExiste: false }).motivo, /ON_sem_hook/);
+  assert.equal(exposicaoValida({ braco: 'OFF', marcaExiste: true }).ok, false, 'OFF com hook a disparar');
+  assert.match(exposicaoValida({ braco: 'OFF', marcaExiste: true }).motivo, /OFF_com_hook/);
+  assert.equal(exposicaoValida({ braco: 'ON', marcaExiste: true }).ok, true);
+  assert.equal(exposicaoValida({ braco: 'OFF', marcaExiste: false }).ok, true);
+});
+
+test('MORDE: um ON cujo hook não disparou não conta como derrota — conta como inválido', () => {
+  const fsi = fakeFs();
+  fsi.existsSync = (p2) => !String(p2).includes(MARCA) && /node_modules$/.test(String(p2));
+  const sp = fakeSpawn([
+    { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
+    { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 't' }) },
+    { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
+    { quando: (c) => c === 'claude', responde: () => ({ status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 10 } }) }) },
+  ]);
+  const l = correrUmBraco({ braco: 'ON', tarefa: TAREFA, repo: '/r', raizSnapshots: '/s', prereg: PREREG, router: { hook: '/pin/h.cjs', sha: 'r' }, spawnImpl: sp, fsImpl: fsi });
+  assert.equal(l.invalido, true);
+  assert.match(l.motivo, /braco_mal_exposto:ON_sem_hook/);
+  assert.equal(l.tva_s, null, 'e não pode trazer um tempo');
+});
+
+test('escreverDefinicoes põe o ficheiro em .claude/settings.json e devolve o sha', () => {
+  const escritos = [];
+  const fsi = { mkdirSync() {}, writeFileSync: (p2, c) => escritos.push([String(p2), c]) };
+  const r = escreverDefinicoes({ snapshotDir: '/snap', braco: 'OFF', caminhoDoHook: '', fsImpl: fsi });
+  assert.equal(escritos.length, 1);
+  assert.ok(escritos[0][0].split(String.fromCharCode(92)).join('/').endsWith('/.claude/settings.json'), escritos[0][0]);
+  assert.equal(r.sha.length, 64);
+  assert.ok(!escritos[0][1].includes('hooks'));
+});
+
+test('MORDE: o node_modules do snapshot vem do CACHE, nunca do repositório vivo', () => {
+  // Os braços correm com bypassPermissions. Uma junção para ~/frugal deixava
+  // um agente sem travões escrever no repositório do dono.
+  const ligacoes = [];
+  const fsi = {
+    rmSync() {}, mkdirSync() {}, existsSync: (p2) => /node_modules$/.test(String(p2)) && !/snap/.test(String(p2)),
+    symlinkSync: (alvo, lig) => ligacoes.push(String(alvo)),
+  };
+  const sp = fakeSpawn([{ quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) }]);
+  _ps({ repo: 'C:/Users/Paulo Loureiro/frugal', parent: 'p', destino: '/snap', acceptanceCwd: 'tools/router', cacheNm: 'C:/cache', spawnImpl: sp, fsImpl: fsi });
+  assert.ok(ligacoes.length > 0, 'tem de ligar alguma coisa');
+  for (const a of ligacoes) {
+    assert.ok(a.includes('cache'), `ligou para fora do cache: ${a}`);
+    assert.ok(!a.includes('Loureiro\frugal') && !a.includes('Loureiro/frugal'), `ligou para o repositório vivo: ${a}`);
+  }
+});
+
+test('MORDE: --correr recusa se o router pinado não bater com o pré-registo', () => {
+  // O tratamento tem um sha, como tudo o resto. Se a cópia pinada mudar — por
+  // um `git pull` no meio da corrida, por exemplo — as 23 tarefas deixavam de
+  // partilhar o mesmo tratamento e ninguém saberia.
+  const manifestStr = JSON.stringify({ tarefas: [{ ...TAREFA }, { ...TAREFA, task_id: 't02-def' }] });
+  const prereg = preregPara(manifestStr, (p) => { p.tratamento = { ...p.tratamento, router_sha: 'a'.repeat(64) }; });
+  const fsi = fakeFs({ 'r24-prereg.json': JSON.stringify(prereg), 'r24-manifest.json': manifestStr });
+  const linhas = [];
+  const code = main(['--prereg', 'tools/ab/r24-prereg.json', '--controlo'],
+    { fsImpl: fsi, spawnImpl: fakeSpawn(), envImpl: {}, log: (m) => linhas.push(m), err: (m) => linhas.push(m) });
+  assert.equal(code, 2);
+  assert.ok(linhas.some((l) => /router pinado nao bate/.test(l)), linhas.join(' | '));
 });

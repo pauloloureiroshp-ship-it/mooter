@@ -95,6 +95,13 @@ const DEFEITOS = [
     para: '  if (false) {',
     apanhado_por: 'MORDE: o limiar pré-registado é afirmado, não assumido',
   },
+  {
+    nome: 'volta a assimetria da linha de comando',
+    porque: 'era o D1: o OFF perdia a camada user inteira (effort xhigh, 4 plugins, 22 hooks, 31 permissoes), nao so o hook do router',
+    de: "  const args = ['-p', prompt, '--output-format', 'json', ...extraArgs];",
+    para: "  const args = braco === 'OFF' ? ['-p', prompt, '--output-format', 'json'] : ['-p', prompt, '--output-format', 'json', ...extraArgs];",
+    apanhado_por: 'MORDE: os dois braços recebem argumentos IDÊNTICOS',
+  },
 ];
 
 function correrSuite() {
