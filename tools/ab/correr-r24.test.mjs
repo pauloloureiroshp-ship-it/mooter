@@ -494,7 +494,11 @@ test('MORDE: mexer no n do pré-registo trava as guardas', () => {
   // E mexer numa coisa que o limiar NÃO apanha tem de ser apanhada na mesma:
   // sem isto, o selo do pré-registo podia desaparecer e o teste continuava
   // verde por causa da verificação do limiar, que é outra guarda.
+  // Sem a entrada `desenho`, que vive no vault e em CI é ENOENT: assim o
+  // congelamento passa e a mensagem que chega é a do SELO, não a do ficheiro
+  // que falta. Um teste cuja mensagem depende de onde corre não é um teste.
   const outraSeed = JSON.parse(JSON.stringify(PREREG_REAL));
+  delete outraSeed.congelados.desenho;
   outraSeed.seed = 7;
   const g2 = guardas(outraSeed, { envImpl: {}, exigirAgente: false });
   assert.equal(g2.ok, false, 'trocar a seed tem de partir o selo');
