@@ -80,6 +80,7 @@ import {
   escreverLedger,
   atribuicao,
   analisar,
+  limiarMinimo,
 } from './mooter-use-ab.mjs';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -192,15 +193,44 @@ export function spawnComClaude(caminho, spawnImpl = spawnSync) {
 // Ledger — leitura e retoma.
 // ───────────────────────────────────────────────────────────────────────────
 
-export function lerLedger(ledgerPath, readImpl = fs.readFileSync) {
+/**
+ * Devolve as linhas legíveis E o número das que não o eram. Engolir uma linha
+ * truncada em silêncio era perder um braço sem uma palavra — e um par a que
+ * falta um braço valia, até hoje, uma derrota do ON.
+ */
+export function lerLedgerCru(ledgerPath, readImpl = fs.readFileSync) {
   let cru;
-  try { cru = readImpl(ledgerPath, 'utf8'); } catch { return []; }
-  return String(cru).split('\n').filter(Boolean).map((l) => {
-    try { return JSON.parse(l); } catch { return null; }
-  }).filter(Boolean);
+  try { cru = readImpl(ledgerPath, 'utf8'); } catch { return { linhas: [], descartadas: 0 }; }
+  const brutas = String(cru).split(String.fromCharCode(10)).filter(Boolean);
+  const linhas = [];
+  let descartadas = 0;
+  for (const l of brutas) {
+    try { linhas.push(JSON.parse(l)); } catch { descartadas++; }
+  }
+  return { linhas, descartadas };
+}
+
+export function lerLedger(ledgerPath, readImpl = fs.readFileSync) {
+  return lerLedgerCru(ledgerPath, readImpl).linhas;
 }
 
 export function chave(taskId, braco) { return `${taskId}:${braco}`; }
+
+/**
+ * Só as linhas DESTA experiência. Cada linha já transportava `experiment_id` e
+ * `seed` — e ninguém os lia de volta. O caminho do ledger é fixo, portanto um
+ * ledger de outra geração (manifest renumerado, corrida abortada sob um
+ * executor anterior) era saltado pela retoma com um «já feito» e contado pela
+ * análise como se fosse desta. Um `task_id` fora das primárias também não
+ * entra: uma reserva substituída continuava a votar ao lado da substituta.
+ */
+export function desta(linhas, prereg) {
+  const ids = new Set(idsPrimarias(prereg));
+  return linhas.filter((l) => l.tipo === 'braco'
+    && l.experiment_id === prereg.experiment_id
+    && l.seed === prereg.seed
+    && ids.has(l.task_id));
+}
 
 /** Um par (tarefa, braço) já escrito nunca se repete: repetir é escolher. */
 export function jaFeitos(linhas) {
@@ -314,7 +344,7 @@ export function prepararTarefa({
   if (antes.aceite) {
     return { ok: false, motivo: 'teste_ja_passa_no_pai', sha_teste: shaTeste };
   }
-  return { ok: true, sha_teste: shaTeste, comando, args, node_modules_ligados: snap.node_modules_ligados };
+  return { ok: true, sha_teste: shaTeste, conteudo_teste: t.conteudo, comando, args, node_modules_ligados: snap.node_modules_ligados };
 }
 
 /**
@@ -394,8 +424,34 @@ export function correrUmBraco({
   const spawnPartido = typeof res.motivo === 'string' && res.motivo.startsWith('spawn:');
   const invalido = res.invalido === true || spawnPartido;
 
+  // D5 · O teste é REINSTALADO depois de o agente correr e antes de correr.
+  //
+  // Até 2026-09-04 o ficheiro era instalado e hasheado ANTES do agente, e
+  // depois ninguém voltava a olhar para ele. `correrAceitacao` lia o que
+  // estivesse no disco nesse momento. 13 das 25 tarefas falham por UMA
+  // asserção: um agente que a apague — ou que reescreva o ficheiro num
+  // «refactor» de boa-fé, já que o snapshot não tem `.git` para ele verificar
+  // a proveniência — saía com exit 0 e marcava Z=1. Com o limiar em 16/23, UM
+  // par fabricado leva «PERDEU · X=15» a «GANHOU · X=16». E a linha do ledger
+  // carregava um `sha_teste` correcto: exactamente a prova que um auditor
+  // usaria para excluir a hipótese, e que não a excluía.
+  //
+  // A proibição vivia só no texto do prompt. Isso é uma instrução ao modelo,
+  // não uma guarda.
   let aceite = null;
+  let tocouNoTeste = null;
   if (!invalido) {
+    const antes = prep.sha_teste;
+    const agora = (() => {
+      try { return crypto.createHash('sha256').update(fsImpl.readFileSync(path.join(destino, tarefa.test_file))).digest('hex'); }
+      catch { return null; }
+    })();
+    tocouNoTeste = agora !== antes;
+    // reinstalar por cima: o critério de aceitação é o do commit-filho, sempre
+    instalarTesteDeAceitacao({
+      snapshotDir: destino, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste,
+      writeImpl: fsImpl.writeFileSync, mkdirImpl: fsImpl.mkdirSync,
+    });
     const a = correrAceitacao({
       cwd: path.join(destino, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, spawnImpl,
     });
@@ -412,6 +468,7 @@ export function correrUmBraco({
     decorrido_s: res.decorrido_s ?? null,
     session_id: res.session_id ?? null,
     sha_teste: prep.sha_teste,
+    tocou_no_teste: tocouNoTeste,
     prompt_sha256: tarefa.prompt_sha256,
     commit: tarefa.commit,
     parent: tarefa.parent,
@@ -423,17 +480,41 @@ export function correrUmBraco({
 // As tarefas primárias — regra cronológica, congelada no pré-registo.
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * As 23 primárias, na forma REAL do pré-registo: os ids vivem em
+ * `corpus.primarias`, a ordem dos braços em `atribuicao.pares`.
+ *
+ * Até 2026-09-04 estas duas funções liam `prereg.atribuicao.primarias`, que
+ * NÃO EXISTE. `--correr`, `--verificar` e `--controlo` rebentavam todos com
+ * «Cannot read properties of undefined (reading 'map')» antes de fazer
+ * trabalho nenhum. E os 28 testes passavam à mesma, porque a fixture tinha
+ * sido escrita à mão pela mesma mão que escreveu o código, com a mesma
+ * suposição errada. Por isso estas funções são agora exercitadas por um teste
+ * que carrega o FICHEIRO A SÉRIO — um contrato de forma que só quebra quando
+ * a forma quebra.
+ */
+export function idsPrimarias(prereg) {
+  const ids = prereg?.corpus?.primarias;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new Error('pré-registo sem corpus.primarias — forma inesperada');
+  }
+  return ids;
+}
+
 export function primarias(manifest, prereg) {
-  const ids = new Set(prereg.atribuicao.primarias.map((p) => p.id));
+  const ids = new Set(idsPrimarias(prereg));
   const t = manifest.tarefas.filter((x) => ids.has(x.task_id));
   if (t.length !== ids.size) {
     throw new Error(`manifest não tem todas as primárias: ${t.length} de ${ids.size}`);
   }
-  return t;
+  const ordem = new Map([...ids].map((id, i) => [id, i]));
+  return t.sort((x, y) => ordem.get(x.task_id) - ordem.get(y.task_id));
 }
 
 export function primeiroDe(prereg, taskId) {
-  const a = prereg.atribuicao.primarias.find((p) => p.id === taskId);
+  const pares = prereg?.atribuicao?.pares;
+  if (!Array.isArray(pares)) throw new Error('pré-registo sem atribuicao.pares — forma inesperada');
+  const a = pares.find((p) => p.id === taskId);
   if (!a) throw new Error(`tarefa fora do pré-registo: ${taskId}`);
   return a.primeiro;
 }
@@ -448,11 +529,34 @@ export function primeiroDe(prereg, taskId) {
  *
  * O próprio executor está na lista: se ele mudar a meio da corrida, pára.
  */
+/**
+ * O sha do proprio pre-registo, calculado sobre o ficheiro SEM o campo que o
+ * transporta — senao seria auto-referencial e impossivel de fixar.
+ *
+ * Isto fechava o ultimo buraco: `n` atravessa a fronteira e mexe nas duas
+ * pontas (abre o portao dos pares validos E baixa o limiar), e vinha do unico
+ * ficheiro do circuito que o congelamento nao verificava. Medido: os mesmos 23
+ * pares com X=15 dao «PERDEU · p=0,10502» com n=23 e «GANHOU · p=0,02069» com
+ * n=20 — e por-lhe n=20 e a «correccao honesta» que qualquer executante
+ * alcanca depois de 3 pares invalidos.
+ */
+export function shaDoPrereg(prereg) {
+  const copia = JSON.parse(JSON.stringify(prereg));
+  delete copia.sha_do_prereg;
+  return crypto.createHash('sha256').update(JSON.stringify(copia)).digest('hex');
+}
+
 export function guardas(prereg, {
-  fsImpl = fs, envImpl = process.env, spawnImpl = spawnSync, exigirAgente = false,
+  fsImpl = fs, envImpl = process.env, spawnImpl = spawnSync,
+  exigirAgente = false, exigirAmbiente = true,
 } = {}) {
-  const amb = ambienteApto(envImpl);
-  if (!amb.apto) return { ok: false, motivo: amb.motivo };
+  // `exigirAmbiente: false` é para `--analisar`, que só lê o ledger e nunca
+  // lança o agente. Declarado como opção em vez de contornado passando um
+  // `envImpl` vazio — um contorno silencioso é indistinguível de um defeito.
+  if (exigirAmbiente) {
+    const amb = ambienteApto(envImpl);
+    if (!amb.apto) return { ok: false, motivo: amb.motivo };
+  }
   if (exigirAgente) {
     const cl = resolverClaude({ env: envImpl, spawnImpl, fsImpl });
     if (!cl.ok) {
@@ -464,6 +568,23 @@ export function guardas(prereg, {
   if (prereg.estado !== 'CONGELADO') return { ok: false, motivo: `pré-registo ${prereg.estado}` };
   const c = verificarCongelamento(prereg, { readImpl: fsImpl.readFileSync });
   if (!c.ok) return { ok: false, motivo: `congelamento: ${c.falhas.map((f) => `${f.nome}=${f.motivo}`).join(', ')}` };
+
+  // o pre-registo verifica-se a si proprio
+  if (typeof prereg.sha_do_prereg === 'string') {
+    const real = shaDoPrereg(prereg);
+    if (real !== prereg.sha_do_prereg) {
+      return { ok: false, motivo: `o proprio pre-registo mudou: sha ${real.slice(0, 12)} != ${prereg.sha_do_prereg.slice(0, 12)}` };
+    }
+  } else {
+    return { ok: false, motivo: 'pre-registo sem sha_do_prereg — o ficheiro que fixa o n nao esta fixado' };
+  }
+
+  // e o limiar pre-registado tem de bater com o recalculado
+  const e = prereg.estatistica || {};
+  const limiar = limiarMinimo(e.n, 0.5, e.alfa);
+  if (limiar !== e.limiar_X) {
+    return { ok: false, motivo: `limiar recalculado ${limiar} != limiar_X pre-registado ${e.limiar_X} (n=${e.n}, alfa=${e.alfa})` };
+  }
   return { ok: true, motivo: null };
 }
 
@@ -474,6 +595,33 @@ export function guardas(prereg, {
 function flag(argv, nome) {
   const i = argv.indexOf(`--${nome}`);
   return i >= 0 ? (argv[i + 1] ?? true) : undefined;
+}
+
+/**
+ * D8 · Duas instancias partilhavam o ledger E o caminho deterministico do
+ * snapshot (`<tmp>/r24-snapshots/<task>-<braco>`), e `prepararSnapshot` comeca
+ * por `rmSync` desse directorio. A instancia B apagava a arvore onde o agente
+ * de A estava a trabalhar; o braco de A saia `{aceite:false, tva_s:1800}` —
+ * indistinguivel de uma derrota honesta. E bidireccional: se A estivesse no
+ * OFF, o OFF ia a 1800 e um ON legitimo de 600 s passava a satisfazer o racio.
+ * A propria retoma convida ao segundo lancamento.
+ */
+export function tomarTranca(raiz, { fsImpl = fs, pid = process.pid, agora = 'n/d' } = {}) {
+  const alvo = path.join(raiz, '.tranca');
+  fsImpl.mkdirSync(raiz, { recursive: true });
+  try {
+    fsImpl.writeFileSync(alvo, JSON.stringify({ pid, agora }), { flag: 'wx' });
+    return { ok: true, caminho: alvo };
+  } catch (e) {
+    if (e.code !== 'EEXIST') return { ok: false, motivo: `tranca:${e.code || e.message}` };
+    let dono = '?';
+    try { dono = String(fsImpl.readFileSync(alvo, 'utf8')).slice(0, 120); } catch { /* n/d */ }
+    return { ok: false, motivo: `ja corre outra instancia (${dono}). Se tens a certeza que nao, apaga ${alvo}` };
+  }
+}
+
+export function largarTranca(caminho, { fsImpl = fs } = {}) {
+  try { fsImpl.rmSync(caminho, { force: true }); } catch { /* n/d */ }
 }
 
 function raizPadrao() {
@@ -504,9 +652,16 @@ export function main(argv = process.argv.slice(2), io = {}) {
   try { manifest = JSON.parse(fsImpl.readFileSync(manifestPath, 'utf8')); }
   catch (e) { err(`manifest ilegível: ${e.message}`); return 2; }
 
+  // `--analisar` corria ANTES das guardas: o caminho que imprime o veredicto
+  // era o unico que nao verificava congelamento nenhum.
+  const gA = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: false, exigirAmbiente: false });
+  if (!gA.ok && argv.includes('--analisar')) { err('RECUSO ANALISAR.'); err(`  ${gA.motivo}`); return 2; }
+
   if (argv.includes('--analisar')) {
-    const pares = paresDoLedger(lerLedger(ledgerPath, fsImpl.readFileSync));
-    const r = analisar(pares, { n: prereg.estatistica.n });
+    const cru = lerLedgerCru(ledgerPath, fsImpl.readFileSync);
+    if (cru.descartadas > 0) { err(`ledger com ${cru.descartadas} linha(s) ilegivel(is) — nao analiso um ledger truncado`); return 2; }
+    const pares = paresDoLedger(desta(cru.linhas, prereg));
+    const r = analisar(pares, { n: prereg.estatistica.n, alfa: prereg.estatistica.alfa, limiarEsperado: prereg.estatistica.limiar_X });
     log(`R-24 · ${r.veredicto}`);
     log(`  ${r.motivo}`);
     log(`  X=${r.X} · n=${r.n} · limiar=${r.limiar} · p=${r.p.toFixed(5)} · potência=${r.potencia.toFixed(5)}`);
@@ -567,13 +722,18 @@ export function main(argv = process.argv.slice(2), io = {}) {
   const cl = resolverClaude({ env: envImpl, spawnImpl, fsImpl });
   const spawnDaCorrida = spawnComClaude(cl.caminho, spawnImpl);
 
-  const feitos = jaFeitos(lerLedger(ledgerPath, fsImpl.readFileSync));
+  const tranca = tomarTranca(raiz, { fsImpl });
+  if (!tranca.ok) { err('RECUSO CORRER.'); err(`  ${tranca.motivo}`); return 2; }
+
+  const cru = lerLedgerCru(ledgerPath, fsImpl.readFileSync);
+  if (cru.descartadas > 0) { largarTranca(tranca.caminho, { fsImpl }); err(`ledger com ${cru.descartadas} linha(s) ilegivel(is) — nao continuo por cima de um ledger truncado`); return 2; }
+  const feitos = jaFeitos(desta(cru.linhas, prereg));
   log(`R-24 · ${alvo.length} tarefas · ${feitos.size} braços já no ledger · ledger: ${ledgerPath}`);
   log(`  agente: ${cl.caminho} ${cl.versao ? `(${cl.versao})` : ''}`);
 
   for (const t of alvo) {
     const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente });
-    if (!g2.ok) { err(`PÁRA a meio: ${g2.motivo}`); return 2; }
+    if (!g2.ok) { largarTranca(tranca.caminho, { fsImpl }); err(`PÁRA a meio: ${g2.motivo}`); return 2; }
 
     for (const braco of ordemDosBracos(primeiroDe(prereg, t.task_id))) {
       if (feitos.has(chave(t.task_id, braco))) { log(`  · ${t.task_id} ${braco} — já feito`); continue; }
@@ -585,7 +745,10 @@ export function main(argv = process.argv.slice(2), io = {}) {
     }
   }
 
-  const r = analisar(paresDoLedger(lerLedger(ledgerPath, fsImpl.readFileSync)), { n: prereg.estatistica.n });
+  largarTranca(tranca.caminho, { fsImpl });
+  const fim = lerLedgerCru(ledgerPath, fsImpl.readFileSync);
+  const r = analisar(paresDoLedger(desta(fim.linhas, prereg)),
+    { n: prereg.estatistica.n, alfa: prereg.estatistica.alfa, limiarEsperado: prereg.estatistica.limiar_X });
   log(`\nR-24 · ${r.veredicto}\n  ${r.motivo}`);
   log(`  X=${r.X} · limiar=${r.limiar} · p=${r.p.toFixed(5)} · pares válidos ${r.pares_validos}/${r.n}`);
   return r.veredicto === 'ENSAIO INVALIDO' ? 1 : 0;

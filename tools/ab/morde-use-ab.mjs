@@ -56,7 +56,7 @@ const DEFEITOS = [
   {
     nome: 'analisar aceita menos de 23 pares',
     porque: 'reduzir o n depois de ver os resultados é a forma mais fácil de comprar uma vitória',
-    de: '  if (validos.length < n) {',
+    de: '  if (validos.length !== n) {',
     para: '  if (false) {',
     apanhado_por: 'MORDE: 20 vitórias em 20 pares',
   },
@@ -66,6 +66,34 @@ const DEFEITOS = [
     de: "    throw new Error('atribuicao: seed obrigatória",
     para: "    seed = 0; if (false) throw new Error('atribuicao: seed obrigatória",
     apanhado_por: 'a seed é obrigatória',
+  },
+  {
+    nome: 'par incompleto vale zero (derrota) em vez de null',
+    porque: 'o orfao contava como derrota do ON E enchia o denominador: 22 medidos + 1 orfao davam PERDEU onde o honesto era ENSAIO INVALIDO',
+    de: "  if (!on || !off) return { z: null, motivo: 'par_incompleto' };",
+    para: "  if (!on || !off) return { z: 0, motivo: 'par_incompleto' };",
+    apanhado_por: 'MORDE: um par a que falta um braço NÃO mediu — z é null, não zero',
+  },
+  {
+    nome: 'validarCorrida volta a falhar ABERTA',
+    porque: 'Number(undefined)===0 e falso: um envelope sem os campos passava como valido e os dois bracos falhavam em silencio',
+    de: '  if (!Number.isFinite(dur) || dur <= 0) return',
+    para: '  if (dur === 0) return',
+    apanhado_por: 'MORDE: validarCorrida falha FECHADA',
+  },
+  {
+    nome: 'analisar sem tecto',
+    porque: '25 pares com X=16 davam GANHOU p=0,04657 quando a verdade para 25 e p=0,11476 e o limiar honesto 18',
+    de: '  if (validos.length !== n) {',
+    para: '  if (validos.length < n) {',
+    apanhado_por: 'MORDE: analisar tem TECTO — mais pares do que n é ensaio inválido',
+  },
+  {
+    nome: 'o limiar pre-registado deixa de ser afirmado',
+    porque: 'limiar_X existia no JSON e nenhuma linha de codigo o lia; mexer no n baixava a fasquia em silencio',
+    de: '  if (limiarEsperado !== null && limiar !== limiarEsperado) {',
+    para: '  if (false) {',
+    apanhado_por: 'MORDE: o limiar pré-registado é afirmado, não assumido',
   },
 ];
 

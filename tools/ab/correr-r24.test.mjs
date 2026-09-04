@@ -10,12 +10,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import fsReal from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import {
   dividirComando, lerLedger, jaFeitos, paresDoLedger, ordemDosBracos,
   prepararSnapshot, testeDoFilho, prepararTarefa, prepararControlo, tvaFinal, correrUmBraco,
-  primarias, primeiroDe, guardas, main,
+  primarias, primeiroDe, idsPrimarias, desta, guardas, main,
   candidatosClaude, resolverClaude, spawnComClaude,
+  lerLedgerCru, shaDoPrereg, tomarTranca, largarTranca,
 } from './correr-r24.mjs';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -64,15 +67,34 @@ const TAREFA = {
   prompt: 'faz passar', prompt_sha256: 'p'.repeat(64),
 };
 
-/** O sha do congelamento tem de bater com o conteudo que o fakeFs devolve,
- *  senao as guardas recusam correr e todos os testes passam pela razao errada. */
-function preregPara(manifestStr) {
-  return {
-    experiment_id: 'use-vs-none-v1', estado: 'CONGELADO', seed: 42,
-    estatistica: { n: 23 },
-    congelados: { manifest: { path: 'tools/ab/r24-manifest.json', sha256: crypto.createHash('sha256').update(manifestStr).digest('hex') } },
-    atribuicao: { primarias: [{ id: 't01-abc', primeiro: 'ON' }, { id: 't02-def', primeiro: 'OFF' }] },
-  };
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
+const CAMINHO_PREREG = path.join(AQUI, 'r24-prereg.json');
+const CAMINHO_MANIFEST = path.join(AQUI, 'r24-manifest.json');
+
+/** O pré-registo A SÉRIO, do disco. */
+const PREREG_REAL = JSON.parse(fsReal.readFileSync(CAMINHO_PREREG, 'utf8'));
+
+/**
+ * A fixture é DERIVADA do ficheiro real, nunca escrita à mão.
+ *
+ * Porquê: a 2026-09-04 a fixture inventou `atribuicao.primarias`, um campo que
+ * o pré-registo não tem (os ids vivem em `corpus.primarias`, a ordem em
+ * `atribuicao.pares`). 28 testes passaram verdes contra uma forma inexistente,
+ * enquanto `--correr`, `--verificar` e `--controlo` rebentavam todos com
+ * TypeError contra o ficheiro a sério. Instrumento e controlo escritos pela
+ * mesma mão, com a mesma suposição errada, a concordar um com o outro.
+ * Clonar o real e só substituir os DADOS faz a forma ser sempre verdadeira.
+ */
+function preregPara(manifestStr, mexer = () => {}) {
+  const p = JSON.parse(JSON.stringify(PREREG_REAL));
+  p.corpus.primarias = ['t01-abc', 't02-def'];
+  p.corpus.reservas = [];
+  p.atribuicao.pares = [{ id: 't01-abc', primeiro: 'ON' }, { id: 't02-def', primeiro: 'OFF' }];
+  p.congelados = { manifest: { path: 'tools/ab/r24-manifest.json', sha256: crypto.createHash('sha256').update(manifestStr).digest('hex') } };
+  mexer(p);
+  p.sha_do_prereg = null;
+  p.sha_do_prereg = shaDoPrereg(p);
+  return p;
 }
 const PREREG = preregPara('');
 
@@ -230,6 +252,9 @@ test('MORDE: as guardas recusam dentro de uma sessão Claude Code', () => {
   const g = guardas(PREREG, { fsImpl: fakeFs(), envImpl: { CLAUDE_CODE_SESSION_ID: 'x' } });
   assert.equal(g.ok, false);
   assert.match(g.motivo, /DENTRO de uma sessão/);
+  // e a dispensa é uma opção declarada, não um envImpl vazio à socapa
+  const analise = guardas(PREREG, { fsImpl: fakeFs({ 'r24-manifest.json': '' }), envImpl: { CLAUDE_CODE_SESSION_ID: 'x' }, exigirAmbiente: false });
+  assert.equal(analise.ok, true, '--analisar só lê o ledger; não precisa de ambiente apto');
 });
 
 function spawnControlo(statusDaAceitacao) {
@@ -299,16 +324,16 @@ test('MORDE: --correr revalida o congelamento a CADA tarefa', () => {
   // revalidação no laço desaparecer, a corrida segue e ninguém dá por nada.
   const manifestStr = JSON.stringify({ tarefas: [{ ...TAREFA }, { ...TAREFA, task_id: 't02-def' }] });
   const prereg = preregPara(manifestStr);
-  let leiturasDoManifest = 0;
+  // O gatilho é a 1.ª tarefa ter sido ESCRITA no ledger, não uma contagem de
+  // leituras: contar leituras acopla o teste ao número de guardas, e foi assim
+  // que ele se partiu quando as guardas passaram a verificar mais coisas.
+  let t01Escrita = false;
   const base = fakeFs({ 'r24-prereg.json': JSON.stringify(prereg), 'r24-manifest.json': manifestStr });
   const fsi = {
     ...base,
+    appendFileSync(p2, c) { if (String(c).includes('t01-abc')) t01Escrita = true; return base.appendFileSync(p2, c); },
     readFileSync(p2) {
-      if (String(p2).includes('r24-manifest.json')) {
-        leiturasDoManifest++;
-        // 1 = main a carregar · 2 = guarda de arranque · 3 = guarda da 1.ª tarefa
-        if (leiturasDoManifest > 3) return manifestStr.replace('t02-def', 'ADULTERADO');
-      }
+      if (t01Escrita && String(p2).includes('r24-manifest.json')) return manifestStr.replace('t02-def', 'ADULTERADO');
       return base.readFileSync(p2);
     },
   };
@@ -417,4 +442,122 @@ test('sem modo escolhido, não corre nada', () => {
   const linhas = [];
   const code = main(['--prereg', 'tools/ab/r24-prereg.json'], { fsImpl: fsi, spawnImpl: fakeSpawn(), envImpl: {}, log: (m) => linhas.push(m), err: (m) => linhas.push(m) });
   assert.equal(code, 2);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// CONTRATO DE FORMA — contra os ficheiros A SÉRIO, do disco.
+//
+// Este bloco existe porque 28 testes verdes conviveram com um executor que
+// rebentava contra o pré-registo real. Nenhuma fixture o teria apanhado: só
+// carregar o ficheiro apanha.
+// ───────────────────────────────────────────────────────────────────────────
+
+test('CONTRATO: o executor lê o pré-registo REAL sem rebentar', () => {
+  const manifest = JSON.parse(fsReal.readFileSync(CAMINHO_MANIFEST, 'utf8'));
+  const t = primarias(manifest, PREREG_REAL);
+  assert.equal(t.length, PREREG_REAL.estatistica.n, 'as primárias têm de ser exactamente n');
+  const on = t.filter((x) => primeiroDe(PREREG_REAL, x.task_id) === 'ON').length;
+  assert.equal(on, PREREG_REAL.atribuicao.on_primeiro);
+  assert.equal(t.length - on, PREREG_REAL.atribuicao.off_primeiro);
+  assert.equal(idsPrimarias(PREREG_REAL).length, 23);
+});
+
+test('CONTRATO: o pré-registo real fecha-se sobre si próprio', () => {
+  assert.equal(shaDoPrereg(PREREG_REAL), PREREG_REAL.sha_do_prereg,
+    'o ficheiro que fixa o n tem de estar fixado');
+});
+
+test('CONTRATO: as guardas aceitam o pré-registo real (só o ambiente as trava)', () => {
+  const g = guardas(PREREG_REAL, { envImpl: {}, exigirAgente: false });
+  assert.equal(g.ok, true, `guardas recusaram o ficheiro real: ${g.motivo}`);
+});
+
+test('MORDE: mexer no n do pré-registo trava as guardas', () => {
+  // n atravessa a fronteira e mexe nas DUAS pontas: abre o portão dos pares
+  // válidos e baixa o limiar. Medido: X=15 dá PERDEU (p=0,105) com n=23 e
+  // GANHOU (p=0,021) com n=20 — e pôr n=20 é a «correcção honesta» que
+  // qualquer executante alcança depois de 3 pares inválidos.
+  const adulterado = JSON.parse(JSON.stringify(PREREG_REAL));
+  adulterado.estatistica.n = 20;
+  const g = guardas(adulterado, { envImpl: {}, exigirAgente: false });
+  assert.equal(g.ok, false);
+  assert.match(g.motivo, /pre-registo mudou|limiar recalculado/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+
+test('MORDE: só as linhas DESTA experiência contam', () => {
+  const p = preregPara('');
+  const linhas = [
+    { tipo: 'braco', experiment_id: p.experiment_id, seed: 42, task_id: 't01-abc', braco: 'ON' },
+    { tipo: 'braco', experiment_id: 'outra-coisa', seed: 42, task_id: 't01-abc', braco: 'OFF' },
+    { tipo: 'braco', experiment_id: p.experiment_id, seed: 7, task_id: 't02-def', braco: 'ON' },
+    { tipo: 'braco', experiment_id: p.experiment_id, seed: 42, task_id: 't99-reserva', braco: 'ON' },
+  ];
+  const d = desta(linhas, p);
+  assert.equal(d.length, 1, 'outro experiment_id, outra seed e uma não-primária ficam de fora');
+  assert.equal(d[0].task_id, 't01-abc');
+});
+
+test('MORDE: uma linha ilegível no ledger é contada, não engolida', () => {
+  const fsi = fakeFs({ 'l.jsonl': '{"tipo":"braco"}\nlixo truncado\n{"tipo":"braco"}\n' });
+  const r = lerLedgerCru('l.jsonl', fsi.readFileSync);
+  assert.equal(r.linhas.length, 2);
+  assert.equal(r.descartadas, 1, 'perder um braço em silêncio valia uma derrota');
+});
+
+test('MORDE: --analisar recusa um ledger truncado', () => {
+  const manifestStr = JSON.stringify({ tarefas: [{ ...TAREFA }, { ...TAREFA, task_id: 't02-def' }] });
+  const fsi = fakeFs({
+    'r24-prereg.json': JSON.stringify(preregPara(manifestStr)),
+    'r24-manifest.json': manifestStr,
+    'ledger.jsonl': '{"tipo":"braco"}\nlixo\n',
+  });
+  const linhas = [];
+  const code = main(['--prereg', 'tools/ab/r24-prereg.json', '--analisar', '--ledger', 'ledger.jsonl'],
+    { fsImpl: fsi, spawnImpl: fakeSpawn(), envImpl: {}, log: (m) => linhas.push(m), err: (m) => linhas.push(m) });
+  assert.equal(code, 2);
+  assert.ok(linhas.some((l) => /ilegivel/.test(l)));
+});
+
+test('MORDE: o teste é reinstalado depois do agente, e a alteração fica registada', () => {
+  // 13 das 25 tarefas falham por UMA asserção. Um agente que a apague saía com
+  // exit 0 e marcava Z=1 — e com o limiar em 16/23, um par fabricado leva
+  // «PERDEU · X=15» a «GANHOU · X=16».
+  const fsi = fakeFs();
+  let conteudoNoDisco = 'teste original';
+  fsi.writeFileSync = (p2, c) => { if (String(p2).includes('x.test.js')) conteudoNoDisco = c; };
+  fsi.readFileSync = (p2) => { if (String(p2).includes('x.test.js')) return conteudoNoDisco; throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); };
+  const sp = fakeSpawn([
+    { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
+    { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 'teste original' }) },
+    { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
+    { quando: (c) => c === 'claude', responde: () => { conteudoNoDisco = 'it.skip(...)'; return { status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 10 } }) }; } },
+  ]);
+  const l = correrUmBraco({ braco: 'ON', tarefa: TAREFA, repo: '/r', raizSnapshots: '/s', prereg: PREREG, spawnImpl: sp, fsImpl: fsi });
+  assert.equal(l.tocou_no_teste, true, 'tem de registar que o agente mexeu no teste');
+  assert.equal(conteudoNoDisco, 'teste original', 'o teste do commit-filho tem de ser reposto antes da aceitação');
+});
+
+test('MORDE: duas instâncias não correm ao mesmo tempo', () => {
+  // A segunda instância apagava o directório onde o agente da primeira
+  // trabalhava, e o braço saía {aceite:false, tva_s:1800} — indistinguível de
+  // uma derrota honesta. Bidireccional: se calhasse no OFF, fabricava vitória.
+  const disco = new Map();
+  const fsi = {
+    mkdirSync() {},
+    readFileSync(p2) { if (!disco.has(String(p2))) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); return disco.get(String(p2)); },
+    writeFileSync(p2, c, o) {
+      if (o && o.flag === 'wx' && disco.has(String(p2))) throw Object.assign(new Error('EEXIST'), { code: 'EEXIST' });
+      disco.set(String(p2), c);
+    },
+    rmSync(p2) { disco.delete(String(p2)); },
+  };
+  const a = tomarTranca('/raiz', { fsImpl: fsi, pid: 111 });
+  assert.equal(a.ok, true);
+  const b = tomarTranca('/raiz', { fsImpl: fsi, pid: 222 });
+  assert.equal(b.ok, false);
+  assert.match(b.motivo, /ja corre outra instancia/);
+  largarTranca(a.caminho, { fsImpl: fsi });
+  assert.equal(tomarTranca('/raiz', { fsImpl: fsi, pid: 333 }).ok, true, 'largada, a tranca liberta');
 });

@@ -108,11 +108,68 @@ test('MORDE: o JSON real de uma falha de autenticação é INVÁLIDO, não uma f
 });
 
 test('uma corrida sem tempo de API é inválida mesmo sem is_error', () => {
-  assert.equal(validarCorrida({ is_error: false, duration_api_ms: 0, usage: { input_tokens: 500 } }).motivo, 'duration_api_ms_zero');
+  assert.match(validarCorrida({ is_error: false, duration_api_ms: 0, usage: { input_tokens: 500 } }).motivo, /^duration_api_ms_invalido/);
 });
 
 test('uma corrida sem tokens de entrada é inválida', () => {
-  assert.equal(validarCorrida({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 0 } }).motivo, 'input_tokens_zero');
+  assert.match(validarCorrida({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 0 } }).motivo, /^input_tokens_invalido/);
+});
+
+test('MORDE: validarCorrida falha FECHADA — campo ausente não é campo válido', () => {
+  // `Number(undefined)` é NaN, e `NaN === 0` é falso: a versão anterior deixava
+  // passar um envelope SEM os campos. Uma mudança de forma do --output-format
+  // json bastava para os dois braços falharem em silêncio e o relatório
+  // imprimir «PERDEU · X=0 · p=1,0» com 23 pares «válidos».
+  assert.equal(validarCorrida({}).invalido, true, 'envelope vazio tem de ser inválido');
+  // isolar CADA campo: com os dois a serem verificados, uma falha num deles
+  // fica mascarada pelo outro e a mordida não morde
+  assert.equal(validarCorrida({ is_error: false, usage: { input_tokens: 10 } }).invalido, true, 'sem duration_api_ms é inválido, mesmo com tokens bons');
+  assert.equal(validarCorrida({ is_error: false, duration_api_ms: 900, usage: { input_tokens: undefined } }).invalido, true, 'sem input_tokens é inválido, mesmo com duração boa');
+  assert.equal(validarCorrida([]).invalido, true, 'um array não é um envelope');
+  assert.equal(validarCorrida({ is_error: false, duration_api_ms: 900 }).invalido, true, 'sem usage é inválido');
+  assert.equal(validarCorrida({ is_error: false, duration_api_ms: 900, usage: {} }).invalido, true, 'usage sem tokens é inválido');
+  assert.equal(validarCorrida({ is_error: false, duration_api_ms: '900', usage: { input_tokens: 10 } }).invalido, false, 'string numérica ainda é um número');
+});
+
+test('MORDE: um par a que falta um braço NÃO mediu — z é null, não zero', () => {
+  // Com z:0 o par contava como derrota do ON E ocupava uma vaga no denominador,
+  // satisfazendo a guarda anti-subpotenciação com a observação que não existe.
+  assert.equal(zDaTarefa({ on: { tva_s: 10, aceite: true } }).z, null);
+  assert.equal(zDaTarefa({ off: { tva_s: 10, aceite: true } }).z, null);
+  assert.equal(zDaTarefa({ on: { tva_s: 10, aceite: true } }).motivo, 'par_incompleto');
+});
+
+test('MORDE: um braço órfão transforma ENSAIO INVALIDO em PERDEU — e não pode', () => {
+  // 22 pares medidos com X=15, mais uma tarefa interrompida depois do braço ON.
+  const pares = Array.from({ length: 22 }, (_, i) => ({
+    on: { tva_s: i < 15 ? 10 : 900, aceite: true }, off: { tva_s: 1000, aceite: true },
+  }));
+  const orfao = { on: { tva_s: 10, aceite: true } };
+  const r = analisar([...pares, orfao], { n: 23 });
+  assert.equal(r.veredicto, 'ENSAIO INVALIDO', 'o órfão não pode encher o n');
+  assert.equal(r.pares_validos, 22);
+  assert.equal(r.invalidos, 1, 'e tem de aparecer na contagem de inválidos');
+});
+
+test('MORDE: analisar tem TECTO — mais pares do que n é ensaio inválido', () => {
+  // 25 pares com X=16 imprimiam «GANHOU · p=0,04657». A verdade para 25 é
+  // P(X>=16|25)=0,11476 e o limiar honesto é 18: a nula não seria rejeitada.
+  const pares = Array.from({ length: 25 }, (_, i) => ({
+    on: { tva_s: i < 16 ? 10 : 900, aceite: true }, off: { tva_s: 1000, aceite: true },
+  }));
+  const r = analisar(pares, { n: 23 });
+  assert.equal(r.veredicto, 'ENSAIO INVALIDO');
+  assert.match(r.motivo, /25 > 23/);
+});
+
+test('MORDE: o limiar pré-registado é afirmado, não assumido', () => {
+  const pares = Array.from({ length: 23 }, (_, i) => ({
+    on: { tva_s: i < 20 ? 10 : 900, aceite: true }, off: { tva_s: 1000, aceite: true },
+  }));
+  assert.equal(analisar(pares, { n: 23, limiarEsperado: 16 }).veredicto, 'GANHOU');
+  const mau = analisar(pares, { n: 23, limiarEsperado: 15 });
+  assert.equal(mau.veredicto, 'ENSAIO INVALIDO');
+  assert.match(mau.motivo, /limiar recalculado 16 ≠ limiar pré-registado 15/);
 });
 
 test('uma corrida boa passa', () => {

@@ -120,7 +120,12 @@ export function potencia(limiar, n, p1) {
  */
 export function zDaTarefa(par) {
   const { on, off } = par;
-  if (!on || !off) return { z: 0, motivo: 'par_incompleto' };
+  // Um par a que falta um braço NÃO mediu nada. Dar-lhe z:0 era pontuá-lo como
+  // derrota do ON E deixá-lo ocupar uma vaga no denominador — a guarda
+  // anti-subpotenciação preenchida pela observação que não existe. Medido:
+  // 22 pares medidos (X=15) + 1 órfão davam «PERDEU · válidos 23 · inválidos 0»
+  // onde o honesto era «ENSAIO INVALIDO · 22 < 23».
+  if (!on || !off) return { z: null, motivo: 'par_incompleto' };
   if (on.invalido || off.invalido) return { z: null, motivo: 'par_invalido' };
   if (on.aceite !== true) return { z: 0, motivo: 'on_nao_passou' };
   const rapido = on.tva_s <= RATIO_Z * off.tva_s;
@@ -156,11 +161,19 @@ export function atribuicao(taskIds, seed) {
  * autenticação devolveu exit 0 com is_error:true.
  */
 export function validarCorrida(json) {
-  if (!json || typeof json !== 'object') return { invalido: true, motivo: 'json_ausente' };
+  if (!json || typeof json !== 'object' || Array.isArray(json)) return { invalido: true, motivo: 'json_ausente' };
   if (json.is_error === true) return { invalido: true, motivo: `cli_is_error:${String(json.result || '').slice(0, 80)}` };
-  if (Number(json.duration_api_ms) === 0) return { invalido: true, motivo: 'duration_api_ms_zero' };
-  const inp = json?.usage?.input_tokens;
-  if (Number(inp) === 0) return { invalido: true, motivo: 'input_tokens_zero' };
+  // FALHA FECHADA. A versão anterior testava `Number(x) === 0`, e `Number(undefined)`
+  // é NaN, que não é igual a zero: um envelope SEM estes campos passava como
+  // válido. Medido 2026-09-04: `validarCorrida({})` e `validarCorrida([])`
+  // devolviam ambos `{invalido:false}`. Uma mudança de forma do `--output-format
+  // json` entre versões do CLI bastava para os dois braços falharem em silêncio
+  // e o relatório imprimir «PERDEU · X=0 · p=1,0» com 23 pares «válidos».
+  // Agora exigimos presença E positividade — ausente é inválido, não é zero.
+  const dur = Number(json.duration_api_ms);
+  if (!Number.isFinite(dur) || dur <= 0) return { invalido: true, motivo: `duration_api_ms_invalido:${json.duration_api_ms}` };
+  const inp = Number(json?.usage?.input_tokens);
+  if (!Number.isFinite(inp) || inp <= 0) return { invalido: true, motivo: `input_tokens_invalido:${json?.usage?.input_tokens}` };
   return { invalido: false, motivo: null };
 }
 
@@ -272,7 +285,7 @@ export function escreverLedger(linha, { ledgerPath, appendImpl = fs.appendFileSy
 // Análise — a única função que decide, e decide por número.
 // ───────────────────────────────────────────────────────────────────────────
 
-export function analisar(pares, { n = 23, p0 = 0.5, p1 = 0.75, alfa = ALFA } = {}) {
+export function analisar(pares, { n = 23, p0 = 0.5, p1 = 0.75, alfa = ALFA, limiarEsperado = null } = {}) {
   const zs = pares.map(zDaTarefa);
   const invalidos = zs.filter((z) => z.z === null).length;
   const validos = zs.filter((z) => z.z !== null);
@@ -281,9 +294,25 @@ export function analisar(pares, { n = 23, p0 = 0.5, p1 = 0.75, alfa = ALFA } = {
   const p = caudaSuperior(X, n, p0);
   const pot = potencia(limiar, n, p1);
 
-  if (validos.length < n) {
+  // O portão era `< n` — assimétrico. X era contado sobre TODOS os pares que
+  // chegassem, mas o limiar e o p usavam sempre o n do pré-registo. Medido:
+  // 25 pares com X=16 imprimiam «GANHOU · p=0,04657» quando a verdade para 25
+  // é P(X>=16|25)=0,11476 e o limiar honesto é 18. Agora exige EXACTAMENTE n.
+  if (validos.length !== n) {
     return {
-      veredicto: 'ENSAIO INVALIDO', motivo: `pares válidos ${validos.length} < ${n} — subpotenciado, diferença não demonstrada`,
+      veredicto: 'ENSAIO INVALIDO',
+      motivo: validos.length < n
+        ? `pares válidos ${validos.length} < ${n} — subpotenciado, diferença não demonstrada`
+        : `pares válidos ${validos.length} > ${n} — o limiar e o p do pré-registo são para ${n}, não para ${validos.length}`,
+      X, n, limiar, p, potencia: pot, invalidos, pares_validos: validos.length,
+    };
+  }
+  // O limiar pré-registado tem de bater com o recalculado. `estatistica.limiar_X`
+  // existia no JSON e nenhuma linha de código o lia.
+  if (limiarEsperado !== null && limiar !== limiarEsperado) {
+    return {
+      veredicto: 'ENSAIO INVALIDO',
+      motivo: `limiar recalculado ${limiar} ≠ limiar pré-registado ${limiarEsperado} — os parâmetros mudaram desde o congelamento`,
       X, n, limiar, p, potencia: pot, invalidos, pares_validos: validos.length,
     };
   }

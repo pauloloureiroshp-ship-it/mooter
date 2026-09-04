@@ -136,6 +136,48 @@ const DEFEITOS = [
     para: '  return spawnImpl;',
     apanhado_por: 'MORDE: o spawn da corrida reescreve claude, e só claude',
   },
+  {
+    nome: 'primarias volta a ler o campo que nao existe',
+    porque: 'era o defeito real: prereg.atribuicao.primarias nao existe e todos os modos rebentavam contra o ficheiro a serio',
+    de: '  const ids = prereg?.corpus?.primarias;',
+    para: '  const ids = prereg?.atribuicao?.primarias;',
+    apanhado_por: 'CONTRATO: o executor lê o pré-registo REAL sem rebentar',
+  },
+  {
+    nome: 'ledger sem filtro de identidade',
+    porque: 'um ledger de outra geracao era saltado pela retoma e contado pela analise como se fosse desta',
+    de: '    && l.seed === prereg.seed',
+    para: '    && true',
+    apanhado_por: 'MORDE: só as linhas DESTA experiência contam',
+  },
+  {
+    nome: 'linhas ilegiveis engolidas em silencio',
+    porque: 'perder um braco sem uma palavra valia uma derrota do ON',
+    de: '    try { linhas.push(JSON.parse(l)); } catch { descartadas++; }',
+    para: '    try { linhas.push(JSON.parse(l)); } catch { /* engole */ }',
+    apanhado_por: 'MORDE: uma linha ilegível no ledger é contada, não engolida',
+  },
+  {
+    nome: 'o teste nao e reinstalado depois do agente',
+    porque: 'um agente que apague uma assercao sai com exit 0; um par fabricado leva X=15 a X=16',
+    de: '    tocouNoTeste = agora !== antes;',
+    para: '    tocouNoTeste = false;',
+    apanhado_por: 'MORDE: o teste é reinstalado depois do agente',
+  },
+  {
+    nome: 'o pre-registo deixa de se verificar a si proprio',
+    porque: 'o n vinha do unico ficheiro do circuito que o congelamento nao cobria, e mexe nas duas pontas',
+    de: "  if (typeof prereg.sha_do_prereg === 'string') {",
+    para: '  if (false) {',
+    apanhado_por: 'MORDE: mexer no n do pré-registo trava as guardas',
+  },
+  {
+    nome: 'a tranca aceita duas instancias',
+    porque: 'a segunda apagava a arvore onde o agente da primeira trabalhava, e o braco saia como derrota honesta',
+    de: "    fsImpl.writeFileSync(alvo, JSON.stringify({ pid, agora }), { flag: 'wx' });",
+    para: '    fsImpl.writeFileSync(alvo, JSON.stringify({ pid, agora }), {});',
+    apanhado_por: 'MORDE: duas instâncias não correm ao mesmo tempo',
+  },
 ];
 
 function correrSuite() {

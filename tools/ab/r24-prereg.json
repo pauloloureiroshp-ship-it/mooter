@@ -186,19 +186,19 @@
     },
     "controlador": {
       "path": "tools/ab/mooter-use-ab.mjs",
-      "sha256": "12ca8b2e186284b9178e0e235aff084b299040cac6fe2217ff12588aff9bb82d"
+      "sha256": "134aa00726580fb78d899026d25a431d9ec622e1fcf3a8521e257d44f4e47776"
     },
     "testes_do_controlador": {
       "path": "tools/ab/mooter-use-ab.test.mjs",
-      "sha256": "926eb5bd33319055bde290c9fff0035bf6cc1594185fc0d98763844d78650540"
+      "sha256": "e980e145b914a088506d2b826b7547a75ec9a24f4238cfc55617eacb2bca25c6"
     },
     "executor": {
       "path": "tools/ab/correr-r24.mjs",
-      "sha256": "5b8b970b0d6b3988619611fbc2f6531d2f540fb27bac56413c96c75d4aa64167"
+      "sha256": "8fb64972358a93b25a9dc7611aed789c69974f570ecd879878972fa358dd1f8e"
     },
     "testes_do_executor": {
       "path": "tools/ab/correr-r24.test.mjs",
-      "sha256": "37a34edb2db70b78eea8083c98e25e6de8e7aab3f510f37985b8418e5a9704e4"
+      "sha256": "b03dca11edbacd56b5c13e55c703b6e73a37d663939a6bfc803634149bb0c2ee"
     },
     "manifest": {
       "path": "tools/ab/r24-manifest.json",
@@ -263,6 +263,25 @@
       "onde": "no executor, nao no controlador congelado: resolverClaude() + spawnComClaude() + spawn:* passa a invalido",
       "porque_e_legitima": "so acrescenta restricoes; nenhum numero, limiar, seed, atribuicao ou tarefa muda; ledger vazio",
       "prova": "resolverClaude() devolve claude.exe 2.1.224 nesta maquina; correrBraco com o spawn envolvido lanca o processo (6,64 s) e a falha de autenticacao sai como INVALIDA com tva_s null, nao como derrota. 16 defeitos plantados / 16 apanhados. 28 testes do executor verdes."
+    },
+    {
+      "n": 4,
+      "data": "2026-09-04",
+      "decisao": "do executante, com o ledger ainda vazio",
+      "o_que": "oito correccoes de integridade encontradas por auditoria adversarial (6 lentes, 20 achados brutos, 16 sobreviveram a refutacao 2-de-3)",
+      "achados": [
+        "D9 · primarias()/primeiroDe() liam prereg.atribuicao.primarias, campo que NAO EXISTE — todos os modos rebentavam com TypeError contra o ficheiro real. Os 28 testes passavam porque a fixture tinha sido escrita a mao com a mesma suposicao errada.",
+        "D2 · um par a que falta um braco valia z:0 (derrota do ON) E enchia o denominador: 22 pares medidos + 1 orfao davam PERDEU onde o honesto era ENSAIO INVALIDO.",
+        "D4 · validarCorrida falhava ABERTA: Number(undefined)===0 e falso, logo um envelope sem os campos passava como valido. validarCorrida({}) devolvia {invalido:false}.",
+        "D3 · analisar tinha chao mas nao tecto: 25 pares com X=16 davam GANHOU p=0,04657 quando a verdade para 25 e p=0,11476 e o limiar honesto 18.",
+        "D5 · ninguem revalidava o ficheiro de teste depois do agente correr, e o sha_teste do ledger era o da instalacao. Um agente que apagasse uma assercao marcava Z=1 com o sha certo ao lado.",
+        "D6 · jaFeitos/paresDoLedger indexavam so por task_id:braco; experiment_id e seed eram escritos e nunca lidos.",
+        "D7 · o n vinha do unico ficheiro do circuito que o congelamento nao verificava, e --analisar devolvia ANTES das guardas.",
+        "D8 · sem tranca: duas instancias partilhavam o ledger e o caminho do snapshot, e a segunda apagava a arvore onde o agente da primeira trabalhava."
+      ],
+      "porque_e_legitima": "todas sao APERTOS — mais pares excluidos, mais condicoes para haver veredicto, mais corridas declaradas invalidas. Nenhuma mexe em seed, n, limiar_X, alfa, p0, p1, corpus ou atribuicao. Ledger vazio: nenhum resultado foi visto.",
+      "metodo": "workflow adversarial: 6 lentes independentes, cada achado atacado por 3 cepticos com lentes distintas (existe-mesmo / ja-esta-guardado / produz-veredicto-falso), sobrevivencia por 2-de-3",
+      "fica_por_decidir": "D1 — o braco OFF perde a camada user INTEIRA (effortLevel xhigh, 4 plugins, 22 hooks, 31 regras de permissao), nao so o hook do router. O parametro extraArgs existe no controlador para compensar isso e NUNCA e passado. Isto muda o que a experiencia mede e e decisao do dono."
     }
   ],
   "controlo_do_corpus": {
@@ -272,5 +291,6 @@
     "resultado": "25 de 25 falham no pai e passam no filho",
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
-  }
+  },
+  "sha_do_prereg": "ac126126c532df76de02089b923da164f7451fd06ba2d7a78d36ca80959e5c73"
 }
