@@ -317,6 +317,19 @@
       "direccao": "conservadora: sobe o TVA do braco que passa, e o unico braco que pode passar num par decidido e o ON",
       "descoberto_por": "o ensaio geral (r24-ensaio.mjs), a primeira vez que o laco completo correu de ponta a ponta",
       "prova": "78 testes verdes · 39 defeitos plantados / 39 apanhados · ensaio geral 23/23 com 46 linhas em 3,5 min"
+    },
+    {
+      "n": 8,
+      "data": "2026-09-05",
+      "decisao": "do executante, com o ledger ainda vazio",
+      "o_que": "o tratamento passa a ser «o router pinado + este ambiente + este estado», e o arbitro fica de fora",
+      "porque": "O campo tratamento.o_que_e dizia «o hook UserPromptSubmit do Mooter, e mais nada», com um router_sha a certifica-lo. Uma auditoria adversarial provou que o router_sha cobre BYTES DE CODIGO e zero das entradas. Medido: os 23 prompts, normalizados como o hook os normaliza, dao todos T0 · confianca 0,60 · ambiguous_medium; o portao do arbitro e «confianca < 0,75 OU categoria ambigua» — as duas metades disparam nas 23. Com ANTHROPIC_API_KEY presente, o tratamento deixava de ser o classificador congelado e passava a ser um segundo modelo remoto. A mesma arvore, o mesmo router_sha, dois tratamentos, e nada no ledger a distingui-los.",
+      "decisao_sobre_o_arbitro": "FICA DE FORA. Nao e uma opiniao sobre o seu valor: e um modelo remoto e nao-deterministico, e a alegacao do produto que se mede e a do router local («determinista, <50 ms, $0 a classificar»). Medir o local com um remoto por baixo mediria outra coisa. O braco corre com ANTHROPIC_*, CLAUDE_CODE_* e MOOTER_* removidos do ambiente, e o sha das chaves que sobram vai em cada linha.",
+      "o_que_passa_a_ser_registado": "env_sha · estado_vivo_sha (modo, pin, perfil, cache de orcamento do home vivo) · cache_nm_sha · router_sha recalculado por tarefa · hint_tier, hint_max_tier, hint_opcao_a, hint_bytes (o que o hook disse mesmo). Se qualquer um mudar a meio, a corrida PARA.",
+      "tambem_corrigido": "a marca da exposicao era escrita ANTES de delegar e o involucro saia 0 sempre — certificava o involucro, nunca o tratamento. O inject_context.js tem tres saidas com exit 0 e stdout vazio, e a confianca destas tarefas e 0,60: margem exactamente zero para o portao de confianca minima.",
+      "fora_do_r24": "a auditoria encontrou um defeito do PRODUTO: applyBudgetCap comparava um objecto com um numero e limitava tudo a T0 com 3% do orcamento gasto. Corrigido em tools/router/budget-cap.js com 6 testes.",
+      "porque_e_legitima": "declara o que ja era verdade e acrescenta guardas; nenhum numero, limiar, seed, atribuicao ou tarefa muda. Ledger vazio.",
+      "prova": "89 testes verdes · 43 defeitos plantados / 43 apanhados · ensaio geral 23/23 · commit 41fe8311"
     }
   ],
   "controlo_do_corpus": {
@@ -327,7 +340,7 @@
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
   },
-  "sha_do_prereg": "5971b9e2606fc58f275844ed4236982d6a985bf856a10fe7beaa34bfd5ec1d28",
+  "sha_do_prereg": "9c2d37b1e6ce2c00e6e996eb79e31bbe52203d0d0af86cdb6c39cec154a8bda0",
   "tratamento": {
     "decisao": "do dono, 2026-09-04: isolar o router",
     "o_que_e": "o hook UserPromptSubmit do Mooter, e mais nada",
