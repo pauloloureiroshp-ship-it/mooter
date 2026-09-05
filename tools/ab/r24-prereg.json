@@ -194,11 +194,11 @@
     },
     "executor": {
       "path": "tools/ab/correr-r24.mjs",
-      "sha256": "3496a161735f948ec261bd80e0ddf86aa951ef1ce96c4176c809b33a6b93c16c"
+      "sha256": "942ceecdfc1423713c27bb76cf86a87f01cea15c5c218a36b80d580a22b86881"
     },
     "testes_do_executor": {
       "path": "tools/ab/correr-r24.test.mjs",
-      "sha256": "65dccde804e88ece6a89b5d479454278a982ddd88fdea7cb9fb3136f29e4632c"
+      "sha256": "6802448f57b8c1c3e085a6aa4d9724173dab64a69cb0d941f5bc71fcaeb870bc"
     },
     "manifest": {
       "path": "tools/ab/r24-manifest.json",
@@ -214,7 +214,7 @@
     },
     "exposicao": {
       "path": "tools/ab/r24-exposicao.mjs",
-      "sha256": "1aca1e8e3956c26718b6449408f39bef44cf790fc4cf4c2de2d71795205e0c19"
+      "sha256": "4b8eed3bf54ef74b3fdfd1c8791bd414492f8a6bb39f49ed0a88f0067c406b17"
     }
   },
   "run_invalido": {
@@ -327,7 +327,7 @@
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
   },
-  "sha_do_prereg": "2153ae5ae26e35f98b7e1e66066e9cd1dfa14673bf74b134f62aef9987059536",
+  "sha_do_prereg": "5971b9e2606fc58f275844ed4236982d6a985bf856a10fe7beaa34bfd5ec1d28",
   "tratamento": {
     "decisao": "do dono, 2026-09-04: isolar o router",
     "o_que_e": "o hook UserPromptSubmit do Mooter, e mais nada",
@@ -335,7 +335,7 @@
     "linha_de_comando": "identica nos dois bracos: --setting-sources project --permission-mode bypassPermissions --allow-dangerously-skip-permissions --effort xhigh",
     "effort": "xhigh",
     "effort_porque": "fixa-lo era obrigatorio (era um confundidor); qual fixar e escolha, e esta e a que o dono corre no dia-a-dia — a alegacao e sobre o trabalho dele",
-    "router_sha": "46180cf5adfa4d392eebd4b42531d1f022f19de417fb80df7adc456343f461a1",
+    "router_sha": "b39c7da4aaa65f4d4181dfc5ec4bf4e02fddd8ada3ca28d0d12a86b2fa4d25af",
     "router_pinado_porque": "medido 2026-09-04: classify.js difere do sha congelado em 4 dos 23 commits-pai, e 3 tarefas mexem em tools/router — o agente podia alterar o proprio tratamento a meio",
     "node_modules": "ligado a uma copia descartavel, nunca ao repositorio vivo: os bracos correm com bypassPermissions e um agente sem travoes escreve atraves de uma juncao",
     "exposicao_verificada": "o hook do ON deixa uma marca no snapshot; ON sem marca e OFF com marca sao ambos «braco mal exposto» = corrida INVALIDA",
@@ -345,12 +345,22 @@
       "resultado": "ON deixa a marca; OFF nao deixa",
       "porque_e_possivel_sem_autenticacao": "o hook UserPromptSubmit corre ANTES da chamada a API: o CLI falha a autenticar a seguir, mas a marca ja la esta",
       "porque_importa": "se o hook nao disparasse, o braco ON era identico ao OFF e a experiencia media zero contra zero — com 23 pares validos e um p a fingir que significava alguma coisa"
-    }
+    },
+    "arbitro": "DESLIGADO — ANTHROPIC_* removida do ambiente do braço",
+    "arbitro_porque": "o árbitro é um segundo modelo REMOTO e não-determinístico; a alegação do produto que se mede é a do router local («determinista, <50ms, $0 a classificar»). Medido: os 23 prompts normalizados dão T0·0,60·ambiguous_medium e o portão do árbitro dispara nas 23, portanto com a chave presente o tratamento deixava de ser o classificador congelado.",
+    "env_do_braco": "process.env menos os prefixos ANTHROPIC_, CLAUDE_CODE_, MOOTER_ e o nome CLAUDECODE; o sha das chaves vai em cada linha do ledger",
+    "estado_vivo_registado": [
+      ".mooter-mode.json",
+      ".pin-next.json",
+      "subscription-profile.json",
+      ".budget-cache.json"
+    ]
   },
   "nao_congelados": {
     "tools/ab/r24-diagnostico.mjs": "r24-diagnostico.mjs NAO entra no congelamento: nao decide nada e nao vota. E um relatorio.",
     "tools/ab/morde-r24.mjs": "arnes de mutacao: prova que os testes servem, nao participa na experiencia",
     "tools/ab/morde-use-ab.mjs": "idem",
-    "tools/ab/r24-ensaio.mjs": "ensaio geral: corre o laco completo com um DUPLO do agente. Escreve noutro ficheiro (_handoff/r24/ensaio.jsonl), marca cada linha com tipo:ensaio (que desta() nunca aceita) e nao produz veredicto. Nao participa na experiencia."
+    "tools/ab/r24-ensaio.mjs": "ensaio geral: corre o laco completo com um DUPLO do agente. Escreve noutro ficheiro (_handoff/r24/ensaio.jsonl), marca cada linha com tipo:ensaio (que desta() nunca aceita) e nao produz veredicto. Nao participa na experiencia.",
+    "~/.claude/tools/router/ (estado vivo)": "o hook lê modo, pin, perfil e cache de orçamento daqui. NÃO é congelável por sha de árvore — é fotografado a cada tarefa (estado_vivo_sha) e a corrida PARA se mudar."
   }
 }

@@ -126,8 +126,8 @@ const DEFEITOS = [
   {
     nome: 'o wrapper de spawn nao reescreve nada',
     porque: 'o controlador congelado tem o nome claude cravado; sem reescrita volta o ENOENT',
-    de: "  return (cmd, args, opts) => spawnImpl(cmd === 'claude' ? caminho : cmd, args, opts);",
-    para: '  return spawnImpl;',
+    de: '    const alvo = ehAgente && caminho ? caminho : cmd;',
+    para: '    const alvo = cmd;',
     apanhado_por: 'MORDE: o spawn da corrida reescreve claude, e só claude',
   },
   {
@@ -222,6 +222,36 @@ const DEFEITOS = [
     de: '  return Math.min(res.tva_s + aceitacaoS, tectoS);',
     para: '  return Math.min(res.tva_s, tectoS);',
     apanhado_por: 'MORDE: o TVA inclui o tempo do teste de aceitação',
+  },
+  {
+    nome: 'a chave do arbitro volta a passar para o braco',
+    alvo: 'exposicao',
+    porque: 'com a chave, o tratamento deixa de ser o classificador congelado e passa a ser um segundo modelo remoto',
+    de: "export const PREFIXOS_REMOVIDOS = ['ANTHROPIC_', 'CLAUDE_CODE_', 'MOOTER_'];",
+    para: "export const PREFIXOS_REMOVIDOS = ['CLAUDE_CODE_'];",
+    apanhado_por: 'MORDE: a chave que liga o árbitro não chega ao braço',
+  },
+  {
+    nome: 'o env limpo deixa de ser passado ao agente',
+    porque: 'o correrBraco congelado faz spawn sem env; sem o involucro o terminal inteiro entra',
+    de: '    const opcoes = ehAgente && env ? { ...opts, env } : opts;',
+    para: '    const opcoes = opts;',
+    apanhado_por: 'MORDE: o env limpo vai ao agente e a mais ninguém',
+  },
+  {
+    nome: 'a marca volta a ser escrita antes de delegar',
+    alvo: 'exposicao',
+    porque: 'era o D4: a marca certificava o involucro, nunca que o tratamento chegou ao agente',
+    de: `  "const houveHint = r.status === 0 && saida.includes('router-hint');",`,
+    para: `  "const houveHint = true;",`,
+    apanhado_por: 'MORDE: o invólucro só marca quando o hint saiu mesmo',
+  },
+  {
+    nome: 'o ambiente deixa de ser revalidado a cada tarefa',
+    porque: 'um /crazy-moo numa sessao ao lado, ou a cache de orcamento a renovar-se, muda o tratamento a meio das 23 horas',
+    de: "      if (agora[campo] !== ambiente0[campo]) {",
+    para: '      if (false) {',
+    apanhado_por: 'MORDE: --correr pára quando o ambiente muda a meio',
   },
 ];
 

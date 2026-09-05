@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
 
 import { correrUmBraco, primarias, primeiroDe, ordemDosBracos, prepararRouterPinado, prepararCacheNodeModules, lerLedgerCru } from './correr-r24.mjs';
 import { zDaTarefa, escreverLedger } from './mooter-use-ab.mjs';
-import { MARCA } from './r24-exposicao.mjs';
+import { MARCA, envDaCorrida, shaDoEnv, shaDoEstadoVivo, shaDoCacheNm, shaDaArvore } from './r24-exposicao.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(AQUI, '..', '..');
@@ -80,7 +80,10 @@ function duploDoAgente({ tarefa, braco, destino, spawnBase = spawnSync }) {
         fs.writeFileSync(alvo, r.stdout);
       }
       // o hook do braço ON deixaria isto
-      fs.appendFileSync(path.join(destino, MARCA), 'x\n');
+      // a forma REAL da marca, para o ensaio exercitar a leitura e nao so a
+      // existencia — a versao anterior escrevia 'x' e o hint saia sempre nulo
+      fs.appendFileSync(path.join(destino, MARCA),
+        JSON.stringify({ tier: 'T0', max_tier: 'T3', opcao_a: false, bytes: 909 }) + String.fromCharCode(10));
     }
     const ms = Date.now() - t0;
 
@@ -107,7 +110,15 @@ const limite = iSo >= 0 ? Number(argv[iSo + 1]) : Infinity;
 
 const prereg = JSON.parse(fs.readFileSync(path.join(REPO, 'tools/ab/r24-prereg.json'), 'utf8'));
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'tools/ab/r24-manifest.json'), 'utf8'));
+if (iSo >= 0 && !Number.isFinite(limite)) {
+  console.error(`--so precisa de um numero; veio ${JSON.stringify(argv[iSo + 1])}`);
+  process.exit(2);
+}
 const tarefas = primarias(manifest, prereg).slice(0, limite);
+if (tarefas.length === 0) {
+  console.error('zero tarefas a correr — um ensaio vazio nao prova nada, e imprimir o banner verde seria pior do que falhar');
+  process.exit(2);
+}
 
 const raiz = path.join(os.tmpdir(), 'r24-ensaio');
 const ledger = path.join(REPO, '_handoff', 'r24', 'ensaio.jsonl');
@@ -119,6 +130,15 @@ console.log('  isto NÃO é a experiência: não chama o modelo e o resultado é
 prepararCacheNodeModules({ repo: REPO, cache: raiz, dirs: [...new Set(['.', ...tarefas.map((t) => t.acceptance_cwd), 'tools/router'])], log: (m) => console.log(m) });
 const router = prepararRouterPinado({ repo: REPO, cache: raiz });
 
+// o ensaio fotografa o mesmo ambiente que a corrida a serio, para exercitar
+// tambem esse caminho e nao so o caminho feliz
+const ambiente = {
+  env_sha: shaDoEnv(envDaCorrida()),
+  estado_vivo_sha: shaDoEstadoVivo(path.join(os.homedir(), '.claude', 'tools', 'router')),
+  cache_nm_sha: shaDoCacheNm(raiz),
+  router_sha: shaDaArvore(router.caminho),
+};
+
 fs.rmSync(ledger, { force: true });
 const t0 = Date.now();
 let mau = 0;
@@ -128,7 +148,7 @@ for (const t of tarefas) {
   for (const braco of ordemDosBracos(primeiroDe(prereg, t.task_id))) {
     const destino = path.join(raiz, `${t.task_id}-${braco}`);
     const l = correrUmBraco({
-      braco, tarefa: t, repo: REPO, raizSnapshots: raiz, prereg, router, cacheNm: raiz,
+      braco, tarefa: t, repo: REPO, raizSnapshots: raiz, prereg, router, cacheNm: raiz, ambiente,
       spawnImpl: duploDoAgente({ tarefa: t, braco, destino }),
     });
     escreverLedger({ ...l, tipo: 'ensaio' }, { ledgerPath: ledger });
@@ -148,6 +168,11 @@ for (const t of tarefas) {
 const mins = ((Date.now() - t0) / 60000).toFixed(1);
 const escritas = lerLedgerCru(ledger).linhas.length;
 console.log(`\n  ${tarefas.length - mau} de ${tarefas.length} com Z=1 · ${escritas} linhas escritas · ${mins} min`);
+if (escritas !== tarefas.length * 2) {
+  console.log(`
+ESCRITAS A MENOS: ${escritas} linhas para ${tarefas.length} tarefas (esperava ${tarefas.length * 2}).`);
+  process.exit(1);
+}
 console.log(mau === 0
   ? '\nO APARELHO MONTA. Quando o agente resolver a tarefa, o aparelho reconhece-o;\nquando desistir, marca falha. O que falta é o agente ser o de verdade.'
   : `\n${mau} tarefa(s) não deram Z=1 com um agente que resolve a tarefa por construção.\nIsso é um defeito do aparelho, e apanhá-lo aqui custou minutos em vez de 23 horas.`);

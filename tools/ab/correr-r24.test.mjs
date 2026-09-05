@@ -23,6 +23,7 @@ import {
 import { verificarCongelamento } from './mooter-use-ab.mjs';
 import {
   EFFORT, MARCA, argsComuns, definicoesDoBraco, escreverDefinicoes, exposicaoValida,
+  envDaCorrida, shaDoEnv, shaDoCacheNm, FONTE_DO_INVOLUCRO,
 } from './r24-exposicao.mjs';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -412,8 +413,11 @@ test('MORDE: o spawn da corrida reescreve claude, e só claude', () => {
   const env = spawnComClaude('C:/x/claude.exe', base);
   env('claude', []); env('git', []); env('node', []); env('tar', []);
   assert.deepEqual(chamadas, ['C:/x/claude.exe', 'git', 'node', 'tar']);
-  // quando já resolve pelo nome, não envolve nada
-  assert.equal(spawnComClaude('claude', base), base);
+  // quando o nome já resolve, o comando passa intacto (o invólucro continua a
+  // existir, porque é ele que injecta o env limpo)
+  chamadas.length = 0;
+  spawnComClaude('claude', base)('claude', []);
+  assert.deepEqual(chamadas, ['claude']);
 });
 
 test('resolverClaude respeita MOOTER_CLAUDE_BIN e reporta o que tentou', () => {
@@ -731,4 +735,107 @@ test('MORDE: a sonda distingue timeout de spawn partido', () => {
   const e = sondarAgente({ caminho: 'x', spawnImpl: () => ({ error: Object.assign(new Error('x'), { code: 'ENOENT' }) }) });
   assert.equal(e.ok, false);
   assert.match(e.motivo, /spawn:ENOENT/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// O AMBIENTE — o que o `router_sha` não cobre
+// ───────────────────────────────────────────────────────────────────────────
+
+test('MORDE: a chave que liga o árbitro não chega ao braço', () => {
+  // Medido: os 23 prompts normalizados dão T0 · confiança 0,60 ·
+  // ambiguous_medium, e o portão do árbitro é «confiança < 0,75 OU categoria
+  // ambígua» — as duas metades disparam nas 23. Com a chave presente o
+  // tratamento deixa de ser o classificador congelado e passa a ser um segundo
+  // modelo remoto; sem ela, é. Mesma árvore, mesmo router_sha, dois
+  // tratamentos, e nada no ledger a distingui-los.
+  const env = envDaCorrida({
+    PATH: '/bin', ANTHROPIC_API_KEY: 'sk-x', ANTHROPIC_BASE_URL: 'u',
+    CLAUDE_CODE_SESSION_ID: 's', CLAUDECODE: '1', MOOTER_MODE: 'beast', HOME: '/h',
+  });
+  assert.equal(env.ANTHROPIC_API_KEY, undefined, 'a chave do árbitro não pode passar');
+  assert.equal(env.ANTHROPIC_BASE_URL, undefined);
+  assert.equal(env.CLAUDE_CODE_SESSION_ID, undefined);
+  assert.equal(env.CLAUDECODE, undefined);
+  assert.equal(env.MOOTER_MODE, undefined, 'os modos do Mooter mudam o tier sem mudar um byte');
+  assert.equal(env.PATH, '/bin', 'e o que o CLI precisa tem de sobreviver');
+  assert.equal(env.HOME, '/h');
+});
+
+test('MORDE: o env limpo vai ao agente e a mais ninguém', () => {
+  const vistos = [];
+  const base = (cmd, args, opts) => { vistos.push([cmd, opts && opts.env ? 'com env' : 'sem env']); return { status: 0 }; };
+  const env = { PATH: '/bin' };
+  const sp = spawnComClaude('C:/x/claude.exe', base, env);
+  sp('claude', []); sp('git', ['archive']); sp('node', ['--test']); sp('tar', []);
+  assert.deepEqual(vistos, [['C:/x/claude.exe', 'com env'], ['git', 'sem env'], ['node', 'sem env'], ['tar', 'sem env']]);
+});
+
+test('MORDE: o invólucro só marca quando o hint saiu mesmo', () => {
+  // A versão anterior marcava ANTES de delegar e saía 0 sempre: certificava o
+  // invólucro, nunca o tratamento. O inject_context.js tem três saídas com
+  // exit 0 e stdout vazio, e a confiança destas tarefas é 0,60 — margem zero
+  // para o portão de confiança mínima.
+  const f = FONTE_DO_INVOLUCRO;
+  const iSpawn = f.indexOf('spawnSync(process.execPath');
+  const iMarca = f.indexOf('appendFileSync');
+  assert.ok(iSpawn > 0 && iMarca > iSpawn, 'a marca tem de ser escrita DEPOIS de delegar');
+  assert.match(f, /houveHint = r\.status === 0/, 'e só quando o delegado saiu bem');
+  assert.match(f, /router-hint/, 'e só quando o hint apareceu mesmo no stdout');
+});
+
+test('shaDoCacheNm é estável, e null quando não há cache', () => {
+  const disco = { 'nm/tools/router/node_modules': ['a', 'b'] };
+  const fsi = {
+    readdirSync: (p2, o) => {
+      const k = String(p2).split(String.fromCharCode(92)).join('/').replace(/^.*?nm\/?/, 'nm/').replace(/\/$/, '');
+      if (o && o.withFileTypes) {
+        if (k === 'nm') return [{ name: 'tools', isDirectory: () => true }];
+        if (k === 'nm/tools') return [{ name: 'router', isDirectory: () => true }];
+        if (k === 'nm/tools/router') return [{ name: 'node_modules', isDirectory: () => true }];
+        return [];
+      }
+      return disco[k] || [];
+    },
+    statSync: () => ({ mtimeMs: 42 }),
+  };
+  const a = shaDoCacheNm('/c', { fsImpl: fsi });
+  assert.equal(a, shaDoCacheNm('/c', { fsImpl: fsi }), 'estável entre leituras');
+  disco['nm/tools/router/node_modules'] = ['a', 'b', 'pacote-novo'];
+  assert.notEqual(shaDoCacheNm('/c', { fsImpl: fsi }), a, 'um pacote novo tem de mudar o sha');
+  assert.equal(shaDoCacheNm('/vazio', { fsImpl: { readdirSync: () => { throw new Error('x'); }, statSync: () => ({}) } }), null);
+});
+
+test('MORDE: --correr pára quando o ambiente muda a meio', () => {
+  // O `router_sha` sela bytes de código. Não sela o modo do Mooter, o pin, o
+  // perfil, nem a cache de orçamento — que o hook lê do home vivo. Um
+  // `/crazy-moo` numa sessão ao lado à hora 8 dá chão T3 às 15 tarefas
+  // seguintes e não às 8 primeiras: duas populações, `router_sha` idêntico nas
+  // 23 linhas, e a exposição verde em todas.
+  const manifestStr = JSON.stringify({ tarefas: [{ ...TAREFA }, { ...TAREFA, task_id: 't02-def' }] });
+  const prereg = preregPara(manifestStr);
+  let t01Escrita = false;
+  const base = fakeFs({ 'r24-prereg.json': JSON.stringify(prereg), 'r24-manifest.json': manifestStr });
+  const fsi = {
+    ...base,
+    appendFileSync(p2, c) { if (String(c).includes('t01-abc')) t01Escrita = true; return base.appendFileSync(p2, c); },
+    readFileSync(p2) {
+      // o modo do Mooter muda depois da 1.ª tarefa, como se alguém corresse
+      // /crazy-moo numa sessão ao lado
+      if (String(p2).includes('.mooter-mode.json')) return t01Escrita ? 'beast' : 'zen';
+      return base.readFileSync(p2);
+    },
+  };
+  const spawn = fakeSpawn([
+    { quando: (c, a) => c === 'git' && a[0] === 'archive', responde: () => ({ status: 0, stdout: Buffer.from('T') }) },
+    { quando: (c, a) => c === 'git' && a[0] === 'show', responde: () => ({ status: 0, stdout: 't' }) },
+    { quando: (c) => c === 'node', responde: () => ({ status: 1 }) },
+    { quando: (c) => c === 'claude', responde: () => ({ status: 0, stdout: JSON.stringify({ is_error: false, duration_api_ms: 900, usage: { input_tokens: 10 } }) }) },
+  ]);
+  const linhas = [];
+  const code = main(['--prereg', 'tools/ab/r24-prereg.json', '--correr'],
+    { fsImpl: fsi, spawnImpl: spawn, envImpl: {}, log: (m) => linhas.push(m), err: (m) => linhas.push(m) });
+  assert.equal(code, 2);
+  assert.ok(linhas.some((l) => /estado_vivo_sha mudou/.test(l)), `esperava paragem por estado vivo, veio: ${linhas.join(' | ')}`);
+  assert.ok(linhas.some((l) => /t01-abc ON/.test(l)), 'a 1.ª tarefa chegou a correr');
+  assert.ok(!linhas.some((l) => /t02-def/.test(l)), 'e a 2.ª não');
 });

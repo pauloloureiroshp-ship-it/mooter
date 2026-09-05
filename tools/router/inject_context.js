@@ -255,34 +255,25 @@ function readSubscriptionProfile() {
  * @param {Record<string, any> | null | undefined} budget
  * @returns {string}
  */
+// O tecto de tier vive em budget-cap.js, com testes que mordem.
+//
+// A versão que estava aqui fazia `budget.five_hour || budget.fiveHour || 0` e
+// comparava o resultado com números. Desde 2026-05-07 a cache escreve
+// `five_hour` como OBJECTO (`{utilization, resets_at}`) — o statusline.sh:98-120
+// já lê `.utilization` e até tem guarda para `[object Object]`; esta função
+// nunca recebeu o mesmo tratamento. Comparar um objecto com um número dá false
+// nas três comparações, portanto **com 3% do orçamento gasto o tecto caía para
+// T0** e nada no hint dizia porquê. A isenção de Max não salvava quem tem
+// `subscription-profile.json` a dizer "unknown".
+//
+// Estava dormente porque a cache tinha estado de erro (OAuth expirado) e
+// getBudget devolvia null; acordava na primeira renovação bem sucedida.
+const { applyBudgetCap: capDoOrcamento } = require('./budget-cap.js');
+
 function applyBudgetCap(tier, budget) {
-  if (!budget) return tier;
-
-  // v0.9.1: Claude Max users have no budget cap
   const subProfile = readSubscriptionProfile();
-  if (subProfile && subProfile.profiles && subProfile.profiles.anthropic === 'max') {
-    return tier;
-  }
-
-  const fiveHour = budget.five_hour || budget.fiveHour || 0;
-  const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
-
-  let maxTier;
-  if (fiveHour < 50) maxTier = 'T3';
-  else if (fiveHour < 70) maxTier = 'T2';
-  else if (fiveHour < 85) maxTier = 'T1';
-  else maxTier = 'T0';
-
-  // v0.9.1: api-free users get aggressive cap (shift thresholds down)
-  if (subProfile && subProfile.profiles && subProfile.profiles.anthropic === 'api-free') {
-    if (fiveHour < 30) maxTier = 'T3';
-    else if (fiveHour < 50) maxTier = 'T1';
-    else maxTier = 'T0';
-  }
-
-  const current = TIER_ORDER.indexOf(tier);
-  const max = TIER_ORDER.indexOf(maxTier);
-  return current > max ? maxTier : tier;
+  const perfil = subProfile && subProfile.profiles ? subProfile.profiles.anthropic : null;
+  return capDoOrcamento(tier, budget, perfil);
 }
 
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');

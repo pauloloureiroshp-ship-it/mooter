@@ -87,6 +87,7 @@ import {
 import {
   EFFORT, MARCA, argsComuns, definicoesDoBraco, escreverDefinicoes,
   exposicaoValida, FONTE_DO_INVOLUCRO, shaDaArvore,
+  envDaCorrida, shaDoEnv, shaDoEstadoVivo, shaDoCacheNm,
 } from './r24-exposicao.mjs';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -229,9 +230,16 @@ export function sondarAgente({
  * chegue ao binario que existe mesmo. So reescreve esse nome; tudo o resto
  * (git, tar, node) passa intacto.
  */
-export function spawnComClaude(caminho, spawnImpl = spawnSync) {
-  if (caminho === 'claude') return spawnImpl;
-  return (cmd, args, opts) => spawnImpl(cmd === 'claude' ? caminho : cmd, args, opts);
+export function spawnComClaude(caminho, spawnImpl = spawnSync, env = null) {
+  return (cmd, args, opts) => {
+    const ehAgente = cmd === 'claude';
+    const alvo = ehAgente && caminho ? caminho : cmd;
+    // O `correrBraco` congelado faz spawn SEM `env`, portanto o CLI herdava o
+    // terminal inteiro — incluindo a chave que liga o arbitro e os modos do
+    // Mooter, que mudam o tratamento sem mudar um byte do router pinado.
+    const opcoes = ehAgente && env ? { ...opts, env } : opts;
+    return spawnImpl(alvo, args, opcoes);
+  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -339,15 +347,19 @@ export function prepararCacheNodeModules({ repo, cache, dirs, fsImpl = fs, log =
  */
 export function prepararRouterPinado({ repo, cache, fsImpl = fs, refazer = false }) {
   const destino = path.join(cache, 'router-pinado');
-  if (refazer) fsImpl.rmSync(destino, { recursive: true, force: true });
-  if (!fsImpl.existsSync(path.join(destino, 'inject_context.js'))) {
-    fsImpl.mkdirSync(path.dirname(destino), { recursive: true });
-    fsImpl.cpSync(path.join(repo, 'tools', 'router'), destino, {
-      recursive: true, force: true,
-      filter: (src) => !src.includes('node_modules'),
-    });
-    fsImpl.writeFileSync(path.join(destino, 'r24-hook.cjs'), FONTE_DO_INVOLUCRO);
-  }
+  // SEMPRE refeita. A versão anterior só copiava se `inject_context.js`
+  // faltasse, portanto uma alteração ao router ou ao invólucro deixava para
+  // trás uma cópia velha — e o `router_sha` do ledger passava a certificar
+  // código que já não era o do repositório. Custa ~1 s e fecha uma classe
+  // inteira de «o sha diz uma coisa, o disco tem outra».
+  void refazer;
+  fsImpl.rmSync(destino, { recursive: true, force: true });
+  fsImpl.mkdirSync(path.dirname(destino), { recursive: true });
+  fsImpl.cpSync(path.join(repo, 'tools', 'router'), destino, {
+    recursive: true, force: true,
+    filter: (src) => !src.includes('node_modules'),
+  });
+  fsImpl.writeFileSync(path.join(destino, 'r24-hook.cjs'), FONTE_DO_INVOLUCRO);
   const nmCache = path.join(cache, 'nm', 'tools/router', 'node_modules');
   const nmAlvo = path.join(destino, 'node_modules');
   if (fsImpl.existsSync(nmCache) && !fsImpl.existsSync(nmAlvo)) {
@@ -511,7 +523,7 @@ export function tvaFinal(res, aceite, tectoS = TECTO_S, aceitacaoS = 0) {
 }
 
 export function correrUmBraco({
-  braco, tarefa, repo, raizSnapshots, prereg, router = null, cacheNm = null,
+  braco, tarefa, repo, raizSnapshots, prereg, router = null, cacheNm = null, ambiente = null,
   spawnImpl = spawnSync, fsImpl = fs, clockImpl, nowImpl = () => new Date().toISOString(),
 }) {
   const destino = path.join(raizSnapshots, `${tarefa.task_id}-${braco}`);
@@ -537,7 +549,15 @@ export function correrUmBraco({
 
   // «Braço mal exposto» era um motivo de invalidez que o pré-registo listava e
   // que nenhuma linha de código calculava. Passa a ser calculado.
-  const marcaExiste = fsImpl.existsSync(path.join(destino, MARCA));
+  const caminhoMarca = path.join(destino, MARCA);
+  const marcaExiste = fsImpl.existsSync(caminhoMarca);
+  // A marca agora traz o que o hint disse. Guardar isto e o que permite a um
+  // auditor distinguir «o hook correu» de «o hook disse T0 sem arbitro».
+  let hint = null;
+  if (marcaExiste) {
+    try { hint = JSON.parse(String(fsImpl.readFileSync(caminhoMarca, 'utf8')).split(String.fromCharCode(10))[0]); }
+    catch { hint = { ilegivel: true }; }
+  }
   const exp = exposicaoValida({ braco, marcaExiste });
 
   // O controlador congelado devolve `invalido: false` para um erro de spawn —
@@ -599,6 +619,13 @@ export function correrUmBraco({
     definicoes_sha: defs.sha,
     router_sha: router ? router.sha : null,
     hook_disparou: marcaExiste,
+    hint_tier: hint ? hint.tier ?? null : null,
+    hint_max_tier: hint ? hint.max_tier ?? null : null,
+    hint_opcao_a: hint ? hint.opcao_a ?? null : null,
+    hint_bytes: hint ? hint.bytes ?? null : null,
+    env_sha: ambiente ? ambiente.env_sha : null,
+    estado_vivo_sha: ambiente ? ambiente.estado_vivo_sha : null,
+    cache_nm_sha: ambiente ? ambiente.cache_nm_sha : null,
     effort: EFFORT,
     prompt_sha256: tarefa.prompt_sha256,
     commit: tarefa.commit,
@@ -869,7 +896,22 @@ export function main(argv = process.argv.slice(2), io = {}) {
 
   // ── a corrida ────────────────────────────────────────────────────────────
   const cl = resolverClaude({ env: envImpl, spawnImpl, fsImpl });
-  const spawnDaCorrida = spawnComClaude(cl.caminho, spawnImpl);
+  const envDoBraco = envDaCorrida(envImpl);
+  const spawnDaCorrida = spawnComClaude(cl.caminho, spawnImpl, envDoBraco);
+  const routerVivo = path.join(os.homedir(), '.claude', 'tools', 'router');
+
+  // O que o `router_sha` NAO cobre: o ambiente que decide se o arbitro fala, e
+  // o estado vivo que o hook le (modo, pin, perfil, cache de orcamento). Fica
+  // fotografado a cada tarefa; se mudar a meio das 23 horas, a corrida para.
+  const fotografar = () => ({
+    env_sha: shaDoEnv(envDoBraco),
+    estado_vivo_sha: shaDoEstadoVivo(routerVivo, { fsImpl }),
+    cache_nm_sha: shaDoCacheNm(raiz, { fsImpl }),
+    router_sha: shaDaArvore(router.caminho, { fsImpl }),
+  });
+  const ambiente0 = fotografar();
+  log(`  ambiente: env ${ambiente0.env_sha.slice(0, 8)} · estado vivo ${ambiente0.estado_vivo_sha.slice(0, 8)} · cache ${String(ambiente0.cache_nm_sha).slice(0, 8)}`);
+  log('  arbitro: DESLIGADO (ANTHROPIC_* removida do ambiente do braço) — declarado no pré-registo');
 
   const sonda = sondarAgente({ caminho: cl.caminho, spawnImpl });
   if (!sonda.ok) {
@@ -894,9 +936,21 @@ export function main(argv = process.argv.slice(2), io = {}) {
     const g2 = guardas(prereg, { fsImpl, envImpl, spawnImpl, exigirAgente: precisaDeAgente, exigirAmbiente: precisaDeAgente });
     if (!g2.ok) { largarTranca(tranca.caminho, { fsImpl }); err(`PÁRA a meio: ${g2.motivo}`); return 2; }
 
+    // O congelamento cobre `prereg.congelados`; o tratamento e o ambiente
+    // ficam de fora dele e sao verificados aqui, a cada tarefa.
+    const agora = fotografar();
+    for (const campo of ['env_sha', 'estado_vivo_sha', 'cache_nm_sha', 'router_sha']) {
+      if (agora[campo] !== ambiente0[campo]) {
+        largarTranca(tranca.caminho, { fsImpl });
+        err(`PÁRA a meio: ${campo} mudou (${String(ambiente0[campo]).slice(0, 12)} -> ${String(agora[campo]).slice(0, 12)})`);
+        err('  o tratamento ou o terreno mudaram durante a corrida; as tarefas ja feitas e as seguintes deixariam de ser comparaveis.');
+        return 2;
+      }
+    }
+
     for (const braco of ordemDosBracos(primeiroDe(prereg, t.task_id))) {
       if (feitos.has(chave(t.task_id, braco))) { log(`  · ${t.task_id} ${braco} — já feito`); continue; }
-      const linha = correrUmBraco({ braco, tarefa: t, repo, raizSnapshots: raiz, prereg, router, cacheNm: raiz, spawnImpl: spawnDaCorrida, fsImpl });
+      const linha = correrUmBraco({ braco, tarefa: t, repo, raizSnapshots: raiz, prereg, router, cacheNm: raiz, ambiente: ambiente0, spawnImpl: spawnDaCorrida, fsImpl });
       escreverLedger(linha, { ledgerPath, appendImpl: fsImpl.appendFileSync, mkdirImpl: fsImpl.mkdirSync });
       feitos.add(chave(t.task_id, braco));
       const estado = linha.invalido ? `INVÁLIDO (${linha.motivo})` : `${linha.aceite ? 'passa' : 'falha'} · ${linha.tva_s?.toFixed(1)}s`;
