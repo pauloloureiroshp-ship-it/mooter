@@ -327,7 +327,7 @@
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
   },
-  "sha_do_prereg": "9a4d7e9853e9c70cd7dacfdf56e5528b8581d2be74c83fc833cd13c2a1d1561b",
+  "sha_do_prereg": "2153ae5ae26e35f98b7e1e66066e9cd1dfa14673bf74b134f62aef9987059536",
   "tratamento": {
     "decisao": "do dono, 2026-09-04: isolar o router",
     "o_que_e": "o hook UserPromptSubmit do Mooter, e mais nada",
@@ -338,7 +338,14 @@
     "router_sha": "46180cf5adfa4d392eebd4b42531d1f022f19de417fb80df7adc456343f461a1",
     "router_pinado_porque": "medido 2026-09-04: classify.js difere do sha congelado em 4 dos 23 commits-pai, e 3 tarefas mexem em tools/router — o agente podia alterar o proprio tratamento a meio",
     "node_modules": "ligado a uma copia descartavel, nunca ao repositorio vivo: os bracos correm com bypassPermissions e um agente sem travoes escreve atraves de uma juncao",
-    "exposicao_verificada": "o hook do ON deixa uma marca no snapshot; ON sem marca e OFF com marca sao ambos «braco mal exposto» = corrida INVALIDA"
+    "exposicao_verificada": "o hook do ON deixa uma marca no snapshot; ON sem marca e OFF com marca sao ambos «braco mal exposto» = corrida INVALIDA",
+    "exposicao_verificada_no_cli_real": {
+      "data": "2026-09-05",
+      "metodo": "snapshot real da tarefa 1, settings.json de cada braco, e o claude.exe a serio invocado com os argsComuns()",
+      "resultado": "ON deixa a marca; OFF nao deixa",
+      "porque_e_possivel_sem_autenticacao": "o hook UserPromptSubmit corre ANTES da chamada a API: o CLI falha a autenticar a seguir, mas a marca ja la esta",
+      "porque_importa": "se o hook nao disparasse, o braco ON era identico ao OFF e a experiencia media zero contra zero — com 23 pares validos e um p a fingir que significava alguma coisa"
+    }
   },
   "nao_congelados": {
     "tools/ab/r24-diagnostico.mjs": "r24-diagnostico.mjs NAO entra no congelamento: nao decide nada e nao vota. E um relatorio.",
