@@ -351,6 +351,17 @@ test('MORDE: --correr revalida o congelamento a CADA tarefa', () => {
 // Windows dava PERDEU com p=1,0 em 46 corridas de 4 ms.
 // ───────────────────────────────────────────────────────────────────────────
 
+test('MORDE: o TVA inclui o tempo do teste de aceitação', () => {
+  // O desenho congelado: «do arranque da sessão até o processo terminar E um
+  // comando de aceitação devolver exit 0». Parar o relógio quando o agente sai
+  // dava ao braço que PASSA um desconto de 5 a 25 s que o desenho não autoriza
+  // — e o único braço que pode passar num par decidido é o ON.
+  assert.equal(tvaFinal({ invalido: false, tva_s: 10 }, true, 1800, 5), 15);
+  assert.equal(tvaFinal({ invalido: false, tva_s: 10 }, true, 1800, 0), 10);
+  assert.equal(tvaFinal({ invalido: false, tva_s: 1799 }, true, 1800, 30), 1800, 'o tecto continua a mandar');
+  assert.equal(tvaFinal({ invalido: false, tva_s: 10 }, false, 1800, 5), 1800, 'quem falha vale o tecto, não a soma');
+});
+
 test('MORDE: um erro de spawn é INVÁLIDO, não uma derrota de 1800 s', () => {
   // Esta é a linha que separa «o agente falhou» de «o aparato está partido».
   // Sem ela, os dois braços davam 1800, os 23 pares contavam como válidos,

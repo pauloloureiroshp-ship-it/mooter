@@ -498,10 +498,16 @@ export function prepararControlo({
  * TVA: tudo o que não seja «terminou E o teste passa» vale o tecto.
  * Uma corrida inválida NÃO vale o tecto — vale `null`, e invalida o par.
  */
-export function tvaFinal(res, aceite, tectoS = TECTO_S) {
+export function tvaFinal(res, aceite, tectoS = TECTO_S, aceitacaoS = 0) {
   if (res.invalido) return null;
   if (aceite !== true) return tectoS;
-  return Math.min(res.tva_s, tectoS);
+  // O desenho congelado diz «do arranque da sessão até o processo terminar E um
+  // comando de aceitação devolver exit 0». O relógio corre até o teste PASSAR,
+  // não até o agente sair — e a implementação parava antes, o que dava ao braço
+  // ON um desconto de 5 a 25 segundos que o desenho não autoriza. Incluir a
+  // aceitação é conservador: sobe o TVA do braço que passa, e o único braço que
+  // pode passar num par decidido é o ON.
+  return Math.min(res.tva_s + aceitacaoS, tectoS);
 }
 
 export function correrUmBraco({
@@ -556,6 +562,8 @@ export function correrUmBraco({
   // não uma guarda.
   let aceite = null;
   let tocouNoTeste = null;
+  let aceitacaoS = 0;
+  const relogio = clockImpl || (() => process.hrtime.bigint());
   if (!invalido) {
     const antes = prep.sha_teste;
     const agora = (() => {
@@ -568,9 +576,11 @@ export function correrUmBraco({
       snapshotDir: destino, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste,
       writeImpl: fsImpl.writeFileSync, mkdirImpl: fsImpl.mkdirSync,
     });
+    const tA = relogio();
     const a = correrAceitacao({
       cwd: path.join(destino, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, spawnImpl,
     });
+    aceitacaoS = Number(relogio() - tA) / 1e9;
     aceite = a.aceite;
   }
 
@@ -579,7 +589,8 @@ export function correrUmBraco({
     task_id: tarefa.task_id, braco,
     invalido,
     motivo: res.motivo ?? exp.motivo ?? null,
-    tva_s: invalido ? null : tvaFinal(res, aceite),
+    tva_s: invalido ? null : tvaFinal(res, aceite, TECTO_S, aceitacaoS),
+    aceitacao_s: invalido ? null : aceitacaoS,
     aceite,
     decorrido_s: res.decorrido_s ?? null,
     session_id: res.session_id ?? null,

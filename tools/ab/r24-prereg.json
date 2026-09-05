@@ -194,11 +194,11 @@
     },
     "executor": {
       "path": "tools/ab/correr-r24.mjs",
-      "sha256": "68fa275776c92fe3a75fd05f27a919fc6ce06c74157caaf9dde1b2e11498409d"
+      "sha256": "3496a161735f948ec261bd80e0ddf86aa951ef1ce96c4176c809b33a6b93c16c"
     },
     "testes_do_executor": {
       "path": "tools/ab/correr-r24.test.mjs",
-      "sha256": "47531f070f9a343d500f9ab18df31177c00c0fcdec384282f0c21370cc9a93c1"
+      "sha256": "65dccde804e88ece6a89b5d479454278a982ddd88fdea7cb9fb3136f29e4632c"
     },
     "manifest": {
       "path": "tools/ab/r24-manifest.json",
@@ -307,6 +307,16 @@
       "tambem": "Dois testes meus so passavam onde o vault esta montado e com o caminho da maquina do dono: o CONTRATO afirmava guardas().ok===true quando o desenho da experiencia vive no vault (em CI e ilegivel:ENOENT), e outro cravava o caminho real, que a catraca do rebrand conta. O contrato passa a afirmar que nenhuma entrada DO REPOSITORIO diverge e que o desenho pode faltar mas nunca ter bytes diferentes.",
       "porque_e_legitima": "so acrescenta uma pre-condicao positiva (em vez de um proxy) e corrige testes que mentiam por causa do ambiente. Nenhum numero muda. Ledger vazio.",
       "prova": "77 testes verdes · 38 defeitos plantados / 38 apanhados · CI do #486 verde. A sonda corrida de dentro da sessao devolve «Failed to authenticate: OAuth session expired and could not be refreshed»."
+    },
+    {
+      "n": 7,
+      "data": "2026-09-05",
+      "decisao": "do executante, com o ledger ainda vazio",
+      "o_que": "o TVA passa a incluir o tempo do teste de aceitacao",
+      "porque": "O desenho congelado diz «do arranque da sessao ate o processo terminar E um comando de aceitacao externo, congelado antes da execucao, devolver exit code 0». O relogio corre ate o teste PASSAR. A implementacao parava quando o agente saia, dando ao braco que passa um desconto de 5 a 25 s que o desenho nao autoriza. Medido no ensaio geral: a aceitacao demora de 0,1 s a 9,6 s conforme a tarefa — nao e ruido.",
+      "direccao": "conservadora: sobe o TVA do braco que passa, e o unico braco que pode passar num par decidido e o ON",
+      "descoberto_por": "o ensaio geral (r24-ensaio.mjs), a primeira vez que o laco completo correu de ponta a ponta",
+      "prova": "78 testes verdes · 39 defeitos plantados / 39 apanhados · ensaio geral 23/23 com 46 linhas em 3,5 min"
     }
   ],
   "controlo_do_corpus": {
@@ -317,7 +327,7 @@
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
   },
-  "sha_do_prereg": "9b3537796019d1cddc558d5fa8da2a1be12fc6f13af1318e25348fa139f17559",
+  "sha_do_prereg": "9a4d7e9853e9c70cd7dacfdf56e5528b8581d2be74c83fc833cd13c2a1d1561b",
   "tratamento": {
     "decisao": "do dono, 2026-09-04: isolar o router",
     "o_que_e": "o hook UserPromptSubmit do Mooter, e mais nada",
@@ -333,6 +343,7 @@
   "nao_congelados": {
     "tools/ab/r24-diagnostico.mjs": "r24-diagnostico.mjs NAO entra no congelamento: nao decide nada e nao vota. E um relatorio.",
     "tools/ab/morde-r24.mjs": "arnes de mutacao: prova que os testes servem, nao participa na experiencia",
-    "tools/ab/morde-use-ab.mjs": "idem"
+    "tools/ab/morde-use-ab.mjs": "idem",
+    "tools/ab/r24-ensaio.mjs": "ensaio geral: corre o laco completo com um DUPLO do agente. Escreve noutro ficheiro (_handoff/r24/ensaio.jsonl), marca cada linha com tipo:ensaio (que desta() nunca aceita) e nao produz veredicto. Nao participa na experiencia."
   }
 }

@@ -216,6 +216,13 @@ const DEFEITOS = [
     para: '  const v = { invalido: false, motivo: null };',
     apanhado_por: 'MORDE: a sonda recusa o que o --version aceita',
   },
+  {
+    nome: 'o TVA volta a parar quando o agente sai',
+    porque: 'o desenho manda contar ate a aceitacao passar; parar antes desconta 5 a 25 s ao braco que passa',
+    de: '  return Math.min(res.tva_s + aceitacaoS, tectoS);',
+    para: '  return Math.min(res.tva_s, tectoS);',
+    apanhado_por: 'MORDE: o TVA inclui o tempo do teste de aceitação',
+  },
 ];
 
 function correrSuite() {
