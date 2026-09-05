@@ -296,6 +296,17 @@
       "como": "linha de comando identica nos dois bracos (zero if(braco) nos args); a unica diferenca e a chave hooks do settings.json do snapshot; router pinado com sha proprio; exposicao verificada por marca depois da corrida",
       "porque_e_legitima": "faz o aparato CUMPRIR o desenho congelado, que ja dizia «mesmas definicoes» e «o hook exposto apenas no ON». Nenhum numero muda. Ledger vazio.",
       "alegacao_resultante": "«ligar o hook de routing do Mooter altera o tempo ate trabalho mecanicamente valido», num corpus de tarefas derivadas de commits reais"
+    },
+    {
+      "n": 6,
+      "data": "2026-09-04",
+      "decisao": "do executante, com o ledger ainda vazio",
+      "o_que": "uma SONDA a serio antes do --correr, e duas correccoes de testes que so passavam na maquina do autor",
+      "porque": "A pre-condicao era «o executavel do agente responde --version com exit 0». Medido nesta maquina a 2026-09-04, --version responde exit 0 em TRES condicoes que rebentam as 46 corridas: conta sem credito (a chave do .env devolve «Credit balance is too low»), OAuth expirado, e correr de dentro de uma sessao Claude Code. Nenhuma produz veredicto falso — validarCorrida marca-as invalidas e sai ENSAIO INVALIDO — mas todas custam ~23 h de maquina e um relatorio que nao diz nada.",
+      "como": "sondarAgente() faz uma chamada minuscula e deixa validarCorrida decidir; corre UMA vez no arranque do --correr, nunca por tarefa; o diagnostico corre-a por omissao (--sem-sonda salta).",
+      "tambem": "Dois testes meus so passavam onde o vault esta montado e com o caminho da maquina do dono: o CONTRATO afirmava guardas().ok===true quando o desenho da experiencia vive no vault (em CI e ilegivel:ENOENT), e outro cravava o caminho real, que a catraca do rebrand conta. O contrato passa a afirmar que nenhuma entrada DO REPOSITORIO diverge e que o desenho pode faltar mas nunca ter bytes diferentes.",
+      "porque_e_legitima": "so acrescenta uma pre-condicao positiva (em vez de um proxy) e corrige testes que mentiam por causa do ambiente. Nenhum numero muda. Ledger vazio.",
+      "prova": "77 testes verdes · 38 defeitos plantados / 38 apanhados · CI do #486 verde. A sonda corrida de dentro da sessao devolve «Failed to authenticate: OAuth session expired and could not be refreshed»."
     }
   ],
   "controlo_do_corpus": {
@@ -306,7 +317,7 @@
     "porque_importa": "Um teste que falha no pai por falta de dependencias falha na mesma no filho. Nesse caso o braco ON nunca podia ganhar, e 23 pares assim davam PERDEU com aspecto de resultado. O minerador ja tinha verificado o mesmo, mas com o seu proprio metodo: um instrumento e um controlo escritos com a mesma suposicao errada concordam um com o outro.",
     "defeito_encontrado_ao_verificar": "tar -C <caminho windows> falha silenciosamente no Git for Windows e o snapshot ficava vazio; o teste falhava por o ficheiro nao existir e isso parecia «falha no pai». Corrigido passando o destino por cwd em vez de argumento."
   },
-  "sha_do_prereg": "f9fc05952e3164ea1c69db43d4f2d21d93d56cd815c24ee83b9aad759e5327f2",
+  "sha_do_prereg": "9b3537796019d1cddc558d5fa8da2a1be12fc6f13af1318e25348fa139f17559",
   "tratamento": {
     "decisao": "do dono, 2026-09-04: isolar o router",
     "o_que_e": "o hook UserPromptSubmit do Mooter, e mais nada",
@@ -318,5 +329,10 @@
     "router_pinado_porque": "medido 2026-09-04: classify.js difere do sha congelado em 4 dos 23 commits-pai, e 3 tarefas mexem em tools/router — o agente podia alterar o proprio tratamento a meio",
     "node_modules": "ligado a uma copia descartavel, nunca ao repositorio vivo: os bracos correm com bypassPermissions e um agente sem travoes escreve atraves de uma juncao",
     "exposicao_verificada": "o hook do ON deixa uma marca no snapshot; ON sem marca e OFF com marca sao ambos «braco mal exposto» = corrida INVALIDA"
+  },
+  "nao_congelados": {
+    "tools/ab/r24-diagnostico.mjs": "r24-diagnostico.mjs NAO entra no congelamento: nao decide nada e nao vota. E um relatorio.",
+    "tools/ab/morde-r24.mjs": "arnes de mutacao: prova que os testes servem, nao participa na experiencia",
+    "tools/ab/morde-use-ab.mjs": "idem"
   }
 }
