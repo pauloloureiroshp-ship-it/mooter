@@ -18,8 +18,20 @@ const proto = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8
 
 // ── A: o ledger actual, tal como esta ───────────────────────────────────────
 function readJsonl(f) { try { return fs.readFileSync(f, 'utf8').split('\n').filter((l) => l.startsWith('{')).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { return null; } }
-const decisions = readJsonl(path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log')) || [];
-const ledger = readJsonl(path.join(os.homedir(), '.mooter', 'ledger.jsonl')) || [];
+const P6_DECISOES = process.env.P6_DECISIONS_LOG || path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log');
+const P6_LEDGER = process.env.P6_LEDGER || path.join(os.homedir(), '.mooter', 'ledger.jsonl');
+// R4: estes dois ficheiros sao a maquina VIVA do dono e nao viajam com o pacote. Antes, `readJsonl` engolia o
+// proprio erro (`catch { return null; }`) e o `|| []` transformava isso num array vazio — noutra maquina o corte A
+// dizia «0 de 0 eventos com custo e origem» e parecia uma medicao. Falha agora alto, e diz que ficheiro falta.
+const decisions = readJsonl(P6_DECISOES);
+const ledger = readJsonl(P6_LEDGER);
+for (const [nome, val, caminho, env] of [['decisions.log', decisions, P6_DECISOES, 'P6_DECISIONS_LOG'], ['ledger.jsonl', ledger, P6_LEDGER, 'P6_LEDGER']]) {
+  if (val === null) {
+    console.error(`P6: nao consegui ler ${nome} em ${caminho}`);
+    console.error(`Este corte le a maquina viva do dono e esse ficheiro nao viaja com o pacote. Aponta ${env} para o teu, ou corre so o corte B (--proto).`);
+    process.exit(2);
+  }
+}
 const hasCost = (x) => x.cost_usd !== undefined && x.cost_usd !== null && x.cost_usd !== 'n/d';
 const hasSource = (x) => typeof x.cost_source === 'string' && x.cost_source.length > 0;
 const hasTokens = (x) => (Number(x.tokens_in) || 0) > 0 || (Number(x.tokens_out) || 0) > 0 || (Number(x.prompt_eval_count) || 0) > 0;

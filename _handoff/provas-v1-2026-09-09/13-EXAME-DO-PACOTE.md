@@ -32,38 +32,38 @@ Os cinco estão corrigidos. **Nenhum era uma medição errada:** os cinco eram a
 | FW-02 | serious | `10-NAO-PROVADO.md` | Corrigido — mesma correcção, do lado do `10-NAO-PROVADO.md` |
 | FW-04 | serious | `08-PACOTE.md` | Corrigido — «nunca escolheu» passou a «0 de 40», com o contraste dos 20/20 quando o preço passa a 1e-9 |
 | FW-05 | serious | `08-PACOTE.md` | Corrigido — o mesmo no cartão inglês pronto a colar |
+| FW-06 | serious | `P8-cabeca-a-cabeca/slide.md` | Corrigido — as quatro células passaram a dizer o que foi lido na documentação do concorrente e o que não foi medido aqui |
 | FW-07 | serious | `P8-cabeca-a-cabeca/slide.md` | Corrigido — legenda a distinguir n/d de n/a; as sete n/a passaram a ter motivo, três delas eram n/d; e o título deixou de dizer «every cell measured or n/d» |
+| FW-08 | serious | `P8-cabeca-a-cabeca/slide.md` | Corrigido — a célula diz que o 20/20 mede o defeito D1 (sem chave a regra diz T0 a tudo), não uma escolha de routing |
+| FW-09 | serious | `P3-obediencia/slide.md` | Corrigido — «never called» passou a «nenhuma das 35 chamadas locais registadas carrega a assinatura do subagente», com o método da atribuição ao lado |
 | HI-01 | serious | `08-PACOTE.md` | Corrigido — o estado «P7 em curso» saiu dos quatro sítios |
 | HI-02 | serious | `P8-cabeca-a-cabeca/slide.md` | Corrigido — «0 tokens para decidir» passou a «0 tokens para classificar», com a pré-resposta local declarada |
 | HI-03 | serious | `P8-cabeca-a-cabeca/slide.md` | Corrigido — a célula do cliente nativo passou a n/a com motivo, e o número ficou etiquetado como custo de uma invocação inteira |
 | HI-04 | serious | `08-PACOTE.md` | Corrigido — junto com FW-04 |
 | HI-05 | serious | `P8-cabeca-a-cabeca/slide.md` | Corrigido — «Tie» passou a «não estabelecido, e é uma derrota impressa» |
+| HI-06 | serious | `P8-cabeca-a-cabeca/slide.md` | Corrigido — o rodapé da tabela passou a dizer que a vitória e a derrota principal são o mesmo comportamento: a regra alcança o tier gratuito facilmente **e demasiadas vezes** |
+| HI-07 | serious | `P1-decidir-custa-zero/slide.md` | Corrigido — o slide do P1 passou a nomear o ponto cego dos wrappers em processo e a limitar o alcance do «0 chamadas em 1 176 classificações» ao processo que classifica |
 | R3 | serious | `P5-atestacao-de-egress/results/A.json` | Corrigido — os dois tap.jsonl resgatados do %TEMP% para results/bruto-resgatado/ (defeito D13) |
+| R4 | serious | `P6-custo-na-linha/run.mjs` | Corrigido — overrides P6_DECISIONS_LOG e P6_LEDGER, e a falha deixou de ser silenciosa: em vez de «0 de 0 eventos» sai exit 2 a dizer que ficheiro falta (defeito D14) |
+| R5 | serious | `P5-atestacao-de-egress/run.mjs` | Corrigido — P5_HOOK aponta o hook que os braços A medem (defeito D14) |
 | R7 | serious | `P1-decidir-custa-zero/hook-events.mjs` | Corrigido — o decisions.log do home isolado do P1 resgatado do %TEMP% (defeito D13) |
 | S4 | serious | `08-PACOTE.md` | Corrigido — junto com HI-01 |
 | S5 | serious | `P1-decidir-custa-zero/slide.md` | Corrigido — o slide passou a imprimir o teste pré-registado dos 63 (p = 3,0×10⁻⁷) e os três estratos, com a explicação da pseudo-replicação |
 | HI-10 | minor | `P1-decidir-custa-zero/slide.md` | Corrigido — a linha do segundo motor de rótulos entrou no slide, e ela inverte o sinal contra a constante |
+| R11 | minor | `P3-obediencia/run.mjs` | Corrigido — o ROUTER_DIR do arreio passou a honrar P3_ROUTER_DIR, que ele próprio sobrescrevia no ambiente de cada filho (defeito D14) |
 | R12 | minor | `P2-o-tier-vale-alguma-coisa/run.mjs` | Corrigido — os cinco sítios passaram a aceitar PROVAS_CLAUDE_EXE |
 | S10 | minor | `P7-usar-vs-nao-usar/AMENDMENT-1.md` | Corrigido — 21 pares válidos, não 20, recontados a partir do ledger publicado |
+| S6 | minor | `P1-decidir-custa-zero/slide.md` | Corrigido — o método dos intervalos fica nomeado uma vez no índice: Wilson a 95 %, McNemar exacto, binomial exacto unilateral no P7 |
 
 ## Confirmados e NÃO corrigidos — ficam impressos
 
 | # | Grav. | Onde | O que fica por fazer |
 |---|---|---|---|
-| FW-06 | serious | `P8-cabeca-a-cabeca/slide.md` | Por corrigir — quatro células dizem «no classifier by design», que é a leitura «não tem» que a própria legenda proíbe |
-| FW-08 | serious | `P8-cabeca-a-cabeca/slide.md` | Por corrigir — o «20/20 T0 sem chave» aparece ao lado de um resultado de routing, e o pacote classifica-o noutro sítio como artefacto do defeito D1 |
-| FW-09 | serious | `P3-obediencia/slide.md` | Por corrigir — «never called the local model» é uma ausência inferida de uma classificação heurística, não observada |
 | FW-10 | serious | `08-PACOTE.md` | por triar |
-| HI-06 | serious | `P8-cabeca-a-cabeca/slide.md` | Por corrigir, e é o mais interessante que fica — a vitória «o tier a $0 é alcançável pela regra» e a derrota principal do P1 («a regra diz T0 em 31 de 40, e 13 desses são T2/T3») são o mesmo comportamento, e nenhuma página o diz |
-| HI-07 | serious | `P1-decidir-custa-zero/slide.md` | Por corrigir — o slide do P1 nomeia o ponto cego do tap e não nomeia o ponto cego idêntico dos wrappers em processo |
-| R4 | serious | `P6-custo-na-linha/run.mjs` | Por corrigir — o denominador do P6 (1 451 eventos) vem de dois ficheiros vivos da máquina do dono, sem override e com falha silenciosa (o catch devolve null e o || [] transforma isso em zero) |
-| R5 | serious | `P5-atestacao-de-egress/run.mjs` | Por corrigir — os braços A do P5 medem a cópia instalada do hook, não a do repositório, e não há override |
-| FW-11 | minor | `10-NAO-PROVADO.md` | Por corrigir — nuance sobre o −94 % do P6 |
+| FW-11 | minor | `10-NAO-PROVADO.md` | Por corrigir — nuance sobre a leitura do −94 % do P6 |
 | FW-12 | minor | `P6-custo-na-linha/slide.md` | Por corrigir — nuance de redacção no P6 |
-| HI-08 | minor | `P2-o-tier-vale-alguma-coisa/slide.md` | Por corrigir (metade refutada pelo verificador; a correcção que o achado propunha poria um erro no slide) |
+| HI-08 | minor | `P2-o-tier-vale-alguma-coisa/slide.md` | Por corrigir, e metade dele foi refutada pelo verificador: a correcção que o achado propunha poria um erro **novo** no slide do P2 |
 | HI-09 | minor | `P4-critico-nao-autor/slide.md` | Por corrigir — falta um marcador na frase de fronteira do P1 |
-| R11 | minor | `P3-obediencia/run.mjs` | Por corrigir — o P3_ROUTER_DIR parece um override e não é: o arreio sobrescreve-o no ambiente de cada filho |
-| S6 | minor | `P1-decidir-custa-zero/slide.md` | Por corrigir — nenhum slide nomeia «Wilson» ao dar os intervalos (só o do P1, desde hoje) |
 
 ## Refutados pelo verificador
 
