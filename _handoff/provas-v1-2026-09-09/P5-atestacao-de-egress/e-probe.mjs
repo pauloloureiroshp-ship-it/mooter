@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { startCountingProxy } = await import('file:///' + path.join(HERE, '..', 'lib', 'counting-proxy.mjs').split('\\').join('/'));
-const CLAUDE_EXE = path.join(process.env.APPDATA, 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+const CLAUDE_EXE = process.env.PROVAS_CLAUDE_EXE || path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'); // PROVAS_CLAUDE_EXE: sem isto o caminho e do Windows desta maquina e nao ha como reapontar (achado R12 do exame de 2026-09-09)
 const PROXY_VARS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'];
 const ARGS = ['-p', '--model', 'haiku', '--output-format', 'json', '--max-turns', '1', '--no-session-persistence', '--settings', '{"disableAllHooks":true}', '--disallowedTools', 'Bash,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,Task'];
 const variants = [['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'], ['HTTPS_PROXY'], []];

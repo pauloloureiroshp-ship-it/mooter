@@ -19,7 +19,7 @@ const has = (k) => args.includes(k);
 const now = () => new Date().toISOString();
 const save = (n, o) => { fs.mkdirSync(RES, { recursive: true }); fs.writeFileSync(path.join(RES, n), JSON.stringify(o, null, 1)); };
 const load = (n) => { try { return JSON.parse(fs.readFileSync(path.join(RES, n), 'utf8')); } catch { return null; } };
-const CLAUDE_EXE = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+const CLAUDE_EXE = process.env.PROVAS_CLAUDE_EXE || path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'); // PROVAS_CLAUDE_EXE: sem isto o caminho e do Windows desta maquina e nao ha como reapontar (achado R12 do exame de 2026-09-09)
 const fwd = (p) => p.split('\\').join('/');
 
 const { DIFF_SYSTEM_PROMPT } = await import('file:///' + fwd(path.join(ROOT, 'tools', 'cockpit', 'runner', 'context-pack.mjs')));

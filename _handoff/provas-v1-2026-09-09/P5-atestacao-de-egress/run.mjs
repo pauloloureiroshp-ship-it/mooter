@@ -36,7 +36,7 @@ const load = (n) => { try { return JSON.parse(fs.readFileSync(path.join(RES, n),
 const fwd = (p) => p.split('\\').join('/');
 const TAP = fwd(path.join(LIB, 'net-tap.cjs'));
 const HOOK_LIVE = path.join(os.homedir(), '.claude', 'tools', 'router', 'inject_context.js');
-const CLAUDE_EXE = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+const CLAUDE_EXE = process.env.PROVAS_CLAUDE_EXE || path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'); // PROVAS_CLAUDE_EXE: sem isto o caminho e do Windows desta maquina e nao ha como reapontar (achado R12 do exame de 2026-09-09)
 
 function prompts20() { return JSON.parse(fs.readFileSync(path.join(HERE, '..', 'P1-decidir-custa-zero', 'corpus-40.json'), 'utf8')).items.slice(0, 20); }
 function readTap(file) { try { return fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; } }

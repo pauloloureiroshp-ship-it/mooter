@@ -16,7 +16,14 @@
 
 **Why the two strata differ so much, stated so nobody has to guess:** the 23 R-24 prompts are **one template with the task swapped**, so they are close to a single observation repeated 23 times. The rule misses all 23 in the same direction; the judge catches all 23. That makes the 63-item p-value confident about something narrow — pseudo-replication inflates it — while the 40-prompt p-value is honest about a small, diverse sample. **Neither number flatters the rule.** The protocol anticipated this and required both to be printed separately; this card had printed only one.
 
-The rule under-tiers: T0 on 31 of 40 real prompts; both label engines put 13 of those at T2/T3. The "tie with an LLM router" measured on 2026-09-01 was a training-set number. On the 40, the judge is only 3 hits above the constant baseline. Agreement between the two label engines on the 40: Cohen's kappa 0.50 (no isolation claim beyond "two different engines"). Every interval on this card is a Wilson score interval at 95 %.
+The rule under-tiers: T0 on 31 of 40 real prompts; both label engines put 13 of those at T2/T3. The "tie with an LLM router" measured on 2026-09-01 was a training-set number. On the 40, the judge is only 3 hits above the constant baseline. Agreement between the two label engines on the 40: Cohen's kappa 0.50 — and that disagreement **flips the comparison against the constant baseline**, so it is printed here rather than left in the verdict file:
+
+| Scored against | Rule | Local 14B judge | Constant "always T2" |
+|---|---|---|---|
+| Label engine 1 (the card's headline), 40 prompts | 35.0 % [22.1, 50.5] | 52.5 % [37.5, 67.1] | **45.0 % [30.7, 60.2]** — beats the rule |
+| Label engine 2, same 40 prompts | **47.5 % [32.9, 62.5]** | 65.0 % [49.5, 77.9] | 27.5 % [16.1, 42.8] — loses to the rule |
+
+Both engines rank the judge first. **Whether the rule beats "always T2" depends on which engine you believe**, and neither is ground truth — which is exactly why this card does not claim the rule beats the baseline anywhere. Engine 2 labels the 40 as T0 17 / T1 1 / T2 11 / T3 11, so the constant is weaker against it by construction. (No isolation claim beyond "two different engines".) Every interval on this card is a Wilson score interval at 95 %.
 
 Competitors on this corpus: tzachbon hook abstains 63/63 (English-only intent gate; defect D4 in `09-DEFEITOS-APANHADOS.md`); one separately invoked fallback call recorded ~52k cached tokens and 5.97 s; none fired on this corpus. claude-code-router and LiteLLM have no complexity classifier: accuracy n/d by construction; egress compared in P5.
 

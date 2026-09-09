@@ -30,7 +30,7 @@ const load = (n) => { try { return JSON.parse(fs.readFileSync(path.join(RES, n),
 
 // partner-study: a copia dentro do pacote (byte a byte igual ao original; AMENDMENT-1, Correccao 2). P2_PARTNER sobrepoe.
 const PARTNER = process.env.P2_PARTNER || path.join(HERE, 'partner-study');
-const CLAUDE_EXE = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+const CLAUDE_EXE = process.env.PROVAS_CLAUDE_EXE || path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'); // PROVAS_CLAUDE_EXE: sem isto o caminho e do Windows desta maquina e nao ha como reapontar (achado R12 do exame de 2026-09-09)
 function cases() {
   const dev = JSON.parse(fs.readFileSync(path.join(PARTNER, 'protocol.json'), 'utf8')).cases.map((c) => ({ ...c, set: 'dev' }));
   const hold = JSON.parse(fs.readFileSync(path.join(HERE, 'holdout-10.json'), 'utf8')).cases.map((c) => ({ id: c.id, level: c.level, prompt: c.prompt, answer: c.answer, set: 'holdout' }));
