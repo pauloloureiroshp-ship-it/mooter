@@ -1,0 +1,50 @@
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P1",
+  "title": "Decidir custa zero — Mooter vs LLM-router vs proxies, no mesmo corpus",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T13:05:00Z",
+  "regra": "Nenhum numero deste ficheiro muda depois da primeira classificacao do corpus. Emendas so por AMENDMENT-n.md com o results.json vazio.",
+  "pergunta": "Quanto custa DECIDIR para onde vai um prompt (tokens, latencia, bytes que saem da maquina), e com que precisao contra um rotulo cego?",
+  "hashes": {
+    "corpus-63.json": "fba9ac4898cfe449f0bab66114337e9aac0ff9e0fc6dd592c57fe768dba9d40e",
+    "corpus-40.json": "761d5bb3571bd72019fd5efa20cabc690b55cf71a2077feabd4315b2fb44301e",
+    "labels-63.json": "0bc6edbbb5d94f6e491a8b5914ea23dbce545dc8a4ff1d7afda72d7646a17a9b",
+    "tools/router/validation-set.json": "8b8138c1fa220514683d4f63f510c7b61aa50c52fb63d9bbe0dfd646e43335d4",
+    "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+    "tools/router/patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5"
+  },
+  "corpus": {
+    "treino_35": "validation-set.json canonical+adversarial menos as 10 coautoradas (confidence_source mooter_review_*); so para calibracao, nunca para o numero do cartao",
+    "fora_de_treino_63": "40 prompts reais de setembro (anonimizados, seed 20260909) + 23 prompts do R-24 (template do manifest). O numero do cartao e sobre estes 63; os 40 e os 23 imprimem-se tambem em separado porque os 23 sao o mesmo template.",
+    "rotulos": "Codex CLI 0.153.4 as cegas, com a rubrica label-rubric.txt, ANTES de qualquer classificacao. Distribuicao: T0 11 · T1 3 · T2 41 (23 sao o R-24) · T3 8.",
+    "segundo_rotulador": "qwen3.6:27b local com a MESMA rubrica, so para kappa de Cohen; o rotulo que conta e o do Codex, sem excepcao"
+  },
+  "bracos": {
+    "A-key": "classify.js em processo (require + classify(prompt)), ANTHROPIC_API_KEY=presenca-falsa + MOOTER_ARBITER_DISABLE=1: a regra como foi desenhada (T1 nao degrada). 6 corridas.",
+    "A-nokey": "idem, sem nenhuma chave (o ambiente real desta maquina): T1 degrada para T0. 6 corridas.",
+    "A-spawn": "node classify.js <prompt> num processo filho por prompt, os dois ambientes — o que o hook faz num cache miss (classify_path: spawn). 6 corridas.",
+    "A-hook": "o hook completo (tools/router/inject_context.js do worktree) por stdin, HOME isolado (cache/log/budget num scratch): corrida 1 = cache miss, corridas 2-3 = cache hit. Imprimem-se os dois numeros.",
+    "B": "juiz LLM local qwen2.5-coder:14b via POST /api/chat, system 'Responde só com T0, T1, T2 ou T3.', PROMPT_JUIZ de tools/ab/mooter-vs-sem.mjs:228-246 (copiado verbatim), temperature 0, num_predict 8, think:false, keep_alive -1. 3 corridas; a corrida 1 e a que conta; as outras medem determinismo.",
+    "C": "musistudio/claude-code-router 3.0.22: NAO tem classificador de complexidade (routing = condicoes header/body, scripts Node.js do utilizador, ou tag <CCR-SUBAGENT-MODEL> escolhida pelo proprio modelo). Precisao = n/d por construcao. Tokens/egress para decidir medem-se no P5, se a configuracao headless for possivel em 60 min.",
+    "D": "tzachbon/claude-model-router-hook @f687111e: heuristica Python (taxonomy.classify) + cli_fallback (claude -p --model haiku, tecto 8 s) para prompts pouco confiantes. Duas passagens: heuristica pura; e com cli_fallback ligado, contando quantas vezes dispara, quantas expiram e quantos tokens custa uma chamada real (1 chamada instrumentada com --output-format json).",
+    "E": "LiteLLM 1.100.0 proxy com routing por custo: NAO tem classificador de complexidade (escolhe o deployment mais barato do MESMO grupo de modelo). Precisao = n/d por construcao. Egress mede-se no P5."
+  },
+  "mapeamento_tzachbon_para_tiers": {
+    "exacto": { "mechanical": "T1", "implementation": "T3", "debugging": "T3", "architecture": "T3", "extreme": "T3", "abstain": "sem decisao (fora do denominador, contado)" },
+    "binario": { "barato": ["T0", "T1"], "caro": ["T2", "T3"], "tz_barato": ["mechanical"], "tz_caro": ["implementation", "debugging", "architecture", "extreme"] },
+    "nota": "O mapeamento e NOSSO, nao deles: o tzachbon so distingue haiku de opus. Por isso imprime-se o exacto E o binario."
+  },
+  "metricas": {
+    "precisao": "acertos/n com IC de Wilson 95%, para 63, 40 e 23; por braco; matriz de confusao por tier",
+    "teste_principal": "McNemar exacto DIRECCIONAL sobre os 63: H1 = precisao(A-key) > precisao(B); p = P(X >= b | b+c, 0.5); alfa 0,05. Imprime-se tambem a p no sentido oposto e a bilateral.",
+    "tokens_para_decidir": "A: chamadas ao Ollama contadas por um stub HTTP em OLLAMA_HOST + wrappers em http/https/fetch (tem de ser 0 MEDIDO, nao afirmado). B: prompt_eval_count + eval_count por prompt, do proprio Ollama. D: chamadas ao claude -p contadas; tokens de 1 chamada real.",
+    "latencia": "A-inproc p50/p95 (regra); A-spawn p50/p95 (processo); A-hook miss vs hit. Todas em ms de relogio monotonico. Denominador declarado em cada numero.",
+    "determinismo": "A: as 6 corridas tem de ser byte-identicas por prompt (senao a prova e nula). B: taxa de acordo entre as 3 corridas.",
+    "egress_para_decidir": "A: 0 hosts externos contactados durante classify() (wrappers). A-hook: hosts contactados pelo hook em HOME isolado (esperado: 0 — sem credenciais nao ha budget fetch; a producao faz 1 fetch de orcamento a api.anthropic.com por expiracao de cache de 5 min, sem bytes de prompt — declarado, medido no P5)."
+  },
+  "regra_de_paragem": "Falha de servico (Ollama em baixo, claude -p a falhar) -> parar e reter o que existe. 0 retries. Nunca 'melhor de N'.",
+  "expectativa_honesta": "precisao: EMPATE A vs B (treino: 29/35 vs 29/35 a 2026-09-01). tokens: 0 vs centenas/prompt. latencia: A regra ~1 ms, A processo ~100+ ms — os dois numeros. C e E: n/d na precisao, porque nao classificam.",
+  "nao_prova": ["valor comercial", "obediencia (P3)", "nada sobre prompts > 4 k tokens", "que o rotulo do Codex e a verdade — e um rotulo cego, com kappa contra um 2o rotulador"],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P1-decidir-custa-zero/run.mjs --all && node _handoff/provas-v1-2026-09-09/P1-decidir-custa-zero/run.mjs --analyse"
+}

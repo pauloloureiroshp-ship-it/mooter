@@ -1909,3 +1909,21 @@ test('a `medicao` de cada pilar e coerente com ela propria', async () => {
     assert.ok(lidos <= candidatos, `${id}: ${lidos} lidos de ${candidatos} candidatos — amostra maior que o universo`);
   }
 });
+
+test('checkCitation refuta a linha N+1 num ficheiro de N linhas terminado em newline (2026-09-09)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ev-off-by-one-'));
+  fs.writeFileSync(path.join(dir, 'three.txt'), 'a\nb\nc\n');
+  const ok = checkCitation(dir, { file: 'three.txt', line: 3 });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.snippet, 'c');
+  const bad = checkCitation(dir, { file: 'three.txt', line: 4 });
+  assert.equal(bad.ok, false, 'a linha 4 nao existe num ficheiro de 3 linhas');
+  assert.match(bad.reason, /linha-fora-do-ficheiro \(tem 3\)/);
+  // Sem newline final, o mesmo numero de linhas.
+  fs.writeFileSync(path.join(dir, 'three-nonl.txt'), 'a\nb\nc');
+  assert.equal(checkCitation(dir, { file: 'three-nonl.txt', line: 3 }).ok, true);
+  assert.equal(checkCitation(dir, { file: 'three-nonl.txt', line: 4 }).ok, false);
+  // Ficheiro vazio tem zero linhas.
+  fs.writeFileSync(path.join(dir, 'empty.txt'), '');
+  assert.equal(checkCitation(dir, { file: 'empty.txt', line: 1 }).ok, false);
+});

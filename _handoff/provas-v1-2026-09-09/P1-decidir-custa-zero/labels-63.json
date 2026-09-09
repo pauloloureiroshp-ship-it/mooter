@@ -1,0 +1,394 @@
+{
+ "_schema": "provas-v1/labels-63",
+ "_labeler": "Codex CLI 0.153.4 (codex exec, sandbox read-only, cwd=scratchpad sem acesso ao repo), 5 lotes de <=13, schema JSON forcado",
+ "_rubric_sha256": "f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091",
+ "_labeled_at": "2026-09-09T12:54:45.859Z",
+ "_blind": "rotulado ANTES de qualquer classificacao do corpus por qualquer braco",
+ "_distribution": {
+  "T2": 41,
+  "T0": 11,
+  "T1": 3,
+  "T3": 8
+ },
+ "_missing": [],
+ "labels": [
+  {
+   "id": "n01",
+   "tier": "T2",
+   "reason": "Avaliar oportunidades de paralelização segura entre agentes exige planeamento.",
+   "batch": 1
+  },
+  {
+   "id": "n02",
+   "tier": "T2",
+   "reason": "Validar funcionamento e investigar aprovações exige diagnóstico do fluxo.",
+   "batch": 1
+  },
+  {
+   "id": "n03",
+   "tier": "T0",
+   "reason": "Coordenação simples sobre a intervenção necessária do utilizador.",
+   "batch": 1
+  },
+  {
+   "id": "n04",
+   "tier": "T2",
+   "reason": "Confirmar uma hipótese exige investigação e avaliação de evidências.",
+   "batch": 1
+  },
+  {
+   "id": "n05",
+   "tier": "T2",
+   "reason": "Executar e interpretar uma experiência exige raciocínio.",
+   "batch": 1
+  },
+  {
+   "id": "n06",
+   "tier": "T0",
+   "reason": "Pedido mecânico de notificação e registo após conclusão.",
+   "batch": 1
+  },
+  {
+   "id": "n07",
+   "tier": "T2",
+   "reason": "Iniciar uma frente isolável exige delimitação e planeamento técnico.",
+   "batch": 1
+  },
+  {
+   "id": "n08",
+   "tier": "T2",
+   "reason": "Avaliar UX e propor feedback de progresso exige comparar soluções.",
+   "batch": 1
+  },
+  {
+   "id": "n09",
+   "tier": "T1",
+   "reason": "Ler um ficheiro e produzir um resumo curto.",
+   "batch": 1
+  },
+  {
+   "id": "n10",
+   "tier": "T0",
+   "reason": "Atualização mecânica de atribuição no índice.",
+   "batch": 1
+  },
+  {
+   "id": "n11",
+   "tier": "T2",
+   "reason": "Executar um ensaio contra Ollama exige interpretar resultados.",
+   "batch": 1
+  },
+  {
+   "id": "n12",
+   "tier": "T3",
+   "reason": "A correção abrange explicitamente mais de três ficheiros.",
+   "batch": 1
+  },
+  {
+   "id": "n13",
+   "tier": "T2",
+   "reason": "Continuar waves implica executar trabalho técnico, sem risco elevado explícito.",
+   "batch": 1
+  },
+  {
+   "id": "n14",
+   "tier": "T3",
+   "reason": "Inclui deploy e alterações potencialmente abrangentes.",
+   "batch": 2
+  },
+  {
+   "id": "n15",
+   "tier": "T1",
+   "reason": "Pede uma explicação breve dos próximos passos.",
+   "batch": 2
+  },
+  {
+   "id": "n16",
+   "tier": "T3",
+   "reason": "Unificação visual em oito páginas implica alteração de múltiplos ficheiros.",
+   "batch": 2
+  },
+  {
+   "id": "n17",
+   "tier": "T3",
+   "reason": "Pedido explícito de merge força T3.",
+   "batch": 2
+  },
+  {
+   "id": "n18",
+   "tier": "T0",
+   "reason": "Coordenação operacional para iniciar o necessário antes da atualização.",
+   "batch": 2
+  },
+  {
+   "id": "n19",
+   "tier": "T3",
+   "reason": "Inclui investigação e resolução até à publicação.",
+   "batch": 2
+  },
+  {
+   "id": "n20",
+   "tier": "T2",
+   "reason": "Pede vários fixes sem evidência de alterações em muitos ficheiros.",
+   "batch": 2
+  },
+  {
+   "id": "n21",
+   "tier": "T2",
+   "reason": "Implementar um portão de existência exige raciocínio técnico.",
+   "batch": 2
+  },
+  {
+   "id": "n22",
+   "tier": "T3",
+   "reason": "Pede avaliação e execução até à publicação no GitHub.",
+   "batch": 2
+  },
+  {
+   "id": "n23",
+   "tier": "T0",
+   "reason": "Execução direta de um comando existente, sem análise solicitada.",
+   "batch": 2
+  },
+  {
+   "id": "n24",
+   "tier": "T0",
+   "reason": "Coordenação simples sobre necessidade de intervenção do utilizador.",
+   "batch": 2
+  },
+  {
+   "id": "n25",
+   "tier": "T2",
+   "reason": "Medir o custo exige investigação e interpretação antes de programar.",
+   "batch": 2
+  },
+  {
+   "id": "n26",
+   "tier": "T0",
+   "reason": "Pede apenas apresentação do resultado quando o trabalho terminar.",
+   "batch": 2
+  },
+  {
+   "id": "n27",
+   "tier": "T0",
+   "reason": "Troca mecânica de elementos, sem análise ou risco indicado.",
+   "batch": 3
+  },
+  {
+   "id": "n28",
+   "tier": "T1",
+   "reason": "Registar informação em dois destinos é uma pequena tarefa textual.",
+   "batch": 3
+  },
+  {
+   "id": "n29",
+   "tier": "T3",
+   "reason": "Avaliar prontidão para deploy de funcionalidades em produção.",
+   "batch": 3
+  },
+  {
+   "id": "n30",
+   "tier": "T2",
+   "reason": "Interpretar teste A/B, comparar resultados e recomendar melhorias.",
+   "batch": 3
+  },
+  {
+   "id": "n31",
+   "tier": "T2",
+   "reason": "Identificar trabalho pendente e coordenar a continuação exige planeamento.",
+   "batch": 3
+  },
+  {
+   "id": "n32",
+   "tier": "T2",
+   "reason": "Comparar concorrência, avaliar resultados e recomendar próximos passos.",
+   "batch": 3
+  },
+  {
+   "id": "n33",
+   "tier": "T2",
+   "reason": "Avaliar funcionamento e planear uma auditoria autónoma do trabalho.",
+   "batch": 3
+  },
+  {
+   "id": "n34",
+   "tier": "T2",
+   "reason": "Inspecionar recursos disponíveis e fundamentar uma recomendação.",
+   "batch": 3
+  },
+  {
+   "id": "n35",
+   "tier": "T0",
+   "reason": "Pedido de comunicação quando o trabalho terminar.",
+   "batch": 3
+  },
+  {
+   "id": "n36",
+   "tier": "T0",
+   "reason": "Coordenação simples sobre o próximo passo, sem investigação explícita.",
+   "batch": 3
+  },
+  {
+   "id": "n37",
+   "tier": "T0",
+   "reason": "Correção pontual de um passo, sem complexidade ou risco indicado.",
+   "batch": 3
+  },
+  {
+   "id": "n38",
+   "tier": "T2",
+   "reason": "Preparar handoff com plano de execução autónoma exige decomposição.",
+   "batch": 3
+  },
+  {
+   "id": "n39",
+   "tier": "T3",
+   "reason": "Escrever testes e integrá-los no CI força T3.",
+   "batch": 3
+  },
+  {
+   "id": "n40",
+   "tier": "T2",
+   "reason": "Executar teste local e interpretar evidências de telemetria no ledger.",
+   "batch": 4
+  },
+  {
+   "id": "r01",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r02",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r03",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r04",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r05",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r06",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r07",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r08",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r09",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r10",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r11",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r12",
+   "tier": "T2",
+   "reason": "Investigar falha e corrigir código mantendo testes e ficheiros congelados.",
+   "batch": 4
+  },
+  {
+   "id": "r13",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r14",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r15",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r16",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r17",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r18",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r19",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r20",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r21",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r22",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  },
+  {
+   "id": "r23",
+   "tier": "T2",
+   "reason": "Investigar teste falhado e corrigir código, respeitando ficheiros congelados.",
+   "batch": 5
+  }
+ ]
+}

@@ -125,7 +125,12 @@ export function checkCitation(repoRoot, { file, line }) {
   } catch {
     return { file, line, ok: false, reason: 'ficheiro-inexistente', snippet: null };
   }
-  const lines = raw.split('\n');
+  // Um ficheiro de N linhas terminado em newline parte-se em N+1 pedacos —
+  // o ultimo e vazio e nao e linha nenhuma. Medido 2026-09-09: `a\nb\nc\n`
+  // aceitava a linha 4 com snippet "". Um verificador que aceita uma linha
+  // que nao existe nao e um verificador.
+  const lines = raw === '' ? [] : raw.split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
   if (line > lines.length) {
     return {
       file,

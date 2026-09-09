@@ -1,0 +1,258 @@
+{
+ "_schema": "provas-v1/preflight/1",
+ "generated_at": "2026-09-09T12:50:12.252Z",
+ "owner_tz": "America/Sao_Paulo",
+ "machine": {
+  "host": "desktop-j26409q",
+  "os": "Windows 11 Pro 10.0.26200",
+  "cpu": "AMD Ryzen 9 7950X 16-Core (32 threads)",
+  "ram_gb": 63.2,
+  "gpu": "NVIDIA GeForce RTX 4090 23028 MiB, driver 610.88",
+  "power_idle_w": {
+   "samples": [
+    34.43,
+    34.41,
+    34.18,
+    34.55,
+    34.53
+   ],
+   "n": 5,
+   "interval_s": 10,
+   "note": "2.3 GB VRAM residentes (qwen2.5:3b carregado por outro processo); so para relatar, nunca para poupanca de energia",
+   "tag": "[measured]"
+  }
+ },
+ "git": {
+  "worktree": "C:/Users/Paulo Loureiro/frugal/.claude/worktrees/pacote-provas-v1-255558",
+  "branch": "claude/pacote-provas-v1-255558",
+  "head": "3a594bf7413976f9265f47483e4bb3c0b911e15a",
+  "origin_main": "3a594bf7413976f9265f47483e4bb3c0b911e15a",
+  "clean_at_start": true,
+  "nota": "O MP pedia um worktree wt-provas-v1; a app ja tinha criado este a partir de origin/main (mesmo HEAD). Usado este; nao se tocou no worktree do Codex (codex/sentia-slack-staging-20260908) nem no checkout principal (feat/r24-controlador)."
+ },
+ "frozen": {
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "tools/router/patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5",
+  "verified_at_start": true
+ },
+ "pr_486": {
+  "state": "OPEN",
+  "mergeable": "MERGEABLE",
+  "head": "feat/r24-controlador@0575c5cc",
+  "checks": "22/22 SUCCESS",
+  "files": [
+   "tools/ab/correr-r24.mjs",
+   "tools/ab/mooter-use-ab.mjs",
+   "tools/ab/r24-prereg.json",
+   "tools/ab/r24-manifest.json",
+   "tools/router/budget-cap.js",
+   "tools/router/inject_context.js",
+   "..."
+  ]
+ },
+ "versions": {
+  "node": "v24.14.0",
+  "npm": "11.9.0",
+  "ollama": "0.33.3",
+  "claude_code": "2.1.224",
+  "codex_cli": "0.153.4",
+  "python": "3.12.10",
+  "pip": "26.2.1"
+ },
+ "ollama_models": [
+  {
+   "name": "qwen2.5-coder:14b",
+   "size": "9.0 GB"
+  },
+  {
+   "name": "qwen3.6:35b-a3b",
+   "size": "23 GB"
+  },
+  {
+   "name": "qwen3.6:27b",
+   "size": "17 GB"
+  },
+  {
+   "name": "qwen2.5-coder:7b",
+   "size": "4.7 GB"
+  },
+  {
+   "name": "qwen3:30b",
+   "size": "18 GB"
+  },
+  {
+   "name": "nomic-embed-text",
+   "size": "274 MB"
+  },
+  {
+   "name": "gemma4:e4b",
+   "size": "9.6 GB"
+  },
+  {
+   "name": "deepseek-r1:7b",
+   "size": "4.7 GB"
+  },
+  {
+   "name": "gemma3:12b",
+   "size": "8.1 GB"
+  },
+  {
+   "name": "qwen2.5:3b",
+   "size": "1.9 GB"
+  }
+ ],
+ "gpt_oss_20b_installed": false,
+ "engines": {
+  "codex": {
+   "available": true,
+   "test": "codex exec 'responde apenas com a palavra banana' -> banana, exit 0, 29 721 tokens (contexto do sistema), websocket 503 x5 com fallback HTTPS",
+   "tag": "[measured]",
+   "billing": "subscricao"
+  },
+  "kimi": {
+   "available": true,
+   "probe": {
+    "model": "kimi-k3",
+    "input_tokens": 92,
+    "output_tokens": 45,
+    "ms": 3778,
+    "cost_usd": "n/d (calculateCost devolve null: usage sem detalhe de cache)",
+    "list_price_estimate_usd": "<0.001 (92*3+45*15 por M)"
+   },
+   "billing": "API paga (MOONSHOT_API_KEY) - R7: usada SO nesta sonda explicita do paragrafo 1.2; NAO e o adversario",
+   "tag": "[measured]"
+  },
+  "claude_max": {
+   "available": true,
+   "nested_p_test": "claude -p 'reply with the single word banana' --model haiku -> banana, exit 0, 12 920 ms, com CLAUDECODE=1 no ambiente",
+   "tag": "[measured]"
+  },
+  "ollama": {
+   "available": true,
+   "warm_call": {
+    "model": "qwen2.5-coder:14b",
+    "prompt_eval_count": 58,
+    "eval_count": 3,
+    "load_ms": 2301,
+    "total_ms": 2431
+   },
+   "concurrent_user_at_start": "qwen2.5:3b residente (runner.lock PID 55220 morto = lock obsoleto); nenhum runner activo detectado",
+   "tag": "[measured]"
+  }
+ },
+ "keys_present_names_only": {
+  "ANTHROPIC_API_KEY": false,
+  "OPENAI_API_KEY": false,
+  "GEMINI_API_KEY": false,
+  "DEEPSEEK_API_KEY": false,
+  "MOONSHOT_API_KEY": true,
+  "OLLAMA_HOST": true,
+  "MOOTER_ARBITER_DISABLE": false
+ },
+ "classify_key_effect": {
+  "lines": "tools/router/classify.js:885-912",
+  "rule": "sem ANTHROPIC_API_KEY e sem qualquer provider T1 (DEEPSEEK/GEMINI|GOOGLE/MISTRAL/OPENAI): T1 -> T0 com escalation_rule=haiku_unavailable_no_provider_degraded_to_local (ou T1 -> T2 se quality_intent). Com chave: T1 mantem-se, excepto trivialOnlyT1 (so LOW_RISK) que fica T0.",
+  "consequence_for_P1": "o braco A e corrido em dois ambientes: A-nokey (esta maquina, real) e A-key (ANTHROPIC_API_KEY=presenca-falsa + MOOTER_ARBITER_DISABLE=1); os dois numeros imprimem-se",
+  "arbiter_switch_real_name": "MOOTER_ARBITER_DISABLE=1 (o MP escreveu MOOTER_ARBITER=off; esse nome nao existe no codigo)"
+ },
+ "connector_installed": {
+  "path": "%APPDATA%/Claude/Claude Extensions/local.mcpb.paulo-loureiro.mooter/manifest.json",
+  "version": "1.49.4",
+  "published": "1.53.0 (packages/mooter-bridge/version.json, 2026-09-01)",
+  "action": "NAO actualizado (gesto do dono)"
+ },
+ "runtime_hook_wired": {
+  "UserPromptSubmit": "~/.claude/tools/router/inject_context.js (copia runtime, NAO o worktree)",
+  "note": "a copia runtime tem o applyBudgetCap antigo (compara objecto com numero); budget-cap.js do PR #486 nao existe na runtime"
+ },
+ "competitors": {
+  "musistudio/claude-code-router": {
+   "version": "3.0.22 (npm, publicado 2026-08-24)",
+   "upstream_head": "5ad5083b 2026-09-01",
+   "stars": 37151,
+   "installed_to": "scratchpad/ccr (npm --prefix, isolado)",
+   "exit": 0,
+   "config_status": "PENDENTE - v3 guarda a configuracao em SQLite (%APPDATA%/claude-code-router/config.sqlite) editada pela UI/RPC; routing = condicoes header/body, scripts Node.js, ou tag <CCR-SUBAGENT-MODEL> escolhida pelo proprio modelo; nao ha classificador de complexidade proprio",
+   "started_at": "2026-09-09T12:50:12.252Z"
+  },
+  "tzachbon/claude-model-router-hook": {
+   "pinned_sha": "f687111e1bd1947df23d676354afc99467294a39 (2026-08-29)",
+   "stars": 79,
+   "installed_to": "scratchpad/tzachbon (git clone)",
+   "platform_badge": "macOS | Linux (README)",
+   "what_had_to_be_configured": [
+    "hooks.json invoca python3; no Windows so existe python (o alias python3 e o stub da Store) -> os hooks sao invocados directamente com python",
+    "config ~/.claude/model-router.json isolada via USERPROFILE/HOME de scratch: apply_mode=warn (default) para nunca escrever o settings.json do dono",
+    "classifier.cli_fallback=true por omissao chama claude -p --model haiku para prompts ambiguos",
+    "o hook sai 0 em silencio se nao conhecer o modelo actual da sessao (ladder.detect_tier) - e preciso fornecer o modelo corrente"
+   ],
+   "status": "clonado; execucao directa dos hooks por stdin",
+   "started_at": "2026-09-09T12:50:12.252Z"
+  },
+  "LiteLLM": {
+   "version": "1.100.0 (pip --target scratchpad/litellm-site)",
+   "venv_note": "python -m venv falhou (ensurepip) -> instalado com pip --target",
+   "import_status": "ver P1/manifest.json",
+   "started_at": "2026-09-09T12:50:12.252Z"
+  }
+ },
+ "corpus": {
+  "validation_set": {
+   "file": "tools/router/validation-set.json",
+   "total": 70,
+   "canonical": 20,
+   "adversarial": 25,
+   "historical": 25,
+   "note": "o MP fala em 35 rotulos: sao canonical+adversarial (45) menos 10 coautoradas (mooter_review_1|2), como em tools/ab/mooter-vs-sem.mjs; historical sao auto-rotulados e ficam de fora"
+  },
+  "r24_prompts": {
+   "n": 23,
+   "from": "origin/feat/r24-controlador:tools/ab/r24-manifest.json (template + test_file + cmd)",
+   "note": "23 prompts do mesmo template; classificacao quase identica entre eles - reportado a parte"
+  },
+  "new_40": {
+   "pool": 360,
+   "eligible": 298,
+   "seed": 20260909,
+   "source": "~/.claude/projects/**/*.jsonl com mtime >= 2026-09-01, turnos user, sem tool_result, 20-500 chars, sem colagens",
+   "redaction": [
+    "caminhos do home -> ~",
+    "nome do dono -> <owner>",
+    "emails -> <email>",
+    "tokens -> <redacted>"
+   ],
+   "labels": "por Codex, as cegas, antes de qualquer classificacao (ver P1/labels-63.json)",
+   "sha256_corpus_40": "761d5bb3571bd72019fd5efa20cabc690b55cf71a2077feabd4315b2fb44301e",
+   "sha256_corpus_63": "fba9ac4898cfe449f0bab66114337e9aac0ff9e0fc6dd592c57fe768dba9d40e"
+  }
+ },
+ "defects_found_in_preflight": [
+  {
+   "id": "D1",
+   "title": "budget cap tapa um prompt HIGH-RISK para T0 com 10% de orcamento gasto (invariante do piso T3 violado no runtime vivo)",
+   "repro": "echo {\"prompt\":\"git push --force origin main and deploy to prod now\"} | MOOTER_DECISIONS_LOG=<tmp> node ~/.claude/tools/router/inject_context.js -> risk_level: high, tier: T0, max_tier: T0, escalation: budget_cap",
+   "cause": "~/.claude/tools/router/inject_context.js applyBudgetCap compara budget.five_hour (objecto {utilization:10,...} desde 2026-05-07) com numeros -> todas as comparacoes false -> maxTier=T0; subscription-profile diz unknown, logo a isencao Max nao salva",
+   "status": "diagnosticado no PR #486 (2026-09-05, budget-cap.js) mas o PR esta por fundir e a runtime nao foi sincronizada: VIVO nesta maquina a 2026-09-09; visto no proprio router-hint desta sessao (max_tier: T0 num T3 cross_file_change)",
+   "second_defect": "mesmo com o budget-cap.js do PR, utilizacao >= 85% tapa HIGH_RISK para T0: nem a versao antiga nem a nova tem piso de risco no cap",
+   "tag": "[measured]"
+  },
+  {
+   "id": "D2",
+   "title": "evidence-verifier aceita a linha N+1 num ficheiro de N linhas terminado em newline",
+   "repro": "printf 'a\\nb\\nc\\n' > three.txt; checkCitation(root,{file:'three.txt',line:4}) -> ok:true, snippet:'' (reason diz 'tem 4')",
+   "cause": "raw.split('\\n') conta o vazio final como linha",
+   "status": "corrigido neste worktree (tools/cockpit/runner/evidence-verifier.mjs) com teste que morde em runner-core.test.mjs; pre-requisito do P4",
+   "tag": "[measured]"
+  }
+ ],
+ "budget": {
+  "paid_cloud_api_usd_so_far": "~0.0004 (sonda Kimi de 137 tokens, pedida no paragrafo 1.2)",
+  "subscription_calls_at_preflight": {
+   "codex": 1,
+   "claude_p": 1
+  },
+  "ollama_calls_at_preflight": 1,
+  "clock_started_at": "2026-09-09T12:31Z (UTC)",
+  "clock_ceiling_h": 72
+ }
+}
