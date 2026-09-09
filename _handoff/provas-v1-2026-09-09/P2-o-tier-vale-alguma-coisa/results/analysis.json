@@ -1,5 +1,5 @@
 {
- "at": "2026-09-09T13:10:57.268Z",
+ "at": "2026-09-09T13:19:34.881Z",
  "facto_previo": {
   "local_failures": [
    "L3-a",
@@ -61,54 +61,70 @@
  },
  "B_tier": {
   "all20": {
-   "k": 5,
-   "n": 9,
-   "p": 0.5555555555555556,
-   "lo": 0.26665129180087416,
-   "hi": 0.8112214802294544
+   "k": 17,
+   "n": 20,
+   "p": 0.85,
+   "lo": 0.6395811333571357,
+   "hi": 0.9476312545132735
   },
   "dev": {
-   "k": 2,
-   "n": 5,
-   "p": 0.4,
-   "lo": 0.11762077314099717,
-   "hi": 0.7692757205908813
+   "k": 8,
+   "n": 10,
+   "p": 0.8,
+   "lo": 0.49016246912213235,
+   "hi": 0.943317849062233
   },
   "holdout": {
-   "k": 3,
-   "n": 4,
-   "p": 0.75,
-   "lo": 0.3006418400969081,
-   "hi": 0.954412739704631
+   "k": 9,
+   "n": 10,
+   "p": 0.9,
+   "lo": 0.5958499704752279,
+   "hi": 0.982123787103926
   },
-  "solved_of_local_failures": 0,
+  "solved_of_local_failures": 10,
   "of": 13
  },
  "C_haiku": {
   "all20": {
-   "k": 0,
-   "n": 4,
-   "p": 0,
-   "lo": 0,
-   "hi": 0.4898908403969213
+   "k": 19,
+   "n": 20,
+   "p": 0.95,
+   "lo": 0.7638688045357189,
+   "hi": 0.9911185512976646
   },
   "dev": {
-   "k": 0,
-   "n": 4,
-   "p": 0,
-   "lo": 0,
-   "hi": 0.4898908403969213
+   "k": 9,
+   "n": 10,
+   "p": 0.9,
+   "lo": 0.5958499704752279,
+   "hi": 0.982123787103926
   },
   "holdout": {
-   "k": 0,
-   "n": 0,
-   "p": null,
-   "lo": null,
-   "hi": null
+   "k": 10,
+   "n": 10,
+   "p": 1,
+   "lo": 0.7224671969739421,
+   "hi": 0.9999999999999999
   },
-  "solved_of_local_failures": 0
+  "solved_of_local_failures": 12
  },
  "mcnemar_B_gt_A_all20": {
+  "b": 10,
+  "c": 0,
+  "n": 10,
+  "p_one_sided_A_gt_B": 0.0009765625,
+  "p_one_sided_B_gt_A": 1,
+  "p_two_sided": 0.001953125
+ },
+ "mcnemar_B_gt_A_holdout": {
+  "b": 6,
+  "c": 0,
+  "n": 6,
+  "p_one_sided_A_gt_B": 0.015625000000000007,
+  "p_one_sided_B_gt_A": 1,
+  "p_two_sided": 0.031250000000000014
+ },
+ "mcnemar_B_vs_C_all20": {
   "b": 0,
   "c": 2,
   "n": 2,
@@ -116,28 +132,11 @@
   "p_one_sided_B_gt_A": 0.25,
   "p_two_sided": 0.5
  },
- "mcnemar_B_gt_A_holdout": {
-  "b": 0,
-  "c": 0,
-  "n": 0,
-  "p_one_sided_A_gt_B": 1,
-  "p_one_sided_B_gt_A": 1,
-  "p_two_sided": 1,
-  "note": "sem pares discordantes"
- },
- "mcnemar_B_vs_C_all20": {
-  "b": 2,
-  "c": 0,
-  "n": 2,
-  "p_one_sided_A_gt_B": 0.25,
-  "p_one_sided_B_gt_A": 1,
-  "p_two_sided": 0.5
- },
  "haiku_tokens_mean": {
-  "n": 2,
+  "n": 20,
   "in": 10,
-  "out": 1063.5,
-  "cache_read": 8050.5
+  "out": 794.05,
+  "cache_read": 17717.85
  },
  "rows": [
   {
@@ -149,11 +148,11 @@
    "A_local": true,
    "B_tier": true,
    "B_via": "local (T0)",
-   "C_haiku": false,
+   "C_haiku": true,
    "haiku_tokens": {
     "in": 10,
-    "out": 1009,
-    "cache_read": 0
+    "out": 142,
+    "cache_read": 48096
    }
   },
   {
@@ -165,11 +164,11 @@
    "A_local": true,
    "B_tier": true,
    "B_via": "local (T0)",
-   "C_haiku": false,
+   "C_haiku": true,
    "haiku_tokens": {
     "in": 10,
-    "out": 1118,
-    "cache_read": 16101
+    "out": 211,
+    "cache_read": 16119
    }
   },
   {
@@ -179,10 +178,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": true,
-   "B_tier": false,
+   "B_tier": true,
    "B_via": "haiku",
-   "C_haiku": false,
-   "haiku_tokens": null
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 252,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L2-b",
@@ -191,10 +194,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": true,
-   "B_tier": false,
+   "B_tier": true,
    "B_via": "haiku",
-   "C_haiku": false,
-   "haiku_tokens": null
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 283,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L3-a",
@@ -203,10 +210,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 187,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L3-b",
@@ -217,8 +228,12 @@
    "A_local": false,
    "B_tier": false,
    "B_via": "local (T0)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 292,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L4-a",
@@ -227,10 +242,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 384,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L4-b",
@@ -239,10 +258,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": false,
+   "B_via": "haiku",
+   "C_haiku": false,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 460,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L5-a",
@@ -251,10 +274,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 1965,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L5-b",
@@ -263,10 +290,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 5435,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L1-c",
@@ -277,8 +308,12 @@
    "A_local": true,
    "B_tier": true,
    "B_via": "local (T0)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 176,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L1-d",
@@ -289,8 +324,12 @@
    "A_local": true,
    "B_tier": true,
    "B_via": "local (T0)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 147,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L2-c",
@@ -301,8 +340,12 @@
    "A_local": true,
    "B_tier": true,
    "B_via": "local (T0)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 261,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L2-d",
@@ -311,10 +354,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 216,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L3-c",
@@ -323,10 +370,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 183,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L3-d",
@@ -337,8 +388,12 @@
    "A_local": false,
    "B_tier": false,
    "B_via": "local (T0)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 173,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L4-c",
@@ -347,10 +402,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 782,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L4-d",
@@ -359,10 +418,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 517,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L5-c",
@@ -371,10 +434,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 2246,
+    "cache_read": 16119
+   }
   },
   {
    "id": "L5-d",
@@ -383,10 +450,14 @@
    "tier_key": "T1",
    "tier_nokey": "T0",
    "A_local": false,
-   "B_tier": null,
-   "B_via": "haiku (nao corrido)",
-   "C_haiku": null,
-   "haiku_tokens": null
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 1569,
+    "cache_read": 16119
+   }
   }
  ]
 }

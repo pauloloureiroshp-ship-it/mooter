@@ -56,7 +56,7 @@ function checkFrozen() {
     if (got !== h) throw new Error(`CONGELAMENTO VIOLADO: ${rel} sha ${got} != ${h}`);
   }
 }
-function save(name, obj) { fs.mkdirSync(RES, { recursive: true }); fs.writeFileSync(path.join(RES, name), JSON.stringify(obj, null, 1)); console.log('->', path.join('results', name)); }
+function save(name, obj) { const tag = opt('--tag', ''); if (tag) name = name.replace(/\.json$/, `-${tag}.json`); fs.mkdirSync(RES, { recursive: true }); fs.writeFileSync(path.join(RES, name), JSON.stringify(obj, null, 1)); console.log('->', path.join('results', name)); }
 
 // ── contadores de rede: 0 tem de ser MEDIDO ─────────────────────────────────
 function netCounters() {

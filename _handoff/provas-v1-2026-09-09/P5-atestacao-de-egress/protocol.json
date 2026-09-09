@@ -1,0 +1,30 @@
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P5",
+  "title": "Atestação de egress — o que sai da máquina para DECIDIR",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T13:50:00Z",
+  "regra": "Nenhum numero muda depois da primeira corrida. Emendas so por AMENDMENT-n.md. Este ficheiro e commitado ANTES da corrida (resposta ao ataque P1 do P1).",
+  "pergunta": "Com o Mooter ligado, quantos bytes de prompt saem do dispositivo por prompt, e para onde? E com um proxy no caminho?",
+  "instrumento": {
+    "net-tap": "lib/net-tap.cjs, preload por NODE_OPTIONS: regista TODAS as ligacoes de saida (host, porta, bytes escritos/lidos pelos contadores do proprio socket) de um processo Node e dos filhos Node. Controlo positivo: lib/net-tap.test.mjs (4/4: ve https, fetch, loopback; bloqueia com NET_TAP_BLOCK=1). Nao le conteudo.",
+    "counting-proxy": "lib/counting-proxy.mjs, HTTPS_PROXY em loopback: conta CONNECT host:porta e bytes do tunel sem desencriptar. Para processos que nao sao Node (claude.exe) ou que honram HTTPS_PROXY. Controlo positivo: lib/counting-proxy.test.mjs.",
+    "mock-llm": "lib/mock-llm.mjs: servidor loopback que responde a /v1/chat/completions, /v1/messages e /api/chat|generate com uma resposta fixa e CONTA bytes de corpo recebidos e o campo de prompt. E o 'fornecedor' para onde os proxies (ccr, LiteLLM) encaminham: assim mede-se o que o proxy manda para fora sem nada sair da maquina.",
+    "limite_declarado": "Um processo que nao e Node e nao honra HTTPS_PROXY nao e observado por nenhum destes; nesse caso a celula e n/d, com Get-NetTCPConnection amostrado como controlo grosseiro."
+  },
+  "corpus": "os 20 primeiros prompts reais (n01-n20) de P1/corpus-40.json — anonimizados; sha em P1/protocol.json",
+  "bracos": {
+    "A": "Mooter, hook REAL desta maquina (~/.claude/tools/router/inject_context.js, HOME real, credenciais reais, MOOTER_DECISIONS_LOG redirigido para nao poluir o log vivo), arbitro no estado por omissao (sem ANTHROPIC_API_KEY o arbitro nao corre), sob net-tap em modo observacao. Metrica: hosts e bytes por prompt; hosts esperados: 0 de prompt; possivelmente api.anthropic.com para o fetch de ORCAMENTO (OAuth), sem bytes de prompt — imprime-se o que aparecer.",
+    "A-block": "idem com NET_TAP_BLOCK=1: prova que, mesmo recusando toda a rede externa, o hook decide na mesma (tier igual ao braco A).",
+    "B": "Arbitro do Mooter (tools/router/arbiter.js) instrumentado: ANTHROPIC_API_KEY=presenca-falsa, https.request substituido em processo por um captador que grava o corpo do pedido que SAIRIA para api.anthropic.com e devolve uma resposta falsa. Metrica: bytes do corpo, e se o prompt cru esta la (procura-se o texto do prompt no corpo). Nada sai da maquina. Declarado [instrumented], nao [network-observed]. Sem chave real, o caminho de rede do arbitro nao e observavel de outra forma nesta maquina.",
+    "C": "musistudio/claude-code-router 3.0.22, servico + gateway em APPDATA isolado, provider = mock-llm (loopback), sob net-tap (o gateway e Node). Um cliente Anthropic-compativel envia os 20 prompts ao gateway. Metrica: bytes de corpo que chegam ao mock por prompt (= o que o proxy encaminha), hosts externos contactados pelo gateway durante a corrida. Se a configuracao headless (RPC) nao se conseguir em 60 min: n/d com o erro literal.",
+    "D": "LiteLLM 1.100.0 proxy, config yaml com 2 deployments do mesmo grupo (ollama local via mock-llm com preco 0; 'cloud' = mock-llm noutra porta com preco alto), routing_strategy cost-based-routing. Metrica: para onde foram os 20 pedidos (o mais barato?), bytes de corpo no mock, hosts externos (Get-NetTCPConnection amostrado; o proxy e Python — net-tap nao se aplica).",
+    "E": "Claude Code nativo (claude.exe -p, hooks desligados, tools desligadas, --max-turns 1) atraves do counting-proxy em modo passagem, 20 prompts. Metrica: bytes CONNECT para api.anthropic.com por prompt. E a referencia: 100 % do prompt sai, por desenho. Custa subscricao (API = 0).",
+    "PII_logs": "contagem de instancias de PII (nome do dono, email, caminhos do home) nos logs locais do router (~/.claude/tools/router/decisions.log, decisions_v2.jsonl, latencia-local.jsonl, ~/.mooter/ledger.jsonl). O MP diz que existem 30 hoje. Conta-se; nao se corrige aqui (e o log do dono)."
+  },
+  "metricas": "por braco e por prompt: ligacoes externas (destino, contagem), bytes de saida/entrada, bytes de corpo no mock, prompt cru presente no corpo (sim/nao). Sem media sem o bruto ao lado.",
+  "regra_de_paragem": "Falha de servico do proxy/gateway -> n/d com o erro literal. 0 retries.",
+  "expectativa_honesta": "A: 0 bytes de prompt; talvez 1 ligacao de orcamento. B: o corpo LEVA o prompt inteiro (arbiter.js:184 messages: [{role:user, content: prompt}]) — e uma derrota conhecida, impressa. C e D: decidem localmente (0 bytes para decidir) e encaminham 100 % do prompt para o fornecedor escolhido — igual ao nativo; o que muda e QUEM e o fornecedor e que ha um processo a mais no caminho. E: 100 %.",
+  "nao_prova": ["SOC 2, DPA, retencao — nao se abre", "o comportamento com chave real e arbitro ligado em rede (B e instrumentado)", "proxies com providers reais (o mock recebe o que sairia)"],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm A|A-block|B|C|D|E|pii && node run.mjs --analyse"
+}

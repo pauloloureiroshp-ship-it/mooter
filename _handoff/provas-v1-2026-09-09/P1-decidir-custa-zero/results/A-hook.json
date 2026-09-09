@@ -1914,5 +1914,11 @@
    "max": 2.05
   }
  },
- "arbiter_calls_logged": 0
+ "arbiter_calls_logged": 0,
+ "isolated_log_events": {
+  "user_override_vetoed": 6,
+  "classified": 189,
+  "prompt_optimized": 41,
+  "option_a_miss": 75
+ }
 }

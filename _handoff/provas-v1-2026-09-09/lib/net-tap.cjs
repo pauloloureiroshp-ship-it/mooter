@@ -24,7 +24,11 @@ function record(rec) {
 }
 
 function argsToTarget(args) {
-  const a = args[0];
+  // O agente http/https chama connect com a forma NORMALIZADA: args[0] e um
+  // array [options, cb] (net.js normalizeArgs). Medido 2026-09-09: sem isto o
+  // loopback do http.get aparecia como host '?' e era bloqueado.
+  let a = args[0];
+  if (Array.isArray(a)) a = a[0];
   if (a && typeof a === 'object' && !Array.isArray(a)) return { host: a.host || a.hostname || (a.path ? 'ipc' : '?'), port: Number(a.port || 0), path: a.path || null };
   if (typeof a === 'number') return { host: typeof args[1] === 'string' ? args[1] : 'localhost', port: a, path: null };
   if (typeof a === 'string') return { host: 'ipc', port: 0, path: a };
@@ -42,10 +46,10 @@ net.Socket.prototype.connect = function tappedConnect(...args) {
     process.nextTick(() => { const e = new Error(`net-tap: bloqueado ${t.host}:${t.port}`); e.code = 'ECONNREFUSED'; sock.destroy(e); });
     return this;
   }
-  const origWrite = this.write;
-  this.write = function (chunk, ...rest) { if (chunk) rec.bytes_out += Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(String(chunk)); return origWrite.call(this, chunk, ...rest); };
-  this.on('data', (c) => { rec.bytes_in += c.length; });
-  this.once('close', () => record(rec));
+  // Contagem pelos contadores do proprio socket, lidos no fecho: o http do Node
+  // escreve por caminhos que um wrapper de write nao ve (medido: 0 bytes).
+  const sock = this;
+  this.once('close', () => { rec.bytes_out = Number(sock.bytesWritten || 0); rec.bytes_in = Number(sock.bytesRead || 0); record(rec); });
   return origConnect.apply(this, args);
 };
 // tls.connect cria um net.Socket e chama connect — coberto. Fica so o registo de que o tap esta activo.

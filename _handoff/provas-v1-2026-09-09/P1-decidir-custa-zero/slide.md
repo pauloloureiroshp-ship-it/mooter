@@ -1,17 +1,17 @@
-# Slide P1 · Deciding costs zero — and, off the training set, it is often wrong
+# Slide P1 · Classifying costs no inference — and, off the training set, the rule is wrong more often than "always T2"
 
-**Deciding costs 0 tokens and sends 0 bytes.** Measured: 1,176 classifications, 0 model calls, 0 hosts contacted, 6/6 runs byte-identical. The rule itself takes 0.002 ms; the process the hook spawns takes ~97 ms; the hook the user feels takes 119–211 ms.
+**0 inference tokens, 0 external hosts to classify.** Measured with a positive-control instrument: 1,176 classifications, 0 model calls, 0 hosts, 6/6 runs byte-identical. The rule takes 0.002 ms in-process. **The hook it lives in is not free:** 207 ms p50 / 1,272 ms p95 per prompt, ~870 bytes of hint injected per prompt, and a local pre-answer call for T0 prompts that timed out 75/75 times in this run (374 misses vs 36 hits in the live log).
 
-**Accuracy against blind labels (a different engine, Codex, labeled before any classification):**
+**Accuracy against blind labels** (labeled by a different engine before any classification; 40 real September prompts, out of training):
 
-| | Rule (`classify.js`) | Local LLM judge (14B, ~393 tokens/prompt) |
-|---|---|---|
-| 35 training prompts | 88.6 % [74.0, 95.5] | 82.9 % [67.3, 91.9] |
-| **40 real prompts, September, out of training** | **35.0 % [22.1, 50.5]** | **52.5 % [37.5, 67.1]** |
-| McNemar, one-sided (judge > rule), n=40 | p = 0.059 | |
+| | Rule (`classify.js`) | Local LLM judge (14B, ~393 tokens/prompt) | Constant "always T2" |
+|---|---|---|---|
+| 35 training prompts | 88.6 % [74.0, 95.5] | 82.9 % [67.3, 91.9] | 14.3 % |
+| **40 real prompts** | **35.0 % [22.1, 50.5]** | **52.5 % [37.5, 67.1]** | **45.0 % [30.7, 60.2]** |
+| McNemar one-sided, judge > rule, n=40 | p = 0.059 (not significant) | | |
 
-**We print the loss.** The rule under-tiers: it says T0 on 30 of 40 real prompts; two independent raters put 12 of those at T2/T3. The "tie with an LLM router" measured on 2026-09-01 was a training-set number and does not generalize.
+**We print the loss.** The rule under-tiers: T0 on 30 of 40 real prompts; two independent raters put 12 of those at T2/T3. The "tie with an LLM router" measured on 2026-09-01 was a training-set number and does not generalize. Label agreement between raters on the 40: Cohen's kappa 0.50.
 
-Inter-rater agreement on labels: Cohen's kappa 0.62 (n=63, local 27B model vs Codex). Competitor hook (tzachbon) abstains on all 63 (English-only heuristics). Proxies (claude-code-router, LiteLLM) have no complexity classifier: accuracy n/d by construction.
+Competitors on this corpus: tzachbon hook abstains 63/63 (English-only intent gate; its CLI fallback costs ~52k cached tokens and 6 s per call). claude-code-router and LiteLLM have no complexity classifier: accuracy n/d by construction; egress compared in P5.
 
-*Does not prove: commercial value; obedience (P3); anything above 4k-token prompts; that the blind label is ground truth.*
+*Does not prove: commercial value; obedience (P3); anything above 500 characters; that the blind label is ground truth; the configuration with a real API key and the arbiter on.*
