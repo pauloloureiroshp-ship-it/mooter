@@ -1,6 +1,8 @@
-# Slide P5 · No external destination recorded by a socket tap on 75 Node processes while the Mooter hook decided 20 real prompts — API key absent, live budget defect forced T0
+# Slide P5 · A socket tap on 75 Node processes recorded 35 connections while the Mooter hook decided 20 real prompts — all 35 to loopback, none off the machine (no API key, live budget defect forced T0)
 
 **Setup:** 20 real September prompts (median 37 chars); the hook installed on this machine; a socket-level tap preloaded into Node processes. Pre-registered protocol committed before the first run; two instrument amendments on file (one retracts our own claim about the client); LiteLLM controls added after adversary round 1 are labelled as such.
+
+**The instrument was not silent, and that is the point.** The tap's raw file ships as `results/bruto-resgatado/tap-braco-A.jsonl` (110 records). It loaded into **75** Node processes and **recorded 35 outbound connections** — 20 to `127.0.0.1:7821` (the hook's own metrics endpoint) and 15 to `127.0.0.1:11434` (Ollama). **All 35 are loopback; zero left the machine.** So this is not a negative from an instrument that might have been blind: the same run contains its own positive control, which is exactly what P5's own retracted defect (D8) taught. The blocked arm reproduces it: 56 tapped processes, the same 35 loopback connections. The boundary that remains is narrower than «we saw nothing»: **children that are not Node processes, DNS/UDP, and Ollama's own outbound traffic carry no tap**, and there is no independent network inventory. This is a statement about the tapped Node processes, not an attestation about the device.
 
 | Path | Observation in this setup | Boundary observed |
 |---|---|---|
