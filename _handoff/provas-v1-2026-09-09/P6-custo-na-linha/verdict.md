@@ -1,55 +1,66 @@
-# P6 · Custo na linha — veredicto
+# P6 · Custo na linha — veredicto (v2, depois do adversário)
 
-**Corrida:** 2026-09-09 · protocolo congelado e **commitado antes** da corrida (`61007b23`) · instrumento `tools/router/cost-line.js` (aditivo, 11 testes que mordem) · bruto em `results/linhas-2.jsonl` · `results/ledger-actual.json` · `results/analysis.json`.
+**Corrida v2:** 2026-09-09T14:06:36Z · protocolo `61007b23` commitado **antes** da corrida v1 (13:51:24Z; `ERRATA-timestamps.md` explica o `congelado_em` errado da v1) · instrumento `tools/router/cost-line.js` v2 (aditivo, **15/15 testes** com valores calculados à mão) · `AMENDMENT-1.md` (o que mudou e porquê) · bruto em `results/linhas-2.jsonl`, `results/ledger-actual.json`, `results/analysis.json` · adversário em `adversary.md`.
 
 ## Veredicto em uma linha
 
-**Ganhou por construção, com o Δ impresso.** O ledger actual desta máquina tem **0 linhas** com custo *e* origem em 2 134 eventos; as 156 linhas 2 desta corrida têm custo, origem e contagens em 156/156, sem nenhum `n/d`. A reconciliação com a telemetria do host, nas 20 chamadas Haiku, dá **Δ = −94 %** — e o Δ é explicável linha a linha: o SSOT de preços não modela cache, o CLI sim.
+**Cobertura de formato demonstrada numa corrida instrumentada; custo verificado, não.** O ledger vivo desta máquina tem **0 linhas** com custo *e* origem em 2 157 eventos; as 156 linhas 2 desta corrida têm custo, origem e contagens em 156/156 — mas isso é o instrumento a preencher o formato, e o produto instalado **não escreve** estas linhas. Nas 20 chamadas Haiku, o preço de lista input/output do SSOT (US$ 0,0796) fica **−94 %** abaixo do que o host reporta (US$ 1,3185); com as contagens de cache aos preços publicados (escrita 1 h a 2×, leitura a 0,1×) o host reconstrói-se com **resíduo 0 em 20/20 chamadas**.
 
 ## Os números
 
-### A · o ledger como está (esta máquina, 2026-09-09)
+### A · o ledger vivo, tal como está (2026-09-09T14:06Z)
 
 | Fonte | Linhas | Com campo de custo | Custo > 0 | Com **origem** do custo | Com tokens |
 |---|---|---|---|---|---|
-| `~/.claude/tools/router/decisions.log` · `classified` | 916 | 0 | 0 | 0 | 0 |
+| `~/.claude/tools/router/decisions.log` · `classified` | 939 | 0 | 0 | 0 | 0 |
 | `decisions.log` · `executed` | 492 | 479 (todas `0`) | 0 | 0 | 1 |
-| `~/.mooter/ledger.jsonl` · todas | 726 | 8 | 3 | 0 | 20 |
-| `ledger.jsonl` · `done` | 20 | 8 | 3 | 0 | 20 |
+| `~/.mooter/ledger.jsonl` · `done` (corte do protocolo) | 20 | 8 | 3 | 0 | 20 |
+| `ledger.jsonl` · todos os eventos (exploratório) | 726 | 8 | 3 | 0 | 20 |
 
-Leitura: 479 linhas dizem `cost_usd: 0` sem dizer porquê (478 dos `executed` são `deferred` — nunca correram); 20 linhas `done` têm tokens mas só 8 têm custo e nenhuma diz de onde vem.
+Leitura: 479 linhas `executed` dizem `cost_usd: 0` sem dizer porquê — 478 delas estão **registadas como `deferred`** (não se afirma que nunca correram noutro sítio); 20 linhas `done` têm tokens, 8 têm custo, **nenhuma diz de onde vem o número**. O `classified` cresceu de 916 (v1) para 939 porque as sessões P3/P5 deste pacote escrevem no log vivo; não há *snapshot* imutável com hash (pedido pelo adversário, não feito).
 
-### B · as linhas 2 desta corrida
+### B · as linhas 2 desta corrida (156)
 
-| Origem (`cost_source`) | Linhas | `cost_usd` | O que carrega |
-|---|---|---|---|
-| `rule_local` (P1, regra) | 63 | 0 | 0/0 tokens por construção |
-| `ollama_local` (P1 juiz + P2 holdout) | 73 | 0 | `prompt_eval_count`/`eval_count` do próprio Ollama |
-| `subscription_included` (P2 Haiku) | 20 | 0 desembolso | `list_price_usd` do SSOT ao lado · `cache_read`/`cache_creation` · `host_reported_cost_usd` do CLI |
-| **Total** | **156** | **156 com custo e origem, 0 `n/d`** | `priced_at: 2026-08-03` (lido do cabeçalho de `pricing.js`) |
+| Origem (`cost_source`, **declarada por quem chama**) | Linhas | `cost_usd` | Contagens | `completeness` |
+|---|---|---|---|---|
+| `rule_local` (P1, regra) | 63 | 0 | 0/0 **por política** (a regra não gasta tokens; o número é sintético) | complete |
+| `ollama_local` (P1 juiz + P2 holdout) | 73 | 0 | `prompt_eval_count`/`eval_count` do próprio Ollama, as duas obrigatórias | complete |
+| `subscription_included` (P2 Haiku) | 20 | 0 desembolso | input/output do CLI · `cache_read`/`cache_creation` · `list_price_input_output_usd` do SSOT · `host_reported_cost_usd` · `model_key_used` | `partial_no_cache_pricing` (20/20) |
+| **Total** | **156** | 156 com custo e origem · 0 `n/d` · 93 com tokens > 0 | `priced_at: 2026-08-03` (lido do cabeçalho de `pricing.js`) |
 
-### Reconciliação (P2, 20 chamadas Haiku via `claude -p`)
+### Reconciliação (P2, 20 chamadas Haiku via `claude -p`) — a métrica pré-registada
+
+| Base `list` (input + output do SSOT) | USD |
+|---|---|
+| Soma das nossas linhas (20 incluídas, 0 excluídas, `incomplete: false`) | **0,079605** |
+| Soma do `total_cost_usd` reportado pelo CLI | **1,318525** |
+| Δ | **−1,238920 (−93,96 %)** |
+
+### Reconstrução por chamada (exploratória, não pré-registada)
+
+Tokens nas 20 chamadas: input 200 · output 15 881 · `cache_read` 354 357 · `cache_creation` 601 742. Aos preços publicados da Anthropic para o Haiku 4.5 (input 1/M, output 5/M, leitura de cache 0,10/M, **escrita com TTL 1 h 2,00/M** — confirmados pelo adversário na página oficial; **não estão** em `pricing.js`):
 
 | | USD |
 |---|---|
-| Soma do preço de lista das nossas linhas (input + output, SSOT) | **0,0796** |
-| Soma do `total_cost_usd` reportado pelo CLI (telemetria do host) | **1,3185** |
-| Δ | **−1,2389 (−94 %)** |
+| Reconstrução (input + output + cache) | 1,3185247 |
+| Host | 1,3185247 |
+| **Resíduo total** | **0,000000000** — e **0 em cada uma das 20 chamadas** (`analysis.json → reconciliation_haiku_20_per_call.rows`) |
 
-O Δ tem explicação e fica impresso: o CLI precifica **601 742 tokens de `cache_creation`** e **354 357 de `cache_read`** (o prefixo do Claude Code, mesmo com hooks desligados); o SSOT `pricing.js` só tem input/output. Aos preços de Haiku 4.5 com cache de 1 h (2× input) e leitura (0,1× input): 601 742 × 2/M + 354 357 × 0,1/M + 15 881 × 5/M ≈ 1,20 + 0,04 + 0,08 = **1,32** — bate com o host. Ou seja: **a nossa linha está certa no que conta e o SSOT está incompleto no que não conta** (cache). Correcção proposta, não aplicada aqui (SSOT é decisão do dono): multiplicadores de cache em `pricing.js`.
+Ou seja: o Δ de −94 % é **inteiramente** a cache do prefixo do Claude Code (mesmo com hooks desligados), que o SSOT não modela. A nota v1 dizia 1,25× (TTL 5 min) e estava errada; o `claude -p` usa 1 h.
 
 Para as 73 linhas `ollama_local`, Δ = 0 **por construção** — a fonte das contagens é o próprio Ollama; não é uma verificação independente.
 
 ## Leitura honesta
 
-1. **O que ganhou:** cada decisão desta corrida tem custo, origem e contagens na mesma linha. O ledger actual não tem nenhuma. A diferença é estrutural e é o C2-min do roadmap.
-2. **O que não ganhou:** o número do custo. O preço de lista do SSOT explica 6 % do que o host cobra ao Haiku porque ignora cache. Quem ler `list_price_usd` sem `cache_*` ao lado engana-se por 16×. A linha imprime as contagens de cache precisamente para isso.
-3. **Nada aqui é poupança.** As 156 linhas somam 0 de desembolso porque são regra, Ollama e subscrição — isso descreve *como se pagou*, não *quanto se poupou*. Proibido converter.
-4. **Ainda não está ligado ao produto.** `cost-line.js` existe e tem testes; nenhum escritor do ledger o chama. É o mesmo padrão do `adaptive-learner` (0 callers): o caminho existe, o ciclo não. Declarado em `10-NAO-PROVADO.md`.
+1. **O que se demonstrou:** um formato de linha que responde sempre «quanto, de onde, com que contagens» e que nunca inventa (sem contagens → `n/d`; modelo desconhecido → `n/d`, nunca o *fallback* de Sonnet do `pricing.js`; reconciliação incompleta → Δ `n/d`). O ledger vivo não tem nada disto.
+2. **O que NÃO se demonstrou:** custo verificado. A origem é **declarada** por quem chama (`source_declared_by_caller: true`) — o módulo não sabe se a chamada foi mesmo de subscrição. O preço de lista não é o desembolso do dono (é subscrição). O subtotal input/output explica 6 % do que o host cobra; a linha diz-o (`partial_no_cache_pricing`).
+3. **Nada aqui é poupança.** Zero de desembolso descreve *como se pagou* (regra, GPU local, subscrição), nunca *quanto se poupou*. Proibido converter.
+4. **Não está no produto.** `cost-line.js` tem 0 *callers*; nenhum escritor do ledger o chama. Mesmo padrão do `adaptive-learner` até 2026-09-03. Em `10-NAO-PROVADO.md`.
+5. **Correcção proposta, não aplicada (SSOT é decisão do dono):** multiplicadores de cache em `pricing.js`, com data e fonte.
 
 ## O que isto NÃO prova
 
-- Poupança (proibido). Que o preço de lista é o que o dono paga (é subscrição). Que `cache_read` do CLI é comparável ao `input` do SSOT. Que o produto instalado escreve estas linhas (não escreve).
+- Poupança (proibido). Que o preço de lista é o que o dono paga. Que `cache_read` do CLI é comparável ao `input` do SSOT. Que a origem declarada é a origem real. Que o produto instalado escreve estas linhas (não escreve).
 
 ## Reproduzir
 

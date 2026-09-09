@@ -3,7 +3,7 @@
   "id": "P3",
   "title": "Obediência > 0 — a primeira delegação executada que não foi escrita à mão",
   "estado": "CONGELADO",
-  "congelado_em": "2026-09-09T14:20:00Z",
+  "congelado_em": "2026-09-09T13:47:54.000Z",
   "regra": "Commitado ANTES da primeira corrida. Nenhum numero muda depois. Emendas so por AMENDMENT-n.md.",
   "pergunta": "Uma recomendacao do Mooter (T0/T1) consegue ser EXECUTADA por um subagente local/barato sem o dono escrever o nome do subagente, e fica no recibo com tokens?",
   "corpus": "os primeiros 20 prompts de P1/corpus-40.json (por ordem de id) que o classify.js com chave marca T0 ou T1 (P1/results/A-key.json, corrida 1). Lista fixada em corpus-20.json com sha. Prompts que mencionem push/deploy/delete/rm sao excluidos antes de contar 20 (blast radius).",
@@ -24,6 +24,11 @@
   "regra_de_paragem": "3 corridas consecutivas com exit != 0 -> parar, reter, n/d com o erro. 0 retries. Uma corrida que exceda 300 s e morta e conta como 'sem delegacao' (intention-to-treat).",
   "risco_declarado": "o hook vivo tem o defeito D1 (tecto de orcamento): last-subagent.json diz T0 para tudo. Mede-se o produto como esta instalado; declara-se.",
   "expectativa_honesta": "A: 0-3 delegacoes em 20 (o modelo inlineia). B: o hook so reescreve spawns que o modelo FAZ; se o modelo nao delega, o hook nao chega — e o numero 'nao chegou' e o argumento do ADR M1 (proxy loopback opt-in).",
-  "nao_prova": ["qualidade do trabalho delegado (P7)", "obediencia com opus como modelo principal (sonda de 5, se houver quota)", "enforce: e gated_best_effort, um hook nunca forca um spawn"],
-  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --arm A && ... --arm B && ... --analyse"
+  "nao_prova": [
+    "qualidade do trabalho delegado (P7)",
+    "obediencia com opus como modelo principal (sonda de 5, se houver quota)",
+    "enforce: e gated_best_effort, um hook nunca forca um spawn"
+  ],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --arm A && ... --arm B && ... --analyse",
+  "congelado_em_fonte": "git commit 5efd58ed (%cI 2026-09-09T10:47:54-03:00); o valor anterior '2026-09-09T14:20:00Z' era escrito a mao e errado — ERRATA-timestamps.md"
 }

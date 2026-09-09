@@ -1,0 +1,355 @@
+You are the ADVERSARY (Codex, gpt-6-astra) for a pre-registered evidence package — proof P5. The author is a different engine (Claude). Your job is to KNOCK DOWN the numbers and the claims, not to comment on them. Attack: (1) the instrument — a socket tap that only sees Node processes and reports bytes_out 0 on loopback connections: what could it miss (non-Node children, DNS, UDP, QUIC, the hook's own metrics port, the Ollama call carrying the prompt to a local process that could itself egress)? is 'block mode saw nothing to block' evidence or absence of evidence? (2) the '0 external hosts to decide' claim: it was measured WITHOUT an API key and with a live budget-cap defect forcing T0; is the claim about the product or about this machine's broken state? (3) arm B is instrumented, not network-observed — what does that leave unproven? (4) arm D LiteLLM: could the 20/20-to-expensive result be the author's misconfiguration rather than LiteLLM's behaviour? what would settle it? (5) arm E: netstat sampling at 150 ms, half the calls exit 1 — is the '2 external connections per prompt' number trustworthy? (6) the PII counting (regex, overlapping patterns) and the '752' number; (7) the slide wording for an investor, including the forbidden words list (private/secure/enforces/most accurate/savings %).
+For EACH attack give: id (P5-NN), severity (fatal|serious|minor), the exact claim attacked, why it may not hold, and what evidence would settle it. Then: SURVIVE / REWORD / DEAD lists, and a final line SLIDE PUBLISHABLE AS IS / WITH THESE EDITS (give the edits) / NOT PUBLISHABLE. Be concrete and merciless; a verdict that only approves has not run. Do not rewrite the package. You have no repo access: attack what is in front of you, and say explicitly what you could not verify.
+
+=== PROTOCOL (protocol.json) ===
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P5",
+  "title": "Atestação de egress — o que sai da máquina para DECIDIR",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T13:40:15.000Z",
+  "regra": "Nenhum numero muda depois da primeira corrida. Emendas so por AMENDMENT-n.md. Este ficheiro e commitado ANTES da corrida (resposta ao ataque P1 do P1).",
+  "pergunta": "Com o Mooter ligado, quantos bytes de prompt saem do dispositivo por prompt, e para onde? E com um proxy no caminho?",
+  "instrumento": {
+    "net-tap": "lib/net-tap.cjs, preload por NODE_OPTIONS: regista TODAS as ligacoes de saida (host, porta, bytes escritos/lidos pelos contadores do proprio socket) de um processo Node e dos filhos Node. Controlo positivo: lib/net-tap.test.mjs (4/4: ve https, fetch, loopback; bloqueia com NET_TAP_BLOCK=1). Nao le conteudo.",
+    "counting-proxy": "lib/counting-proxy.mjs, HTTPS_PROXY em loopback: conta CONNECT host:porta e bytes do tunel sem desencriptar. Para processos que nao sao Node (claude.exe) ou que honram HTTPS_PROXY. Controlo positivo: lib/counting-proxy.test.mjs.",
+    "mock-llm": "lib/mock-llm.mjs: servidor loopback que responde a /v1/chat/completions, /v1/messages e /api/chat|generate com uma resposta fixa e CONTA bytes de corpo recebidos e o campo de prompt. E o 'fornecedor' para onde os proxies (ccr, LiteLLM) encaminham: assim mede-se o que o proxy manda para fora sem nada sair da maquina.",
+    "limite_declarado": "Um processo que nao e Node e nao honra HTTPS_PROXY nao e observado por nenhum destes; nesse caso a celula e n/d, com Get-NetTCPConnection amostrado como controlo grosseiro."
+  },
+  "corpus": "os 20 primeiros prompts reais (n01-n20) de P1/corpus-40.json — anonimizados; sha em P1/protocol.json",
+  "bracos": {
+    "A": "Mooter, hook REAL desta maquina (~/.claude/tools/router/inject_context.js, HOME real, credenciais reais, MOOTER_DECISIONS_LOG redirigido para nao poluir o log vivo), arbitro no estado por omissao (sem ANTHROPIC_API_KEY o arbitro nao corre), sob net-tap em modo observacao. Metrica: hosts e bytes por prompt; hosts esperados: 0 de prompt; possivelmente api.anthropic.com para o fetch de ORCAMENTO (OAuth), sem bytes de prompt — imprime-se o que aparecer.",
+    "A-block": "idem com NET_TAP_BLOCK=1: prova que, mesmo recusando toda a rede externa, o hook decide na mesma (tier igual ao braco A).",
+    "B": "Arbitro do Mooter (tools/router/arbiter.js) instrumentado: ANTHROPIC_API_KEY=presenca-falsa, https.request substituido em processo por um captador que grava o corpo do pedido que SAIRIA para api.anthropic.com e devolve uma resposta falsa. Metrica: bytes do corpo, e se o prompt cru esta la (procura-se o texto do prompt no corpo). Nada sai da maquina. Declarado [instrumented], nao [network-observed]. Sem chave real, o caminho de rede do arbitro nao e observavel de outra forma nesta maquina.",
+    "C": "musistudio/claude-code-router 3.0.22, servico + gateway em APPDATA isolado, provider = mock-llm (loopback), sob net-tap (o gateway e Node). Um cliente Anthropic-compativel envia os 20 prompts ao gateway. Metrica: bytes de corpo que chegam ao mock por prompt (= o que o proxy encaminha), hosts externos contactados pelo gateway durante a corrida. Se a configuracao headless (RPC) nao se conseguir em 60 min: n/d com o erro literal.",
+    "D": "LiteLLM 1.100.0 proxy, config yaml com 2 deployments do mesmo grupo (ollama local via mock-llm com preco 0; 'cloud' = mock-llm noutra porta com preco alto), routing_strategy cost-based-routing. Metrica: para onde foram os 20 pedidos (o mais barato?), bytes de corpo no mock, hosts externos (Get-NetTCPConnection amostrado; o proxy e Python — net-tap nao se aplica).",
+    "E": "Claude Code nativo (claude.exe -p, hooks desligados, tools desligadas, --max-turns 1) atraves do counting-proxy em modo passagem, 20 prompts. Metrica: bytes CONNECT para api.anthropic.com por prompt. E a referencia: 100 % do prompt sai, por desenho. Custa subscricao (API = 0).",
+    "PII_logs": "contagem de instancias de PII (nome do dono, email, caminhos do home) nos logs locais do router (~/.claude/tools/router/decisions.log, decisions_v2.jsonl, latencia-local.jsonl, ~/.mooter/ledger.jsonl). O MP diz que existem 30 hoje. Conta-se; nao se corrige aqui (e o log do dono)."
+  },
+  "metricas": "por braco e por prompt: ligacoes externas (destino, contagem), bytes de saida/entrada, bytes de corpo no mock, prompt cru presente no corpo (sim/nao). Sem media sem o bruto ao lado.",
+  "regra_de_paragem": "Falha de servico do proxy/gateway -> n/d com o erro literal. 0 retries.",
+  "expectativa_honesta": "A: 0 bytes de prompt; talvez 1 ligacao de orcamento. B: o corpo LEVA o prompt inteiro (arbiter.js:184 messages: [{role:user, content: prompt}]) — e uma derrota conhecida, impressa. C e D: decidem localmente (0 bytes para decidir) e encaminham 100 % do prompt para o fornecedor escolhido — igual ao nativo; o que muda e QUEM e o fornecedor e que ha um processo a mais no caminho. E: 100 %.",
+  "nao_prova": [
+    "SOC 2, DPA, retencao — nao se abre",
+    "o comportamento com chave real e arbitro ligado em rede (B e instrumentado)",
+    "proxies com providers reais (o mock recebe o que sairia)"
+  ],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm A|A-block|B|C|D|E|pii && node run.mjs --analyse",
+  "congelado_em_fonte": "git commit 22388a20 (%cI 2026-09-09T10:40:15-03:00); o valor anterior '2026-09-09T13:50:00Z' era escrito a mao e errado — ERRATA-timestamps.md"
+}
+
+
+=== AMENDMENTS (AMENDMENT-1.md) ===
+# P5 · AMENDMENT-1 — três alterações de instrumento, nenhuma de métrica (2026-09-09)
+
+**Regra:** o protocolo (`22388a20`, commitado 13:40:15Z antes da primeira corrida) não muda; muda-se o instrumento onde ele falhou, escreve-se aqui, re-corre-se só o braço afectado.
+
+## 1 · Braço E (referência nativa): do counting-proxy ao `netstat` amostrado
+
+- **O que falhou:** o protocolo previa medir o `claude.exe -p` através do `counting-proxy` (HTTPS_PROXY em loopback, conta CONNECT + bytes do túnel). A sonda `e-probe.mjs` mostrou que o `claude.exe` **não honra `HTTPS_PROXY`** nesta máquina: com a variável definida fica pendurado (exit `null` aos 90 s, **0 ligações ao proxy**); sem ela responde em 8 s (defeito D8 em `09-DEFEITOS-APANHADOS.md`; não é do Mooter).
+- **O que se faz em vez disso:** o próprio protocolo já declarava o limite («um processo que não é Node e não honra HTTPS_PROXY não é observado por nenhum destes; nesse caso a célula é n/d, com Get-NetTCPConnection amostrado como controlo grosseiro»). `arm-e.mjs` amostra `netstat -ano -p tcp` a cada 150 ms durante cada chamada, filtrado pelo pid do `claude.exe` e dos filhos (`Win32_Process ParentProcessId`), e resolve os IPs remotos por DNS inverso.
+- **O que a célula passa a dizer:** ligações externas por prompt e destinos (**medido, grosseiro**); **bytes = n/d**; «o prompt saiu» atestado pelo próprio host (`usage.input_tokens` no JSON de saída — por desenho, 100 % do prompt vai para a API).
+- **O que NÃO se pode afirmar:** bytes por prompt do nativo; qualquer comparação de bytes entre E e os outros braços.
+
+## 2 · Braço B (árbitro instrumentado): a verificação «prompt cru no corpo» era literal
+
+- **O que falhou:** `raw_prompt_in_body` procurava o texto do prompt tal-e-qual no corpo do pedido; o corpo é JSON, e 2 dos 20 prompts têm aspas/quebras de linha que vão escapadas → contavam como «não está lá», o que era falso.
+- **Correcção:** procura-se também a forma JSON-escapada (`JSON.stringify(prompt).slice(1, -1)`).
+- **Re-corrida:** 20/20 com o prompt cru no corpo (era 18/20 por defeito do instrumento). Bytes médios de corpo 2 162. Continua **[instrumented]**, não [network-observed]: nada saiu da máquina.
+
+## 3 · Braço C (claude-code-router): `n/d` com o bloqueio literal
+
+Não é uma emenda ao instrumento — é a aplicação do R8 (60 min) e da regra de paragem do protocolo. O `--analyse` passa a imprimir `C_ccr: { status: 'n/d', blocker: … }` quando não há `C-ccr.json`. Detalhe, comandos tentados e comando para retomar em `ccr.md`.
+
+## O que não mudou
+
+Corpus (n01–n20), braços A/A-block/D/PII e os seus resultados de 13:42Z–13:5xZ, métricas, regra de paragem, `nao_prova`.
+
+
+=== VERDICT (verdict.md) ===
+# P5 · Atestação de egress — veredicto
+
+**Corridas:** 2026-09-09, 13:42Z (A, A-block, B v1, D, PII) e 14:2xZ (B v2, E) · protocolo `22388a20` commitado 13:40:15Z, antes da primeira corrida · `AMENDMENT-1.md` (E por `netstat`, B com prompt JSON-escapado, C `n/d`) · bruto em `results/` (`A.json`, `A-block.json`, `B-arbiter-instrumented.json`, `D-litellm.json`, `E-native.json`, `pii-logs.json`, `nettap-*.jsonl`) · `results/analysis.json`.
+
+## Veredicto em uma linha
+
+**Para DECIDIR, o hook do Mooter contacta 0 hosts externos em 20 prompts reais — observado ao nível do socket em 75 processos Node, e o tier não muda quando toda a rede externa é recusada. O árbitro, se tivesse chave, mandaria o prompt cru inteiro para a Anthropic (20/20, instrumentado). Os proxies (LiteLLM medido; ccr `n/d`) decidem localmente e encaminham 100 % do prompt para o fornecedor que escolhem — e o LiteLLM escolheu o caro 20/20. O nativo abre 2 ligações externas por prompt, por desenho.**
+
+## Os números (20 prompts reais, n01–n20 do corpus do P1)
+
+| Braço | O que se mediu | Ligações externas | O prompt sai? | Como se observou |
+|---|---|---|---|---|
+| **A · Mooter, hook vivo** (`inject_context.js` da runtime, sem `ANTHROPIC_API_KEY`, árbitro no estado por omissão) | 75 processos Node sob *tap*, 35 ligações, **todas loopback**: `127.0.0.1:7821` ×20 (porta de métricas do próprio hook) e `127.0.0.1:11434` ×15 (Ollama, Option A) | **0 hosts externos** · counting-proxy: 0 CONNECT | **Não** — não há fornecedor no caminho de decisão | `[network-observed]` net-tap (socket) + counting-proxy |
+| **A-block** (`NET_TAP_BLOCK=1`: recusa tudo o que não é loopback) | 0 ligações bloqueadas (o hook não tentou nenhuma) | 0 | Não | idem; **tiers idênticos a A em 20/20** |
+| **B · árbitro do Mooter** (`arbiter.js`, chave falsa, `spawnSync` do filho `node -e` captado) | 20/20 chamadas construídas; corpo médio **2 162 bytes**; **prompt cru presente no corpo 20/20**; modelo `claude-haiku-4-5-20251001`; destino `api.anthropic.com` (no script do filho) | *sairia* 1 por prompt | **Sim, inteiro, para decidir** | `[instrumented]` — nada saiu (sub-corrida com `NET_TAP_BLOCK=1`: 0 ligações) |
+| **C · claude-code-router 3.0.22** | **n/d** — configuração headless não conseguida em 60 min (serviço arranca; gateway exige provider + API key criados pela UI/SQLite ou por RPC autenticado sem catálogo documentado) | n/d | n/d | `ccr.md` tem o bloqueio literal e o comando para retomar |
+| **D · LiteLLM 1.100.0** (`cost-based-routing`, 2 deployments: barato = preço 0, caro = preço alto, ambos `mock-llm` em loopback) | Proxy de pé, 20/20 HTTP 200; **20/20 pedidos foram ao deployment CARO**, 0 ao barato (nas duas formas de configurar preço: `litellm_params` e `model_info`); **prompt cru encaminhado 20/20**; corpo médio no mock 179 bytes (106–502) | decide localmente (0 para decidir); encaminha 100 % | **Sim, inteiro, para o fornecedor** | `[loopback mock]`; hosts externos do processo Python: n/d (amostra `Get-NetTCPConnection` vazia) |
+| **E · Claude Code nativo** (`claude.exe -p`, hooks e tools desligados, `--max-turns 1`) | **2 ligações externas por prompt, 20/20**: `160.79.104.10:443` (api.anthropic.com) e `34.149.66.165:443` (rDNS n/d) | 2 | **Sim, por desenho** — o host reporta `usage.input_tokens` em 20/20 | `netstat` amostrado a 150 ms (32–114 amostras/chamada); **bytes n/d** (o `claude.exe` não honra `HTTPS_PROXY`, D8) |
+
+**PII nos logs locais do router** (regex, 13:42Z; `pii-logs.json`): `decisions.log` (2 799 linhas) — 5 caminhos do *home* (que contêm o nome do dono) e **1 390 linhas com `prompt_preview`** (80 chars de prompt cru); `ledger.jsonl` (727 linhas) — **747** caminhos do *home* com o nome do dono; `decisions_v2.jsonl` e `latencia-local.jsonl` — 0. Total: **752 instâncias de caminho-com-nome** (o contador de «nome» dá 752 também, porque está dentro dos caminhos — não se soma duas vezes); 0 e-mails. O MP dizia «30 hoje»: são 752. Não se corrige aqui (é o log do dono).
+
+## Leitura honesta
+
+1. **A vitória é estreita e é a que interessa:** *decidir* não sai da máquina. Não é «privado» nem «seguro» (§4 do MP proíbe as duas palavras): é «0 hosts externos para classificar, medido ao socket».
+2. **A vitória vale para o estado desta máquina:** sem chave, o árbitro não corre e o tier é T0 em 20/20 — **por causa do defeito D1** (tecto de orçamento), não por acerto. Com chave, os prompts de baixa confiança iriam ao árbitro, e B mostra o que ele manda: o prompt inteiro. É uma derrota conhecida e impressa (`arbiter.js`, `messages:[{role:'user', content: prompt}]`).
+3. **O que os proxies fazem de diferente do nativo não é «menos egress» — é «outro destino e mais um processo no caminho».** LiteLLM decide localmente como o Mooter, mas está *à frente* do tráfego: recebe e reenvia 100 % de cada prompt. E o `cost-based-routing` mandou 20/20 ao deployment caro nas duas configurações testadas — sem explicação nos logs (fica como facto, não como acusação: pode ser configuração nossa; o yaml está no bruto).
+4. **O `netstat` do E é grosseiro:** conta ligações, não bytes, e 10/20 chamadas saíram com exit 1 e stderr vazio mas com JSON completo (`usage.input_tokens = 10` em todas as 20, como as de exit 0); o n03 re-corrido sozinho dá exit 0 — provável concorrência com as duas outras sessões Claude que corriam ao mesmo tempo (P3, P4); causa não estabelecida (**n/d**). A métrica (2 ligações externas por prompt) é a mesma nas 20.
+5. **O instrumento falhou onde disse que podia falhar:** o counting-proxy não vê o `claude.exe`; o `MOOTER_DECISIONS_LOG` não é honrado (D6: as 20 decisões de A foram para o log vivo do dono); a amostra TCP do LiteLLM veio vazia. Tudo declarado, nada preenchido.
+
+## O que isto NÃO prova
+
+- SOC 2, DPA, retenção (não se abriu). O comportamento do árbitro **com chave real em rede** (B é instrumentado). O que os proxies fazem com fornecedores reais (o mock recebe o que sairia). Bytes do nativo. O ccr (n/d). Que «0 hosts para decidir» se mantém com o árbitro ligado — não se mantém, e está escrito.
+
+## Reproduzir
+
+```
+node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm A|A-block|B|D|E|pii
+node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --analyse
+node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/e-probe.mjs    # o claude.exe e o HTTPS_PROXY
+```
+
+
+=== SLIDE (slide.md) ===
+# Slide P5 · To decide where a prompt goes, the Mooter hook contacted 0 external hosts on 20 real prompts — measured at the socket
+
+**Setup:** 20 real September prompts; the hook installed on this machine (no API key, arbiter in its default state); every Node process under a socket-level tap plus an HTTPS CONNECT counter. Pre-registered protocol committed before the first run.
+
+| Path | External connections to decide | Does the raw prompt leave? | How observed |
+|---|---|---|---|
+| **Mooter hook** (rule, local pre-answer) | **0** — 35 connections in 75 processes, all loopback (own metrics port ×20, Ollama ×15) | No | socket tap + proxy counter |
+| Mooter hook, **all external network refused** | 0 blocked (nothing was attempted); **same tier on 20/20** | No | socket tap, block mode |
+| **Mooter arbiter** (only runs with an API key; here: fake key, request captured, nothing sent) | would open 1 per prompt to api.anthropic.com | **Yes — the whole prompt, 20/20**, ~2.2 kB body | instrumented, not network-observed |
+| LiteLLM 1.100.0 proxy, cost-based routing, two loopback mock providers | decides locally; forwards 100 % | **Yes, 20/20** — and it picked the *expensive* deployment 20/20 (both price-config forms tried) | loopback mock counts bodies |
+| claude-code-router 3.0.22 | n/d — headless config not achieved in 60 min (UI/SQLite + undocumented authenticated RPC) | n/d | blocker on file |
+| Claude Code native (`claude -p`, hooks/tools off) | **2 per prompt, 20/20** (api.anthropic.com + one GCP address) | Yes, by design (host reports input tokens 20/20) | `netstat` sampled every 150 ms; bytes n/d (`claude.exe` ignores `HTTPS_PROXY`) |
+
+**Local logs are not clean:** 752 home-path-with-owner-name instances and 1,390 lines with 80-char raw prompt previews in the router's own logs on this machine. Counted, not fixed.
+
+**Printed losses:** the arbiter ships the raw prompt whenever it runs; the tier was T0 on 20/20 because of a live budget-cap defect (D1), not because of good routing; the redirect of the decisions log was ignored (D6).
+
+*Does not prove: "private" or "secure" (words not allowed); SOC 2/DPA/retention; behaviour with a real key and the arbiter on the network; proxies with real providers; native byte counts; anything about claude-code-router.*
+
+
+=== ANALYSIS (results\analysis.json) ===
+{
+ "at": "2026-09-09T14:16:24.423Z",
+ "A": {
+  "prompts": 20,
+  "tap": {
+   "processes": 75,
+   "connections": 35,
+   "external_hosts": [],
+   "by_host": {
+    "127.0.0.1:7821": {
+     "n": 20,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    },
+    "127.0.0.1:11434": {
+     "n": 15,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    }
+   }
+  },
+  "proxy_by_host": {},
+  "hook_events": {},
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0",
+  "arbiter_honored": 0
+ },
+ "A_block": {
+  "external_blocked": 0,
+  "tiers_identical_to_A": true,
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0"
+ },
+ "B_arbiter": {
+  "prompts": 20,
+  "calls": 20,
+  "raw_prompt_in_body": 20,
+  "body_bytes_mean": 2162.4,
+  "destinations": [
+   null
+  ],
+  "instrumented_not_network": true
+ },
+ "D_litellm": {
+  "up": true,
+  "to_cheap": 0,
+  "to_dear": 20,
+  "raw_prompt_forwarded": 20,
+  "body_bytes_cheap_mean": null,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200"
+ },
+ "E_native": {
+  "prompts": 20,
+  "method": "netstat -ano amostrado a 150 ms por pid (claude.exe + filhos) — AMENDMENT-1; bytes n/d",
+  "proxy_probe": "e-probe.mjs 2026-09-09: com HTTPS_PROXY o claude.exe fica pendurado (exit null aos 90 s, 0 ligacoes ao proxy); sem proxy exit 0 em 8 s",
+  "external_connections_per_prompt": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "external_hosts": [
+   "160.79.104.10",
+   "34.149.66.165"
+  ],
+  "bytes_out": "n/d",
+  "prompt_left_by_design": [
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host"
+  ],
+  "netstat_samples": [
+   57,
+   94,
+   75,
+   39,
+   44,
+   56,
+   88,
+   32,
+   43,
+   42,
+   60,
+   54,
+   75,
+   95,
+   77,
+   32,
+   76,
+   44,
+   114,
+   64
+  ],
+  "exits": "0 0 1 1 1 0 0 1 1 0 1 1 0 0 0 1 1 1 0 0"
+ },
+ "C_ccr": {
+  "status": "n/d",
+  "blocker": "configuracao headless nao conseguida em 60 min: o gateway so responde com provider + API key criados pela UI/SQLite ou pelo RPC /api/ccr/rpc, que exige token web e cujo catalogo de metodos nao esta documentado — ver ccr.md",
+  "version": "3.0.22"
+ },
+ "pii": [
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions.log",
+   "exists": true,
+   "lines": 2799,
+   "bytes": 1269877,
+   "counts": {
+    "owner_name": 5,
+    "email": 0,
+    "home_path": 5
+   },
+   "prompt_preview_lines": 1390
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions_v2.jsonl",
+   "exists": true,
+   "lines": 5313,
+   "bytes": 991254,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\latencia-local.jsonl",
+   "exists": true,
+   "lines": 413,
+   "bytes": 39337,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.mooter\\ledger.jsonl",
+   "exists": true,
+   "lines": 727,
+   "bytes": 627384,
+   "counts": {
+    "owner_name": 747,
+    "email": 0,
+    "home_path": 747
+   },
+   "prompt_preview_lines": 0
+  }
+ ]
+}
+
+=== EXTRA (ccr.md) ===
+# P5 · braço C · claude-code-router 3.0.22 — `n/d` com o bloqueio literal
+
+**O que se conseguiu (2026-09-09, ~60 min de tecto):**
+
+- Instalação isolada: `npm install --prefix <scratch>/ccr @musistudio/claude-code-router@3.0.22` → exit 0 (npm, publicado 2026-08-24; upstream `5ad5083b`, 2026-09-01; 37 151 ★).
+- Arranque headless com `APPDATA` isolado: `node dist/main/cli.js start --no-open --port 3477` → `CCR service started at http://127.0.0.1:3477/?ccr_web_token=… (pid 56432)`; cria `%APPDATA%\claude-code-router\config.sqlite` (+ `-wal`, `-shm`) e `service.json` com `serviceToken`. Parado com `cli.js stop` → «CCR service stopped».
+- Documentação lida (`docs/src/content/docs/en/configuration/{routing,configuration-file}.md`): a configuração vive em **SQLite editado pela UI**; «Use the desktop UI to change configuration»; um `config.json` legado só é lido uma vez como migração «when no SQLite config exists».
+
+**O bloqueio:** o gateway (`:3456`) só responde depois de existir **um provider e uma API key de cliente**, criados pela UI ou pelo RPC `/api/ccr/rpc`. Esse RPC exige o token web (`{"error":{"message":"CCR web authentication token is missing or invalid."}}` com `Authorization: Bearer` e com `x-ccr-web-token`), e o catálogo de métodos não está documentado nem é legível no bundle minificado (`dist/main/cli.js`, 2,3 MB; `dist/renderer/*` só expõe `method:"GET"|"POST"`). Não se testou o caminho legado `config.json` (arrancar com o ficheiro antes do primeiro `start`) porque o tecto de 60 min do R8 acabou — fica como o próximo comando a tentar.
+
+**Célula no P8:** `n/d — configuração headless não conseguida em 60 min; serviço arranca, configuração é UI/SQLite`. Nunca «não tem».
+
+**Comando para retomar:**
+```
+# 1) antes do primeiro start, colocar %APPDATA%\claude-code-router\config.json no formato v2 (Providers + Router) e verificar se migra;
+# 2) senão, abrir http://127.0.0.1:3477/?ccr_web_token=<token> num browser, criar provider = mock-llm (loopback) + API key, e repetir a corrida A com o cliente a apontar para :3456.
+```
+
+
+=== EXTRA (e-probe.mjs) ===
+// e-probe.mjs — o claude.exe honra HTTPS_PROXY? Uma chamada por variante, 90 s de tecto.
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const { startCountingProxy } = await import('file:///' + path.join(HERE, '..', 'lib', 'counting-proxy.mjs').split('\\').join('/'));
+const CLAUDE_EXE = path.join(process.env.APPDATA, 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+const variants = [{ HTTPS_PROXY: 1, https_proxy: 1, HTTP_PROXY: 1, http_proxy: 1 }, { HTTPS_PROXY: 1 }, {}];
+for (const variant of variants) {
+  const p = await startCountingProxy({ block: false });
+  const env = { ...process.env, CLAUDECODE: '' }; for (const k of Object.keys(variant)) env[k] = p.url;
+  const t0 = Date.now();
+  const r = spawnSync(CLAUDE_EXE, ['-p', '--model', 'haiku', '--output-format', 'json', '--max-turns', '1', '--no-session-persistence', '--settings', '{"disableAllHooks":true}', '--disallowedTools', 'Bash,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,Task'], { input: 'reply with the single word banana', encoding: 'utf8', windowsHide: true, timeout: 90000, env });
+  const rep = p.report(); await p.close();
+  console.log(JSON.stringify({ variant: Object.keys(variant), exit: r.status, ms: Date.now() - t0, conns: rep.total_connections, by_host: rep.by_host, stdout: (r.stdout || '').slice(0, 100), stderr: (r.stderr || '').slice(0, 300) }));
+}

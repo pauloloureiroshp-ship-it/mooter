@@ -3,7 +3,7 @@
   "id": "P6",
   "title": "Custo na linha — o recibo que a consola do fornecedor não dá",
   "estado": "CONGELADO",
-  "congelado_em": "2026-09-09T14:40:00Z",
+  "congelado_em": "2026-09-09T13:51:24.000Z",
   "regra": "Commitado antes da corrida. Nenhum numero muda depois. PROIBIDO somar linhas e chamar-lhe poupanca.",
   "pergunta": "Cada turno tem custo real, com ORIGEM do numero, na mesma linha da decisao? E reconcilia com a telemetria do host?",
   "metodo": "C2-min, event-sourcing: uma 'linha 2' por decisao/execucao, produzida por tools/router/cost-line.js (novo, aditivo, com testes que mordem: uma linha Ollama sem contagens nunca diz 0; haiku < sonnet < opus no preco de lista, senao o apelido caiu no fallback). Campos: cost_usd (desembolso incremental), cost_source (rule_local | ollama_local | subscription_included | api_list_price@<data> | n/d), prompt_eval_count, eval_count, cache_*, list_price_usd (subscricao), priced_at (data do snapshot lida do proprio pricing.js).",
@@ -13,6 +13,11 @@
   },
   "reconciliacao": "para (iii): soma do preco de lista das nossas linhas vs soma do total_cost_usd reportado pelo CLI (a telemetria do host). Δ absoluto e relativo. O CLI inclui cache_read/cache_creation no seu numero; a nossa linha imprime as contagens de cache mas o preco de lista de pricing.js so tem input/output — a diferenca e esperada e imprime-se como esta. Para (ii) e (iv): a fonte das contagens E o host (Ollama), Δ = 0 por construcao — declara-se, nao se celebra.",
   "metricas": "por braco: linhas totais, linhas com cost_usd != n/d, linhas com cost_source, linhas com tokens; para B(iii): ours_usd, host_usd, delta_usd, delta_rel",
-  "nao_prova": ["POUPANCA — proibido", "que o preco de lista e o que o dono paga (e subscricao)", "que o cache_read do CLI e comparavel ao input do SSOT"],
-  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P6-custo-na-linha/run.mjs && cd tools/router && node --test cost-line.test.js"
+  "nao_prova": [
+    "POUPANCA — proibido",
+    "que o preco de lista e o que o dono paga (e subscricao)",
+    "que o cache_read do CLI e comparavel ao input do SSOT"
+  ],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P6-custo-na-linha/run.mjs && cd tools/router && node --test cost-line.test.js",
+  "congelado_em_fonte": "git commit 61007b23 (%cI 2026-09-09T10:51:24-03:00); o valor anterior '2026-09-09T14:40:00Z' era escrito a mao e errado — ERRATA-timestamps.md"
 }

@@ -1,0 +1,788 @@
+{
+ "arm": "A",
+ "model": "sonnet",
+ "at": "2026-09-09T14:16:13.592Z",
+ "hook_log": "C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\provas-p3-7iWoap\\hook.jsonl",
+ "rows": [
+  {
+   "id": "n01",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 36606,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788961773555
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 8,
+    "out": 2222,
+    "cache_read": 318622,
+    "cache_create": 108299
+   },
+   "num_turns": 4,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:2ed0dd04de63 chars:200]]"
+  },
+  {
+   "id": "n02",
+   "tier_key_p1": "T1",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 249353,
+   "decision_at_spawn": {
+    "model": "claude-opus-4-6",
+    "subagent": "model-architect",
+    "tier": "T3",
+    "ts": 1788961998567
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "model-reasoner",
+     "description": "Investigar fluxo de aprovação do Mooter no Slack",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 6,
+    "out": 6257,
+    "cache_read": 253006,
+    "cache_create": 80949
+   },
+   "num_turns": 4,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:5b3da2660c83 chars:200]]"
+  },
+  {
+   "id": "n03",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 67795,
+   "decision_at_spawn": {
+    "model": "claude-opus-4-6",
+    "subagent": "model-architect",
+    "tier": "T3",
+    "ts": 1788962092391
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Check pending items needing owner gesture",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T13:54:12.208Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 93,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 431
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 4,
+    "out": 1628,
+    "cache_read": 136919,
+    "cache_create": 72667
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:e5c8f09a4185 chars:118]]"
+  },
+  {
+   "id": "n04",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 98101,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962200975
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T13:55:15.191Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 95,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 425
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 18,
+    "out": 5405,
+    "cache_read": 1046780,
+    "cache_create": 102962
+   },
+   "num_turns": 9,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:f75ab0e9fe7d chars:200]]"
+  },
+  {
+   "id": "n05",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 99710,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962233070
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T13:56:59.082Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 90,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 427
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 14,
+    "out": 6703,
+    "cache_read": 707388,
+    "cache_create": 86064
+   },
+   "num_turns": 7,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:afcb83f58a22 chars:200]]"
+  },
+  {
+   "id": "n06",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 16836,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962319926
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T13:58:43.467Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 93,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 431
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 643,
+    "cache_read": 35200,
+    "cache_create": 68181
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:2ce6e46b690d chars:200]]"
+  },
+  {
+   "id": "n07",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 1,
+   "ms": 59526,
+   "decision_at_spawn": {
+    "model": "qwen2.5:3b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962341239
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T13:59:01.508Z",
+     "path": "/api/generate",
+     "model": "qwen2.5:3b",
+     "prompt_eval_count": 90,
+     "eval_count": 8,
+     "status": 200,
+     "body_bytes": 431
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 24,
+    "out": 3941,
+    "cache_read": 1307467,
+    "cache_create": 98608
+   },
+   "num_turns": 13,
+   "is_error": true,
+   "stderr": "",
+   "result_text": ""
+  },
+  {
+   "id": "n08",
+   "tier_key_p1": "T1",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 230419,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962485011
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 16,
+    "out": 17485,
+    "cache_read": 1028519,
+    "cache_create": 163405
+   },
+   "num_turns": 16,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:ad1069ec306c chars:200]]"
+  },
+  {
+   "id": "n09",
+   "tier_key_p1": "T1",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 43902,
+   "decision_at_spawn": {
+    "model": "qwen2.5-coder:14b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962675546
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Resume fatia-local.js em 1 frase",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:04:02.155Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 125,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 534
+    },
+    {
+     "at": "2026-09-09T14:04:29.939Z",
+     "path": "/api/generate",
+     "model": "gemma4:e4b",
+     "status": 400,
+     "body_bytes": 644
+    },
+    {
+     "at": "2026-09-09T14:04:32.393Z",
+     "path": "/api/generate",
+     "model": "gemma4:e4b",
+     "prompt_eval_count": null,
+     "eval_count": null,
+     "status": 400,
+     "body_bytes": 220
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 4,
+    "out": 477,
+    "cache_read": 137587,
+    "cache_create": 72205
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:8a37ac7e272c chars:88]]"
+  },
+  {
+   "id": "n10",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 14311,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962688514
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:04:50.339Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 90,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 425
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 592,
+    "cache_read": 35200,
+    "cache_create": 69356
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:0be9eb8272e5 chars:200]]"
+  },
+  {
+   "id": "n11",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 107611,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962707334
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:05:09.363Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 98,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 436
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 14,
+    "out": 5287,
+    "cache_read": 679672,
+    "cache_create": 82247
+   },
+   "num_turns": 7,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:7558ecdc4f39 chars:200]]"
+  },
+  {
+   "id": "n12",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 17153,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962819302
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:07:01.282Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 94,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 435
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 692,
+    "cache_read": 35200,
+    "cache_create": 66518
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:38f41c5a6491 chars:200]]"
+  },
+  {
+   "id": "n13",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 51142,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962840724
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:07:22.677Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 92,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 435
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 8,
+    "out": 2627,
+    "cache_read": 361075,
+    "cache_create": 80028
+   },
+   "num_turns": 4,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:22d6be808870 chars:200]]"
+  },
+  {
+   "id": "n15",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 71221,
+   "decision_at_spawn": {
+    "model": "claude-opus-4-6",
+    "subagent": "model-architect",
+    "tier": "T3",
+    "ts": 1788962956384
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Extrair próximo passo do SYNC.md",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:08:18.069Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 100,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 455
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 4,
+    "out": 1471,
+    "cache_read": 139829,
+    "cache_create": 72474
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:ca142cdac1f5 chars:72]]"
+  },
+  {
+   "id": "n16",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 114221,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788962972028
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:09:33.852Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 99,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 455
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 24,
+    "out": 8488,
+    "cache_read": 1347839,
+    "cache_create": 101017
+   },
+   "num_turns": 17,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:23f46e5b8faa chars:200]]"
+  },
+  {
+   "id": "n17",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 19787,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963092173
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:11:34.045Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 92,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 428
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 927,
+    "cache_read": 35200,
+    "cache_create": 68995
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:f93339ead802 chars:200]]"
+  },
+  {
+   "id": "n18",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 21986,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963117473
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:11:59.442Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 101,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 478
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 1093,
+    "cache_read": 35200,
+    "cache_create": 70189
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:4c5720e91cda chars:200]]"
+  },
+  {
+   "id": "n19",
+   "tier_key_p1": "T1",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 117097,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963144862
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 12,
+    "out": 9376,
+    "cache_read": 603022,
+    "cache_create": 86269
+   },
+   "num_turns": 7,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:ab97ab24a8fd chars:200]]"
+  },
+  {
+   "id": "n20",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 37880,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963266855
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:14:28.725Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 97,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 425
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 6,
+    "out": 2156,
+    "cache_read": 249420,
+    "cache_create": 74905
+   },
+   "num_turns": 3,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:95529267a3ee chars:200]]"
+  },
+  {
+   "id": "n21",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 66945,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963372570
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:15:11.548Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 92,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 426
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 14,
+    "out": 4384,
+    "cache_read": 723654,
+    "cache_create": 96517
+   },
+   "num_turns": 11,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:6a35a979d1b5 chars:200]]"
+  }
+ ]
+}

@@ -1,0 +1,184 @@
+{
+ "at": "2026-09-09T14:16:24.423Z",
+ "A": {
+  "prompts": 20,
+  "tap": {
+   "processes": 75,
+   "connections": 35,
+   "external_hosts": [],
+   "by_host": {
+    "127.0.0.1:7821": {
+     "n": 20,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    },
+    "127.0.0.1:11434": {
+     "n": 15,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    }
+   }
+  },
+  "proxy_by_host": {},
+  "hook_events": {},
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0",
+  "arbiter_honored": 0
+ },
+ "A_block": {
+  "external_blocked": 0,
+  "tiers_identical_to_A": true,
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0"
+ },
+ "B_arbiter": {
+  "prompts": 20,
+  "calls": 20,
+  "raw_prompt_in_body": 20,
+  "body_bytes_mean": 2162.4,
+  "destinations": [
+   null
+  ],
+  "instrumented_not_network": true
+ },
+ "D_litellm": {
+  "up": true,
+  "to_cheap": 0,
+  "to_dear": 20,
+  "raw_prompt_forwarded": 20,
+  "body_bytes_cheap_mean": null,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200"
+ },
+ "E_native": {
+  "prompts": 20,
+  "method": "netstat -ano amostrado a 150 ms por pid (claude.exe + filhos) — AMENDMENT-1; bytes n/d",
+  "proxy_probe": "e-probe.mjs 2026-09-09: com HTTPS_PROXY o claude.exe fica pendurado (exit null aos 90 s, 0 ligacoes ao proxy); sem proxy exit 0 em 8 s",
+  "external_connections_per_prompt": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "external_hosts": [
+   "160.79.104.10",
+   "34.149.66.165"
+  ],
+  "bytes_out": "n/d",
+  "prompt_left_by_design": [
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host",
+   "usage.input_tokens=10 reportado pelo host"
+  ],
+  "netstat_samples": [
+   57,
+   94,
+   75,
+   39,
+   44,
+   56,
+   88,
+   32,
+   43,
+   42,
+   60,
+   54,
+   75,
+   95,
+   77,
+   32,
+   76,
+   44,
+   114,
+   64
+  ],
+  "exits": "0 0 1 1 1 0 0 1 1 0 1 1 0 0 0 1 1 1 0 0"
+ },
+ "C_ccr": {
+  "status": "n/d",
+  "blocker": "configuracao headless nao conseguida em 60 min: o gateway so responde com provider + API key criados pela UI/SQLite ou pelo RPC /api/ccr/rpc, que exige token web e cujo catalogo de metodos nao esta documentado — ver ccr.md",
+  "version": "3.0.22"
+ },
+ "pii": [
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions.log",
+   "exists": true,
+   "lines": 2799,
+   "bytes": 1269877,
+   "counts": {
+    "owner_name": 5,
+    "email": 0,
+    "home_path": 5
+   },
+   "prompt_preview_lines": 1390
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions_v2.jsonl",
+   "exists": true,
+   "lines": 5313,
+   "bytes": 991254,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\latencia-local.jsonl",
+   "exists": true,
+   "lines": 413,
+   "bytes": 39337,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.mooter\\ledger.jsonl",
+   "exists": true,
+   "lines": 727,
+   "bytes": 627384,
+   "counts": {
+    "owner_name": 747,
+    "email": 0,
+    "home_path": 747
+   },
+   "prompt_preview_lines": 0
+  }
+ ]
+}

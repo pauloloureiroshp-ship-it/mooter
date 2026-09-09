@@ -1,8 +1,9 @@
 {
- "at": "2026-09-09T13:51:24.444Z",
+ "at": "2026-09-09T14:06:36.982Z",
+ "note": "protocolo: decisions.log (classified, executed) e ledger (done); o corte all do ledger e exploratorio",
  "decisions_log": {
   "classified": {
-   "total": 916,
+   "total": 939,
    "with_cost_field": 0,
    "with_cost_gt0": 0,
    "with_cost_source": 0,

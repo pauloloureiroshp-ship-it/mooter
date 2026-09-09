@@ -1,0 +1,157 @@
+{
+ "arm": "D",
+ "at": "2026-09-09T13:56:32.292Z",
+ "litellm_up": true,
+ "port": 4022,
+ "config": "model_list:\n  - model_name: router\n    litellm_params:\n      model: ollama/qwen2.5:3b\n      api_base: http://127.0.0.1:61531\n      input_cost_per_token: 0.0\n      output_cost_per_token: 0.0\n    model_info:\n      input_cost_per_token: 0.0\n      output_cost_per_token: 0.0\n  - model_name: router\n    litellm_params:\n      model: openai/mock-cloud\n      api_base: http://127.0.0.1:61532/v1\n      api_key: provas-fake\n      input_cost_per_token: 0.00001\n      output_cost_per_token: 0.00003\n    model_info:\n      input_cost_per_token: 0.00001\n      output_cost_per_token: 0.00003\nrouter_settings:\n  routing_strategy: cost-based-routing\nlitellm_settings:\n  drop_params: true\n  telemetry: false\n",
+ "requests_to_cheap": 0,
+ "requests_to_dear": 20,
+ "cheap_body_bytes": [],
+ "dear_body_bytes": [
+  303,
+  403,
+  112,
+  106,
+  108,
+  112,
+  111,
+  502,
+  215,
+  106,
+  117,
+  116,
+  116,
+  169,
+  136,
+  136,
+  109,
+  159,
+  346,
+  106
+ ],
+ "raw_prompt_forwarded": 20,
+ "tcp_sample_of_proxy_process": "",
+ "rows": [
+  {
+   "id": "n01",
+   "status": 200,
+   "ms": 696.2196,
+   "error": null
+  },
+  {
+   "id": "n02",
+   "status": 200,
+   "ms": 9.2601,
+   "error": null
+  },
+  {
+   "id": "n03",
+   "status": 200,
+   "ms": 7.7005,
+   "error": null
+  },
+  {
+   "id": "n04",
+   "status": 200,
+   "ms": 7.0302,
+   "error": null
+  },
+  {
+   "id": "n05",
+   "status": 200,
+   "ms": 7.0725,
+   "error": null
+  },
+  {
+   "id": "n06",
+   "status": 200,
+   "ms": 7.5618,
+   "error": null
+  },
+  {
+   "id": "n07",
+   "status": 200,
+   "ms": 7.4006,
+   "error": null
+  },
+  {
+   "id": "n08",
+   "status": 200,
+   "ms": 8.2054,
+   "error": null
+  },
+  {
+   "id": "n09",
+   "status": 200,
+   "ms": 7.7328,
+   "error": null
+  },
+  {
+   "id": "n10",
+   "status": 200,
+   "ms": 8.4737,
+   "error": null
+  },
+  {
+   "id": "n11",
+   "status": 200,
+   "ms": 8.4255,
+   "error": null
+  },
+  {
+   "id": "n12",
+   "status": 200,
+   "ms": 7.6315,
+   "error": null
+  },
+  {
+   "id": "n13",
+   "status": 200,
+   "ms": 7.3804,
+   "error": null
+  },
+  {
+   "id": "n14",
+   "status": 200,
+   "ms": 7.5587,
+   "error": null
+  },
+  {
+   "id": "n15",
+   "status": 200,
+   "ms": 8.0178,
+   "error": null
+  },
+  {
+   "id": "n16",
+   "status": 200,
+   "ms": 7.499,
+   "error": null
+  },
+  {
+   "id": "n17",
+   "status": 200,
+   "ms": 6.9944,
+   "error": null
+  },
+  {
+   "id": "n18",
+   "status": 200,
+   "ms": 7.457,
+   "error": null
+  },
+  {
+   "id": "n19",
+   "status": 200,
+   "ms": 7.9785,
+   "error": null
+  },
+  {
+   "id": "n20",
+   "status": 200,
+   "ms": 7.5805,
+   "error": null
+  }
+ ],
+ "log_tail": "0:56:28 - LiteLLM:WARNING: utils.py:3077 - register_model: model=ollama/qwen2.5:3b has custom pricing but not in built-in cost map and no prefix/region variant matched; cache_creation_input_token_cost and cache_read_input_token_cost will default to 0 for this model (input/output cost tracking is unaffected). To track cache cost, add them to model_info\r\n10:56:28 - LiteLLM:WARNING: utils.py:3077 - register_model: model=openai/mock-cloud has custom pricing but not in built-in cost map and no prefix/region variant matched; cache_creation_input_token_cost and cache_read_input_token_cost will default to 0 for this model (input/output cost tracking is unaffected). To track cache cost, add them to model_info\r\nINFO:     Application startup complete.\r\nINFO:     Uvicorn running on http://127.0.0.1:4022 (Press CTRL+C to quit)\r\n\r\n\u001b[1;37m#------------------------------------------------------------#\u001b[0m\r\n\u001b[1;37m#                                                            #\u001b[0m\r\n\u001b[1;37m#       'This feature doesn't meet my needs because...'       #\u001b[0m\r\n\u001b[1;37m#        https://github.com/BerriAI/litellm/issues/new        #\u001b[0m\r\n\u001b[1;37m#                                                            #\u001b[0m\r\n\u001b[1;37m#------------------------------------------------------------#\u001b[0m\r\n\r\n Thank you for using LiteLLM! - Krrish & Ishaan\r\n\r\n\r\n\r\n\u001b[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new\u001b[0m\r\n\r\n\r\n\u001b[32mLiteLLM: Proxy initialized with Config, Set models:\u001b[0m\r\n\u001b[32m    router\u001b[0m\r\n\u001b[32m    router\u001b[0m\r\nINFO:     127.0.0.1:61561 - \"GET /health/liveliness HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61562 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\nINFO:     127.0.0.1:61561 - \"POST /chat/completions HTTP/1.1\" 200 OK\r\n"
+}

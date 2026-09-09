@@ -636,5 +636,11 @@
    "ms": 129.7652,
    "stdout_bytes": 937
   }
- ]
+ ],
+ "isolated_log_events": {
+  "user_override_vetoed": 2,
+  "classified": 63,
+  "prompt_optimized": 37,
+  "option_a_miss": 25
+ }
 }

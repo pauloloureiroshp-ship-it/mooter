@@ -3,7 +3,7 @@
   "id": "P5",
   "title": "Atestação de egress — o que sai da máquina para DECIDIR",
   "estado": "CONGELADO",
-  "congelado_em": "2026-09-09T13:50:00Z",
+  "congelado_em": "2026-09-09T13:40:15.000Z",
   "regra": "Nenhum numero muda depois da primeira corrida. Emendas so por AMENDMENT-n.md. Este ficheiro e commitado ANTES da corrida (resposta ao ataque P1 do P1).",
   "pergunta": "Com o Mooter ligado, quantos bytes de prompt saem do dispositivo por prompt, e para onde? E com um proxy no caminho?",
   "instrumento": {
@@ -25,6 +25,11 @@
   "metricas": "por braco e por prompt: ligacoes externas (destino, contagem), bytes de saida/entrada, bytes de corpo no mock, prompt cru presente no corpo (sim/nao). Sem media sem o bruto ao lado.",
   "regra_de_paragem": "Falha de servico do proxy/gateway -> n/d com o erro literal. 0 retries.",
   "expectativa_honesta": "A: 0 bytes de prompt; talvez 1 ligacao de orcamento. B: o corpo LEVA o prompt inteiro (arbiter.js:184 messages: [{role:user, content: prompt}]) — e uma derrota conhecida, impressa. C e D: decidem localmente (0 bytes para decidir) e encaminham 100 % do prompt para o fornecedor escolhido — igual ao nativo; o que muda e QUEM e o fornecedor e que ha um processo a mais no caminho. E: 100 %.",
-  "nao_prova": ["SOC 2, DPA, retencao — nao se abre", "o comportamento com chave real e arbitro ligado em rede (B e instrumentado)", "proxies com providers reais (o mock recebe o que sairia)"],
-  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm A|A-block|B|C|D|E|pii && node run.mjs --analyse"
+  "nao_prova": [
+    "SOC 2, DPA, retencao — nao se abre",
+    "o comportamento com chave real e arbitro ligado em rede (B e instrumentado)",
+    "proxies com providers reais (o mock recebe o que sairia)"
+  ],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm A|A-block|B|C|D|E|pii && node run.mjs --analyse",
+  "congelado_em_fonte": "git commit 22388a20 (%cI 2026-09-09T10:40:15-03:00); o valor anterior '2026-09-09T13:50:00Z' era escrito a mao e errado — ERRATA-timestamps.md"
 }

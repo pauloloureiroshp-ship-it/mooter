@@ -10,7 +10,10 @@ const TAP = path.join(path.dirname(fileURLToPath(import.meta.url)), 'net-tap.cjs
 const run = (code, extra = {}) => {
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nettap-')), 'tap.jsonl');
   const r = spawnSync(process.execPath, ['-e', code], { encoding: 'utf8', timeout: 30000, env: { ...process.env, NODE_OPTIONS: `--require "${TAP}"`, NET_TAP_OUT: out, ...extra } });
-  const recs = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((x) => !x.event) : [];
+  const raw = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((x) => !x.event) : [];
+  // uma ligacao = duas linhas (open, close|exit|blocked); fica a mais informativa
+  const byId = {}; for (const x of raw) { if (!byId[x.conn_id] || x.phase !== 'open') byId[x.conn_id] = x; }
+  const recs = Object.values(byId);
   return { r, recs };
 };
 

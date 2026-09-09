@@ -39,7 +39,7 @@ const CLAUDE_EXE = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '
 
 function prompts20() { return JSON.parse(fs.readFileSync(path.join(HERE, '..', 'P1-decidir-custa-zero', 'corpus-40.json'), 'utf8')).items.slice(0, 20); }
 function readTap(file) { try { return fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; } }
-function summarizeTap(recs) { const conns = recs.filter((r) => !r.event); const by = {}; for (const c of conns) { const k = `${c.host}:${c.port}${c.ipc ? '(ipc)' : ''}`; by[k] = by[k] || { n: 0, bytes_out: 0, bytes_in: 0, blocked: 0 }; by[k].n++; by[k].bytes_out += c.bytes_out; by[k].bytes_in += c.bytes_in; if (c.blocked) by[k].blocked++; } return { processes_tapped: recs.filter((r) => r.event === 'tap-loaded').length, connections: conns.length, by_host: by, external: Object.keys(by).filter((k) => !/^(127\.|localhost|::1|ipc)/.test(k)) }; }
+function summarizeTap(recs) { const PR = { close: 3, exit: 2, blocked: 2, open: 1 }; const byId = {}; for (const r of recs.filter((x) => !x.event)) { const k = r.conn_id || `${r.pid}-${r.at}`; if (!byId[k] || (PR[r.phase] || 0) >= (PR[byId[k].phase] || 0)) byId[k] = r; } const conns = Object.values(byId); const by = {}; for (const c of conns) { const k = `${c.host}:${c.port}${c.ipc ? '(ipc)' : ''}`; by[k] = by[k] || { n: 0, bytes_out: 0, bytes_in: 0, blocked: 0 }; by[k].n++; by[k].bytes_out += c.bytes_out; by[k].bytes_in += c.bytes_in; if (c.blocked) by[k].blocked++; } return { processes_tapped: recs.filter((r) => r.event === 'tap-loaded').length, connections: conns.length, by_host: by, external: Object.keys(by).filter((k) => !/^(127\.|localhost|::1|ipc)/.test(k)) }; }
 function checkFrozen() { const want = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8')); if (want.estado !== 'CONGELADO') throw new Error('protocolo nao congelado'); }
 
 // ── A / A-block: o hook REAL, HOME real, log redirigido ─────────────────────
@@ -65,32 +65,41 @@ async function armA(block) {
 }
 
 // ── B: o arbitro, instrumentado em processo ─────────────────────────────────
+// O arbiter.js NAO usa https.request: lanca um processo filho `node -e <fetch> <body> <apiKey>`
+// (arbiter.js:212). Por isso captura-se o spawnSync ANTES de o modulo o destruturar,
+// e le-se o corpo que SAIRIA em argv. Em paralelo, uma segunda corrida deixa o
+// filho verdadeiro nascer sob net-tap com NET_TAP_BLOCK=1: o tap regista o destino
+// (api.anthropic.com:443) e recusa a ligacao — nada sai.
 async function armB() {
   checkFrozen();
-  const https = require('https');
+  const cp = require('child_process');
   const captured = [];
+  const realSpawnSync = cp.spawnSync;
+  cp.spawnSync = function fakeSpawnSync(cmd, argv, o) {
+    if (Array.isArray(argv) && argv[0] === '-e' && /api\.anthropic\.com|anthropic/.test(String(argv[1]))) {
+      const body = String(argv[2] || ''); const key = String(argv[3] || '');
+      captured.push({ body, key_len: key.length, script_mentions_host: (String(argv[1]).match(/api\.anthropic\.com/) || []).length });
+      return { status: 0, stdout: JSON.stringify({ content: [{ type: 'text', text: JSON.stringify({ tier: 'T2', subagent: 'model-reasoner', reasoning: 'mock' }) }], usage: { input_tokens: 1, output_tokens: 1 } }), stderr: '' };
+    }
+    return realSpawnSync.apply(this, arguments);
+  };
   process.env.ANTHROPIC_API_KEY = 'provas-presenca-falsa'; delete process.env.MOOTER_ARBITER_DISABLE;
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'provas-p5-arb-')); fs.mkdirSync(path.join(tmpHome, '.claude', 'tools', 'router'), { recursive: true });
-  process.env.USERPROFILE = tmpHome; process.env.HOME = tmpHome; // cache do arbitro isolada
-  https.request = function fakeRequest(opts, cb) {
-    const rec = { host: opts.hostname || opts.host, path: opts.path, method: opts.method, headers: Object.keys(opts.headers || {}), body: '' };
-    captured.push(rec);
-    const { EventEmitter } = require('events');
-    const req = new EventEmitter();
-    req.write = (c) => { rec.body += String(c); }; req.setTimeout = () => req; req.destroy = () => {};
-    req.end = (c) => { if (c) rec.body += String(c); setImmediate(() => { const res = new EventEmitter(); res.statusCode = 200; res.headers = {}; cb(res); res.emit('data', Buffer.from(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify({ tier: 'T2', subagent: 'model-reasoner', reasoning: 'mock' }) }], usage: { input_tokens: 1, output_tokens: 1 } }))); res.emit('end'); }); return req; };
-    return req;
-  };
+  process.env.USERPROFILE = tmpHome; process.env.HOME = tmpHome;
   const arb = require(path.join(ROOT, 'tools', 'router', 'arbiter.js'));
   const rows = [];
   for (const p of prompts20()) {
-    const before = captured.length;
-    let out = null, err = null;
-    try { out = await arb.arbitrate(p.prompt); } catch (e) { err = e.message; }
+    const before = captured.length; let out = null, err = null;
+    try { out = await arb.arbitrate(p.prompt, { _skipCache: true }); } catch (e) { err = e.message; }
     const calls = captured.slice(before);
-    rows.push({ id: p.id, prompt_chars: p.prompt.length, arbiter_called: calls.length, would_send_to: calls.map((c) => c.host + c.path), body_bytes: calls.reduce((a, c) => a + Buffer.byteLength(c.body), 0), raw_prompt_in_body: calls.some((c) => c.body.includes(p.prompt)), result: out && out.tier, error: err });
+    rows.push({ id: p.id, prompt_chars: p.prompt.length, arbiter_called: calls.length, body_bytes: calls.reduce((a, c) => a + Buffer.byteLength(c.body), 0), raw_prompt_in_body: calls.some((c) => c.body.includes(p.prompt) || c.body.includes(JSON.stringify(p.prompt).slice(1, -1))), /* o corpo e JSON: o prompt vai escapado */ body_model: calls.map((c) => { try { return JSON.parse(c.body).model; } catch { return null; } }), result: out && out.tier, error: err });
   }
-  save('B-arbiter-instrumented.json', { arm: 'B', at: now(), instrumented: true, network_observed: false, note: 'https.request substituido; nada saiu da maquina; o corpo captado e o que SAIRIA para api.anthropic.com', arbiter_source: 'tools/router/arbiter.js', rows });
+  cp.spawnSync = realSpawnSync;
+  // segunda corrida: o filho real, sob tap bloqueante (destino observado, nada sai)
+  const tapOut = path.join(tmpHome, 'tap.jsonl');
+  const r = realSpawnSync(process.execPath, ['-e', `process.env.ANTHROPIC_API_KEY='provas-presenca-falsa';const a=require(${JSON.stringify(path.join(ROOT, 'tools', 'router', 'arbiter.js'))});const out=a.arbitrate(${JSON.stringify(prompts20()[0].prompt)},{_skipCache:true});console.log(JSON.stringify(out));`], { encoding: 'utf8', windowsHide: true, timeout: 30000, env: { ...process.env, NODE_OPTIONS: `--require "${TAP}"`, NET_TAP_OUT: tapOut, NET_TAP_BLOCK: '1', USERPROFILE: tmpHome, HOME: tmpHome } });
+  const tap = summarizeTap(readTap(tapOut));
+  save('B-arbiter-instrumented.json', { arm: 'B', at: now(), instrumented: true, note: 'spawnSync captado antes do require: o corpo em argv[2] e o que SAIRIA; a corrida sob net-tap BLOCK mostra o destino real do filho e recusa-o', arbiter_source: 'tools/router/arbiter.js:212', rows, tap_blocked_run: { tap, stdout: (r.stdout || '').slice(0, 200), stderr: (r.stderr || '').slice(0, 200) } });
 }
 
 // ── D: LiteLLM proxy com routing por custo, 2 mocks ─────────────────────────
@@ -99,11 +108,14 @@ async function armD() {
   const { startMockLlm } = await import('file:///' + fwd(path.join(LIB, 'mock-llm.mjs')));
   const cheap = await startMockLlm({ name: 'ollama-local-mock' });
   const dear = await startMockLlm({ name: 'cloud-mock' });
-  const cfg = `model_list:\n  - model_name: router\n    litellm_params:\n      model: ollama/qwen2.5:3b\n      api_base: ${cheap.url}\n      input_cost_per_token: 0.0\n      output_cost_per_token: 0.0\n  - model_name: router\n    litellm_params:\n      model: openai/mock-cloud\n      api_base: ${dear.url}/v1\n      api_key: provas-fake\n      input_cost_per_token: 0.00001\n      output_cost_per_token: 0.00003\nrouter_settings:\n  routing_strategy: cost-based-routing\nlitellm_settings:\n  drop_params: true\n  telemetry: false\n`;
+  // v2 (2026-09-09): a v1 punha os precos so em litellm_params e o cost-based-routing mandou 20/20 para o caro
+  // (guardado em D-litellm-v1-costs-in-litellm_params.json). A documentacao do LiteLLM tambem aceita
+  // input_cost_per_token/output_cost_per_token em model_info — poe-se nos dois sitios.
+  const cfg = `model_list:\n  - model_name: router\n    litellm_params:\n      model: ollama/qwen2.5:3b\n      api_base: ${cheap.url}\n      input_cost_per_token: 0.0\n      output_cost_per_token: 0.0\n    model_info:\n      input_cost_per_token: 0.0\n      output_cost_per_token: 0.0\n  - model_name: router\n    litellm_params:\n      model: openai/mock-cloud\n      api_base: ${dear.url}/v1\n      api_key: provas-fake\n      input_cost_per_token: 0.00001\n      output_cost_per_token: 0.00003\n    model_info:\n      input_cost_per_token: 0.00001\n      output_cost_per_token: 0.00003\nrouter_settings:\n  routing_strategy: cost-based-routing\nlitellm_settings:\n  drop_params: true\n  telemetry: false\n`;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'provas-p5-litellm-')); const cfgPath = path.join(dir, 'config.yaml'); fs.writeFileSync(cfgPath, cfg);
   const site = 'C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-litellm';
   const port = 4000 + Math.floor(Math.random() * 500);
-  const proc = spawn('python', ['-m', 'litellm', '--config', cfgPath, '--port', String(port), '--host', '127.0.0.1'], { env: { ...process.env, PYTHONPATH: site, LITELLM_TELEMETRY: 'False', DO_NOT_TRACK: '1' }, windowsHide: true });
+  const proc = spawn(path.join(site, 'bin', 'litellm.exe'), ['--config', cfgPath, '--port', String(port), '--host', '127.0.0.1'], { env: { ...process.env, PYTHONPATH: site, LITELLM_TELEMETRY: 'False', DO_NOT_TRACK: '1', PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }, windowsHide: true });
   let log = ''; proc.stdout.on('data', (d) => { log += d; }); proc.stderr.on('data', (d) => { log += d; });
   const t0 = Date.now(); let up = false;
   while (Date.now() - t0 < 90000) { try { const r = await fetch(`http://127.0.0.1:${port}/health/liveliness`, { signal: AbortSignal.timeout(2000) }); if (r.ok) { up = true; break; } } catch { /* */ } await new Promise((r) => setTimeout(r, 1000)); }
@@ -124,21 +136,9 @@ async function armD() {
 
 // ── E: Claude Code nativo pelo counting-proxy ───────────────────────────────
 async function armE() {
-  checkFrozen();
-  const { startCountingProxy } = await import('file:///' + fwd(path.join(LIB, 'counting-proxy.mjs')));
-  const proxy = await startCountingProxy({ block: false });
-  const rows = [];
-  for (const p of prompts20()) {
-    const before = proxy.report().total_connections;
-    const t0 = process.hrtime.bigint();
-    const r = spawnSync(CLAUDE_EXE, ['-p', '--model', 'haiku', '--output-format', 'json', '--max-turns', '1', '--no-session-persistence', '--settings', '{"disableAllHooks":true}', '--disallowedTools', 'Bash,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,Task'], { input: p.prompt, encoding: 'utf8', windowsHide: true, timeout: 180000, env: { ...process.env, CLAUDECODE: '', HTTPS_PROXY: proxy.url, HTTP_PROXY: proxy.url } });
-    const rep = proxy.report(); const mine = rep.connections.slice(before);
-    let j = null; try { j = JSON.parse(r.stdout); } catch { /* */ }
-    rows.push({ id: p.id, prompt_chars: p.prompt.length, exit: r.status, ms: ms(t0), connections: mine.map((c) => ({ host: c.host, port: c.port, bytes_out: c.bytes_out, bytes_in: c.bytes_in })), bytes_out_total: mine.reduce((a, c) => a + c.bytes_out, 0), usage: j && j.usage ? { in: j.usage.input_tokens, out: j.usage.output_tokens, cache_read: j.usage.cache_read_input_tokens, cache_create: j.usage.cache_creation_input_tokens } : null, stderr: (r.stderr || '').slice(0, 160) });
-    console.log(p.id, 'exit', r.status, 'conns', mine.length, 'bytes_out', rows[rows.length - 1].bytes_out_total);
-  }
-  const rep = proxy.report(); await proxy.close();
-  save('E-native.json', { arm: 'E', at: now(), by_host: rep.by_host, rows });
+  // AMENDMENT-1: o claude.exe nao honra HTTPS_PROXY (e-probe.mjs) -> controlo grosseiro por netstat, em arm-e.mjs
+  const { armE: run } = await import('file:///' + fwd(path.join(HERE, 'arm-e.mjs')));
+  await run({ checkFrozen, prompts20, CLAUDE_EXE, save, now, ms });
 }
 
 // ── PII nos logs locais ─────────────────────────────────────────────────────
@@ -159,7 +159,8 @@ function analyse() {
   if (B) out.B_arbiter = { prompts: B.rows.length, calls: B.rows.reduce((a, r) => a + r.arbiter_called, 0), raw_prompt_in_body: B.rows.filter((r) => r.raw_prompt_in_body).length, body_bytes_mean: B.rows.reduce((a, r) => a + r.body_bytes, 0) / B.rows.length, destinations: [...new Set(B.rows.flatMap((r) => r.would_send_to))], instrumented_not_network: true };
   if (C) out.C_ccr = C.summary || C;
   if (D) out.D_litellm = { up: D.litellm_up, to_cheap: D.requests_to_cheap, to_dear: D.requests_to_dear, raw_prompt_forwarded: D.raw_prompt_forwarded, body_bytes_cheap_mean: D.cheap_body_bytes.length ? D.cheap_body_bytes.reduce((a, b) => a + b, 0) / D.cheap_body_bytes.length : null, statuses: D.rows.map((r) => r.status).join(' ') };
-  if (E) out.E_native = { prompts: E.rows.length, by_host: E.by_host, bytes_out_per_prompt: E.rows.map((r) => r.bytes_out_total), prompt_chars: E.rows.map((r) => r.prompt_chars), exits: E.rows.map((r) => r.exit).join(' ') };
+  if (E) out.E_native = { prompts: E.rows.length, method: E.method, proxy_probe: E.proxy_probe, external_connections_per_prompt: E.rows.map((r) => r.external_connections), external_hosts: [...new Set(E.rows.flatMap((r) => r.external_hosts))], bytes_out: 'n/d', prompt_left_by_design: E.rows.map((r) => r.prompt_left_by_design), netstat_samples: E.rows.map((r) => r.netstat_samples), exits: E.rows.map((r) => r.exit).join(' ') };
+  if (!C) out.C_ccr = { status: 'n/d', blocker: 'configuracao headless nao conseguida em 60 min: o gateway so responde com provider + API key criados pela UI/SQLite ou pelo RPC /api/ccr/rpc, que exige token web e cujo catalogo de metodos nao esta documentado — ver ccr.md', version: '3.0.22' };
   if (P) out.pii = P.files;
   save('analysis.json', out); console.log(JSON.stringify(out, null, 1));
 }
