@@ -41,4 +41,14 @@
 
 **Rejeitado:** nada nas duas rondas. **Não resolvido:** observação ao nível do dispositivo; D1 corrigido / chave presente; egress do processo Python do LiteLLM; Ollama real no LiteLLM; motivo dos `is_error`; tráfego directo sem proxy; o ccr.
 
-**Ronda 3:** se existir `adversary-codex-round3.md`, foi sobre o v3; senão, a quota do Codex foi reservada para P3, P7 e P8 e isso fica declarado.
+## Ronda 3 (sobre o v3; `adversary-prompt-sent-round3.txt` → `adversary-codex-round3.md`, 60 s)
+
+| # | Ataque | Gravidade (dele) | Resposta | Estado |
+|---|---|---|---|---|
+| P5-19 (ainda de pé) | estratificar por `is_error` não esclarece as falhas | serious | **Aceite.** «Causa dos erros e conclusão da tarefa: não verificadas» no veredicto e no slide | reformulado |
+| P5-28 | D só tem `raw_prompt_forwarded: 20` por detector; sem igualdade de campo; mistura com os 60 pedidos | serious | **Aceite.** «Corrida original: presença detectada em 20/20; igualdade de campo não demonstrada para D» | reformulado |
+| P5-29 | `bytes_out` são bytes cliente→proxy, não entrega confirmada | serious | **Aceite.** «client→proxy tunnel bytes» em todos os números do E, Datadog incluído | reformulado |
+| P5-25 (residual) | «runs only with a key» é universal | minor | **Aceite.** «fake key supplied for these 20 instrumented invocations» | reformulado |
+| P5-30 | medianas de variáveis diferentes lidas como par | minor | **Aceite.** «medianas por invocação … ; mediana do corpus 37 caracteres» | reformulado |
+
+**Fecho:** três rondas, 32 ataques, 0 rejeitados. O adversário terminou com «PUBLISHABLE WITH THESE EDITS» e as cinco edições estão aplicadas (v3.1). Não se pediu ronda 4: os ataques restantes são os já listados em «não resolvido».

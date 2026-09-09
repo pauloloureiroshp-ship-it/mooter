@@ -41,7 +41,8 @@ export async function startCountingProxy({ block = false, host = '127.0.0.1' } =
       up.on('data', (c) => { rec.bytes_in += c.length; clientSocket.write(c); });
     });
     const end = () => { try { clientSocket.destroy(); } catch { /* */ } try { up.destroy(); } catch { /* */ } };
-    up.on('error', end); clientSocket.on('error', end); up.on('close', end); clientSocket.on('close', end);
+    // 'end' tambem: os sockets de um servidor http tem allowHalfOpen, e um tunel meio-fechado ficava pendurado (apanhado pela calibracao)
+    up.on('error', end); clientSocket.on('error', end); up.on('close', end); clientSocket.on('close', end); up.on('end', end); clientSocket.on('end', end);
   });
   await new Promise((r) => server.listen(0, host, r));
   const url = `http://${host}:${server.address().port}`;

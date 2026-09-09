@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { startCountingProxy } from './counting-proxy.mjs';
 
 test('conta um CONNECT (host, porta, bytes) e bloqueia quando block=true', async () => {
@@ -22,7 +22,10 @@ test('conta um CONNECT (host, porta, bytes) e bloqueia quando block=true', async
 
 test('o fetch do Node 24 com NODE_USE_ENV_PROXY=1 passa pelo proxy (o instrumento ve a intencao)', async () => {
   const p = await startCountingProxy({ block: true });
-  const r = spawnSync(process.execPath, ['-e', "fetch('https://example.invalid/x').then(()=>console.log('ok'),e=>console.log('err',e.cause&&e.cause.code||e.message))"], { encoding: 'utf8', env: { ...process.env, HTTPS_PROXY: p.url, HTTP_PROXY: p.url, NODE_USE_ENV_PROXY: '1' }, timeout: 20000 });
+  // spawn ASSINCRONO: com spawnSync o event loop onde o proxy vive fica bloqueado e o filho pendura ate ao timeout —
+  // o MESMO defeito que o adversario do P5 apanhou no e-probe (P5-10). Este teste «passava» antes por acaso e passou a falhar
+  // de forma consistente (20 s) quando o proxy passou a fechar tuneis meio-abertos; registado como D9.
+  const r = await new Promise((resolve) => { const c = spawn(process.execPath, ['-e', "fetch('https://example.invalid/x').then(()=>console.log('ok'),e=>console.log('err',e.cause&&e.cause.code||e.message))"], { env: { ...process.env, HTTPS_PROXY: p.url, HTTP_PROXY: p.url, NODE_USE_ENV_PROXY: '1' } }); let out = '', err = ''; c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { err += d; }); const t = setTimeout(() => c.kill(), 20000); c.on('close', () => { clearTimeout(t); resolve({ stdout: out, stderr: err }); }); });
   const rep = p.report();
   await p.close();
   assert.ok(rep.total_connections >= 1, 'o fetch tinha de ter passado pelo proxy: ' + r.stdout + r.stderr);

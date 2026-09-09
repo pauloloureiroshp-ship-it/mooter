@@ -15,4 +15,4 @@
 
 **O que não mudou:** protocolo (`22388a20`), corpus, braços A/A-block (bruto de 13:42Z), PII, métricas, regra de paragem.
 
-**A lição (para o MP):** o instrumento que devolve «nada» (0 ligações) precisa de um **controlo positivo na mesma corrida**. O teste unitário do proxy (3/3) passava; a sonda estava partida na forma de a lançar. O adversário viu-o pela estrutura do código, sem o correr.
+**A lição (para o MP):** o instrumento que devolve «nada» (0 ligações) precisa de um **controlo positivo na mesma corrida**. O teste unitário do proxy dizia 3/3, mas o seu teste de `fetch` tinha o mesmo `spawnSync` e só passava por acaso — passou a falhar de forma consistente depois de o proxy fechar túneis meio-abertos (D9; corrigido com spawn assíncrono). A calibração com volumes conhecidos (`lib/counting-proxy.calibration.test.mjs`) apanhou de caminho um túnel meio-aberto que ficava pendurado (`allowHalfOpen` dos sockets do servidor http): corrigido com `on('end')`; não afecta contagens. O adversário viu-o pela estrutura do código, sem o correr.
