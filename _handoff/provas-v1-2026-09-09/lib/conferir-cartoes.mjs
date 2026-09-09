@@ -108,6 +108,46 @@ else {
   afirma('P6 slide diz 156/156', s6.includes('156/156'));
 }
 
+// ── P5 ──────────────────────────────────────────────────────────────────────
+// Este é o único cartão cujo titular se confere DUAS vezes: contra o analysis.json e, por baixo
+// dele, recontando o tap em bruto linha a linha. É de propósito — o titular do P5 é um negativo
+// («nada saiu»), e um negativo só vale se o instrumento demonstrar que estava a funcionar.
+const a5 = js('P5-atestacao-de-egress/results/analysis.json');
+const s5 = md('P5-atestacao-de-egress/slide.md');
+if (!a5) nd.push('P5 analysis.json ausente');
+else {
+  afirma('P5 tap carregou em 75 processos', a5.A.tap.processes === 75, String(a5.A.tap.processes));
+  afirma('P5 tap registou 35 ligacoes', a5.A.tap.connections === 35, String(a5.A.tap.connections));
+  afirma('P5 zero hosts externos no braco A', Array.isArray(a5.A.tap.external_hosts) && a5.A.tap.external_hosts.length === 0, JSON.stringify(a5.A.tap.external_hosts));
+  afirma('P5 slide diz 75 processos e 35 ligacoes', /75/.test(s5) && /35 connections/i.test(s5));
+  afirma('P5 slide diz que as 35 sao loopback', /loopback/i.test(s5));
+
+  // recontagem independente a partir do bruto resgatado
+  const tapPath = path.join(PKG, 'P5-atestacao-de-egress/results/bruto-resgatado/tap-braco-A.jsonl');
+  if (!fs.existsSync(tapPath)) nd.push('P5 tap em bruto ausente (bruto-resgatado)');
+  else {
+    const rows = fs.readFileSync(tapPath, 'utf8').trim().split('\n').map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const carregados = rows.filter((r) => r.event === 'tap-loaded').length;
+    const conns = rows.filter((r) => r.host !== undefined);
+    const fora = conns.filter((r) => !/^127\.|^::1$|^localhost$/.test(String(r.host)));
+    const porDestino = {};
+    for (const c of conns) porDestino[c.host + ':' + c.port] = (porDestino[c.host + ':' + c.port] || 0) + 1;
+    afirma('P5 bruto: 75 processos com tap', carregados === 75, String(carregados));
+    afirma('P5 bruto: 35 registos de ligacao', conns.length === 35, String(conns.length));
+    afirma('P5 bruto: ZERO ligacoes fora do loopback', fora.length === 0, String(fora.length));
+    afirma('P5 bruto: o controlo positivo existe (ligacoes > 0)', conns.length > 0, 'um negativo de um instrumento mudo nao vale nada');
+    afirma('P5 bruto: destinos sao 7821 (metricas do hook) e 11434 (Ollama)', porDestino['127.0.0.1:7821'] === 20 && porDestino['127.0.0.1:11434'] === 15, JSON.stringify(porDestino));
+    afirma('P5 bruto bate com o analysis.json', carregados === a5.A.tap.processes && conns.length === a5.A.tap.connections);
+  }
+
+  // o cartao imprime a derrota: com chave, o arbitro monta o pedido com o prompt inteiro
+  const arb = a5.B_arbiter;
+  afirma('P5 arbitro instrumentado em 20/20', arb && arb.prompts === 20, arb ? String(arb.prompts) : 'n/d');
+  afirma('P5 slide imprime a derrota do arbitro', /whole prompt|full prompt/i.test(s5));
+  // e a derrota do concorrente: 0 de 40, sem quantificador universal
+  afirma('P5 slide sem "never" absoluto sobre o LiteLLM', !/never (picked|selected|chose)/i.test(s5));
+}
+
 // ── P8 / transversais ───────────────────────────────────────────────────────
 afirma('P8 sem celula n/a sem motivo', !/\|\s*n\/a\s*\|/.test(p8));
 afirma('P8 nao diz "Ties:"', !/\*\*Ties:\*\*/.test(p8));
