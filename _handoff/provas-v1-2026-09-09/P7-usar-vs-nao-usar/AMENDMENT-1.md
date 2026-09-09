@@ -12,7 +12,7 @@ You've hit your session limit · resets 5pm (America/Sao_Paulo)
 
 Braços afectados: **`t22-11f81c79b7` ON**, **`t23-1b929f35f1` OFF**, **`t23-1b929f35f1` ON**. O controlador marcou-os `invalido: true` com `motivo: cli_is_error:…`, imprimiu **`R-24 · ENSAIO INVÁLIDO`** e saiu com 1 no `--correr` e no `--analisar` (2026-09-09T17:09:30Z).
 
-Isto é exactamente o que o pré-registo prevê: `run_invalido.definicao` lista **«is_error do CLI»** como corrida inválida (por oposição a `nao_e_invalido: timeout — é falha observada, TVA = 1800`). Não é derrota nem vitória: é ausência de medição em 3 dos 46 braços, e com 20 pares válidos de 23 o `analisar` não chega ao veredicto (exige `pares_validos = n = 23`).
+Isto é exactamente o que o pré-registo prevê: `run_invalido.definicao` lista **«is_error do CLI»** como corrida inválida (por oposição a `nao_e_invalido: timeout — é falha observada, TVA = 1800`). Não é derrota nem vitória: é ausência de medição em 3 dos 46 braços, e com 21 pares válidos de 23 (2 pares perdidos: `t22` perdeu o braço ON, `t23` perdeu os dois) o `analisar` não chega ao veredicto (exige `pares_validos = n = 23`).
 
 ## O número que a corrida 1 chegou a imprimir — e porque NÃO é o resultado
 
@@ -30,7 +30,7 @@ A `nota_estado` do pré-registo manda: «Se mudar, a experiência **recomeça** 
 
 1. **A corrida 1 fica preservada e publicada**, inteira, como corrida inválida: `results/ledger-corrida-1-invalida.jsonl` (46 braços) e `results/correr-corrida-1-invalida.log`. Nada se apaga.
 2. **A corrida 2 começa com o ledger vazio** no caminho do pré-registo, com os mesmos ficheiros congelados, a mesma seed, a mesma atribuição, o mesmo limiar (16/23) e o mesmo executor. Todos os 23 pares voltam a correr.
-3. **O veredicto vem só da corrida 2.** Os 20 pares válidos da corrida 1 **não** entram no número publicado — usá-los seria escolher medições. Ficam disponíveis, rotulados como exploratórios, para quem quiser comparar.
+3. **O veredicto vem só da corrida 2.** Os 21 pares válidos da corrida 1 **não** entram no número publicado — usá-los seria escolher medições. Ficam disponíveis, rotulados como exploratórios, para quem quiser comparar.
 
 O que isto **não** é: não é afrouxar o critério depois de ver resultados. O `n` continua 23 e o limiar 16 (o próprio executor recusa correr se o limiar recalculado não bater com o pré-registado — é a armadilha que o comentário do controlador descreve: baixar `n` para 20 «por causa de 3 pares inválidos» transformaria um X = 15 de PERDEU em GANHOU, e está bloqueado).
 
@@ -40,4 +40,10 @@ O que isto **não** é: não é afrouxar o critério depois de ver resultados. O
 
 ## O que fica dito no cartão, seja qual for o resultado
 
-Que a primeira tentativa morreu por limite de sessão do fornecedor às 46/46 linhas e 20/23 pares válidos, e que o número publicado é o da segunda.
+Que a primeira tentativa morreu por limite de sessão do fornecedor às 46/46 linhas e **21/23** pares válidos, e que o número publicado **não** é o dela.
+
+> **Correcção (mesmo dia, depois da corrida 2):** duas frases desta emenda estavam erradas e ficam corrigidas acima.
+> (1) escrevi «20 pares válidos» em dois sítios; o controlador imprimiu «pares válidos: 21 · inválidos: 2» e a recontagem
+> independente a partir de `results/ledger-corrida-1-invalida.jsonl` confirma **21** — os 3 braços inválidos caem em apenas
+> 2 tarefas (`t22` perdeu o ON, `t23` perdeu ambos). (2) «o número publicado é o da segunda» deixou de ser verdade: a
+> corrida 2 saiu **inteira** inválida. Ver `AMENDMENT-2.md`.

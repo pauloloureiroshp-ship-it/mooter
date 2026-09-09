@@ -60,7 +60,7 @@ Lista única, por prova, do que o pacote **não** demonstra — o que os protoco
 
 ## P7 · usar vs não usar (R-24)
 
-- **Em curso** desde 2026-09-09T14:51:04Z (23 tarefas × 2 braços, tecto 1 800 s por corrida). O que fica por provar depende do veredicto do controlador: GANHOU / PERDEU / INVÁLIDA. Independentemente do resultado: generalização a outro repo/máquina/modelo; qualidade além do teste mecânico; obediência (é ITT).
+- **Sem veredicto ao fim de duas corridas inválidas** (23 tarefas × 2 braços, tecto 1 800 s por corrida). Corrida 1 (14:51:04Z): 46 braços, 3 inválidos, **21/23 pares válidos**. Corrida 2 (19:12:29Z): 46 braços, 45 inválidos, **0/23 pares**. As duas no limite de sessão do fornecedor, as duas preservadas em `results/`. Corrida 3 desde 20:07:55Z. O que fica por provar depende do veredicto do controlador: GANHOU / PERDEU / INVÁLIDA. Independentemente do resultado: generalização a outro repo/máquina/modelo; qualidade além do teste mecânico; obediência (é ITT).
 - Lançado como processo separado com as marcas de sessão Claude Code removidas (a guarda `ambienteApto()` recusa correr dentro de uma sessão) — declarado no protocolo; a sonda do próprio controlador chegou ao modelo.
 
 ## P8 · cabeça-a-cabeça
