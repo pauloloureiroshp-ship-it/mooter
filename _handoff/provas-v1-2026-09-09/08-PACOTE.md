@@ -27,7 +27,7 @@ Transversais: `00-preflight.json` (máquina, versões, chaves por nome, concorre
 ### P2 · On 20 synthetic tasks, the local/Haiku policy got 17 accepted; local alone 7; Haiku on all 19
 Policy 85 % [64, 95]; local only 35 % [18, 57]; Haiku everywhere 95 % [76, 99]. Paired policy vs local 10 to 0 (p = 0.001); Haiku-everywhere is 2 answers better and the policy skips 7 short Haiku calls. **Without a key — this machine — the rule says T0 on 20/20 and the offline composition is 7/20.** ~800 output tokens, 16–48k cached tokens, 8 s per Haiku call; subscription, list estimate US$ 1.32 for 20 calls (not an invoice). *Does not prove: intelligent selection; T2/T3; the product end to end.*
 
-### P3 · Executed obedience: 0/20 in both arms — the local subagent was spawned 7 times in 40 sessions and never called the local model
+### P3 · Executed obedience: 0/20 in both arms — the local subagent was spawned 7 times in 40 sessions, and not one of the 35 recorded local calls carries its signature
 Native 4/20 sessions spawned a subagent (3 local); with a PreToolUse rewrite hook 8/20 (4 local); **delegation executed locally 0/20 · 0 % [0, 16] in both**; Haiku spawns 0/20. All 35 recorded Ollama calls are classified as the router hook's own pre-answer (30 qwen3:30b calls at its 256-token cap, 3 qwen2.5:3b, 2 gemma4 errors without counts), in B all before the rewrite timestamp. 8 rewrite attempts logged; application unverified. Decision at spawn n/d (one machine-wide file every session overwrites, D10). *Does not prove: obedience above zero; any hook effect; behaviour with a key.*
 
 ### P4 · On 28 selected test-killed mutants, an Opus reviewer scored 27/28 and a Codex reviewer 26/28; superiority of the second-engine critic was not established
@@ -59,6 +59,8 @@ See `P8-cabeca-a-cabeca/slide.md` (9 rows × 5 columns, footnotes with versions/
 | l.264, 306, 444 «$0*», «list-price yardstick never a saving» | régua | mantém-se; P6 confirma que a régua de lista é 6 % do host sem cache | Sem alteração; anexar o P6 |
 | l.390 «Local-first. Inside the host, never a proxy» | posicionamento | P5: o LiteLLM reencaminha o prompt (presença detectada em 20/20; igualdade de campo não demonstrada); ccr n/d; o hook do Mooter não está no caminho do tráfego (medido: 0 destinos externos registados ao decidir, nesta configuração) | Manter, com a célula do P8 ao lado |
 | l.471 «P0.0 verified 303/303 (declared)» | verificação | não medido neste pacote | Sem alteração; continua [declared] |
+
+**Intervalos:** todos os «[a, b]» deste pacote são intervalos de **Wilson a 95 %** (`lib/stats.mjs`, `wilson(k, n)`), incluindo os que os slides dão sem nomear o método. Testes emparelhados são **McNemar exacto**; o teste do P7 é **binomial exacto unilateral** com p₀ = 0,5.
 
 **Palavras proibidas (§4):** nenhum cartão usa «% saved», «$ saved», «enforces», «private», «secure», «most accurate» — verificado por `grep -ril` sobre os oito `slide.md`, que devolve zero. Duas vezes não devolvia: o adversário do P5 apanhou «privado/seguro» em negação no veredicto v2, e o exame de 2026-09-09 apanhou «enforces» no slide do P3, também em negação. Os dois foram removidos. A lição é pequena e repete-se: uma regra sobre palavras verifica-se com uma busca, não com a memória de quem escreveu. As únicas ocorrências que ficam neste ficheiro são **citações do deck v13** na tabela de correcções acima, que existem precisamente para dizer que têm de sair.
 

@@ -1,4 +1,4 @@
-# Slide P3 · Executed obedience: 0/20 in both arms — the local subagent was spawned 7 times in 40 sessions and never called the local model
+# Slide P3 · Executed obedience: 0/20 in both arms — the local subagent was spawned 7 times in 40 sessions, and not one of the 35 recorded local calls carries its signature
 
 **Setup:** 20 real prompts previously selected as T0/T1 by the rule with an API key, run without a key; each in a disposable copy of the repo; Claude Code `-p` with the owner's installed hooks on; Ollama behind a loopback counting proxy that records model and token counts per call. Pre-registered, committed before the first session. n = 20 per arm, one run per prompt, no significance test.
 
