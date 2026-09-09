@@ -1,5 +1,5 @@
 {
- "at": "2026-09-09T14:32:42.114Z",
+ "at": "2026-09-09T14:37:42.751Z",
  "A": {
   "prompts": 20,
   "tap": {
@@ -58,7 +58,7 @@
   "to_cheap_port": 20,
   "to_dear_port": 0,
   "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200",
-  "reading": "com o barato a 1e-9 (nao zero) foi 20/20 ao barato: o cost-based-routing funciona, mas um deployment a preco 0 (o caso do Ollama local) nunca e escolhido — 0 e lido como sem preco"
+  "reading": "com o barato a 1e-9 (nao zero) foi 20/20 ao barato. Nas duas configuracoes com um deployment a preco 0, esse deployment foi escolhido 0/40 vezes. HIPOTESE (nao confirmada no codigo do LiteLLM): 0 e tratado como preco ausente. Nao se extrapola para Ollama real sem o medir"
  },
  "D_litellm": {
   "up": true,
@@ -88,22 +88,22 @@
    "http-intake.logs.us5.datadoghq.com:443"
   ],
   "connect_per_prompt": {
-   "median": 41,
+   "median": 40.5,
    "min": 37,
    "max": 46
   },
   "bytes_out_per_prompt": {
-   "median": 1624212,
+   "median": 1622528.5,
    "min": 1597315,
    "max": 1641889
   },
   "bytes_in_per_prompt": {
-   "median": 1424847,
+   "median": 1424539.5,
    "min": 1398895,
    "max": 1447128
   },
   "bytes_out_api_anthropic": {
-   "median": 1387295,
+   "median": 1386817,
    "min": 1363977,
    "max": 1402892
   },
@@ -113,7 +113,7 @@
    "max": 14
   },
   "bytes_out_datadog": {
-   "median": 187083,
+   "median": 187066,
    "min": 168794,
    "max": 192440
   },
@@ -129,15 +129,54 @@
    "max": 4614
   },
   "prompt_chars": {
-   "median": 38,
+   "median": 37,
    "min": 26,
    "max": 410
   },
   "ms": {
-   "median": 15286,
+   "median": 15057.5,
    "min": 8789,
    "max": 28257
   },
+  "by_outcome": {
+   "exit0": {
+    "n": 7,
+    "bytes_out": {
+     "median": 1631030,
+     "min": 1601537,
+     "max": 1641889
+    },
+    "connect": {
+     "median": 41,
+     "min": 38,
+     "max": 46
+    },
+    "api_connect": {
+     "median": 14,
+     "min": 14,
+     "max": 14
+    }
+   },
+   "is_error": {
+    "n": 13,
+    "bytes_out": {
+     "median": 1620845,
+     "min": 1597315,
+     "max": 1635935
+    },
+    "connect": {
+     "median": 40,
+     "min": 37,
+     "max": 45
+    },
+    "api_connect": {
+     "median": 14,
+     "min": 14,
+     "max": 14
+    }
+   }
+  },
+  "median_convention": "mediana convencional: com n par, media dos dois valores centrais",
   "usage_input_tokens": {
    "median": 10,
    "min": 10,
