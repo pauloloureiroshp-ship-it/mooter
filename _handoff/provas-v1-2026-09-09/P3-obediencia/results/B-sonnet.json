@@ -1,0 +1,925 @@
+{
+ "arm": "B",
+ "model": "sonnet",
+ "at": "2026-09-09T14:43:19.721Z",
+ "hook_log": "C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\provas-p3-sjQPU0\\hook.jsonl",
+ "rows": [
+  {
+   "id": "n01",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 18150,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963399138
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 2,
+    "out": 786,
+    "cache_read": 35200,
+    "cache_create": 69200
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:ea1a7f2ac6e9 chars:200]]"
+  },
+  {
+   "id": "n02",
+   "tier_key_p1": "T1",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 91144,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963422122
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "Explore",
+     "description": "Investigar gate de aprovação do Mooter no Slack",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:17:43.114Z",
+     "session": "2282ff3e-463b-4aae-93bb-8d7b07aeda98",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 40992,
+     "before": {
+      "subagent_type": "Explore"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 4,
+    "out": 4199,
+    "cache_read": 141489,
+    "cache_create": 75297
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:168d104b3e72 chars:200]]"
+  },
+  {
+   "id": "n03",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 55936,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963564701
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Check what needs Paulo's gesture now",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:19:01.357Z",
+     "session": "052143c7-2f6c-4a97-9780-135cd755247b",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 23491,
+     "before": {
+      "subagent_type": "local-summarizer"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:18:39.730Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 93,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 431
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 4,
+    "out": 1895,
+    "cache_read": 140504,
+    "cache_create": 72379
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:942fc571b597 chars:101]]"
+  },
+  {
+   "id": "n04",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 240701,
+   "decision_at_spawn": {
+    "model": "claude-opus-4-6",
+    "subagent": "model-architect",
+    "tier": "T3",
+    "ts": 1788963806600
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "model-reasoner",
+     "description": "Verifica hipótese do T1a",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:20:50.517Z",
+     "session": "d06c9075-7d2e-44e3-b3b6-01c5ffa37f58",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 13300,
+     "before": {
+      "subagent_type": "model-reasoner"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:19:40.899Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 95,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 425
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 16,
+    "out": 5709,
+    "cache_read": 846566,
+    "cache_create": 103743
+   },
+   "num_turns": 11,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:ee549f2f3d08 chars:175]]"
+  },
+  {
+   "id": "n05",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 173170,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788963972789
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:23:47.334Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 90,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 427
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 18,
+    "out": 12099,
+    "cache_read": 1044463,
+    "cache_create": 105552
+   },
+   "num_turns": 14,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:da2b224f3ec1 chars:200]]"
+  },
+  {
+   "id": "n06",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 15128,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964003438
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:26:45.391Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 93,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 431
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 518,
+    "cache_read": 35200,
+    "cache_create": 70095
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:e91e7587953f chars:196]]"
+  },
+  {
+   "id": "n07",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 48349,
+   "decision_at_spawn": {
+    "model": "claude-opus-4-6",
+    "subagent": "model-architect",
+    "tier": "T3",
+    "ts": 1788964057831
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:27:03.858Z",
+     "path": "/api/generate",
+     "model": "qwen2.5:3b",
+     "prompt_eval_count": 90,
+     "eval_count": 8,
+     "status": 200,
+     "body_bytes": 431
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 12,
+    "out": 3010,
+    "cache_read": 587198,
+    "cache_create": 79102
+   },
+   "num_turns": 6,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:401ac40caaed chars:200]]"
+  },
+  {
+   "id": "n08",
+   "tier_key_p1": "T1",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 192683,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964183361
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "Explore",
+     "description": "Localizar integração Slack e masterprompt recente",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:28:34.912Z",
+     "session": "a50fd4a9-88da-4953-a724-d22a2fccb343",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 38625,
+     "before": {
+      "subagent_type": "Explore"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 4,
+    "out": 2977,
+    "cache_read": 141430,
+    "cache_create": 74375
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:bfc3d9bb8439 chars:130]]"
+  },
+  {
+   "id": "n09",
+   "tier_key_p1": "T1",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 28050,
+   "decision_at_spawn": {
+    "model": "qwen2.5-coder:14b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964293490
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Resume fatia-local.js em 1 frase",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:31:21.735Z",
+     "session": "7be1bdf1-7aa0-44eb-b03e-a9974a43308b",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 7732,
+     "before": {
+      "subagent_type": "local-summarizer"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:31:16.074Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 125,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 534
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 4,
+    "out": 437,
+    "cache_read": 141115,
+    "cache_create": 71526
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:659ec2c68598 chars:89]]"
+  },
+  {
+   "id": "n10",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 12679,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964307038
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:31:48.842Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 90,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 425
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 434,
+    "cache_read": 35200,
+    "cache_create": 68996
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:647bb6c0cf7a chars:200]]"
+  },
+  {
+   "id": "n11",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 65150,
+   "decision_at_spawn": {
+    "model": "claude-sonnet-4-6",
+    "subagent": "model-reasoner",
+    "tier": "T2",
+    "ts": 1788964380324
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Confirma e resume o item de corpus auto-referencial",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:32:54.577Z",
+     "session": "e80b21c0-8322-4cc4-b274-de82434cff3c",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 50856,
+     "before": {
+      "subagent_type": "local-summarizer"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:32:05.612Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 98,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 436
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 16,
+    "out": 3652,
+    "cache_read": 791145,
+    "cache_create": 77698
+   },
+   "num_turns": 8,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:63dedec2d2ba chars:86]]"
+  },
+  {
+   "id": "n12",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 14255,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964393598
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:33:15.412Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 94,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 435
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 445,
+    "cache_read": 35200,
+    "cache_create": 69006
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:c96804cef8e0 chars:200]]"
+  },
+  {
+   "id": "n13",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 53238,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964461625
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:33:34.195Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 92,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 435
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 8,
+    "out": 2842,
+    "cache_read": 361744,
+    "cache_create": 80860
+   },
+   "num_turns": 5,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:0a025a51c95c chars:200]]"
+  },
+  {
+   "id": "n15",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 71458,
+   "decision_at_spawn": {
+    "model": "claude-opus-4-6",
+    "subagent": "model-architect",
+    "tier": "T3",
+    "ts": 1788964531508
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Descobre o que falta para ver a magia (Live Preview)",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:34:52.775Z",
+     "session": "c8bb866d-acfc-457e-bf60-05893bf02397",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 22386,
+     "before": {
+      "subagent_type": "local-summarizer"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:34:32.384Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 100,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 455
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 4,
+    "out": 1565,
+    "cache_read": 140510,
+    "cache_create": 72006
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:dddaebabcc57 chars:169]]"
+  },
+  {
+   "id": "n16",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 131548,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964616297
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "Explore",
+     "description": "Find references to '8 old pages' design unification",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [
+    {
+     "at": "2026-09-09T14:36:02.102Z",
+     "session": "211bcdb8-51f3-4585-9612-8deab08fc6fa",
+     "action": "rewrite->T0/local-summarizer",
+     "tier": "T0",
+     "decision_age_ms": 15946,
+     "before": {
+      "subagent_type": "Explore"
+     },
+     "after": {
+      "subagent_type": "local-summarizer",
+      "model": "haiku"
+     }
+    }
+   ],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:35:47.964Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 99,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 455
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 20,
+    "out": 6334,
+    "cache_read": 1037330,
+    "cache_create": 81368
+   },
+   "num_turns": 10,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:e5011448b99d chars:200]]"
+  },
+  {
+   "id": "n17",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 19765,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964682226
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:38:04.060Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 92,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 428
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 2,
+    "out": 782,
+    "cache_read": 35200,
+    "cache_create": 70087
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:90eb75ccbd12 chars:200]]"
+  },
+  {
+   "id": "n18",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 38917,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964706476
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:38:28.240Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 101,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 478
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 4,
+    "out": 2708,
+    "cache_read": 140514,
+    "cache_create": 73850
+   },
+   "num_turns": 2,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:e288ee16bf20 chars:200]]"
+  },
+  {
+   "id": "n19",
+   "tier_key_p1": "T1",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 104265,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964750167
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 6,
+    "out": 8244,
+    "cache_read": 252111,
+    "cache_create": 79071
+   },
+   "num_turns": 4,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:651f57ec83e2 chars:200]]"
+  },
+  {
+   "id": "n20",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 65768,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964920844
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:40:58.473Z",
+     "path": "/api/generate",
+     "model": "qwen2.5:3b",
+     "prompt_eval_count": 30,
+     "eval_count": 1,
+     "status": 200,
+     "body_bytes": 110
+    },
+    {
+     "at": "2026-09-09T14:41:00.357Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 97,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 425
+    }
+   ],
+   "executed_local": 2,
+   "usage": {
+    "in": 12,
+    "out": 3812,
+    "cache_read": 586192,
+    "cache_create": 104203
+   },
+   "num_turns": 6,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:f53b94524281 chars:200]]"
+  },
+  {
+   "id": "n21",
+   "tier_key_p1": "T0",
+   "arm": "B",
+   "model": "sonnet",
+   "exit": 0,
+   "ms": 73227,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788964950265
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:42:11.030Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 92,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 426
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 12,
+    "out": 4399,
+    "cache_read": 624725,
+    "cache_create": 99361
+   },
+   "num_turns": 10,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:ddcfc12980d9 chars:200]]"
+  }
+ ]
+}

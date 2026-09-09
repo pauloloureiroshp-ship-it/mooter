@@ -1,0 +1,189 @@
+{
+ "arm": "A",
+ "model": "opus",
+ "at": "2026-09-09T14:48:44.403Z",
+ "hook_log": "C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\provas-p3-LkRfTG\\hook.jsonl",
+ "rows": [
+  {
+   "id": "n01",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "opus",
+   "exit": 0,
+   "ms": 23457,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788965006716
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 2,
+    "out": 958,
+    "cache_read": 0,
+    "cache_create": 94102
+   },
+   "num_turns": 1,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:8cd8fc7f2839 chars:200]]"
+  },
+  {
+   "id": "n02",
+   "tier_key_p1": "T1",
+   "arm": "A",
+   "model": "opus",
+   "exit": 0,
+   "ms": 53032,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788965044959
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [],
+   "executed_local": 0,
+   "usage": {
+    "in": 8,
+    "out": 3237,
+    "cache_read": 317057,
+    "cache_create": 71683
+   },
+   "num_turns": 6,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:b3a1e52050f8 chars:200]]"
+  },
+  {
+   "id": "n03",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "opus",
+   "exit": 0,
+   "ms": 64391,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788965125679
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:44:54.155Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 93,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 431
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 12,
+    "out": 3295,
+    "cache_read": 529828,
+    "cache_create": 84433
+   },
+   "num_turns": 6,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:8104672e28af chars:200]]"
+  },
+  {
+   "id": "n04",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "opus",
+   "exit": 0,
+   "ms": 51764,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788965161313
+   },
+   "agent_calls": [],
+   "delegations": 0,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:46:03.180Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 95,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 425
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 9,
+    "out": 2623,
+    "cache_read": 415650,
+    "cache_create": 78646
+   },
+   "num_turns": 9,
+   "is_error": false,
+   "stderr": "",
+   "result_text": "[[redigido sha256:16bd137f4f3f chars:200]]"
+  },
+  {
+   "id": "n05",
+   "tier_key_p1": "T0",
+   "arm": "A",
+   "model": "opus",
+   "exit": 1,
+   "ms": 109914,
+   "decision_at_spawn": {
+    "model": "qwen3:30b",
+    "subagent": "local-summarizer",
+    "tier": "T0",
+    "ts": 1788965217149
+   },
+   "agent_calls": [
+    {
+     "subagent_type": "local-summarizer",
+     "description": "Resumir contrato-sandbox",
+     "parent_tool_use_id": null
+    }
+   ],
+   "delegations": 1,
+   "hook_lines": [],
+   "ollama_calls": [
+    {
+     "at": "2026-09-09T14:46:59.038Z",
+     "path": "/api/generate",
+     "model": "qwen3:30b",
+     "prompt_eval_count": 90,
+     "eval_count": 256,
+     "status": 200,
+     "body_bytes": 427
+    }
+   ],
+   "executed_local": 1,
+   "usage": {
+    "in": 23,
+    "out": 5594,
+    "cache_read": 1193956,
+    "cache_create": 92481
+   },
+   "num_turns": 13,
+   "is_error": true,
+   "stderr": "",
+   "result_text": ""
+  }
+ ]
+}
