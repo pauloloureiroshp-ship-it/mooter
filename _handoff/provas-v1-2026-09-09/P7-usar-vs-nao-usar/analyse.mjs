@@ -9,7 +9,15 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { binomTailUpper, wilson } = await import('file:///' + path.join(HERE, '..', 'lib', 'stats.mjs').split('\\').join('/'));
 const prereg = JSON.parse(fs.readFileSync(path.join(HERE, 'r24-prereg.json'), 'utf8'));
-const ledger = fs.readFileSync(path.join(HERE, 'results', 'ledger.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.tipo === 'braco');
+const LEDGER = path.join(HERE, 'results', 'ledger.jsonl');
+if (!fs.existsSync(LEDGER)) {
+  const alt = fs.readdirSync(path.join(HERE, 'results')).filter((f) => f.startsWith('ledger-') && f.endsWith('.jsonl'));
+  console.error(`falta ${LEDGER}`);
+  console.error('Este leitor nao escolhe corrida nenhuma por ti: copia para esse nome o ledger da corrida que queres re-derivar.');
+  console.error(alt.length ? `Corridas preservadas nesta pasta: ${alt.join(', ')}` : 'Nao ha nenhum ledger preservado nesta pasta.');
+  process.exit(2);
+}
+const ledger = fs.readFileSync(LEDGER, 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.tipo === 'braco');
 const ratio = prereg.metrica_Z.ratio; const n = prereg.estatistica.n; const limiar = prereg.estatistica.limiar_X; const alfa = prereg.estatistica.alfa;
 const primeiro = Object.fromEntries((prereg.atribuicao.pares || []).map((p) => [p.id, p.primeiro]));
 const byTask = {};

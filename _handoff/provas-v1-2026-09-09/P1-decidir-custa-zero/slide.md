@@ -1,16 +1,22 @@
-# Slide P1 · Classifying costs no inference — and, on these 40 sampled prompts, the rule is wrong more often than "always T2"
+# Slide P1 · Classifying costs no inference — and on every out-of-training stratum the rule loses to a local 14B judge
 
 **0 inference tokens, 0 external hosts to classify.** "0 external hosts" rests on the in-process http/https/fetch wrappers plus an Ollama stub: 0 calls in 1,176 classifications. A socket-level tap was also re-run, but it is an instrument blind spot, not a second proof: the three `results/nettap-*.jsonl` files hold 270 `tap-loaded` events and **no connection records at all**, while that same run launched 25 `ollama_call_node.js` children towards 127.0.0.1:11434 (`A-hook-nettap.json` → `option_a_miss` 25) and 63 `node -e` children aimed at the loopback tracker on 127.0.0.1:7821 (the hook's fire-and-forget `/decision` POST / `/metrics` request) — none of them recorded. The tap of that commit (v1, `f2739bcb`) logged only on socket `close` (open/exit phases came later, commit `5efd58ed`), so it does NOT establish absence of connections. 6/6 runs byte-identical. The rule takes 0.002 ms median in-process (p95 1.9 ms). **The hook it lives in is not free:** 207 ms median / 1,272 ms p95 per prompt, ~870 bytes median (~1,000 mean) of hint injected per prompt, and a local pre-answer call for T0 prompts that timed out 75/75 times in this run (live `decisions.log`, read at ~13:15Z on 2026-09-09 and not part of `results/`: 377 misses = 67 `timeout_1000ms` + 292 `Invalid` + 18 with no `motivo`; 36 hits = 33 `qwen2.5:3b` + 3 with no model field).
 
 **Accuracy against blind labels** (labeled by a different engine, without repo access, before any classification; 40 real prompts dated 2026-08-01 → 2026-09-04 — 34 from August, 6 from September (`corpus-40.json` `ts`) — sampled by seed from 298 eligible, all unchanged by anonymisation):
 
-| | Rule (`classify.js`, key present) | Local LLM judge (14B; ~393 tokens/prompt mean over the 63, n=63; ~347 over the 40 real prompts, n=40) | Constant "always T2" |
+| Stratum | Rule (`classify.js`, key present) | Local LLM judge (14B; ~393 tokens/prompt mean over the 63, ~347 over the 40) | Constant "always T2" |
 |---|---|---|---|
 | 35 training prompts | 88.6 % [74.0, 95.5] | 82.9 % [67.3, 91.9] | 14.3 % |
 | **40 real prompts** | **35.0 % [22.1, 50.5]** (32.5 % without key) | **52.5 % [37.5, 67.1]** | **45.0 % [30.7, 60.2]** |
-| McNemar one-sided, judge > rule, n=40 | p = 0.059 (not significant) | | |
+| **23 R-24 prompts** (one template, so ~1 effective observation) | **0/23 · 0 % [0, 14.3]** — says T3 for 17, T1/T0 for 6; both label engines say T2 for all 23 | **23/23 · 100 % [85.7, 100]** | 100 % |
+| **63 out-of-training (the pre-registered principal test)** | **22.2 % [13.7, 33.9]** | **69.8 % [57.6, 79.8]** | 65.1 % |
+| McNemar one-sided, judge > rule | **n=63: p = 3.0 × 10⁻⁷** (pre-registered) · n=40: p = 0.059 (not significant) | | |
 
-**We print the loss.** The rule under-tiers: T0 on 31 of 40 real prompts; both label engines put 13 of those at T2/T3. The "tie with an LLM router" measured on 2026-09-01 was a training-set number. The judge is only 3 hits above the constant baseline. Agreement between the two label engines on the 40: Cohen's kappa 0.50 (no isolation claim beyond "two different engines").
+**We print the loss, and we print the bigger one first.** The frozen `protocol.json` pre-registers the principal test on the **63 out-of-training prompts**, and that is the row above with p = 3.0 × 10⁻⁷ against the rule — a 47.6-point gap. Earlier versions of this card led with the 40-prompt subset (17.5-point gap, p = 0.059, "not significant"), which is the friendlier of the two numbers and was **not** the pre-registered test. Promoting it was a post-hoc choice and it is corrected here.
+
+**Why the two strata differ so much, stated so nobody has to guess:** the 23 R-24 prompts are **one template with the task swapped**, so they are close to a single observation repeated 23 times. The rule misses all 23 in the same direction; the judge catches all 23. That makes the 63-item p-value confident about something narrow — pseudo-replication inflates it — while the 40-prompt p-value is honest about a small, diverse sample. **Neither number flatters the rule.** The protocol anticipated this and required both to be printed separately; this card had printed only one.
+
+The rule under-tiers: T0 on 31 of 40 real prompts; both label engines put 13 of those at T2/T3. The "tie with an LLM router" measured on 2026-09-01 was a training-set number. On the 40, the judge is only 3 hits above the constant baseline. Agreement between the two label engines on the 40: Cohen's kappa 0.50 (no isolation claim beyond "two different engines"). Every interval on this card is a Wilson score interval at 95 %.
 
 Competitors on this corpus: tzachbon hook abstains 63/63 (English-only intent gate; defect D4 in `09-DEFEITOS-APANHADOS.md`); one separately invoked fallback call recorded ~52k cached tokens and 5.97 s; none fired on this corpus. claude-code-router and LiteLLM have no complexity classifier: accuracy n/d by construction; egress compared in P5.
 

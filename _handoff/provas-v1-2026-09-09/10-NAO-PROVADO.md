@@ -5,7 +5,7 @@ Lista única, por prova, do que o pacote **não** demonstra — o que os protoco
 ## Transversal
 
 - **Poupança em % ou $** — proibido pelo MP (§4) e por decisão do dono (2026-08-24). Nenhuma prova a calcula; nenhum slide a insinua.
-- **«Privado», «seguro», «enforces», «most accurate»** — palavras proibidas; nenhuma prova as sustenta e os slides não as usam (verificado pelo adversário do P5 até em negação).
+- **«Privado», «seguro», «enforces», «most accurate»** — palavras proibidas; nenhuma prova as sustenta. **Correcção de 2026-09-09:** a frase que aqui estava dizia que os slides não as usam, e um `grep` sobre os slides devolvia **um** acerto — `enforces` no slide do P3, dentro da linha «o que isto não prova». Era negação, não afirmação, mas a regra do MP é sobre a palavra e a frase daqui era falsa como estava escrita. A palavra saiu do slide; a verificação é `grep -ril "enforces\|most accurate\|private\|secure" P*/slide.md`, que agora devolve zero.
 - **Representatividade além desta máquina** — tudo foi medido num Windows 11 com RTX 4090, Claude Code 2.1.224, Ollama local, sem `ANTHROPIC_API_KEY` e com o defeito D1 vivo. Outra máquina, outra chave, outro estado do orçamento dão outros números.
 - **Reprodutibilidade run-a-run** — 1 corrida por unidade em P2 (Haiku), P3, P4, P5-E; a temperatura do `claude -p` não é controlável.
 - **Anterioridade do pré-registo em P1 e P2** — o primeiro commit (`f2739bcb`) tem protocolo e resultados juntos; a ordem está no transcript e nos mtimes, não no git. Nas provas seguintes o protocolo foi commitado antes da corrida (hashes na `ERRATA-timestamps.md`).

@@ -13,4 +13,4 @@
 
 **Printed loss:** the first executed, not hand-written delegation did not happen. Every local model call in 40 sessions is classified by the analyser as the router hook's own pre-answer (by model name or the 256-token cap), none as a subagent's; why the 7 spawned local subagents never called the local script is n/d (session streams were not persisted — an instrument gap on our side). The router's "decision at spawn" could not be measured either: it lives in one machine-wide file that every session, including the operator's, overwrites (defect D10).
 
-*Does not prove: obedience above zero; quality of delegated work (P7); that the hook enforces or even changes a spawn; any effect of the hook (4 vs 8 spawns is one run each, no test); behaviour with an API key; run-to-run stability. Opus probe on 5 prompts: 1/5 local spawn, 0/5 executed.*
+*Does not prove: obedience above zero; quality of delegated work (P7); that the hook applies its rewrite, or changes a spawn at all; any effect of the hook (4 vs 8 spawns is one run each, no test); behaviour with an API key; run-to-run stability. Opus probe on 5 prompts: 1/5 local spawn, 0/5 executed.*
