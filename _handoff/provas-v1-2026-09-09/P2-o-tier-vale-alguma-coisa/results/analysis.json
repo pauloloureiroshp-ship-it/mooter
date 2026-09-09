@@ -1,5 +1,13 @@
 {
- "at": "2026-09-09T13:19:34.881Z",
+ "at": "2026-09-09T13:41:37.343Z",
+ "sinal_descritivo": {
+  "flagged": 13,
+  "flagged_local_failed": 11,
+  "unflagged": 7,
+  "unflagged_local_failed": 2,
+  "haiku_output_tokens_on_flagged": 14479,
+  "haiku_output_tokens_total": 15881
+ },
  "facto_previo": {
   "local_failures": [
    "L3-a",
@@ -109,27 +117,27 @@
   "solved_of_local_failures": 12
  },
  "mcnemar_B_gt_A_all20": {
-  "b": 10,
-  "c": 0,
-  "n": 10,
-  "p_one_sided_A_gt_B": 0.0009765625,
-  "p_one_sided_B_gt_A": 1,
+  "B_tier_wins": 10,
+  "A_local_wins": 0,
+  "discordant": 10,
+  "p_B_tier_gt_A_local": 0.0009765625,
+  "p_A_local_gt_B_tier": 1,
   "p_two_sided": 0.001953125
  },
  "mcnemar_B_gt_A_holdout": {
-  "b": 6,
-  "c": 0,
-  "n": 6,
-  "p_one_sided_A_gt_B": 0.015625000000000007,
-  "p_one_sided_B_gt_A": 1,
+  "B_tier_wins": 6,
+  "A_local_wins": 0,
+  "discordant": 6,
+  "p_B_tier_gt_A_local": 0.015625000000000007,
+  "p_A_local_gt_B_tier": 1,
   "p_two_sided": 0.031250000000000014
  },
  "mcnemar_B_vs_C_all20": {
-  "b": 0,
-  "c": 2,
-  "n": 2,
-  "p_one_sided_A_gt_B": 1,
-  "p_one_sided_B_gt_A": 0.25,
+  "B_tier_wins": 0,
+  "C_haiku_wins": 2,
+  "discordant": 2,
+  "p_B_tier_gt_C_haiku": 1,
+  "p_C_haiku_gt_B_tier": 0.25,
   "p_two_sided": 0.5
  },
  "haiku_tokens_mean": {

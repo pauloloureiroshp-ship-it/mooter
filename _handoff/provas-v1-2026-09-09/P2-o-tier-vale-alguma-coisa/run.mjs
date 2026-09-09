@@ -130,10 +130,13 @@ async function analyse() {
   });
   const cnt = (f) => rows.filter(f).length;
   const acc = (key, filt = () => true) => { const rs = rows.filter(filt).filter((r) => r[key] !== null); const k = rs.filter((r) => r[key] === true).length; return { k, n: rs.length, ...wilson(k, rs.length) }; };
-  const mc = (x, y, filt = () => true) => { let b = 0, c = 0; for (const r of rows.filter(filt)) { if (r[x] === null || r[y] === null) continue; if (r[x] && !r[y]) b++; if (!r[x] && r[y]) c++; } return mcnemarExact(b, c); };
+  // Campos inequivocos (ataque A09): X_wins = casos em que X acertou e Y errou; p_X_gt_Y = P(>= X_wins | discordantes, 0.5).
+  const mc = (x, y, filt = () => true) => { let b = 0, c = 0; for (const r of rows.filter(filt)) { if (r[x] === null || r[y] === null) continue; if (r[x] && !r[y]) b++; if (!r[x] && r[y]) c++; } const m = mcnemarExact(b, c); return { [`${x}_wins`]: b, [`${y}_wins`]: c, discordant: m.n, [`p_${x}_gt_${y}`]: m.p_one_sided_A_gt_B, [`p_${y}_gt_${x}`]: m.p_one_sided_B_gt_A, p_two_sided: m.p_two_sided }; };
   const failedLocal = rows.filter((r) => r.A_local === false);
+  const flagged = rows.filter((r) => r.tier_key && r.tier_key !== 'T0'), unflagged = rows.filter((r) => r.tier_key === 'T0');
   const out = {
     at: now(),
+    sinal_descritivo: { flagged: flagged.length, flagged_local_failed: flagged.filter((r) => r.A_local === false).length, unflagged: unflagged.length, unflagged_local_failed: unflagged.filter((r) => r.A_local === false).length, haiku_output_tokens_on_flagged: flagged.reduce((a, r) => a + ((r.haiku_tokens || {}).out || 0), 0), haiku_output_tokens_total: rows.reduce((a, r) => a + ((r.haiku_tokens || {}).out || 0), 0) },
     facto_previo: { local_failures: failedLocal.map((r) => r.id), flagged_T1_or_above_key: failedLocal.filter((r) => r.tier_key && r.tier_key !== 'T0').length, flagged_T1_or_above_nokey: failedLocal.filter((r) => r.tier_nokey && r.tier_nokey !== 'T0').length, tiers_key_of_failures: failedLocal.map((r) => r.tier_key) },
     tiers_key_all: rows.map((r) => r.id + ':' + r.tier_key).join(' '), tiers_nokey_all: rows.map((r) => r.id + ':' + r.tier_nokey).join(' '),
     A_local: { all20: acc('A_local'), dev: acc('A_local', (r) => r.set === 'dev'), holdout: acc('A_local', (r) => r.set === 'holdout') },

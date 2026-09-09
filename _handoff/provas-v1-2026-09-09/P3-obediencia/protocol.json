@@ -1,0 +1,29 @@
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P3",
+  "title": "Obediência > 0 — a primeira delegação executada que não foi escrita à mão",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T14:20:00Z",
+  "regra": "Commitado ANTES da primeira corrida. Nenhum numero muda depois. Emendas so por AMENDMENT-n.md.",
+  "pergunta": "Uma recomendacao do Mooter (T0/T1) consegue ser EXECUTADA por um subagente local/barato sem o dono escrever o nome do subagente, e fica no recibo com tokens?",
+  "corpus": "os primeiros 20 prompts de P1/corpus-40.json (por ordem de id) que o classify.js com chave marca T0 ou T1 (P1/results/A-key.json, corrida 1). Lista fixada em corpus-20.json com sha. Prompts que mencionem push/deploy/delete/rm sao excluidos antes de contar 20 (blast radius).",
+  "ambiente": "cada corrida numa copia descartavel do repo (git archive HEAD, sem .git) em Temp; claude.exe -p --model sonnet --max-turns 12 --output-format stream-json --verbose; --allowedTools Read,Grep,Glob,Edit,Write,Agent,Bash(node *),Bash(npm test*),Bash(bash *ollama_call.sh*); hooks do dono LIGADOS (e o produto instalado); OLLAMA_HOST apontado a um proxy de contagem em loopback que encaminha para 127.0.0.1:11434 e regista modelo + prompt_eval_count + eval_count por chamada (a linha do recibo).",
+  "modelo_principal": "sonnet (declarado; opus custaria ~10x de quota nesta janela de 5 h). 5 dos 20 repetem-se com opus como sonda, se a quota deixar; senao n/d.",
+  "bracos": {
+    "A": "sessao nativa com o hook actual (UserPromptSubmit inject_context.js da runtime): o <router-hint> e injectado; o modelo principal decide sozinho se delega. Esperado pelo MP: ~0 delegacoes.",
+    "B": "A + um hook PreToolUse (matcher Agent|Task) — pretooluse-route.js — que REESCREVE subagent_type/model do spawn conforme ~/.claude/tools/router/last-subagent.json (a decisao do UserPromptSubmit): T0 -> local-summarizer, T1 -> cheap-triage/haiku, T2 -> sonnet; nunca sobe. Injectado por --settings <ficheiro>. Padrao tzachbon (MIT), citado no ficheiro."
+  },
+  "metricas": {
+    "recomendacoes": "20 por braco (uma por prompt): tier do last-subagent.json no momento do spawn",
+    "delegacoes": "spawns do tool Agent/Task no stream-json, com subagent_type e model finais (depois do hook em B)",
+    "executed": "delegacao cujo subagente FEZ uma chamada ao Ollama (proxy de contagem) — engine=local com prompt_eval_count/eval_count na linha do recibo; ou, para T1, cujo subagente correu com model haiku (visivel no stream-json do subagente: campo model das mensagens do assistant)",
+    "hook_reach": "em B, spawns em que o hook correu (P3_HOOK_LOG) vs spawns sem linha no log (o hook nao chegou) — e o argumento do ADR M1",
+    "custo": "usage do resultado (input/output/cache) por corrida; tokens Ollama por chamada",
+    "sem_teste_estatistico": "e uma contagem (K de 20) — o MP nao pede teste; imprime-se K/20 com Wilson por braco"
+  },
+  "regra_de_paragem": "3 corridas consecutivas com exit != 0 -> parar, reter, n/d com o erro. 0 retries. Uma corrida que exceda 300 s e morta e conta como 'sem delegacao' (intention-to-treat).",
+  "risco_declarado": "o hook vivo tem o defeito D1 (tecto de orcamento): last-subagent.json diz T0 para tudo. Mede-se o produto como esta instalado; declara-se.",
+  "expectativa_honesta": "A: 0-3 delegacoes em 20 (o modelo inlineia). B: o hook so reescreve spawns que o modelo FAZ; se o modelo nao delega, o hook nao chega — e o numero 'nao chegou' e o argumento do ADR M1 (proxy loopback opt-in).",
+  "nao_prova": ["qualidade do trabalho delegado (P7)", "obediencia com opus como modelo principal (sonda de 5, se houver quota)", "enforce: e gated_best_effort, um hook nunca forca um spawn"],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --arm A && ... --arm B && ... --analyse"
+}

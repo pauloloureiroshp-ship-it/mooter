@@ -17,6 +17,11 @@ const tls = require('tls');
 const OUT = process.env.NET_TAP_OUT;
 const BLOCK = process.env.NET_TAP_BLOCK === '1';
 const LOOPBACK = /^(127\.|::1$|localhost$|0\.0\.0\.0$)/;
+let connSeq = 0;
+// Ligacoes ainda abertas quando o processo sai (o hook faz process.exit sem
+// esperar o fecho): escreve-se o que os contadores do socket dizem nesse instante.
+const OPEN = new Map();
+process.on('exit', () => { for (const { rec, sock } of OPEN.values()) { rec.bytes_out = Number(sock.bytesWritten || 0); rec.bytes_in = Number(sock.bytesRead || 0); record({ ...rec, phase: 'exit' }); } });
 
 function record(rec) {
   if (!OUT) return;
@@ -41,15 +46,21 @@ net.Socket.prototype.connect = function tappedConnect(...args) {
   const rec = { pid: process.pid, at: new Date().toISOString(), host: t.host, port: t.port, ipc: !!t.path, bytes_out: 0, bytes_in: 0, blocked: false, argv1: process.argv[1] ? String(process.argv[1]).split(/[\\/]/).pop() : null };
   const external = !t.path && !LOOPBACK.test(String(t.host));
   if (BLOCK && external) {
-    rec.blocked = true; record(rec);
+    rec.blocked = true; rec.conn_id = `${process.pid}-${++connSeq}`; record({ ...rec, phase: 'blocked' });
     const sock = this;
     process.nextTick(() => { const e = new Error(`net-tap: bloqueado ${t.host}:${t.port}`); e.code = 'ECONNREFUSED'; sock.destroy(e); });
     return this;
   }
   // Contagem pelos contadores do proprio socket, lidos no fecho: o http do Node
   // escreve por caminhos que um wrapper de write nao ve (medido: 0 bytes).
+  // Duas linhas por ligacao — 'open' logo ao ligar e 'close' no fecho — porque
+  // um processo morto por timeout (o Option A do hook, a 1 s) nunca chega ao
+  // fecho e a ligacao ficava invisivel (medido 2026-09-09: 75 chamadas, 0 registos).
   const sock = this;
-  this.once('close', () => { rec.bytes_out = Number(sock.bytesWritten || 0); rec.bytes_in = Number(sock.bytesRead || 0); record(rec); });
+  rec.conn_id = `${process.pid}-${++connSeq}`;
+  record({ ...rec, phase: 'open' });
+  OPEN.set(rec.conn_id, { rec, sock });
+  this.once('close', () => { OPEN.delete(rec.conn_id); rec.bytes_out = Number(sock.bytesWritten || 0); rec.bytes_in = Number(sock.bytesRead || 0); record({ ...rec, phase: 'close' }); });
   return origConnect.apply(this, args);
 };
 // tls.connect cria um net.Socket e chama connect — coberto. Fica so o registo de que o tap esta activo.
