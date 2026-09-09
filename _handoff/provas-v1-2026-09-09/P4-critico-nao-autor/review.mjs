@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..');
 const RES = path.join(HERE, 'results');
-const W = 'C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-p4';
+const W = process.env.P4_REPOS || 'C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-p4'; // pasta dos sujeitos: env P4_REPOS, senao a da corrida de 2026-09-09 (ver setup.mjs)
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const has = (k) => args.includes(k);

@@ -116,8 +116,11 @@ async function analyse() {
     // AMENDMENT-1 (adversario P3-01): ATRIBUICAO. O Option A do hook (ollama_call_node.js) usa num_predict 256 e prefere qwen3:30b;
     // o ollama_call.sh que o subagente local corre usa num_predict 512. Uma chamada com eval_count === 256 tem a assinatura do hook.
     // Estrito: sessao com spawn local-* E chamada SEM a assinatura do hook (e, em B, posterior ao rewrite do hook).
+    // AMENDMENT-1 s1 (auditoria numerica): o pretooluse-route.js escreve a linha do hook com o campo `at`, nunca `ts`
+    // (0/8 linhas em results/B-sonnet.json tem `ts`) - a clausula temporal com h.ts nunca se aplicava. Passa a (h.at || h.ts).
     const isHookSig = (c) => c.eval_count === 256 || c.model === 'gemma4:e4b' || c.model === 'qwen2.5:3b';
-    const strict = d.rows.filter((r) => r.agent_calls.some((a) => /local-summarizer|local-transformer/.test(a.subagent_type || '')) && r.ollama_calls.some((c) => c.eval_count != null && !isHookSig(c) && (!r.hook_lines.length || r.hook_lines.every((h) => !h.ts || c.at > h.ts)))).length;
+    const hookAt = (h) => h.at || h.ts;
+    const strict = d.rows.filter((r) => r.agent_calls.some((a) => /local-summarizer|local-transformer/.test(a.subagent_type || '')) && r.ollama_calls.some((c) => c.eval_count != null && !isHookSig(c) && (!r.hook_lines.length || r.hook_lines.every((h) => !hookAt(h) || c.at > hookAt(h))))).length;
     const sigCounts = d.rows.reduce((m, r) => { for (const c of r.ollama_calls) { const k = isHookSig(c) ? 'assinatura_do_hook_option_a' : 'outra'; m[k] = (m[k] || 0) + 1; } return m; }, {});
     const ollamaByModel = d.rows.reduce((m, r) => { for (const c of r.ollama_calls) { const k = c.model || '?'; m[k] = m[k] || { calls: 0, with_eval: 0 }; m[k].calls++; if (c.eval_count != null) m[k].with_eval++; } return m; }, {});
     const cheap = d.rows.filter((r) => r.agent_calls.some((a) => /cheap-triage/.test(a.subagent_type || '') || a.model === 'haiku')).length;

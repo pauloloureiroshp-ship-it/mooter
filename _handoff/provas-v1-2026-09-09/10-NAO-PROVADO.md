@@ -9,14 +9,16 @@ Lista única, por prova, do que o pacote **não** demonstra — o que os protoco
 - **Representatividade além desta máquina** — tudo foi medido num Windows 11 com RTX 4090, Claude Code 2.1.224, Ollama local, sem `ANTHROPIC_API_KEY` e com o defeito D1 vivo. Outra máquina, outra chave, outro estado do orçamento dão outros números.
 - **Reprodutibilidade run-a-run** — 1 corrida por unidade em P2 (Haiku), P3, P4, P5-E; a temperatura do `claude -p` não é controlável.
 - **Anterioridade do pré-registo em P1 e P2** — o primeiro commit (`f2739bcb`) tem protocolo e resultados juntos; a ordem está no transcript e nos mtimes, não no git. Nas provas seguintes o protocolo foi commitado antes da corrida (hashes na `ERRATA-timestamps.md`).
-- **O Kimi** — não corrido (API paga; R7). O 2.º rotulador do P1 foi local.
+- **O Kimi** — não corrido como rotulador (API paga; R7); a única chamada paga do pacote foi a sonda de 137 tokens do §1.2 (≈ US$ 0,0004, `00-preflight.json`). O 2.º rotulador do P1 foi local.
 
 ## P1 · decidir custa zero
 
 - Que a regra é boa: **perdeu** contra o juiz local e contra «sempre T2» nos 40 prompts reais (35 % vs 52,5 % vs 45 %); só 88,6 % no treino.
 - Que o rótulo cego é a verdade (Codex, sem repo; kappa 0,50 com o 2.º rotulador local).
-- Prompts > 500 caracteres; a configuração com chave real e árbitro ligado; exposição indirecta dos rotuladores ao fraseado dos autores da regra.
+- A configuração com chave real e árbitro ligado; exposição indirecta dos rotuladores ao fraseado dos autores da regra.
 - Que «o hook custa zero»: custa 207 ms de mediana / 1,27 s p95 e ~870 bytes por prompt, e 75/75 pré-cálculos locais expiraram (D3).
+- Que o *tap* de sockets do P1 viu «0 ligações em 270 processos»: o tap v1 só registava no `close` e não apanhou os 25 filhos do Option A nem os 63 POSTs de métricas em loopback; o «0 hosts externos» assenta nos wrappers em processo (1 176 classificações), não no tap.
+- Prompts acima de 500 caracteres (o protocolo dizia «> 4 k tokens», tecto mais largo; o corpus vai até 463 nos 40 e 604 nos 63).
 
 ## P2 · o tier vale alguma coisa
 
@@ -35,7 +37,7 @@ Lista única, por prova, do que o pacote **não** demonstra — o que os protoco
 - **Auto-revisão real** — nenhum dos dois motores escreveu o código que reviu; a hipótese de autoria não foi testada.
 - Superioridade do crítico em motor diferente — não estabelecida (26/28 vs 27/28; p = 1,0); equivalência também não (sem margem pré-definida).
 - Valor incremental do verificador de citações — 59/59 referências resolvem para linhas existentes, sem relevância avaliada e sem um caso em que a rejeição mudasse um resultado.
-- Que os 2 alarmes partilhados nos originais são defeitos reais (não adjudicados); que as mortes de mutantes são falhas de asserção e não de carregamento; ablação sem marcador da linha-alvo; amostra aleatória (foi determinística: primeiros mortos, 15 ficheiros, 8 de 12 operadores).
+- Que os 2 alarmes partilhados nos originais são defeitos reais (não adjudicados); ablação sem marcador da linha-alvo; amostra aleatória (foi determinística: primeiros mortos, 15 ficheiros, 7 de 12 operadores semânticos — os 4 mutantes `< → <=` partiram genéricos TypeScript e são erros de sintaxe, apanhados no carregamento e não por asserção; excluindo-os, 23/24 vs 22/24).
 - O crítico **local** ($0): mediu-se em 2026-08-21 que tem zero discriminação e não foi repetido.
 
 ## P5 · egress
@@ -52,7 +54,7 @@ Lista única, por prova, do que o pacote **não** demonstra — o que os protoco
 ## P6 · custo na linha
 
 - Custo **verificado**: a origem é declarada por quem chama (`source_declared_by_caller`); o preço de lista não é o desembolso do dono (subscrição).
-- Que o produto instalado escreve estas linhas — não escreve (0 *callers*; ledger vivo 0/2 157 com custo e origem).
+- Que o produto instalado escreve estas linhas — não escreve (0 *callers*; ledger vivo 0/1 451 com custo e origem no corte do protocolo, 0/2 157 no exploratório).
 - Snapshot imutável com hash dos logs lidos (o log vivo cresceu entre as duas corridas, escrito por P3/P5 deste pacote — D6).
 - Multiplicadores de cache no SSOT (`pricing.js`) — proposta, não aplicada (decisão do dono).
 

@@ -11,8 +11,10 @@
 
 **Convenção de mediana (P5-20):** a análise do E usava a mediana superior com n par; passou a mediana convencional (média dos dois centrais), declarada em `analysis.json → E_native.median_convention`. Os números do veredicto v3 são os da análise corrigida.
 
-**Cronologia (todas as horas dos ficheiros `at`, nenhuma à mão):** A, A-block, B v1, D, PII 13:41–13:53Z → E v2 (`netstat`) 14:04–14:16Z → ronda 1 do adversário 14:21Z → B v2, `e-probe` v2, D-invert, D-tiny, E v3 14:2x–14:3xZ → ronda 2 14:36Z → esta versão da emenda.
+**Cronologia (todas as horas dos ficheiros `at`, nenhuma à mão):** A, A-block, D, PII 13:42–13:57Z (`A.json` 13:42:06Z · `A-block.json` 13:42:27Z · `pii-logs.json` 13:42:28Z · `D-litellm-v1-costs-in-litellm_params.json` 13:50:50Z · `D-litellm.json` 13:56:32Z; B v1: o ficheiro foi sobreposto pela re-corrida v2 — `B-arbiter-instrumented.json` só tem o `at` da v2, 14:24:38Z; o `at` da v1 é n/d) → E v2 (`netstat`) `at` 14:16:12Z (início n/d) → ronda 1 do adversário 14:21Z → B v2, `e-probe` v2, D-invert, D-tiny, E v3 14:2x–14:3xZ → ronda 2 14:36Z → esta versão da emenda.
 
 **O que não mudou:** protocolo (`22388a20`), corpus, braços A/A-block (bruto de 13:42Z), PII, métricas, regra de paragem.
+
+**Braço C sem script:** o `comando_reproduzir` do protocolo congelado lista `--arm C`, mas não existe script para o braço C — ficou bloqueado na configuração headless (R8, 60 min; `ccr.md`); `run.mjs --arm C` responde com a linha de uso e o `--analyse` imprime `C_ccr: { status: 'n/d' }`. O protocolo não se altera; fica registado aqui.
 
 **A lição (para o MP):** o instrumento que devolve «nada» (0 ligações) precisa de um **controlo positivo na mesma corrida**. O teste unitário do proxy dizia 3/3, mas o seu teste de `fetch` tinha o mesmo `spawnSync` e só passava por acaso — passou a falhar de forma consistente depois de o proxy fechar túneis meio-abertos (D9; corrigido com spawn assíncrono). A calibração com volumes conhecidos (`lib/counting-proxy.calibration.test.mjs`) apanhou de caminho um túnel meio-aberto que ficava pendurado (`allowHalfOpen` dos sockets do servidor http): corrigido com `on('end')`; não afecta contagens. O adversário viu-o pela estrutura do código, sem o correr.

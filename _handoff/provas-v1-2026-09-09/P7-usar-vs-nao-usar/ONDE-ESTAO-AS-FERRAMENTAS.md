@@ -1,0 +1,3 @@
+# P7 · onde estão as ferramentas do R-24
+
+`tools/ab/correr-r24.mjs`, `r24-diagnostico.mjs`, `mooter-use-ab.mjs` e os testes **não estão neste branch**: vivem no checkout do dono (`~/frugal`, branch `feat/r24-controlador` @ `0575c5cc`, PR #486 por fundir). Este pacote guarda cópias dos dois ficheiros congelados (`r24-prereg.json`, `r24-manifest.json`, shas no `protocol.json`), o diagnóstico que precedeu o `--correr` (`diagnostico-no-lancamento-2026-09-09.txt`, sonda 2347 ms) e, no fim, o ledger e o log da corrida em `results/`. O `diagnostico-anterior-14-20Z.txt` é a corrida de verificação de 14:20Z (sonda 2127 ms), anterior ao lançamento.

@@ -174,7 +174,8 @@
    "exit": 0,
    "config_status": "n/d — configuracao headless NAO conseguida em 60 min (R8): o servico arranca (start --no-open --port 3477, pid registado, parado com stop), mas o gateway so responde com provider + API key criados pela UI/SQLite ou pelo RPC /api/ccr/rpc, que exige o token web e cujo catalogo de metodos nao esta documentado nem e legivel no bundle minificado. Detalhe e comando para retomar em P5/ccr.md. Celula no P8: n/d, nunca 'nao tem'.",
    "started_at": "2026-09-09T12:50:12.252Z",
-   "status_final": "n/d (bloqueio literal registado)"
+   "status_final": "n/d (bloqueio literal registado)",
+   "started_at_note": "started_at e o generated_at do preflight copiado para as tres entradas, nao a hora de cada instalacao"
   },
   "tzachbon/claude-model-router-hook": {
    "pinned_sha": "f687111e1bd1947df23d676354afc99467294a39 (2026-08-29)",
@@ -189,14 +190,16 @@
    ],
    "status": "clonado; execucao directa dos hooks por stdin",
    "started_at": "2026-09-09T12:50:12.252Z",
-   "status_final": "medido no P1 (D-tzachbon, D-tzachbon-cli, D-tzachbon-one-cli-call): abstem-se 63/63 no corpus real (has_task_intent so em ingles); uma chamada cli_fallback isolada medida"
+   "status_final": "medido no P1 (D-tzachbon, D-tzachbon-cli, D-tzachbon-one-cli-call): abstem-se 63/63 no corpus real (has_task_intent so em ingles); uma chamada cli_fallback isolada medida",
+   "started_at_note": "started_at e o generated_at do preflight copiado para as tres entradas, nao a hora de cada instalacao"
   },
   "LiteLLM": {
    "version": "1.100.0 (pip --target scratchpad/litellm-site)",
    "venv_note": "python -m venv falhou (ensurepip) -> instalado com pip --target",
    "import_status": "ok (bin/litellm.exe; python -m litellm nao tem __main__; banner precisa PYTHONIOENCODING=utf-8)",
    "started_at": "2026-09-09T12:50:12.252Z",
-   "status_final": "medido no P5 (braco D, 3 configuracoes x 20 pedidos): proxy 1.100.0 de pe; cost-based-routing com o barato a preco 0 -> 20/20 ao caro; precos invertidos -> 20/20 ao que passou a ser caro; barato a 1e-9 -> 20/20 ao barato. Leitura: funciona, mas um deployment a preco 0 nunca e escolhido. Encaminha o prompt cru integral ao fornecedor escolhido (mock loopback)."
+   "status_final": "medido no P5 (braco D, 3 configuracoes x 20 pedidos): proxy 1.100.0 de pe; cost-based-routing com o barato a preco 0 -> 20/20 ao caro; precos invertidos -> 20/20 ao que passou a ser caro; barato a 1e-9 -> 20/20 ao barato. Leitura: funciona, mas um deployment a preco 0 nunca e escolhido. Encaminha o prompt cru integral ao fornecedor escolhido (mock loopback).",
+   "started_at_note": "started_at e o generated_at do preflight copiado para as tres entradas, nao a hora de cada instalacao"
   }
  },
  "corpus": {
@@ -256,7 +259,9 @@
   },
   "ollama_calls_at_preflight": 1,
   "clock_started_at": "2026-09-09T12:31Z (UTC)",
-  "clock_ceiling_h": 72
+  "clock_ceiling_h": 72,
+  "clock_started_at_note": "valor escrito a mao (sem segundos); a hora real do primeiro ficheiro do pacote e o generated_at deste ficheiro — auditoria 2026-09-09"
  },
- "competitors_updated_at": "2026-09-09T14:12:19Z"
+ "competitors_updated_at": "2026-09-09T14:12:19Z",
+ "paid_cloud_api_note": "o unico gasto de API paga e a sonda Kimi do paragrafo 1.2 (~US$ 0,0004, 137 tokens), declarada em paid_cloud_api_usd_so_far; nenhuma outra chamada paga"
 }

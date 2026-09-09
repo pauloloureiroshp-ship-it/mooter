@@ -1,10 +1,10 @@
 # P3 · Obediência > 0 — veredicto (v2, depois do adversário)
 
-**Corrida:** 2026-09-09, 13:5x–14:48Z · protocolo `5efd58ed` commitado 13:47:54Z, antes da primeira sessão · corpus `corpus-20.json` (sha256 `b4a8ac5b…`, blob `e517f362` nesse commit; n01–n21 sem n14: os 20 primeiros prompts reais que a regra **com chave** marcou T0/T1 no P1, sem push/deploy/delete/rm) · cada sessão numa cópia descartável do repo, `claude.exe -p --model sonnet --max-turns 12 --output-format stream-json`, **hooks do dono ligados**, sessões **sem chave**, `OLLAMA_HOST` num proxy de contagem em loopback · bruto em `results/A-sonnet.json`, `results/B-sonnet.json`, `results/A-opus.json`, `results/analysis.json` · `AMENDMENT-1.md` (atribuição, decisão no spawn, errata do sha) · adversário: `adversary-codex-round1.md` → `adversary.md`.
+**Corrida:** 2026-09-09, 13:49–14:48Z (início: `ts` do `last-subagent.json` lido no fim da n01, `decision_at_spawn.ts` = 1788961773555 = 13:49:33Z em `results/A-sonnet.json` — ficheiro partilhado, D10: atribuir a escrita à n01 é inferência; fim: `at` de `results/A-opus.json`) · protocolo `5efd58ed` commitado 13:47:54Z, antes da primeira sessão · corpus `corpus-20.json` (sha256 `b4a8ac5b…`, blob `e517f362` nesse commit; n01–n21 sem n14: os 20 primeiros prompts reais que a regra **com chave** marcou T0/T1 no P1, sem push/deploy/delete/rm) · cada sessão numa cópia descartável do repo, `claude.exe -p --model sonnet --max-turns 12 --output-format stream-json`, **hooks do dono ligados**, sessões **sem chave**, `OLLAMA_HOST` num proxy de contagem em loopback · bruto em `results/A-sonnet.json`, `results/B-sonnet.json`, `results/A-opus.json`, `results/analysis.json` · `AMENDMENT-1.md` (atribuição, decisão no spawn, errata do sha, correcção da cláusula temporal do analisador) · adversário: `adversary-codex-round1.md` → `adversary.md`.
 
 ## Veredicto em uma linha
 
-**Obediência executada: 0/20 nos dois braços — imprime-se como derrota.** O modelo spawnou o subagente local em 3/20 sessões nativas e 4/20 com o hook de reescrita; o hook registou 8 tentativas de rewrite em 8 spawns; mas **nenhuma** chamada ao Ollama atribuível a um subagente foi registada — todas as chamadas locais têm a assinatura do pré-cálculo do próprio hook. A «delegação executada com contagens no recibo» que o roadmap pede **não aconteceu** nesta corrida.
+**Obediência executada: 0/20 nos dois braços — imprime-se como derrota.** O modelo spawnou o subagente local em 3/20 sessões nativas e 4/20 com o hook de reescrita; o hook registou 8 tentativas de rewrite em 8 spawns; mas **nenhuma** chamada ao Ollama atribuível a um subagente foi registada — o analisador classifica todas as 35 chamadas locais (18 em A, 17 em B) com a assinatura do pré-cálculo do próprio hook, por nome de modelo ou pelo tecto de 256. A «delegação executada com contagens no recibo» que o roadmap pede **não aconteceu** nesta corrida.
 
 ## Os números (20 sessões por braço, mesmos prompts, mesma ordem; contagens reportadas pelo analisador)
 
@@ -16,7 +16,7 @@
 | Coocorrência (spawn local + qualquer chamada Ollama na sessão) — a métrica v1, **não** atribui | 3/20 | 4/20 |
 | Spawns de `cheap-triage`/Haiku | 0/20 | 0/20 |
 | Hook PreToolUse: tentativas de rewrite registadas | — | 8 (em 8 spawns: 3× `Explore`, 1× `model-reasoner`, 4× `local-summarizer`, todas → `local-summarizer`); **aplicação pelo harness não verificada** |
-| Chamadas ao Ollama, por assinatura | 18: **16 com a assinatura do hook** (`eval_count = 256` / gemma4 / 3b), 0 «outra», 2 sem contagens | 17: **17 com a assinatura do hook**, 0 «outra» |
+| Chamadas ao Ollama, por assinatura | 18 = 15 `qwen3:30b` com `eval_count = 256` + 1 `qwen2.5:3b` com `eval_count = 8` (n07) + 2 `gemma4:e4b` em erro HTTP 400 sem contagens (n09); o analisador classifica **as 18 com a assinatura do hook**, por nome de modelo ou pelo tecto de 256; 0 «outra» | 17 = 15 `qwen3:30b` com `eval_count = 256` + 2 `qwen2.5:3b` (`eval_count` 8 em n07, 1 em n20); **as 17 com a assinatura do hook**; 0 «outra»; nas 6 sessões com rewrite **e** chamada (n03, n04, n09, n11, n15, n16), a chamada precede o rewrite |
 | Decisão do router no spawn | **n/d** (ficheiro partilhado, lido no fim; D10) | n/d (idem; o hook leu T0 nas 8, possivelmente contaminado) |
 | Uso do modelo principal por sessão (média): entrada / saída / cache lida | 9,3 / 4 093 / 460 840 | 7,7 / 3 342 / 357 652 |
 | Duração média por sessão | 77,1 s | 75,7 s |
@@ -31,7 +31,7 @@
 3. **A comparação entre braços não identifica efeito:** 4 vs 8 spawns e 3 vs 4 spawns locais são diferenças de sessões únicas sem controlo de estado; n = 20, sem teste pré-registado. Não se afirma melhoria nem ausência de efeito.
 4. **A selecção do corpus e a execução não coincidem:** prompts escolhidos como T0/T1 **com chave**, corridos **sem chave** (T1 degrada para T0 na runtime) — 0 spawns Haiku não testa T1.
 5. **A decisão «vigente» não é observável:** `last-subagent.json` é um ficheiro por máquina, escrito por todas as sessões (a minha incluída). A obediência «à recomendação» exige uma decisão por sessão que o produto hoje não tem (D10).
-6. **Custo:** ~360–460 k tokens de cache lidos por sessão; ~5 k tokens Ollama por braço, **todos do hook**. Subscrição; API = 0.
+6. **Custo:** ~360–460 k tokens de cache lidos por sessão; ~5 k tokens Ollama por braço, **todos do hook**. Subscrição; API = 0 — **declarado** a partir do ambiente da sessão (sem `ANTHROPIC_API_KEY` definida), não medido nos resultados.
 
 ## O que isto NÃO prova
 

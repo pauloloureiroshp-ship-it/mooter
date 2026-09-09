@@ -208,7 +208,7 @@
    "spawn": 57,
    "cache": 132
   },
-  "note": "corrida 1 tem 63 prompts mas so 57 spawns: 6 prompts dos 40 partilham a chave de cache normalizada do hook (mesmo texto apos normalizacao) e foram hit logo na corrida 1"
+  "note": "57 spawns e o total das 3 corridas: 53 na corrida 1 + os 2 prompts user_override (nao cacheados) x 2 corridas seguintes. A corrida 1 teve 10 hits de cache, todos R-24: os 63 colapsam em 52 sob normalise_prompt.js (duplicados so dentro de r01-r23); os 40 continuam 40 distintos"
  },
  "F4_hook_emitted_tier": {
   "on63": {

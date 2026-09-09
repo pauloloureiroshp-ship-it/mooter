@@ -1,10 +1,10 @@
 # P6 · Custo na linha — veredicto (v2, depois do adversário)
 
-**Corrida v2:** 2026-09-09T14:06:36Z · protocolo `61007b23` commitado **antes** da corrida v1 (13:51:24Z; `ERRATA-timestamps.md` explica o `congelado_em` errado da v1) · instrumento `tools/router/cost-line.js` v2 (aditivo, **15/15 testes** com valores calculados à mão) · `AMENDMENT-1.md` (o que mudou e porquê) · bruto em `results/linhas-2.jsonl`, `results/ledger-actual.json`, `results/analysis.json` · adversário em `adversary.md`.
+**Corrida v2:** 2026-09-09T14:06:36Z · protocolo `61007b23` commitado na **mesma linha de shell** que a corrida v1 (`git commit && node run.mjs`): o `%cI` do commit (13:51:24Z, resolução de 1 s) e o `at` da `analysis.json` v1 (13:51:24,449Z, commit `030374b1`) caem no **mesmo segundo** — a ordem vem da sequência do comando, não dos timestamps; `ERRATA-timestamps.md` explica o `congelado_em` errado da v1 · instrumento `tools/router/cost-line.js` v2 (aditivo, **15/15 testes** com valores calculados à mão) · `AMENDMENT-1.md` (o que mudou e porquê) · bruto em `results/linhas-2.jsonl`, `results/ledger-actual.json`, `results/analysis.json` · adversário em `adversary.md`.
 
 ## Veredicto em uma linha
 
-**Cobertura de formato demonstrada numa corrida instrumentada; custo verificado, não.** O ledger vivo desta máquina tem **0 linhas** com custo *e* origem em 2 157 eventos; as 156 linhas 2 desta corrida têm custo, origem e contagens em 156/156 — mas isso é o instrumento a preencher o formato, e o produto instalado **não escreve** estas linhas. Nas 20 chamadas Haiku, o preço de lista input/output do SSOT (US$ 0,0796) fica **−94 %** abaixo do que o host reporta (US$ 1,3185); com as contagens de cache aos preços publicados (escrita 1 h a 2×, leitura a 0,1×) o host reconstrói-se com **resíduo 0 em 20/20 chamadas**.
+**Cobertura de formato demonstrada numa corrida instrumentada; custo verificado, não.** O ledger vivo desta máquina tem **0 linhas** com custo *e* origem, nos dois cortes: no corte do protocolo (braço A: `classified` 939 + `executed` 492 + ledger `done` 20 = **1 451** eventos, 0) e no corte exploratório (ledger `all` 726 em vez de `done`: **2 157** eventos, 0) — `results/ledger-actual.json`, `with_cost_and_source`; as 156 linhas 2 desta corrida têm custo, origem e contagens em 156/156 — mas isso é o instrumento a preencher o formato, e o produto instalado **não escreve** estas linhas. Nas 20 chamadas Haiku, o preço de lista input/output do SSOT (US$ 0,0796) fica **−94 %** abaixo do que o host reporta (US$ 1,3185); com as contagens de cache aos preços publicados (escrita 1 h a 2×, leitura a 0,1×) o host reconstrói-se com **resíduo 0 em 20/20 chamadas**.
 
 ## Os números
 
@@ -17,7 +17,9 @@
 | `~/.mooter/ledger.jsonl` · `done` (corte do protocolo) | 20 | 8 | 3 | 0 | 20 |
 | `ledger.jsonl` · todos os eventos (exploratório) | 726 | 8 | 3 | 0 | 20 |
 
-Leitura: 479 linhas `executed` dizem `cost_usd: 0` sem dizer porquê — 478 delas estão **registadas como `deferred`** (não se afirma que nunca correram noutro sítio); 20 linhas `done` têm tokens, 8 têm custo, **nenhuma diz de onde vem o número**. O `classified` cresceu de 916 (v1) para 939 porque as sessões P3/P5 deste pacote escrevem no log vivo; não há *snapshot* imutável com hash (pedido pelo adversário, não feito).
+Somas (`results/ledger-actual.json`): corte do protocolo 939 + 492 + 20 = **1 451** eventos, 0 com custo *e* origem; corte exploratório 939 + 492 + 726 = **2 157** eventos, 0. Os dois cortes não se somam entre si — o segundo troca `done` por `all`.
+
+Leitura: 479 linhas `executed` dizem `cost_usd: 0` sem dizer porquê — 478 delas estão **registadas como `deferred`** (não se afirma que nunca correram noutro sítio); 20 linhas `done` têm tokens, 8 têm custo, **nenhuma diz de onde vem o número**. O `classified` cresceu de 916 (v1: `results/analysis.json` tal como está no commit `030374b1`, `A_ledger_actual.decisions_log.classified.total`; o ficheiro na árvore de trabalho é já a v2) para 939 (`results/ledger-actual.json`) porque as sessões P3/P5 deste pacote escrevem no log vivo; não há *snapshot* imutável com hash (pedido pelo adversário, não feito).
 
 ### B · as linhas 2 desta corrida (156)
 
@@ -38,7 +40,7 @@ Leitura: 479 linhas `executed` dizem `cost_usd: 0` sem dizer porquê — 478 del
 
 ### Reconstrução por chamada (exploratória, não pré-registada)
 
-Tokens nas 20 chamadas: input 200 · output 15 881 · `cache_read` 354 357 · `cache_creation` 601 742. Aos preços publicados da Anthropic para o Haiku 4.5 (input 1/M, output 5/M, leitura de cache 0,10/M, **escrita com TTL 1 h 2,00/M** — confirmados pelo adversário na página oficial; **não estão** em `pricing.js`):
+Tokens nas 20 chamadas: input 200 · output 15 881 · `cache_read` 354 357 · `cache_creation` 601 742. Aos preços publicados da Anthropic para o Haiku 4.5 (input 1/M, output 5/M, leitura de cache 0,10/M, **escrita com TTL 1 h 2,00/M** — confirmados pelo adversário na página oficial; **não estão** em `pricing.js`; os dois multiplicadores de cache e a sua fonte estão declarados em `results/analysis.json → reconciliation_haiku_20_per_call.cache_pricing_declared` (`read_per_M: 0.1`, `write_1h_per_M: 2`)):
 
 | | USD |
 |---|---|

@@ -6,11 +6,11 @@
 
 | Prova | Commit do protocolo | Hora do commit (UTC) | Primeiro bruto (UTC) | Anterioridade |
 |---|---|---|---|---|
-| P3 | `5efd58ed` | 13:47:54 | `results/A-sonnet.json` 13:58:54 | ✓ 11 min antes |
+| P3 | `5efd58ed` | 13:47:54 | 13:49:33 (`decision_at_spawn.ts` escrito pelo hook na sessão n01, dentro de `results/A-sonnet.json`; o `at` do ficheiro é o da última gravação, 14:16:13) | ✓ 1,6 min antes |
 | P4 | `030374b1` | 13:54:58 | `mutants.json` 13:56:30 | ✓ 1,5 min antes (mesma linha de shell: commit && mutate) |
 | P5 | `22388a20` | 13:40:15 | `results/A.json` 13:42:06 | ✓ 2 min antes |
 | P6 | `61007b23` | 13:51:24 | `results/analysis.json` 13:51:24,449 | ✓ mesma linha de shell (`git commit && node run.mjs`); o commit precede a corrida por milissegundos, com resolução de 1 s no git |
-| P1 | — (primeiro commit `f2739bcb` tem protocolo e resultados juntos) | — | — | atestada só pela ordem do transcript e mtimes; declarado no veredicto |
+| P1 | — (primeiro commit `f2739bcb`, 13:14:20, tem protocolo e resultados juntos) | — | `results/A-key.json` 12:57:48 | **não atestada pelo git**; o `congelado_em` do protocolo (13:05:00Z) era escrito à mão e é *posterior* a todos os braços (12:57–13:04) — substituído por `n/d` com a nota; o mtime do protocolo (12:55:43) é a única marca anterior e não é prova |
 | P2 | idem (`f2739bcb`) | — | — | idem; `_written_at` do holdout também à mão e errado (`AMENDMENT-1.md` do P2) |
 
 **A correcção.** `lib/fix-congelado-em.mjs` substituiu `congelado_em` nos quatro protocolos pelo `%cI` do commit e acrescentou `congelado_em_fonte` com o valor antigo. Nada mais mudou nesses ficheiros. Os hashes que os protocolos congelam (corpus, rótulos, oráculos) não dependem do próprio `protocol.json`.

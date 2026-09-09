@@ -9,8 +9,9 @@
 //   node run.mjs --arm pii      contagem de PII nos logs locais do router
 //   node run.mjs --analyse
 //
-// O braco C (claude-code-router) tem o seu proprio ficheiro, ccr.mjs, porque
-// a configuracao headless e o problema — nao a medicao.
+// O braco C (claude-code-router) NAO tem script: a configuracao headless nao se conseguiu
+// em 60 min (R8) -> n/d, ver ccr.md. O comando_reproduzir do protocol.json (congelado) lista
+// --arm C; este run.mjs nao o implementa e responde com a linha de uso (AMENDMENT-2).
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -116,7 +117,7 @@ async function armD() {
   // input_cost_per_token/output_cost_per_token em model_info — poe-se nos dois sitios.
   const cfg = `model_list:\n  - model_name: router\n    litellm_params:\n      model: ollama/qwen2.5:3b\n      api_base: ${cheap.url}\n      input_cost_per_token: ${pc.i}\n      output_cost_per_token: ${pc.o}\n    model_info:\n      input_cost_per_token: ${pc.i}\n      output_cost_per_token: ${pc.o}\n  - model_name: router\n    litellm_params:\n      model: openai/mock-cloud\n      api_base: ${dear.url}/v1\n      api_key: provas-fake\n      input_cost_per_token: ${pd.i}\n      output_cost_per_token: ${pd.o}\n    model_info:\n      input_cost_per_token: ${pd.i}\n      output_cost_per_token: ${pd.o}\nrouter_settings:\n  routing_strategy: cost-based-routing\nlitellm_settings:\n  drop_params: true\n  telemetry: false\n`;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'provas-p5-litellm-')); const cfgPath = path.join(dir, 'config.yaml'); fs.writeFileSync(cfgPath, cfg);
-  const site = 'C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-litellm';
+  const site = process.env.P5_LITELLM_SITE || 'C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-litellm'; // pip --target do LiteLLM (SETUP.md); P5_LITELLM_SITE sobrepoe o caminho desta maquina
   const port = 4000 + Math.floor(Math.random() * 500);
   const proc = spawn(path.join(site, 'bin', 'litellm.exe'), ['--config', cfgPath, '--port', String(port), '--host', '127.0.0.1'], { env: { ...process.env, PYTHONPATH: site, LITELLM_TELEMETRY: 'False', DO_NOT_TRACK: '1', PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }, windowsHide: true });
   let log = ''; proc.stdout.on('data', (d) => { log += d; }); proc.stderr.on('data', (d) => { log += d; });
@@ -139,7 +140,8 @@ async function armD() {
 
 // ── E: Claude Code nativo pelo counting-proxy ───────────────────────────────
 async function armE() {
-  // AMENDMENT-1: o claude.exe nao honra HTTPS_PROXY (e-probe.mjs) -> controlo grosseiro por netstat, em arm-e.mjs
+  // AMENDMENT-2 (P5-10): a v3 vai PELO counting-proxy (spawn assincrono, um proxy por prompt), em arm-e.mjs.
+  // A AMENDMENT-1 dizia que o claude.exe nao honra HTTPS_PROXY — era o meu spawnSync a bloquear o proxy (D8, retirado).
   const { armE: run } = await import('file:///' + fwd(path.join(HERE, 'arm-e.mjs')));
   await run({ checkFrozen, prompts20, CLAUDE_EXE, save, now, ms });
 }

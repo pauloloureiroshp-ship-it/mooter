@@ -1,3 +1,5 @@
+> **SUPERADA pela AMENDMENT-2:** a afirmação «o claude.exe não honra HTTPS_PROXY» era um defeito do meu instrumento (D8); o braço E foi re-medido pelo proxy.
+
 # P5 · AMENDMENT-1 — três alterações de instrumento, nenhuma de métrica (2026-09-09)
 
 **Regra:** o protocolo (`22388a20`, commitado 13:40:15Z antes da primeira corrida) não muda; muda-se o instrumento onde ele falhou, escreve-se aqui, re-corre-se só o braço afectado.

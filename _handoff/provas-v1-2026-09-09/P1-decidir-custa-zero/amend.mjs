@@ -66,7 +66,7 @@ const out = {
   W1_rule_on_r24: rule_on_r24, W1_llm_on_r24: llm_on_r24,
   S3_constant_baselines: constant, S3_label_distribution: label_dist,
   L4_kappa_40_only: { kappa: kappa40, raw_agreement: raters_agree_40 + '/' + ka.length, disagreements_40: disagree40.length, rule_matches_rater2_on_those: rule_matches_rater2_on_disagreements, rule_matches_codex_on_those: rule_matches_codex_on_disagreements, rule_acc40_vs_rater2, llm_acc40_vs_rater2, rule_acc40_where_raters_agree: rule_acc40_both_agree, llm_acc40_where_raters_agree: llm_acc40_both_agree },
-  M4_hook_latency_full: { all: hook_all, by_run: hook_by_run, internal_classify_ms: H.hook_internal_classify_ms, path_counts: H.classify_path_counts, note: 'corrida 1 tem 63 prompts mas so 57 spawns: 6 prompts dos 40 partilham a chave de cache normalizada do hook (mesmo texto apos normalizacao) e foram hit logo na corrida 1' },
+  M4_hook_latency_full: { all: hook_all, by_run: hook_by_run, internal_classify_ms: H.hook_internal_classify_ms, path_counts: H.classify_path_counts, note: '57 spawns e o total das 3 corridas: 53 na corrida 1 + os 2 prompts user_override (nao cacheados) x 2 corridas seguintes. A corrida 1 teve 10 hits de cache, todos R-24: os 63 colapsam em 52 sob normalise_prompt.js (duplicados so dentro de r01-r23); os 40 continuam 40 distintos' },
   F4_hook_emitted_tier: hook_tier_acc,
   C2_redaction: { changed: redacted.length, of: corpus.length, ids: redacted },
   S4_composition: { train35_by_tier: train, real40_by_tier: label_dist.on40 },

@@ -3,7 +3,7 @@
   "id": "P1",
   "title": "Decidir custa zero — Mooter vs LLM-router vs proxies, no mesmo corpus",
   "estado": "CONGELADO",
-  "congelado_em": "2026-09-09T13:05:00Z",
+  "congelado_em": "n/d — escrito à mão (13:05Z) e posterior aos braços; mtime do ficheiro 12:55:43Z; primeiro commit f2739bcb (13:14:20Z) tem protocolo e resultados juntos — ERRATA-timestamps.md",
   "regra": "Nenhum numero deste ficheiro muda depois da primeira classificacao do corpus. Emendas so por AMENDMENT-n.md com o results.json vazio.",
   "pergunta": "Quanto custa DECIDIR para onde vai um prompt (tokens, latencia, bytes que saem da maquina), e com que precisao contra um rotulo cego?",
   "hashes": {

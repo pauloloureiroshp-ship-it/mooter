@@ -19,7 +19,7 @@
 | A13 | serious | «Poupa 7 chamadas» como poupança | Aceite: 35 % das chamadas, **8,8 % dos tokens de saída**; sem palavra «poupança». | Reformulado. |
 | A14 | serious | «API US$ 0» não caracteriza custo | Aceite: «recursos», «desembolso incremental», «estimativa de lista do CLI, não factura», capacidade/hardware não contabilizados. | Reformulado. |
 | A15 | serious | «Sem chave → 7/20» é composição offline | Aceite; declarado. | Reformulado. |
-| A16 | serious | L4-b é erro de tipo | Aceite: «erro de tipo, não de lógica»; o prompt pede strings; a métrica exacta fica. | Declarado. |
+| A16 | serious | L4-b é erro de tipo | Aceite: «erro de tipo, não de lógica»; o prompt pede strings; a métrica exacta fica. | Declarado. — **errata (auditoria 2026-09-09):** o prompt de L4-b não pede «as strings» (a frase é do caso L4-d do holdout); o critério exacto esperava strings e o prompt não as pediu — desencontro prompt/critério, contado contra o Haiku como pré-registado (veredicto v2) |
 | A17 | serious | L4-d precedência ambígua | Anotado; o oráculo segue a leitura «(admin ou editor) E …» e o Codex derivou o mesmo; sensibilidade não medida. | Declarado. |
 | A18 | serious | Headline categórica; referências a P1/P3 | Headline substituída pela frase descritiva sugerida pelo adversário; referências cruzadas mantidas apenas no rodapé, como ponteiros. | Reformulado. |
 

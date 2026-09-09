@@ -1,0 +1,23 @@
+=== launch 2026-09-09T11:50:51.3468384-03:00 pid 47248 ===
+r24 ┬À diagn├│stico das pr├®-condi├º├Áes de --correr ┬À 2026-09-09T14:50:51.414Z ┬À node v24.14.0 ┬À win32
+
+  ┬À cwd  C:\Users\Paulo Loureiro\frugal
+  ok  ficheiros do R-24 presentes  5 de 5
+  ┬À repo resolvido pelo executor  C:\Users\Paulo Loureiro\frugal
+  ok  pr├®-registo CONGELADO  CONGELADO
+  ok  pr├®-registo fecha-se sobre si pr├│prio  9c2d37b1e6ceÔÇª
+  ok  limiar pr├®-registado bate com o recalculado  n=23 ┬À alfa=0.05 ┬À limiar=16
+  ok  congelamento dos ficheiros  9 entradas
+  ok  prim├írias leg├¡veis do manifest  23 tarefas ┬À 12 ON-primeiro ┬À 11 OFF-primeiro
+  ok  terminal fora de uma sess├úo Claude Code  apto
+  ok  execut├ível do agente responde --version  2.1.224 (Claude Code) ┬À C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+  ok  a sonda chega ao modelo  2347 ms ┬À 2 tokens de entrada
+  ok  router pinado bate com o pr├®-registo  b39c7da4aaa6ÔÇª vs b39c7da4aaa6ÔÇª
+  ┬À effort fixado  xhigh
+  ok  sem outra inst├óncia a correr  livre
+  ┬À ledger  ainda n├úo existe ┬À seria C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  ┬À snapshots de corrida  nenhum ÔÇö o --correr nunca chegou a preparar um
+
+VEREDICTO: --correr pode arrancar.
+
+(relat├│rio guardado em C:\Users\Paulo Loureiro\frugal\_handoff\r24\ultimo-diagnostico.txt)

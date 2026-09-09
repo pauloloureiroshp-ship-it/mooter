@@ -28,7 +28,8 @@ const ms = (t0) => Number(process.hrtime.bigint() - t0) / 1e6;
 const save = (n, o) => { fs.mkdirSync(RES, { recursive: true }); fs.writeFileSync(path.join(RES, n), JSON.stringify(o, null, 1)); console.log('->', path.join('results', n)); };
 const load = (n) => { try { return JSON.parse(fs.readFileSync(path.join(RES, n), 'utf8')); } catch { return null; } };
 
-const PARTNER = 'C:/Users/Paulo Loureiro/OneDrive/Documents/ChatGPT/New project/output/partner-study-20260909';
+// partner-study: a copia dentro do pacote (byte a byte igual ao original; AMENDMENT-1, Correccao 2). P2_PARTNER sobrepoe.
+const PARTNER = process.env.P2_PARTNER || path.join(HERE, 'partner-study');
 const CLAUDE_EXE = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
 function cases() {
   const dev = JSON.parse(fs.readFileSync(path.join(PARTNER, 'protocol.json'), 'utf8')).cases.map((c) => ({ ...c, set: 'dev' }));

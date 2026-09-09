@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const W = 'C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-p4';
+const W = process.env.P4_REPOS || 'C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-p4'; // pasta dos sujeitos: env P4_REPOS, senao a da corrida de 2026-09-09 (ver setup.mjs)
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const MAX = Number(opt('--max', 10)); const BUDGET_MS = Number(opt('--budget-min', 60)) * 60000;
