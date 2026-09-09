@@ -4,7 +4,7 @@
 
 | | Opus reviewer (`claude -p`, hooks/tools off) | Codex reviewer (read-only, empty cwd) |
 |---|---|---|
-| Found on the planted line, 28 mutants (95 % CI) | **27/28 · 96 % [82, 99]** | 26/28 · 93 % [77, 98] |
+| Found on the planted line **when told which line changed**, 28 mutants (95 % CI Wilson) | **27/28 · 96 % [82, 99]** | 26/28 · 93 % [77, 98] |
 | Found on the planted line, **excluding the 4 compile-error mutants** (24) | 23/24 · 96 % [80, 99] | 22/24 · 92 % [74, 98] |
 | Findings outside the ±2-line scoring tolerance | 0 (all offsets are 0) | 0 |
 | Findings on 28 unmutated windows (scored as false alarms, not adjudicated) | 2/28 · 7 % [2, 23] | 4/28 · 14 % [6, 31] |
