@@ -1,0 +1,407 @@
+You are the ADVERSARY (Codex, gpt-6-astra) for a pre-registered evidence package — proof P4. The author is a different engine (Claude). Your job is to KNOCK DOWN the numbers and the claims, not to comment on them. Attack: (1) the mutant generation — are 12 syntactic operators and 'first 10 killed per repo' a fair oracle, or a ceiling effect that makes any engine look good? is n=28 (not 30) handled honestly? (2) the 'self-review' framing — arm A is Opus reviewing windows it did not write; is calling it self-review legitimate? what would a real author-reviews-own-code arm need? (3) the control windows — same file/line with the original code: could the '* MUDOU' marker itself leak which is which, or bias toward ACHADO? (4) the parsing of ACHADO/SEM ACHADO and the ±2 line tolerance for TP — could it inflate TP or hide WRONG_REASON? (5) citation validity via checkCitation — it checks that file:line exists in the tree, not that the line is relevant: is '59/59 valid citations' overclaimed? (6) the statistics — McNemar on 1 discordant pair, Wilson intervals, per-repo breakdown; is 'p = 1.0' the right reading? (7) the two shared false positives — is 'candidate real defects' a defensible claim? (8) the slide wording for an investor and the forbidden words (enforces, most accurate, savings, private/secure).
+For EACH attack give: id (P4-NN), severity (fatal|serious|minor), the exact claim attacked, why it may not hold, and what evidence would settle it. Then: SURVIVE / REWORD / DEAD lists, and a final line SLIDE PUBLISHABLE AS IS / WITH THESE EDITS (give the edits) / NOT PUBLISHABLE. Be concrete and merciless; a verdict that only approves has not run. Do not rewrite the package. You have no repo access: attack what is in front of you, and say explicitly what you could not verify.
+
+=== PROTOCOL (protocol.json) ===
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P4",
+  "title": "Crítico ≠ autor — defeitos plantados",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T13:54:58.000Z",
+  "regra": "Commitado antes de gerar mutantes e antes de qualquer revisao. Nenhum numero muda depois. Emendas so por AMENDMENT-n.md.",
+  "pergunta": "Um critico que NAO e o autor apanha mais defeitos reais, com menos alarmes falsos, do que o autor a rever-se — e cada citacao resolve para uma linha real?",
+  "sujeitos": {
+    "mooter": "97ad846b (102 188 linhas)",
+    "fastify": "1beaf7e7 (77 475)",
+    "hono": "06880c4a (84 377)",
+    "clonados_em": "C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-p4/<repo>, deps instaladas com npm install --ignore-scripts (fastify e hono nao tem package-lock)"
+  },
+  "defeitos": {
+    "operadores": [
+      "<= -> <",
+      "< -> <=",
+      "=== -> !==",
+      "!== -> ===",
+      "&& -> ||",
+      "return true -> return false",
+      "+ 1 -> - 1",
+      "length - 1 -> length",
+      "if (!x) -> if (x)",
+      "> 0 -> >= 0",
+      "Math.max -> Math.min",
+      "guarda removida: linha `if (...) throw|return` apagada"
+    ],
+    "seleccao": "ficheiros-fonte com ficheiro de teste emparelhado (mooter: tools/router/X.js<->X.test.js, tools/cockpit/runner/X.mjs<->X.test.mjs; fastify: lib/X.js<->test/X.test.js; hono: src/**/X.ts<->X.test.ts). Ordem: ficheiros por ordem alfabetica, linhas por ordem no ficheiro, operadores pela lista. Um candidato e MUTANTE se: (a) o teste emparelhado passa no original (verificado uma vez por ficheiro), (b) falha com a mutacao aplicada, (c) num tecto de 120 s. Ficam os PRIMEIROS 10 mutantes mortos por repo = 30. Sem escolha humana.",
+    "controlos": "30 janelas limpas: os mesmos 30 ficheiros/linhas com a linha ORIGINAL (sem mutacao). Assim a janela e identica excepto na linha plantada.",
+    "oraculo": "o teste do repo que mata o mutante (executavel; comando gravado por mutante)",
+    "janela": "±25 linhas a volta da linha, com numeros reais de linha, cabecalho `Ficheiro: <f> (linhas A-B de N)`; a linha alvo marcada como MUDOU (tanto no mutante como no controlo — o revisor nao sabe qual e qual)"
+  },
+  "bracos": {
+    "A": "AUTO-REVISAO: o mesmo motor que 'escreveu' (Opus, claude -p --model opus, hooks e tools desligados, --max-turns 1) reve a janela com o DIFF_SYSTEM_PROMPT do Mooter (tools/cockpit/runner/context-pack.mjs, verbatim) — e o prompt que o pilar de revisao usa; so muda o motor.",
+    "B": "MOOTER: o mesmo DIFF_SYSTEM_PROMPT, critico em MOTOR DIFERENTE (Codex CLI, gpt-6-astra, read-only, sem acesso ao repo — recebe so a janela), saida passada por evidence-verifier.checkCitation (corrigido em D2) para a citacao PROVA: file:line resolver na arvore do repo.",
+    "C": "opcional, se houver tempo: revisao nativa do Claude Code sem Mooter (claude -p sem o system prompt do pilar). Senao n/d."
+  },
+  "metricas": {
+    "por_janela": "ACHADO|SEM ACHADO; PROVA file:line; citacao valida (checkCitation ok); no mutante: TP = ACHADO com PROVA na linha plantada (±2), WRONG-REASON = ACHADO noutra linha, FN = SEM ACHADO; no controlo: FP = ACHADO, TN = SEM ACHADO",
+    "agregadas": "recall = TP/30 com Wilson; FP = FP/30 com Wilson; wrong-reason/30; citacoes invalidas/total de ACHADOs; distribuicao pass/fail publicada por repo",
+    "teste": "McNemar exacto direccional nos 30 mutantes: H1 = B apanha mais (B_wins = B TP & A nao); e nos 30 controlos: H1 = B tem menos FP. alfa 0,05. Exploratorio: por repo.",
+    "determinismo": "1 corrida por janela por braco (temperature nao controlavel no claude -p; Codex reasoning medium). Declarado."
+  },
+  "regra_de_paragem": "3 falhas consecutivas de servico num braco -> parar, reter, n/d. Geracao de mutantes: se um repo nao produzir 10 mortos em 60 min de maquina, fica com os que tiver e o n imprime-se.",
+  "expectativa_honesta": "prova-de-pilar.mjs mediu 2026-08-21 que o critico LOCAL (14B) tem ZERO discriminacao. Aqui o critico e Codex; a expectativa e >0. Se A >= B, imprime-se: o valor do critico e proveniencia (citacao verificada), nao recall.",
+  "nao_prova": [
+    "defeitos reais de producao (sao mutacoes sintaticas)",
+    "tempo humano",
+    "que o critico local (Ollama) faz isto — mediu-se que nao"
+  ],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P4-critico-nao-autor/mutate.mjs && node .../review.mjs --arm A && node .../review.mjs --arm B && node .../review.mjs --analyse",
+  "congelado_em_fonte": "git commit 030374b1 (%cI 2026-09-09T10:54:58-03:00); o valor anterior '2026-09-09T14:55:00Z' era escrito a mao e errado — ERRATA-timestamps.md"
+}
+
+
+=== VERDICT (verdict.md) ===
+# P4 · Crítico ≠ autor — veredicto
+
+**Corrida:** 2026-09-09 · protocolo `030374b1` commitado 13:54:58Z, **antes** de gerar mutantes (13:56:30Z) e de qualquer revisão · 28 mutantes mortos por teste (mooter 10, fastify 8, hono 10 — o protocolo pedia «os primeiros 10 por repo»; o fastify só produziu 8 no tecto: **n = 28, não 30**) + 28 controlos idênticos sem a mutação = **56 janelas** · `mutants.json`, `windows.json`, `results/A.json`, `results/B.json`, `results/analysis.json`.
+
+## Veredicto em uma linha
+
+**Perdeu a hipótese, ganhou a proveniência.** O crítico em motor diferente (Codex) **não** apanha mais defeitos plantados do que o mesmo motor a rever-se (Opus): 26/28 contra 27/28, e tem **mais** alarmes falsos (4/28 contra 2/28). Nenhuma das duas diferenças é significativa. O que ambos entregam a 100 % é o que o pilar de revisão do Mooter exige: **59 citações `PROVA: ficheiro:linha` em 59 achados, todas a resolver para uma linha real** (`checkCitation`, corrigido em D2).
+
+## Os números (mesmas 56 janelas, mesmo `DIFF_SYSTEM_PROMPT` verbatim, revisor sem acesso ao repo)
+
+| | **A · auto-revisão** — Opus via `claude -p`, hooks e tools desligados, 1 turno | **B · crítico ≠ autor** — Codex CLI gpt-6-astra, read-only, cwd vazio |
+|---|---|---|
+| Recall nos 28 mutantes (TP, Wilson 95 %) | **27/28 · 96,4 % [82,3; 99,4]** | 26/28 · 92,9 % [77,4; 98,0] |
+| WRONG-REASON (achado noutra linha) | 0 | 0 |
+| Alarmes falsos nos 28 controlos (FP, Wilson 95 %) | **2/28 · 7,1 % [2,0; 22,6]** | 4/28 · 14,3 % [5,7; 31,5] |
+| Citações válidas / achados | 29/29 | 30/30 |
+| Por repo (TP/mutantes · FP/controlos) | mooter 10/10 · 1/10 — fastify 7/8 · 1/8 — hono 10/10 · 0/10 | mooter 9/10 · 1/10 — fastify 7/8 · 2/8 — hono 10/10 · 1/10 |
+| Tempo médio por janela | 19,3 s | 17,3 s |
+| Recursos | 50 469 tokens de saída; 1,03 M cache lida; 2,68 M cache escrita; estimativa de lista do CLI US$ 28,61 (subscrição, não factura) | tokens **n/d** (o `codex exec` não os imprimiu no formato que o instrumento esperava) |
+| Exits | 56/56 = 0 | 56/56 = 0 |
+
+**Teste pré-registado (McNemar exacto direccional, α 0,05):**
+
+| H1 | Discordantes | p |
+|---|---|---|
+| B apanha mais mutantes (B TP e A não) | B 0 · A 1 (só `mooter-02-M`) | **p = 1,0** — não suportada |
+| B tem menos alarmes falsos | B-só 2 (`fastify-07-C`, `hono-09-C`) · A-só 0 | **p = 1,0** — não suportada |
+
+**Concordância:** 53/56 janelas com o mesmo desfecho. Os dois FP de A são **os mesmos** dois de B (`mooter-05-C` `agents-progress-status.js:62`, `fastify-05-C` `noop-set.js:8`) e os dois falharam o mesmo mutante (`fastify-05-M`). Dois motores diferentes a marcar a mesma linha *original* como defeito é um candidato a defeito real pré-existente, **não verificado aqui** (fica em `10-NAO-PROVADO.md`).
+
+## Leitura honesta
+
+1. **A tese «crítico ≠ autor apanha mais» não sobreviveu a esta corrida.** Com mutações sintácticas de uma linha, ambos os motores estão perto do tecto (26–27 de 28) e a diferença de 1 é ruído. A expectativa honesta do protocolo já o dizia: «se A ≥ B, imprime-se: o valor do crítico é proveniência, não recall».
+2. **O que o Mooter acrescenta, medido, é a verificação da citação**, não o motor: 59/59 `PROVA:` resolvem para linhas reais nos três repos — e isso só é verificável porque o `evidence-verifier` deixou de aceitar a linha N+1 (D2, apanhado a preparar esta prova).
+3. **Independência:** B não viu o repo (cwd vazio, read-only) e acertou 26/28 só com a janela de ±25 linhas. O «autor» aqui é o motor Opus a rever janelas que **não** escreveu — a auto-revisão real (mesmo modelo, mesma sessão, mesmo contexto) não foi medida; é o desenho mais próximo que se conseguiu sem um pipeline que escreva código.
+4. **Determinismo:** 1 corrida por janela por braço; a temperatura não é controlável no `claude -p`. Declarado no protocolo.
+5. **Custo:** o braço A gastou o equivalente a US$ 28,61 de lista (subscrição) em 56 janelas — 0,51 por janela. O B custa `n/d` (Codex não reportou). Nenhum dos dois é o crítico **local** ($0) que o roadmap quer; mediu-se em 2026-08-21 que esse tem zero discriminação e **não** foi repetido aqui.
+
+## O que isto NÃO prova
+
+- Defeitos reais de produção (são 12 operadores de mutação sintáctica). Tempo humano. Que o crítico local (Ollama) faz isto (mediu-se que não). Qualidade de revisão de PRs multi-ficheiro. Que os dois FP partilhados são defeitos reais (candidatos, não verificados). Reprodutibilidade run-a-run (1 corrida).
+
+## Reproduzir
+
+```
+node _handoff/provas-v1-2026-09-09/P4-critico-nao-autor/mutate.mjs        # 28 mutantes + 56 janelas (repos em Temp/provas-p4)
+node _handoff/provas-v1-2026-09-09/P4-critico-nao-autor/review.mjs --arm A
+node _handoff/provas-v1-2026-09-09/P4-critico-nao-autor/review.mjs --arm B
+node _handoff/provas-v1-2026-09-09/P4-critico-nao-autor/review.mjs --analyse
+```
+
+
+=== SLIDE (slide.md) ===
+# Slide P4 · Critic ≠ author did not catch more planted defects than self-review — both caught ~all; what the pipeline adds is a verified citation on 59/59 findings
+
+**Setup:** 28 single-line mutants killed by the repo's own tests (mooter 10, fastify 8, hono 10; the protocol asked for 10 per repo, fastify yielded 8 in the time cap) plus 28 identical control windows with the original line. Same review system prompt, ±25-line window, no repo access. Pre-registered, committed before mutation.
+
+| | Self-review (Opus, `claude -p`, hooks/tools off) | Critic in a different engine (Codex, read-only, empty cwd) |
+|---|---|---|
+| Recall on 28 mutants (95 % CI) | **27/28 · 96 % [82, 99]** | 26/28 · 93 % [77, 98] |
+| False alarms on 28 controls | **2/28 · 7 % [2, 23]** | 4/28 · 14 % [6, 31] |
+| Wrong-line findings | 0 | 0 |
+| `PROVA: file:line` resolving to a real line | 29/29 | 30/30 |
+
+**Pre-registered test (McNemar, one-sided, α 0.05):** "critic catches more" — discordant 0 vs 1, p = 1.0; "critic has fewer false alarms" — discordant 2 vs 0, p = 1.0. **Neither holds.** 53/56 windows agree; both engines flag the same two control lines (candidate real defects, not verified) and miss the same mutant.
+
+**Printed loss:** on syntactic one-line mutations both engines sit at the ceiling; the engine swap buys nothing measurable here. The measurable value is provenance: every finding carries a citation that a verifier checked against the tree, which only became true after fixing the verifier that accepted line N+1 (defect D2, found while building this proof).
+
+*Does not prove: real production defects; human time; the local ($0) critic (measured 2026-08-21 with zero discrimination, not repeated); multi-file PR review; run-to-run stability (1 run per window). Cost: self-review ≈ US$ 0.51 list per window on subscription; Codex tokens n/d.*
+
+
+=== ANALYSIS (results\analysis.json) ===
+{
+ "at": "2026-09-09T14:29:42.900Z",
+ "n_windows": 56,
+ "n_mutants": 28,
+ "arms": {
+  "A_self_review_opus": {
+   "n": 56,
+   "mutants": 28,
+   "controls": 28,
+   "TP": 27,
+   "FN": 1,
+   "WRONG_REASON": 0,
+   "INVALID": 0,
+   "FP": 2,
+   "TN": 26,
+   "recall": {
+    "k": 27,
+    "n": 28,
+    "p": 0.9642857142857143,
+    "lo": 0.8228780209422653,
+    "hi": 0.9936674802210836
+   },
+   "fp_rate": {
+    "k": 2,
+    "n": 28,
+    "p": 0.07142857142857142,
+    "lo": 0.019812063936445176,
+    "hi": 0.22645362729738683
+   },
+   "achados": 29,
+   "citations_valid": 29,
+   "citations_invalid_reasons": [],
+   "by_repo": {
+    "mooter": {
+     "mutants": 10,
+     "TP": 10,
+     "FN": 0,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 1,
+     "TN": 9
+    },
+    "fastify": {
+     "mutants": 8,
+     "TP": 7,
+     "FN": 1,
+     "WRONG": 0,
+     "controls": 8,
+     "FP": 1,
+     "TN": 7
+    },
+    "hono": {
+     "mutants": 10,
+     "TP": 10,
+     "FN": 0,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 0,
+     "TN": 10
+    }
+   },
+   "mean_s": 19.32926785714286,
+   "exits": {
+    "0": 56
+   }
+  },
+  "B_critic_codex": {
+   "n": 56,
+   "mutants": 28,
+   "controls": 28,
+   "TP": 26,
+   "FN": 2,
+   "WRONG_REASON": 0,
+   "INVALID": 0,
+   "FP": 4,
+   "TN": 24,
+   "recall": {
+    "k": 26,
+    "n": 28,
+    "p": 0.9285714285714286,
+    "lo": 0.7735463727026133,
+    "hi": 0.9801879360635548
+   },
+   "fp_rate": {
+    "k": 4,
+    "n": 28,
+    "p": 0.14285714285714285,
+    "lo": 0.05699005280090216,
+    "hi": 0.3148980232272912
+   },
+   "achados": 30,
+   "citations_valid": 30,
+   "citations_invalid_reasons": [],
+   "by_repo": {
+    "mooter": {
+     "mutants": 10,
+     "TP": 9,
+     "FN": 1,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 1,
+     "TN": 9
+    },
+    "fastify": {
+     "mutants": 8,
+     "TP": 7,
+     "FN": 1,
+     "WRONG": 0,
+     "controls": 8,
+     "FP": 2,
+     "TN": 6
+    },
+    "hono": {
+     "mutants": 10,
+     "TP": 10,
+     "FN": 0,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 1,
+     "TN": 9
+    }
+   },
+   "mean_s": 17.257839285714287,
+   "exits": {
+    "0": 56
+   }
+  }
+ },
+ "mcnemar_mutants_B_catches_more": {
+  "B_wins": 0,
+  "A_wins": 1,
+  "discordant": 1,
+  "p_B_gt_A": 1,
+  "p_A_gt_B": 0.5,
+  "p_two_sided": 1
+ },
+ "mcnemar_controls_B_fewer_FP": {
+  "A_FP_only": 0,
+  "B_FP_only": 2,
+  "discordant": 2,
+  "p_B_fewer": 1,
+  "p_two_sided": 0.5
+ },
+ "per_window": [
+  "mooter-01-M:TP/TP",
+  "mooter-01-C:TN/TN",
+  "mooter-02-M:TP/FN",
+  "mooter-02-C:TN/TN",
+  "mooter-03-M:TP/TP",
+  "mooter-03-C:TN/TN",
+  "mooter-04-M:TP/TP",
+  "mooter-04-C:TN/TN",
+  "mooter-05-M:TP/TP",
+  "mooter-05-C:FP/FP",
+  "mooter-06-M:TP/TP",
+  "mooter-06-C:TN/TN",
+  "mooter-07-M:TP/TP",
+  "mooter-07-C:TN/TN",
+  "mooter-08-M:TP/TP",
+  "mooter-08-C:TN/TN",
+  "mooter-09-M:TP/TP",
+  "mooter-09-C:TN/TN",
+  "mooter-10-M:TP/TP",
+  "mooter-10-C:TN/TN",
+  "fastify-01-M:TP/TP",
+  "fastify-01-C:TN/TN",
+  "fastify-02-M:TP/TP",
+  "fastify-02-C:TN/TN",
+  "fastify-03-M:TP/TP",
+  "fastify-03-C:TN/TN",
+  "fastify-04-M:TP/TP",
+  "fastify-04-C:TN/TN",
+  "fastify-05-M:FN/FN",
+  "fastify-05-C:FP/FP",
+  "fastify-06-M:TP/TP",
+  "fastify-06-C:TN/TN",
+  "fastify-07-M:TP/TP",
+  "fastify-07-C:TN/FP",
+  "fastify-08-M:TP/TP",
+  "fastify-08-C:TN/TN",
+  "hono-01-M:TP/TP",
+  "hono-01-C:TN/TN",
+  "hono-02-M:TP/TP",
+  "hono-02-C:TN/TN",
+  "hono-03-M:TP/TP",
+  "hono-03-C:TN/TN",
+  "hono-04-M:TP/TP",
+  "hono-04-C:TN/TN",
+  "hono-05-M:TP/TP",
+  "hono-05-C:TN/TN",
+  "hono-06-M:TP/TP",
+  "hono-06-C:TN/TN",
+  "hono-07-M:TP/TP",
+  "hono-07-C:TN/TN",
+  "hono-08-M:TP/TP",
+  "hono-08-C:TN/TN",
+  "hono-09-M:TP/TP",
+  "hono-09-C:TN/FP",
+  "hono-10-M:TP/TP",
+  "hono-10-C:TN/TN"
+ ]
+}
+
+=== EXTRA (mutate.log) ===
+== mooter: 119 pares fonte/teste
+  baseline tools/router/_model-resolver.test.js: passa 164ms
+  sobrevive tools/router/_model-resolver.js:17 [if (!x) -> if (x)] 129ms
+  sobrevive tools/router/_model-resolver.js:19 [=== -> !==] 130ms
+  sobrevive tools/router/_model-resolver.js:20 [=== -> !==] 125ms
+  sobrevive tools/router/_model-resolver.js:21 [=== -> !==] 126ms
+  sobrevive tools/router/_model-resolver.js:22 [=== -> !==] 125ms
+  sobrevive tools/router/_model-resolver.js:23 [=== -> !==] 127ms
+  sobrevive tools/router/_model-resolver.js:24 [guarda removida] 125ms
+  MORTO tools/router/_model-resolver.js:40 [if (!x) -> if (x)] 133ms
+  MORTO tools/router/_model-resolver.js:44 [guarda removida] 129ms
+  baseline tools/router/agent-focus-status.test.js: passa 161ms
+  MORTO tools/router/agent-focus-status.js:43 [=== -> !==] 133ms
+  MORTO tools/router/agent-focus-status.js:47 [Math.max -> Math.min] 130ms
+  baseline tools/router/agent-sync-ledger.test.js: FALHA (ignorado) 6089ms
+  baseline tools/router/agents-progress-status.test.js: passa 156ms
+  MORTO tools/router/agents-progress-status.js:62 [=== -> !==] 148ms
+  MORTO tools/router/agents-progress-status.js:63 [=== -> !==] 146ms
+  baseline tools/router/assinatura.test.js: passa 165ms
+  MORTO tools/router/assinatura.js:72 [!== -> ===] 147ms
+  MORTO tools/router/assinatura.js:113 [&& -> ||] 148ms
+  baseline tools/router/backtest.test.js: FALHA (ignorado) 4984ms
+  baseline tools/router/badge.test.js: passa 835ms
+  MORTO tools/router/badge.js:38 [=== -> !==] 413ms
+  MORTO tools/router/badge.js:39 [=== -> !==] 401ms
+== mooter: 10 mutantes mortos em 15s
+== fastify: 5 pares fonte/teste
+  baseline test/content-type.test.js: passa 3168ms
+  MORTO lib/content-type.js:97 [!== -> ===] 371ms
+  MORTO lib/content-type.js:104 [=== -> !==] 362ms
+  baseline test/hooks.test.js: passa 7383ms
+  MORTO lib/hooks.js:61 [!== -> ===] 10548ms
+  MORTO lib/hooks.js:62 [=== -> !==] 10531ms
+  baseline test/noop-set.test.js: passa 128ms
+  MORTO lib/noop-set.js:8 [return true -> return false] 116ms
+  baseline test/server.test.js: passa 1559ms
+  MORTO lib/server.js:34 [=== -> !==] 1511ms
+  sobrevive lib/server.js:35 [=== -> !==] 1522ms
+  MORTO lib/server.js:42 [!== -> ===] 1543ms
+  baseline test/wrap-thenable.test.js: passa 148ms
+  sobrevive lib/wrap-thenable.js:15 [=== -> !==] 133ms
+  sobrevive lib/wrap-thenable.js:31 [!== -> ===] 134ms
+  sobrevive lib/wrap-thenable.js:32 [=== -> !==] 132ms
+  sobrevive lib/wrap-thenable.js:33 [=== -> !==] 133ms
+  sobrevive lib/wrap-thenable.js:34 [=== -> !==] 134ms
+  sobrevive lib/wrap-thenable.js:35 [&& -> ||] 134ms
+  MORTO lib/wrap-thenable.js:63 [=== -> !==] 134ms
+== fastify: 8 mutantes mortos em 55s
+== hono: 58 pares fonte/teste
+  baseline src/utils/accept.test.ts: passa 4133ms
+  MORTO src/utils/accept.ts:3 [< -> <=] 1746ms
+  MORTO src/utils/accept.ts:8 [=== -> !==] 1755ms
+  baseline src/utils/basic-auth.test.ts: passa 1753ms
+  MORTO src/utils/basic-auth.ts:11 [if (!x) -> if (x)] 1700ms
+  MORTO src/utils/basic-auth.ts:21 [if (!x) -> if (x)] 1676ms
+  baseline src/utils/body.test.ts: passa 1806ms
+  MORTO src/utils/body.ts:16 [< -> <=] 1727ms
+  MORTO src/utils/body.ts:26 [< -> <=] 1670ms
+  baseline src/utils/buffer.test.ts: passa 1716ms
+  MORTO src/utils/buffer.ts:9 [=== -> !==] 1712ms
+  MORTO src/utils/buffer.ts:10 [return true -> return false] 1722ms
+  baseline src/utils/color.test.ts: FALHA (ignorado) 6731ms
+  baseline src/utils/concurrent.test.ts: passa 2192ms
+  MORTO src/utils/concurrent.ts:9 [< -> <=] 1873ms
+  MORTO src/utils/concurrent.ts:21 [=== -> !==] 1870ms
+== hono: 10 mutantes mortos em 91s
+mutants 28 windows 56
+(node:57892) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
