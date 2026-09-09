@@ -1,57 +1,59 @@
 {
  "arm": "E",
- "at": "2026-09-09T14:16:12.212Z",
- "method": "netstat -ano amostrado a 150 ms por pid (claude.exe + filhos) — AMENDMENT-1; bytes n/d",
- "proxy_probe": "e-probe.mjs 2026-09-09: com HTTPS_PROXY o claude.exe fica pendurado (exit null aos 90 s, 0 ligacoes ao proxy); sem proxy exit 0 em 8 s",
+ "version": 3,
+ "at": "2026-09-09T14:31:42.948Z",
+ "method": "counting-proxy em loopback (HTTPS_PROXY/HTTP_PROXY), spawn assincrono, um proxy por prompt; conta CONNECT host:porta e bytes do tunel por sentido, sem desencriptar — AMENDMENT-2",
+ "note": "bytes do tunel TLS: handshake + cabecalhos + corpo + respostas + retries; NAO sao bytes de prompt. Hosts alem da API (mcp-proxy, registry.npmjs.org, datadoghq) sao do proprio cliente, nao do prompt.",
+ "probe": "e-probe.mjs v2 (results/e-probe-v2.log): com proxy 41-43 CONNECT a 4 hosts; sem variaveis de proxy 0 — controlo positivo e negativo na mesma corrida",
  "rows": [
   {
    "id": "n01",
    "prompt_chars": 222,
    "exit": 0,
-   "ms": 13877.3502,
-   "netstat_samples": 57,
-   "pids": [
-    24172,
-    57264,
-    43596,
-    46884
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 24172,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": false,
+   "ms": 28257.4983,
+   "connections": 41,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1392540,
+     "bytes_in": 237697,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 24172,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 22,
+     "bytes_out": 45738,
+     "bytes_in": 1183955,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7620,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 3,
+     "bytes_out": 189931,
+     "bytes_in": 13005,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1632823,
+   "bytes_in_total": 1442277,
+   "bytes_out_api_anthropic": 1392540,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 643,
-    "cache_read": 0,
-    "cache_create": 46631
+    "out": 1753,
+    "cache_read": 15932,
+    "cache_create": 34993
    },
    "stderr": ""
   },
@@ -59,52 +61,50 @@
    "id": "n02",
    "prompt_chars": 319,
    "exit": 0,
-   "ms": 21062.2304,
-   "netstat_samples": 94,
-   "pids": [
-    38640,
-    53004,
-    18980,
-    54472,
-    2740
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 38640,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED",
-      "SYN_SENT"
-     ]
+   "is_error": false,
+   "ms": 20514.9751,
+   "connections": 38,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1395524,
+     "bytes_in": 229954,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 38640,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 20,
+     "bytes_out": 44576,
+     "bytes_in": 1174828,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7621,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 188843,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1633557,
+   "bytes_in_total": 1421073,
+   "bytes_out_api_anthropic": 1395524,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 1217,
+    "out": 1136,
     "cache_read": 15932,
-    "cache_create": 30727
+    "cache_create": 35023
    },
    "stderr": ""
   },
@@ -112,103 +112,101 @@
    "id": "n03",
    "prompt_chars": 33,
    "exit": 1,
-   "ms": 17431.6037,
-   "netstat_samples": 75,
-   "pids": [
-    20084,
-    54840,
-    52760,
-    53976,
-    43464
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 20084,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": true,
+   "ms": 17178.6279,
+   "connections": 41,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1380543,
+     "bytes_in": 220302,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 20084,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 23,
+     "bytes_out": 46319,
+     "bytes_in": 1189170,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7621,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 189078,
+     "bytes_in": 7828,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1620554,
+   "bytes_in_total": 1424921,
+   "bytes_out_api_anthropic": 1380543,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 1077,
+    "out": 919,
     "cache_read": 15932,
-    "cache_create": 35256
+    "cache_create": 34978
    },
    "stderr": ""
   },
   {
    "id": "n04",
    "prompt_chars": 26,
-   "exit": 1,
-   "ms": 10340.0716,
-   "netstat_samples": 39,
-   "pids": [
-    2204,
-    56196,
-    55972,
-    55160,
-    57656
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 2204,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "exit": 0,
+   "is_error": false,
+   "ms": 13914.3211,
+   "connections": 43,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1390027,
+     "bytes_in": 220054,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 2204,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 25,
+     "bytes_out": 47481,
+     "bytes_in": 1197085,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7622,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 188908,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1631030,
+   "bytes_in_total": 1433431,
+   "bytes_out_api_anthropic": 1390027,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 480,
+    "out": 586,
     "cache_read": 15932,
-    "cache_create": 35039
+    "cache_create": 34324
    },
    "stderr": ""
   },
@@ -216,103 +214,101 @@
    "id": "n05",
    "prompt_chars": 28,
    "exit": 1,
-   "ms": 11457.6899,
-   "netstat_samples": 44,
-   "pids": [
-    54464,
-    53436,
-    55332,
-    52476,
-    55264
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 54464,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": true,
+   "ms": 13416.6115,
+   "connections": 40,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1387295,
+     "bytes_in": 219368,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 54464,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 22,
+     "bytes_out": 45738,
+     "bytes_in": 1184633,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7624,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 186898,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1624545,
+   "bytes_in_total": 1420295,
+   "bytes_out_api_anthropic": 1387295,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 560,
+    "out": 751,
     "cache_read": 15932,
-    "cache_create": 34452
+    "cache_create": 34180
    },
    "stderr": ""
   },
   {
    "id": "n06",
    "prompt_chars": 33,
-   "exit": 0,
-   "ms": 13462.9188,
-   "netstat_samples": 56,
-   "pids": [
-    50996,
-    58116,
-    40760,
-    58128,
-    53072
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 50996,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "exit": 1,
+   "is_error": true,
+   "ms": 13766.0841,
+   "connections": 40,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1388856,
+     "bytes_in": 220276,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 50996,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 22,
+     "bytes_out": 45738,
+     "bytes_in": 1183473,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7621,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 187083,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1626291,
+   "bytes_in_total": 1420040,
+   "bytes_out_api_anthropic": 1388856,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 584,
+    "out": 556,
     "cache_read": 15932,
-    "cache_create": 34481
+    "cache_create": 33748
    },
    "stderr": ""
   },
@@ -320,51 +316,50 @@
    "id": "n07",
    "prompt_chars": 31,
    "exit": 0,
-   "ms": 19567.1132,
-   "netstat_samples": 88,
-   "pids": [
-    52296,
-    54388,
-    52352,
-    58296,
-    54604
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 52296,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": false,
+   "ms": 15550.6821,
+   "connections": 46,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1369762,
+     "bytes_in": 219531,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 52296,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 28,
+     "bytes_out": 49224,
+     "bytes_in": 1211307,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7620,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 186980,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1610580,
+   "bytes_in_total": 1447128,
+   "bytes_out_api_anthropic": 1369762,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 1201,
+    "out": 811,
     "cache_read": 15932,
-    "cache_create": 35281
+    "cache_create": 34992
    },
    "stderr": ""
   },
@@ -372,51 +367,50 @@
    "id": "n08",
    "prompt_chars": 410,
    "exit": 1,
-   "ms": 9202.3054,
-   "netstat_samples": 32,
-   "pids": [
-    53768,
-    53560,
-    24440,
-    39500,
-    47148
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 53768,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": true,
+   "ms": 12917.1321,
+   "connections": 43,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1391563,
+     "bytes_in": 218959,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 53768,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 25,
+     "bytes_out": 47481,
+     "bytes_in": 1198054,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7617,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 190461,
+     "bytes_in": 7828,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1634119,
+   "bytes_in_total": 1432458,
+   "bytes_out_api_anthropic": 1391563,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 355,
+    "out": 624,
     "cache_read": 15932,
-    "cache_create": 34578
+    "cache_create": 34286
    },
    "stderr": ""
   },
@@ -424,51 +418,50 @@
    "id": "n09",
    "prompt_chars": 131,
    "exit": 1,
-   "ms": 11137.6884,
-   "netstat_samples": 43,
-   "pids": [
-    20960,
-    56912,
-    25020,
-    55096,
-    57036
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 20960,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": true,
+   "ms": 8789.4577,
+   "connections": 37,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1379912,
+     "bytes_in": 216725,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 20960,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 19,
+     "bytes_out": 43995,
+     "bytes_in": 1170215,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7620,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 168794,
+     "bytes_in": 4335,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1597315,
+   "bytes_in_total": 1398895,
+   "bytes_out_api_anthropic": 1379912,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 572,
+    "out": 249,
     "cache_read": 15932,
-    "cache_create": 34674
+    "cache_create": 35028
    },
    "stderr": ""
   },
@@ -476,51 +469,50 @@
    "id": "n10",
    "prompt_chars": 26,
    "exit": 0,
-   "ms": 11100.8481,
-   "netstat_samples": 42,
-   "pids": [
-    20328,
-    57428,
-    2240,
-    23296,
-    9648
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 20328,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": false,
+   "ms": 15285.5336,
+   "connections": 40,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1402892,
+     "bytes_in": 221975,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 20328,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 22,
+     "bytes_out": 45738,
+     "bytes_in": 1183743,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7620,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 188645,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1641889,
+   "bytes_in_total": 1422008,
+   "bytes_out_api_anthropic": 1402892,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 504,
+    "out": 673,
     "cache_read": 15932,
-    "cache_create": 35284
+    "cache_create": 34986
    },
    "stderr": ""
   },
@@ -528,262 +520,254 @@
    "id": "n11",
    "prompt_chars": 38,
    "exit": 1,
-   "ms": 14386.6304,
-   "netstat_samples": 60,
-   "pids": [
-    16248,
-    57280,
-    55128,
-    57148,
-    55852
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 16248,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED",
-      "SYN_SENT"
-     ]
+   "is_error": true,
+   "ms": 9800.9339,
+   "connections": 37,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1394886,
+     "bytes_in": 217740,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 16248,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 19,
+     "bytes_out": 43995,
+     "bytes_in": 1170981,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7621,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 192440,
+     "bytes_in": 7828,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1635935,
+   "bytes_in_total": 1404170,
+   "bytes_out_api_anthropic": 1394886,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 671,
+    "out": 402,
     "cache_read": 15932,
-    "cache_create": 34479
+    "cache_create": 34995
    },
    "stderr": ""
   },
   {
    "id": "n12",
    "prompt_chars": 36,
-   "exit": 1,
-   "ms": 13217.4932,
-   "netstat_samples": 54,
-   "pids": [
-    20256,
-    55556,
-    56236,
-    19616,
-    21108
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 20256,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED",
-      "SYN_SENT"
-     ]
+   "exit": 0,
+   "is_error": false,
+   "ms": 14829.3463,
+   "connections": 43,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1371740,
+     "bytes_in": 221455,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 20256,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "SYN_SENT",
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 25,
+     "bytes_out": 47481,
+     "bytes_in": 1198082,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7616,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 186921,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1610756,
+   "bytes_in_total": 1435823,
+   "bytes_out_api_anthropic": 1371740,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 719,
+    "out": 757,
     "cache_read": 15932,
-    "cache_create": 34476
+    "cache_create": 34991
    },
    "stderr": ""
   },
   {
    "id": "n13",
    "prompt_chars": 36,
-   "exit": 0,
-   "ms": 17321.859,
-   "netstat_samples": 75,
-   "pids": [
-    33800,
-    55184,
-    55012,
-    56368,
-    43544
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 33800,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "exit": 1,
+   "is_error": true,
+   "ms": 15892.9805,
+   "connections": 41,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1386339,
+     "bytes_in": 219787,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 33800,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 23,
+     "bytes_out": 46319,
+     "bytes_in": 1188777,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7613,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 187049,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1624321,
+   "bytes_in_total": 1424847,
+   "bytes_out_api_anthropic": 1386339,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 581,
+    "out": 835,
     "cache_read": 15932,
-    "cache_create": 33140
+    "cache_create": 33883
    },
    "stderr": ""
   },
   {
    "id": "n14",
    "prompt_chars": 89,
-   "exit": 0,
-   "ms": 21098.3085,
-   "netstat_samples": 95,
-   "pids": [
-    56496,
-    55832,
-    49728,
-    56644,
-    53152
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 56496,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "exit": 1,
+   "is_error": true,
+   "ms": 19474.9855,
+   "connections": 41,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1381386,
+     "bytes_in": 221191,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 56496,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 23,
+     "bytes_out": 46319,
+     "bytes_in": 1188063,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7616,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 187155,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1619474,
+   "bytes_in_total": 1425540,
+   "bytes_out_api_anthropic": 1381386,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 1123,
+    "out": 1094,
     "cache_read": 15932,
-    "cache_create": 35299
+    "cache_create": 33457
    },
    "stderr": ""
   },
   {
    "id": "n15",
    "prompt_chars": 57,
-   "exit": 0,
-   "ms": 17513.5398,
-   "netstat_samples": 77,
-   "pids": [
-    2204,
-    58124,
-    12844,
-    13924,
-    21084
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 2204,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "exit": 1,
+   "is_error": true,
+   "ms": 15559.5877,
+   "connections": 39,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1383668,
+     "bytes_in": 219325,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 2204,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 21,
+     "bytes_out": 45157,
+     "bytes_in": 1178868,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7622,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 185419,
+     "bytes_in": 7828,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1618858,
+   "bytes_in_total": 1413643,
+   "bytes_out_api_anthropic": 1383668,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 1032,
+    "out": 823,
     "cache_read": 15932,
-    "cache_create": 34488
+    "cache_create": 35001
    },
    "stderr": ""
   },
@@ -791,51 +775,50 @@
    "id": "n16",
    "prompt_chars": 55,
    "exit": 1,
-   "ms": 9077.7652,
-   "netstat_samples": 32,
-   "pids": [
-    58328,
-    35156,
-    54584,
-    6952,
-    24408
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 58328,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": true,
+   "ms": 12578.4911,
+   "connections": 41,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1387750,
+     "bytes_in": 219262,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 58328,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 23,
+     "bytes_out": 46319,
+     "bytes_in": 1188677,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7623,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 185529,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1624212,
+   "bytes_in_total": 1424232,
+   "bytes_out_api_anthropic": 1387750,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 434,
+    "out": 598,
     "cache_read": 15932,
-    "cache_create": 35297
+    "cache_create": 34995
    },
    "stderr": ""
   },
@@ -843,51 +826,50 @@
    "id": "n17",
    "prompt_chars": 30,
    "exit": 1,
-   "ms": 17809.2851,
-   "netstat_samples": 76,
-   "pids": [
-    57468,
-    12844,
-    44704,
-    3192,
-    47248
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 57468,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": true,
+   "ms": 12422.415,
+   "connections": 39,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1378422,
+     "bytes_in": 218800,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 57468,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 21,
+     "bytes_out": 45157,
+     "bytes_in": 1179865,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7620,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 185470,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1613663,
+   "bytes_in_total": 1414955,
+   "bytes_out_api_anthropic": 1378422,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 1050,
+    "out": 557,
     "cache_read": 15932,
-    "cache_create": 34485
+    "cache_create": 34990
    },
    "stderr": ""
   },
@@ -895,51 +877,50 @@
    "id": "n18",
    "prompt_chars": 79,
    "exit": 1,
-   "ms": 12084.1398,
-   "netstat_samples": 44,
-   "pids": [
-    55412,
-    55116,
-    56576,
-    56692,
-    6980
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 55412,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": true,
+   "ms": 21263.2357,
+   "connections": 40,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1387324,
+     "bytes_in": 222854,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 55412,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 21,
+     "bytes_out": 45157,
+     "bytes_in": 1179971,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7621,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 3,
+     "bytes_out": 178298,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1615393,
+   "bytes_in_total": 1419116,
+   "bytes_out_api_anthropic": 1387324,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 575,
+    "out": 1412,
     "cache_read": 15932,
-    "cache_create": 34491
+    "cache_create": 35030
    },
    "stderr": ""
   },
@@ -947,103 +928,101 @@
    "id": "n19",
    "prompt_chars": 260,
    "exit": 0,
-   "ms": 24368.0018,
-   "netstat_samples": 114,
-   "pids": [
-    20752,
-    2372,
-    52528,
-    32944,
-    4516
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 20752,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "is_error": false,
+   "ms": 24889.4135,
+   "connections": 40,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1363977,
+     "bytes_in": 226188,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 20752,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 21,
+     "bytes_out": 45157,
+     "bytes_in": 1179281,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7621,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 3,
+     "bytes_out": 187789,
+     "bytes_in": 12163,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1601537,
+   "bytes_in_total": 1425253,
+   "bytes_out_api_anthropic": 1363977,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 1557,
+    "out": 1617,
     "cache_read": 15932,
-    "cache_create": 35371
+    "cache_create": 32839
    },
    "stderr": ""
   },
   {
    "id": "n20",
    "prompt_chars": 27,
-   "exit": 0,
-   "ms": 14926.0129,
-   "netstat_samples": 64,
-   "pids": [
-    57116,
-    16316,
-    55628,
-    10140,
-    58152
-   ],
-   "connections": [
-    {
-     "remote": "160.79.104.10:443",
-     "ip": "160.79.104.10",
-     "port": 443,
-     "pid": 57116,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+   "exit": 1,
+   "is_error": true,
+   "ms": 14284.8654,
+   "connections": 45,
+   "by_host": {
+    "api.anthropic.com:443": {
+     "n": 14,
+     "bytes_out": 1382104,
+     "bytes_in": 219442,
+     "blocked": 0
     },
-    {
-     "remote": "34.149.66.165:443",
-     "ip": "34.149.66.165",
-     "port": 443,
-     "pid": 57116,
-     "loopback": false,
-     "rdns": null,
-     "states": [
-      "ESTABLISHED"
-     ]
+    "mcp-proxy.anthropic.com:443": {
+     "n": 27,
+     "bytes_out": 48643,
+     "bytes_in": 1206514,
+     "blocked": 0
+    },
+    "registry.npmjs.org:443": {
+     "n": 2,
+     "bytes_out": 4614,
+     "bytes_in": 7621,
+     "blocked": 0
+    },
+    "http-intake.logs.us5.datadoghq.com:443": {
+     "n": 2,
+     "bytes_out": 185484,
+     "bytes_in": 8670,
+     "blocked": 0
     }
-   ],
-   "external_connections": 2,
+   },
    "external_hosts": [
-    "160.79.104.10",
-    "34.149.66.165"
+    "api.anthropic.com:443",
+    "mcp-proxy.anthropic.com:443",
+    "registry.npmjs.org:443",
+    "http-intake.logs.us5.datadoghq.com:443"
    ],
-   "bytes_out": "n/d",
-   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "bytes_out_total": 1620845,
+   "bytes_in_total": 1442247,
+   "bytes_out_api_anthropic": 1382104,
+   "connections_api_anthropic": 14,
    "usage": {
     "in": 10,
-    "out": 677,
+    "out": 719,
     "cache_read": 15932,
-    "cache_create": 35307
+    "cache_create": 34922
    },
    "stderr": ""
   }

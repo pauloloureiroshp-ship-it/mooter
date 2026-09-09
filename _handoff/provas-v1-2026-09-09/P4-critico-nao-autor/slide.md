@@ -1,16 +1,16 @@
-# Slide P4 · Critic ≠ author did not catch more planted defects than self-review — both caught ~all; what the pipeline adds is a verified citation on 59/59 findings
+# Slide P4 · On 28 selected test-killed mutants, an Opus reviewer scored 27/28 and a Codex reviewer 26/28; superiority of the second-engine critic was not established
 
-**Setup:** 28 single-line mutants killed by the repo's own tests (mooter 10, fastify 8, hono 10; the protocol asked for 10 per repo, fastify yielded 8 in the time cap) plus 28 identical control windows with the original line. Same review system prompt, ±25-line window, no repo access. Pre-registered, committed before mutation.
+**Setup:** 28 single-line mutants killed by the repo's own paired tests (mooter 10, hono 10, fastify 8 — fastify ran out of eligible source/test pairs, not of time) plus 28 original, unmutated windows. Same review system prompt, ±25-line window, target line marked in both groups, no repo access. Pre-registered and committed before mutation. Deterministic selection (first killed, alphabetical), 15 files, 8 of 12 operators exercised.
 
-| | Self-review (Opus, `claude -p`, hooks/tools off) | Critic in a different engine (Codex, read-only, empty cwd) |
+| | Opus reviewer (`claude -p`, hooks/tools off) | Codex reviewer (read-only, empty cwd) |
 |---|---|---|
-| Recall on 28 mutants (95 % CI) | **27/28 · 96 % [82, 99]** | 26/28 · 93 % [77, 98] |
-| False alarms on 28 controls | **2/28 · 7 % [2, 23]** | 4/28 · 14 % [6, 31] |
-| Wrong-line findings | 0 | 0 |
-| `PROVA: file:line` resolving to a real line | 29/29 | 30/30 |
+| Found on the planted line, 28 mutants (95 % CI) | **27/28 · 96 % [82, 99]** | 26/28 · 93 % [77, 98] |
+| Findings outside the ±2-line scoring tolerance | 0 (all offsets are 0) | 0 |
+| Findings on 28 unmutated windows (scored as false alarms, not adjudicated) | 2/28 · 7 % [2, 23] | 4/28 · 14 % [6, 31] |
+| `file:line` references resolving to an existing line (relevance not assessed) | 29/29 | 30/30 |
 
-**Pre-registered test (McNemar, one-sided, α 0.05):** "critic catches more" — discordant 0 vs 1, p = 1.0; "critic has fewer false alarms" — discordant 2 vs 0, p = 1.0. **Neither holds.** 53/56 windows agree; both engines flag the same two control lines (candidate real defects, not verified) and miss the same mutant.
+**Pre-registered tests (one-sided McNemar, α 0.05):** "second engine catches more" — discordant 0 vs 1, p = 1.0; "second engine alarms less" — discordant 2 vs 0, p = 1.0. **Neither superiority hypothesis was supported**; equivalence is not claimed. 53/56 windows agree; both engines alarm on the same two unmutated windows and miss the same mutant (shared alarms, not adjudicated).
 
-**Printed loss:** on syntactic one-line mutations both engines sit at the ceiling; the engine swap buys nothing measurable here. The measurable value is provenance: every finding carries a citation that a verifier checked against the tree, which only became true after fixing the verifier that accepted line N+1 (defect D2, found while building this proof).
+**Printed loss:** the pre-registered claim that a critic in a different engine catches more planted defects did not hold here. This design does not test authorship: neither engine wrote the code it reviewed, so it says nothing about self-review.
 
-*Does not prove: real production defects; human time; the local ($0) critic (measured 2026-08-21 with zero discrimination, not repeated); multi-file PR review; run-to-run stability (1 run per window). Cost: self-review ≈ US$ 0.51 list per window on subscription; Codex tokens n/d.*
+*Does not prove: real production defects; self-review; that shared alarms are real defects; incremental value of the citation verifier; human time; the local ($0) critic (measured 2026-08-21 with zero discrimination, not repeated); run-to-run stability (1 run per window). Cost: Opus reviewer ≈ US$ 0.51 list per window on subscription; Codex tokens n/d.*

@@ -196,7 +196,7 @@
    "venv_note": "python -m venv falhou (ensurepip) -> instalado com pip --target",
    "import_status": "ok (bin/litellm.exe; python -m litellm nao tem __main__; banner precisa PYTHONIOENCODING=utf-8)",
    "started_at": "2026-09-09T12:50:12.252Z",
-   "status_final": "medido no P5 (braco D): proxy 1.100.0 de pe com bin/litellm.exe + PYTHONUTF8; cost-based-routing enviou 20/20 ao deployment caro nas duas configuracoes (v1 custos em litellm_params, v2 em model_info); encaminha o prompt cru integral para o fornecedor escolhido"
+   "status_final": "medido no P5 (braco D, 3 configuracoes x 20 pedidos): proxy 1.100.0 de pe; cost-based-routing com o barato a preco 0 -> 20/20 ao caro; precos invertidos -> 20/20 ao que passou a ser caro; barato a 1e-9 -> 20/20 ao barato. Leitura: funciona, mas um deployment a preco 0 nunca e escolhido. Encaminha o prompt cru integral ao fornecedor escolhido (mock loopback)."
   }
  },
  "corpus": {
