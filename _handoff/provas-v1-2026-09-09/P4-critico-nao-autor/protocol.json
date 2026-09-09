@@ -1,0 +1,32 @@
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P4",
+  "title": "Crítico ≠ autor — defeitos plantados",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T14:55:00Z",
+  "regra": "Commitado antes de gerar mutantes e antes de qualquer revisao. Nenhum numero muda depois. Emendas so por AMENDMENT-n.md.",
+  "pergunta": "Um critico que NAO e o autor apanha mais defeitos reais, com menos alarmes falsos, do que o autor a rever-se — e cada citacao resolve para uma linha real?",
+  "sujeitos": { "mooter": "97ad846b (102 188 linhas)", "fastify": "1beaf7e7 (77 475)", "hono": "06880c4a (84 377)", "clonados_em": "C:/Users/Paulo Loureiro/AppData/Local/Temp/provas-p4/<repo>, deps instaladas com npm install --ignore-scripts (fastify e hono nao tem package-lock)" },
+  "defeitos": {
+    "operadores": ["<= -> <", "< -> <=", "=== -> !==", "!== -> ===", "&& -> ||", "return true -> return false", "+ 1 -> - 1", "length - 1 -> length", "if (!x) -> if (x)", "> 0 -> >= 0", "Math.max -> Math.min", "guarda removida: linha `if (...) throw|return` apagada"],
+    "seleccao": "ficheiros-fonte com ficheiro de teste emparelhado (mooter: tools/router/X.js<->X.test.js, tools/cockpit/runner/X.mjs<->X.test.mjs; fastify: lib/X.js<->test/X.test.js; hono: src/**/X.ts<->X.test.ts). Ordem: ficheiros por ordem alfabetica, linhas por ordem no ficheiro, operadores pela lista. Um candidato e MUTANTE se: (a) o teste emparelhado passa no original (verificado uma vez por ficheiro), (b) falha com a mutacao aplicada, (c) num tecto de 120 s. Ficam os PRIMEIROS 10 mutantes mortos por repo = 30. Sem escolha humana.",
+    "controlos": "30 janelas limpas: os mesmos 30 ficheiros/linhas com a linha ORIGINAL (sem mutacao). Assim a janela e identica excepto na linha plantada.",
+    "oraculo": "o teste do repo que mata o mutante (executavel; comando gravado por mutante)",
+    "janela": "±25 linhas a volta da linha, com numeros reais de linha, cabecalho `Ficheiro: <f> (linhas A-B de N)`; a linha alvo marcada como MUDOU (tanto no mutante como no controlo — o revisor nao sabe qual e qual)"
+  },
+  "bracos": {
+    "A": "AUTO-REVISAO: o mesmo motor que 'escreveu' (Opus, claude -p --model opus, hooks e tools desligados, --max-turns 1) reve a janela com o DIFF_SYSTEM_PROMPT do Mooter (tools/cockpit/runner/context-pack.mjs, verbatim) — e o prompt que o pilar de revisao usa; so muda o motor.",
+    "B": "MOOTER: o mesmo DIFF_SYSTEM_PROMPT, critico em MOTOR DIFERENTE (Codex CLI, gpt-6-astra, read-only, sem acesso ao repo — recebe so a janela), saida passada por evidence-verifier.checkCitation (corrigido em D2) para a citacao PROVA: file:line resolver na arvore do repo.",
+    "C": "opcional, se houver tempo: revisao nativa do Claude Code sem Mooter (claude -p sem o system prompt do pilar). Senao n/d."
+  },
+  "metricas": {
+    "por_janela": "ACHADO|SEM ACHADO; PROVA file:line; citacao valida (checkCitation ok); no mutante: TP = ACHADO com PROVA na linha plantada (±2), WRONG-REASON = ACHADO noutra linha, FN = SEM ACHADO; no controlo: FP = ACHADO, TN = SEM ACHADO",
+    "agregadas": "recall = TP/30 com Wilson; FP = FP/30 com Wilson; wrong-reason/30; citacoes invalidas/total de ACHADOs; distribuicao pass/fail publicada por repo",
+    "teste": "McNemar exacto direccional nos 30 mutantes: H1 = B apanha mais (B_wins = B TP & A nao); e nos 30 controlos: H1 = B tem menos FP. alfa 0,05. Exploratorio: por repo.",
+    "determinismo": "1 corrida por janela por braco (temperature nao controlavel no claude -p; Codex reasoning medium). Declarado."
+  },
+  "regra_de_paragem": "3 falhas consecutivas de servico num braco -> parar, reter, n/d. Geracao de mutantes: se um repo nao produzir 10 mortos em 60 min de maquina, fica com os que tiver e o n imprime-se.",
+  "expectativa_honesta": "prova-de-pilar.mjs mediu 2026-08-21 que o critico LOCAL (14B) tem ZERO discriminacao. Aqui o critico e Codex; a expectativa e >0. Se A >= B, imprime-se: o valor do critico e proveniencia (citacao verificada), nao recall.",
+  "nao_prova": ["defeitos reais de producao (sao mutacoes sintaticas)", "tempo humano", "que o critico local (Ollama) faz isto — mediu-se que nao"],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P4-critico-nao-autor/mutate.mjs && node .../review.mjs --arm A && node .../review.mjs --arm B && node .../review.mjs --analyse"
+}

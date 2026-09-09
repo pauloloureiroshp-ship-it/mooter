@@ -1,0 +1,44 @@
+{
+ "at": "2026-09-09T13:51:24.444Z",
+ "decisions_log": {
+  "classified": {
+   "total": 916,
+   "with_cost_field": 0,
+   "with_cost_gt0": 0,
+   "with_cost_source": 0,
+   "with_cost_and_source": 0,
+   "with_tokens": 0
+  },
+  "executed": {
+   "total": 492,
+   "with_cost_field": 479,
+   "with_cost_gt0": 0,
+   "with_cost_source": 0,
+   "with_cost_and_source": 0,
+   "with_tokens": 1
+  },
+  "executed_outcomes": {
+   "deferred": 478,
+   "ok": 1,
+   "undefined": 13
+  }
+ },
+ "mooter_ledger": {
+  "all": {
+   "total": 726,
+   "with_cost_field": 8,
+   "with_cost_gt0": 3,
+   "with_cost_source": 0,
+   "with_cost_and_source": 0,
+   "with_tokens": 20
+  },
+  "done": {
+   "total": 20,
+   "with_cost_field": 8,
+   "with_cost_gt0": 3,
+   "with_cost_source": 0,
+   "with_cost_and_source": 0,
+   "with_tokens": 20
+  }
+ }
+}

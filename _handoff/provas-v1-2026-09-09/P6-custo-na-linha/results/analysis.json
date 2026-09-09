@@ -1,0 +1,73 @@
+{
+ "at": "2026-09-09T13:51:24.449Z",
+ "priced_at": "2026-08-03",
+ "A_ledger_actual": {
+  "at": "2026-09-09T13:51:24.444Z",
+  "decisions_log": {
+   "classified": {
+    "total": 916,
+    "with_cost_field": 0,
+    "with_cost_gt0": 0,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 0
+   },
+   "executed": {
+    "total": 492,
+    "with_cost_field": 479,
+    "with_cost_gt0": 0,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 1
+   },
+   "executed_outcomes": {
+    "deferred": 478,
+    "ok": 1,
+    "undefined": 13
+   }
+  },
+  "mooter_ledger": {
+   "all": {
+    "total": 726,
+    "with_cost_field": 8,
+    "with_cost_gt0": 3,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 20
+   },
+   "done": {
+    "total": 20,
+    "with_cost_field": 8,
+    "with_cost_gt0": 3,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 20
+   }
+  }
+ },
+ "B_lines": {
+  "total": 156,
+  "with_cost_field": 156,
+  "with_cost_source": 156,
+  "with_cost_and_source": 156,
+  "nd": 0,
+  "by_source": {
+   "rule_local": 63,
+   "ollama_local": 73,
+   "subscription_included": 20
+  }
+ },
+ "reconciliation_haiku_20": {
+  "ours_usd": 0.079605,
+  "host_usd": 1.318525,
+  "delta_usd": -1.23892,
+  "delta_rel": -0.939626,
+  "note": "ours = preco de lista input/output do SSOT; host = total_cost_usd do CLI, que inclui cache_read (0,1x) e cache_creation (1,25x) — o Δ e esperado e fica impresso",
+  "cache_read_tokens_total": 354357,
+  "cache_creation_tokens_total": 601742
+ },
+ "reconciliation_ollama": {
+  "note": "a fonte das contagens e o proprio Ollama: Δ = 0 por construcao; nao e uma verificacao independente",
+  "lines": 73
+ }
+}
