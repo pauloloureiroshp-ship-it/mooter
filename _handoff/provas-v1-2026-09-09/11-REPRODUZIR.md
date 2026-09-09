@@ -13,6 +13,7 @@ Todos os caminhos são relativos a esta pasta (`_handoff/provas-v1-2026-09-09/`)
 | **P7** usar vs não usar | `node P7-usar-vs-nao-usar/analyse.mjs` (lê `results/ledger.jsonl`; para reler uma corrida preservada, copia o ledger dessa corrida para esse nome) | `powershell -NoProfile -ExecutionPolicy Bypass -File "<caminho>/P7-usar-vs-nao-usar/launch-correr-3.ps1"` — **≈2 h 20 min e 46 invocações completas do agente**; exige uma janela de sessão inteira do fornecedor (ver `AMENDMENT-2.md`) |
 | **P8** cabeça-a-cabeça | não tem cálculo próprio: cada célula cita o cartão de origem | — |
 | **Instrumentos** | `node --test lib/` (proxy de contagem, calibração, estatística) e `node ../../tools/router/cost-line.test.js` (15/15, valores calculados à mão) | — |
+| **O pacote inteiro** | `node lib/conferir-cartoes.mjs .` — 34 verificações que relêem os números dos slides a partir do bruto e reprovam se divergirem; com teste de mordida em `lib/conferir-cartoes.md` | — |
 
 **Duas coisas que o `--analyse` de propósito não faz:** não volta a chamar modelo nenhum (por isso é $0 e determinístico) e não repara ficheiros de bruto em falta — se o `results/` estiver incompleto, ele diz e pára, em vez de calcular com menos.
 
