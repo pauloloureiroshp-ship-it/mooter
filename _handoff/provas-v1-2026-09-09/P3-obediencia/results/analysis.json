@@ -1,5 +1,5 @@
 {
- "at": "2026-09-09T14:48:44.477Z",
+ "at": "2026-09-09T14:55:23.953Z",
  "arms": {
   "A-opus": {
    "n": 5,
@@ -20,13 +20,24 @@
     "hi": 0.8823792268590027,
     "note": "proxy largo: inclui as chamadas do Option A do hook"
    },
-   "sessions_with_EXECUTED_local_delegation": {
+   "sessions_with_local_spawn_AND_any_ollama_call": {
     "k": 1,
     "p": 0.2,
     "lo": 0.03622410822563066,
     "hi": 0.6244653729700049,
-    "definicao": "spawn local-summarizer|local-transformer E chamada Ollama com eval_count na mesma sessao (protocolo: executed)"
+    "definicao": "coocorrencia: spawn local-* E chamada Ollama com eval_count na mesma sessao — NAO atribui a chamada ao subagente (AMENDMENT-1)"
    },
+   "sessions_with_EXECUTED_local_delegation_strict": {
+    "k": 0,
+    "p": 0,
+    "lo": 2.7755575615628914e-17,
+    "hi": 0.4344824686593928,
+    "definicao": "spawn local-* E chamada Ollama sem a assinatura do Option A do hook (eval_count != 256, modelo != gemma4/qwen2.5:3b) e, em B, posterior ao rewrite — a metrica do protocolo (executed)"
+   },
+   "ollama_calls_by_signature": {
+    "assinatura_do_hook_option_a": 3
+   },
+   "decision_at_spawn_note": "decision_at_spawn e lido no FIM da sessao de ~/.claude/tools/router/last-subagent.json, ficheiro partilhado que a sessao do operador tambem escreve: NAO e a decisao no instante do spawn (D10); recommendations_by_tier e n/d como medida",
    "ollama_calls_by_model": {
     "qwen3:30b": {
      "calls": 3,
@@ -73,13 +84,24 @@
     "hi": 0.9193423379822393,
     "note": "proxy largo: inclui as chamadas do Option A do hook"
    },
-   "sessions_with_EXECUTED_local_delegation": {
+   "sessions_with_local_spawn_AND_any_ollama_call": {
     "k": 3,
     "p": 0.15,
     "lo": 0.05236874548672649,
     "hi": 0.36041886664286427,
-    "definicao": "spawn local-summarizer|local-transformer E chamada Ollama com eval_count na mesma sessao (protocolo: executed)"
+    "definicao": "coocorrencia: spawn local-* E chamada Ollama com eval_count na mesma sessao — NAO atribui a chamada ao subagente (AMENDMENT-1)"
    },
+   "sessions_with_EXECUTED_local_delegation_strict": {
+    "k": 0,
+    "p": 0,
+    "lo": 0,
+    "hi": 0.16112516018512968,
+    "definicao": "spawn local-* E chamada Ollama sem a assinatura do Option A do hook (eval_count != 256, modelo != gemma4/qwen2.5:3b) e, em B, posterior ao rewrite — a metrica do protocolo (executed)"
+   },
+   "ollama_calls_by_signature": {
+    "assinatura_do_hook_option_a": 18
+   },
+   "decision_at_spawn_note": "decision_at_spawn e lido no FIM da sessao de ~/.claude/tools/router/last-subagent.json, ficheiro partilhado que a sessao do operador tambem escreve: NAO e a decisao no instante do spawn (D10); recommendations_by_tier e n/d como medida",
    "ollama_calls_by_model": {
     "qwen3:30b": {
      "calls": 15,
@@ -150,13 +172,24 @@
     "hi": 0.9193423379822393,
     "note": "proxy largo: inclui as chamadas do Option A do hook"
    },
-   "sessions_with_EXECUTED_local_delegation": {
+   "sessions_with_local_spawn_AND_any_ollama_call": {
     "k": 4,
     "p": 0.2,
     "lo": 0.0806576620177607,
     "hi": 0.41601743409331715,
-    "definicao": "spawn local-summarizer|local-transformer E chamada Ollama com eval_count na mesma sessao (protocolo: executed)"
+    "definicao": "coocorrencia: spawn local-* E chamada Ollama com eval_count na mesma sessao — NAO atribui a chamada ao subagente (AMENDMENT-1)"
    },
+   "sessions_with_EXECUTED_local_delegation_strict": {
+    "k": 0,
+    "p": 0,
+    "lo": 0,
+    "hi": 0.16112516018512968,
+    "definicao": "spawn local-* E chamada Ollama sem a assinatura do Option A do hook (eval_count != 256, modelo != gemma4/qwen2.5:3b) e, em B, posterior ao rewrite — a metrica do protocolo (executed)"
+   },
+   "ollama_calls_by_signature": {
+    "assinatura_do_hook_option_a": 17
+   },
+   "decision_at_spawn_note": "decision_at_spawn e lido no FIM da sessao de ~/.claude/tools/router/last-subagent.json, ficheiro partilhado que a sessao do operador tambem escreve: NAO e a decisao no instante do spawn (D10); recommendations_by_tier e n/d como medida",
    "ollama_calls_by_model": {
     "qwen3:30b": {
      "calls": 15,
