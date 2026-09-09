@@ -17,7 +17,7 @@
 | P7 | Usar é diferente de não usar? | **Sem veredicto** — R-24 pré-registado pelo dono (2026-09-04): 23 tarefas reais, TVA ≤ 0,8×, limiar 16/23, ITT. Duas corridas mortas pelo limite de sessão do fornecedor (21/23 e 0/23 pares válidos), ambas preservadas; terceira em curso desde 20:07:55Z | `P7-usar-vs-nao-usar/` (protocolo por referência, `AMENDMENT-1.md`, `AMENDMENT-2.md`, `analyse.mjs`, `launch-correr.ps1` + `launch-correr-3.ps1`, `results/ledger-corrida-1-invalida.jsonl` e `-2-`, respectivos logs, logs do aparelho 23/23 + 23/23) |
 | P8 | Onde ganha, contra quem existe? | **Tabela de 9 linhas × 5 colunas, cada célula medida ou `n/d` com motivo** | `P8-cabeca-a-cabeca/slide.md` |
 
-Transversais: `00-preflight.json` (máquina, versões, chaves por nome, concorrentes, corpus), `09-DEFEITOS-APANHADOS.md` (D1–D10, do produto e dos meus instrumentos), `10-NAO-PROVADO.md`, `ERRATA-timestamps.md`, `lib/` (stats, net-tap, counting-proxy + calibração, mock-llm, adversário).
+Transversais: `00-preflight.json` (máquina, versões, chaves por nome, concorrentes, corpus), `09-DEFEITOS-APANHADOS.md` (**D1–D12**, do produto e dos meus instrumentos), `10-NAO-PROVADO.md`, `11-REPRODUZIR.md` (dois comandos por cartão: recalcular do bruto e voltar a medir), `12-GAUNTLET.md` (as dez perguntas do §6 respondidas com o comando que as sustenta — **duas respostas são as erradas, e o pacote não está fechado**), `ERRATA-timestamps.md`, `lib/` (stats, net-tap, counting-proxy + calibração, mock-llm, adversário).
 
 ## Os oito cartões (inglês, prontos a colar; o texto integral está em cada `slide.md`)
 
