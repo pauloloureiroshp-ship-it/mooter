@@ -31,7 +31,7 @@ Isto não torna nenhuma resposta do gauntlet falsa: o número tem `results.json`
 
 | Exigência | Estado |
 |---|---|
-| As 8 provas com veredicto | **8/8** |
+| As 8 provas com veredicto | **8/8** — com uma precisão: o P8 não tem `verdict.md` **de propósito**. É composição, não medição própria, e o próprio `protocol.json` dele diz «não há script: a tabela é composição manual verificável célula a célula». O veredicto dele é o `slide.md`, e tem `adversary.md` como os outros sete |
 | ≥ 4 cartões com vitória estrutural medida | **2**, e não 4. O adversário do P8 retirou as «vitórias por construção» por serem tautologias, e o P7 publica-se sem estatuto confirmatório. O que sobra medido no mesmo corpus: o tzachbon abstém-se 63/63, e o LiteLLM escolhe o motor a $0 em 0 de 40 |
 | **Todas** as derrotas impressas | **sim** — seis, na mesma tipografia, e uma delas é sobre o próprio pacote |
 | Tabela P8 sem célula fabricada | **sim** — e nenhuma célula sem motivo, verificado por `node lib/conferir-cartoes.mjs .` |
