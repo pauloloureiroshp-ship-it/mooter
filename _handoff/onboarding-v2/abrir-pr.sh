@@ -9,8 +9,14 @@
 # vive em ~/.local/bin). Este script resolve o binario da mesma forma.
 #
 # O PUSH E IRREVERSIVEL DO LADO DE FORA. Por isso exige o ✓ explicito do dono:
-#   MOOTER_OK_DONO=1 ./abrir-pr.sh <branch> <titulo> <ficheiro-de-corpo>
+#   MOOTER_OK_DONO=1 ./abrir-pr.sh <branch> <titulo> <corpo> [base]
 # Sem essa variavel imprime o que FARIA e sai 0. Nunca `--force`, nunca merge.
+#
+# A `base` e o 4.o argumento e nao uma constante `main`. As ondas W0..W6 sao
+# SEQUENCIAIS e nenhuma esta fundida quando a seguinte comeca: um PR de W1 com
+# base `main` mostra o diff de W0 e W1 juntos, e quem revê nao consegue separar
+# o que esta a aprovar. Aprendido a serio — o PR #492 nasceu com base errada e
+# teve de ser reapontado a mao com `gh pr edit --base`.
 
 set -u
 setopt PIPE_FAIL 2>/dev/null || true
@@ -18,10 +24,11 @@ setopt PIPE_FAIL 2>/dev/null || true
 BRANCH="${1:-}"
 TITULO="${2:-}"
 CORPO="${3:-}"
+BASE="${4:-main}"
 REPO_URL="https://github.com/pauloloureiroshp-ship-it/mooter"
 
 if [ -z "$BRANCH" ] || [ -z "$TITULO" ] || [ -z "$CORPO" ]; then
-  echo "uso: MOOTER_OK_DONO=1 $0 <branch> <titulo> <ficheiro-de-corpo>" >&2
+  echo "uso: MOOTER_OK_DONO=1 $0 <branch> <titulo> <ficheiro-de-corpo> [base]" >&2
   exit 2
 fi
 [ -f "$CORPO" ] || { echo "❌ corpo do PR nao existe: $CORPO" >&2; exit 2; }
@@ -43,12 +50,13 @@ fi
 
 # ── o branch tem de existir localmente e ter commits sobre main ───────────
 git show-ref --verify --quiet "refs/heads/$BRANCH" || { echo "❌ branch local ausente: $BRANCH" >&2; exit 1; }
-N=$(git rev-list --count "origin/main..$BRANCH" 2>/dev/null || echo 0)
-[ "$N" -gt 0 ] || { echo "❌ $BRANCH nao tem commits sobre origin/main — nada a abrir" >&2; exit 1; }
+N=$(git rev-list --count "$BASE..$BRANCH" 2>/dev/null || git rev-list --count "origin/$BASE..$BRANCH" 2>/dev/null || echo 0)
+[ "$N" -gt 0 ] || { echo "❌ $BRANCH nao tem commits sobre $BASE — nada a abrir" >&2; exit 1; }
 SUJO=$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')
 
 echo "=== abrir-pr · $(date '+%Y-%m-%d %H:%M') ==="
-echo "branch:   $BRANCH ($N commit(s) sobre origin/main)"
+echo "branch:   $BRANCH ($N commit(s) sobre $BASE)"
+echo "base:     $BASE"
 echo "titulo:   $TITULO"
 echo "corpo:    $CORPO ($(wc -l < "$CORPO" | tr -d ' ') linhas)"
 echo "por commitar (tracked): $SUJO"
@@ -58,7 +66,7 @@ if [ "${MOOTER_OK_DONO:-}" != "1" ]; then
   echo ""
   echo "🔒 ENSAIO — nada foi empurrado. O push precisa do ✓ do dono."
   echo "   Para executar a serio:"
-  echo "   MOOTER_OK_DONO=1 $0 \"$BRANCH\" \"$TITULO\" \"$CORPO\""
+  echo "   MOOTER_OK_DONO=1 $0 \"$BRANCH\" \"$TITULO\" \"$CORPO\" \"$BASE\""
   exit 0
 fi
 
@@ -70,5 +78,5 @@ if [ -n "$EXIST" ]; then
   "$GH" pr view "$EXIST" --json url --jq .url
   exit 0
 fi
-"$GH" pr create --base main --head "$BRANCH" --title "$TITULO" --body-file "$CORPO"
+"$GH" pr create --base "$BASE" --head "$BRANCH" --title "$TITULO" --body-file "$CORPO"
 "$GH" pr view --json url,number,state --jq '"#\(.number) \(.state) \(.url)"'
