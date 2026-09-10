@@ -63,3 +63,52 @@ W4/W6 não sabe distinguir «o host ignorou» de «o hook nunca lá esteve».
 **Não corrigido nesta onda de propósito:** não se corrige por adivinhação um
 defeito cuja causa não se mediu. Uma "correcção" sem reprodução não se distingue
 de uma alteração ao acaso, e passa a esconder o defeito real.
+
+---
+
+## W1-D2 · `npm audit` HIGH em três pacotes — dívida de `main`, não desta onda (aberto)
+
+**Encontrado:** 2026-09-10, no CI do PR #492.
+**Decisão do dono:** deixar em aberto e seguir para W2.
+**Estado:** **aberto**, causa **conhecida e medida**.
+
+### O que falha
+
+`security · npm audit (block on HIGH)` reprova em três pacotes:
+
+| Pacote | Vulnerabilidade | Origem |
+|---|---|---|
+| `tools/router` | `js-yaml@4.3.1` HIGH — GHSA-2883-xcg3-v3hh (`maxTotalMergeKeys` não limita CPU) | **transitiva de dev**: `eslint@9.39.4` → `@eslint/eslintrc@3.3.5` |
+| `packages/cli` | a mesma | a mesma |
+| `hub` | `sharp <0.35.4` HIGH ×3 (libheif) — GHSA-rgj7-g3m4-5g8c | dependência **directa** |
+
+### Não é da W1, e isso está medido
+
+`git diff feat/onboarding-v2-w0..HEAD -- '*package-lock.json'` devolve **vazio**: os
+lockfiles são byte-idênticos aos de `main`. A W1 alterou **uma** linha de
+`tools/router/package.json` — a lista de ficheiros de teste — e **zero** dependências.
+
+### Porque só aparece agora
+
+O `security.yml` dispara por filtro de caminhos (`tools/router/**`, `packages/**`,
+`hub/**`, `**/package.json`). A W1 tocou em `tools/router/`, logo o portão correu.
+**A mesma dívida está em `main` e não está a ser medida lá** — só o cron de segunda-feira
+a apanha, e um vermelho semanal num sítio que ninguém olha é um vermelho que não existe.
+
+É a classe de defeito que este repositório já apanhou duas vezes: **presença não é
+cobertura** (os `.svg` a 2026-08-27; a guarda de movimento reduzido a 2026-08-29). Um
+portão que só corre quando um caminho muda não está a medir `main`; está a medir quem
+teve o azar de lhe passar ao lado.
+
+### O que é preciso para fechar
+
+1. `hub`: bump directo de `sharp` para ≥ 0.35.4.
+2. `tools/router`: bump do `eslint` (a `js-yaml` é transitiva de dev — não vai para
+   produção nenhuma, mas o portão bloqueia à mesma, e bem: o portão não sabe adivinhar).
+3. `packages/cli`: o mesmo bump — **e este exige entrada de allowlist no `CLAUDE.md`**,
+   porque `packages/*` é motor congelado. É por isso que não foi feito por iniciativa
+   do executor: mexer num pacote congelado sem entrada registada é indistinguível de
+   uma violação.
+4. Considerar tirar o filtro de caminhos do `security.yml`, ou correr o audit também
+   em `push: main`. Sem isso, o próximo a tocar em `tools/router/` volta a herdar
+   um vermelho que não é dele.
