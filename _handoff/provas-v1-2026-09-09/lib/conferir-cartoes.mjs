@@ -150,6 +150,9 @@ else {
 
 // ── P8 / transversais ───────────────────────────────────────────────────────
 afirma('P8 sem celula n/a sem motivo', !/\|\s*n\/a\s*\|/.test(p8));
+// A legenda do P8 promete um motivo ao lado de CADA n/d e n/a. Uma promessa dessas verifica-se,
+// nao se lembra: a primeira versao deste portao so olhava para n/a e deixou passar 6 n/d nus.
+afirma('P8 sem celula n/d sem motivo', !/\|\s*n\/d\s*\|/.test(p8));
 afirma('P8 nao diz "Ties:"', !/\*\*Ties:\*\*/.test(p8));
 afirma('P8 nao diz "never picked"', !/never picked/i.test(p8));
 afirma('P8 tem legenda n/d vs n/a', /\*\*Legend:\*\*/.test(p8));

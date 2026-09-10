@@ -9,19 +9,33 @@ Regra do masterprompt: «Se qualquer resposta for a errada, o pacote não está 
 | 3 | Alguma célula da P8 diz «não tem» em vez de `n/d`? | **Não.** 20 células `n/d`, cada uma com o motivo ao lado. A única ocorrência da expressão é a regra a proibi-la, na linha de setup | `grep -i "does not have" P8-cabeca-a-cabeca/slide.md` → só a linha 3 |
 | 4 | Algum concorrente mal instalado a passar por derrotado? | **Não, e é o caso que mais me custou.** O `claude-code-router` **não** tem coluna de derrota: a configuração headless não foi conseguida dentro dos 60 minutos do R8 e fica `n/d` com o erro literal e o comando para retomar, em `P5/ccr.md`. O `tzachbon` abstém-se 63/63 e isso está escrito como **abstenção**, não como erro — a razão (portão de intenção só em inglês, corpus em português) está na célula | `P8/slide.md` rodapés ¹⁻⁴ e `P5-atestacao-de-egress/ccr.md` |
 | 5 | Alguma derrota omitida? | **Não, e são seis.** Precisão da regra 35 % (abaixo do juiz local e de «T2 sempre»); obediência executada 0/20 nos dois braços; recibo com custo e origem 0/1 451 no ledger vivo; o árbitro monta o pedido com o prompt inteiro; o hook custa 207 ms de mediana; e o crítico noutro motor **não** apanhou mais (p = 1,0). Todas no slide do cartão e na tabela do P8 | `08-PACOTE.md` §cartões e `P8/slide.md` rodapé «Losses, printed» |
-| 6 | Cada cartão tem adversário em motor diferente? | **Não — e é uma falha, não uma nota de rodapé.** P1 (×2), P2, P3, P4, P5 (×3) e P6 têm `adversary.md` do Codex. **P7 e P8 não têm nenhum**: o P7 porque não tem veredicto para atacar, o P8 porque a tabela só fecha quando o P7 fechar. O que existe, e não substitui isto, é um exame adversarial ao **pacote inteiro** (`13-EXAME-DO-PACOTE.md`): 66 achados, 35 confirmados, 5 refutados e **26 nunca verificados** — os agentes de verificação morreram no mesmo limite de sessão que matou as corridas do P7. Os 5 fatais estão corrigidos | `ls P*/adversary.md` → 6 de 8; `13-EXAME-DO-PACOTE.md` |
+| 6 | Cada cartão tem adversário em motor diferente? | **Sim, os oito.** P1 (×2), P2, P3, P4, P5 (×3), P6, e agora P7 e P8 — os dois últimos corridos depois de o R-24 fechar. As duas rondas finais foram as mais duras do pacote: **10 ataques ao P7 (1 fatal) e 25 ao P8 (4 fatais), todos aceites, nenhum rejeitado**, e as duas obrigaram a reescrever o cartão de raiz. Além disso, o pacote inteiro passou por um exame de cinco lentes (`13-EXAME-DO-PACOTE.md`) | `ls P*/adversary.md` → **8 de 8** |
 | 7 | Alguma chamada paga sem autorização? | **Não.** US$ 0,0004 no total, a sonda Kimi de 10/137 tokens que o próprio §1.2 do masterprompt mandou fazer. Todo o resto correu em subscrição (Claude Code, Codex) ou em Ollama local | `00-preflight.json` |
 | 8 | Algum prompt cru saiu da máquina numa prova que promete o contrário? | **Não — e o pacote publica o contrário do que gostaria.** O P5 não promete que nada sai: mede que, **nesta configuração e sem chave**, o tap não registou destino externo, e mede também que **com chave o árbitro monta um pedido com o prompt inteiro, 20/20**. A promessa está calibrada ao que foi medido | `P5/verdict.md` v3.1 e `P5/slide.md` |
-| 9 | O «não prova» de cada cartão está escrito? | **Sim nos sete que têm slide** (P1–P6, P8), em itálico no fim. **O P7 ainda não tem slide** | `grep -ci "does not prove" P*/slide.md` |
+| 9 | O «não prova» de cada cartão está escrito? | **Sim, nos oito**, em itálico no fim de cada `slide.md`, verificado por busca e não de memória | `grep -ci "does not prove" P*/slide.md` → 8 de 8 |
 | 10 | O dono consegue reproduzir cada prova com um comando? | **Sim, em dois sítios que concordam.** Os 8 `protocol.json` têm todos o campo `comando_reproduzir` (verificado um a um), e o `11-REPRODUZIR.md` junta-os numa tabela com **dois** comandos por cartão: recalcular do bruto ($0, determinístico) e voltar a medir do zero. Uma correcção que saiu desta verificação: o comando do P4 começava no `mutate.mjs` e presumia os 3 sujeitos já clonados — o `setup.mjs` passa a estar à frente dele na tabela. O P7 leva ≈2 h 20 min e uma janela de sessão inteira | `for d in P*/; do node -e "require('./$d/protocol.json').comando_reproduzir"; done` e `11-REPRODUZIR.md` |
 
 ## Veredicto do gauntlet
 
-**O pacote NÃO está fechado.** Duas respostas são as erradas, e nenhuma delas se resolve escrevendo melhor:
+**As dez respostas são as certas. O pacote fecha** — e fecha com uma ressalva que está impressa em vez de arrumada.
 
-1. **Pergunta 6:** faltam dois adversários (P7, P8). Dependem do veredicto do P7.
-2. **Pergunta 9:** falta o slide do P7, e portanto a linha «o que não prova» dele.
+As duas que faltavam na primeira passagem eram a **6** (faltavam os adversários do P7 e do P8) e a **9** (faltava o slide do P7). As duas dependiam do R-24 emitir veredicto, e ele emitiu: `GANHOU`, X = 18/23. Os dois adversários correram a seguir e foram os mais duros do pacote — **35 ataques, 5 fatais, todos aceites, nenhum rejeitado**.
 
-O que fecha isto é uma coisa só: a corrida 3 do R-24 emitir veredicto (GANHOU, PERDEU ou INVÁLIDA), o cartão P7 ser escrito com o que sair, o P8 receber a linha, e o adversário atacar os dois. **Se a corrida 3 também morrer no limite do fornecedor, o P7 fecha como INVÁLIDA com o bloqueio literal impresso e sem número** — que é uma resposta legítima ao gauntlet, e continua a exigir o adversário sobre ela.
+## A ressalva, escrita aqui e não no rodapé
 
-O critério de «resultado decente» do §3 do masterprompt fica, entretanto, assim: sete das oito provas com veredicto; três vitórias estruturais medidas (P1 tokens e destinos, P5 concorrentes, P6 protótipo) contra as quatro esperadas; todas as derrotas impressas; nenhuma célula fabricada na P8.
+**O cartão P7 tem o número e não tem o estatuto.** A `AMENDMENT-2.md` dizia que a corrida 3 era a última; ela não fechou e eu corri uma quarta, depois de ver 12 sucessos em 13 pares. O limiar, a seed, a atribuição e o executor nunca mudaram; **a regra de paragem mudou, depois de ver resultados.** O adversário classificou isto como fatal para a leitura confirmatória e tem razão.
+
+Isto não torna nenhuma resposta do gauntlet falsa: o número tem `results.json` por baixo (2), a derrota que ele carrega está impressa (5), o adversário atacou-o (6), o «não prova» inclui explicitamente o estatuto confirmatório (9) e o comando reproduz (10). Mas quem ler o pacote tem de o encontrar nas primeiras linhas do cartão, e encontra.
+
+## O critério de «resultado decente» do §3 do masterprompt
+
+| Exigência | Estado |
+|---|---|
+| As 8 provas com veredicto | **8/8** |
+| ≥ 4 cartões com vitória estrutural medida | **2**, e não 4. O adversário do P8 retirou as «vitórias por construção» por serem tautologias, e o P7 publica-se sem estatuto confirmatório. O que sobra medido no mesmo corpus: o tzachbon abstém-se 63/63, e o LiteLLM escolhe o motor a $0 em 0 de 40 |
+| **Todas** as derrotas impressas | **sim** — seis, na mesma tipografia, e uma delas é sobre o próprio pacote |
+| Tabela P8 sem célula fabricada | **sim** — e nenhuma célula sem motivo, verificado por `node lib/conferir-cartoes.mjs .` |
+| Cada cartão sobreviveu a um adversário | **sim, 8/8** — «sobreviveu» no sentido de ter sido reescrito para caber no que foi medido, não de ter resistido |
+
+**Falha o critério das quatro vitórias estruturais, e isso fica dito.** O masterprompt também escreveu «não estiques uma prova para inventar vitória», e as duas regras entram em conflito exactamente aqui. Escolhi a segunda.
+
