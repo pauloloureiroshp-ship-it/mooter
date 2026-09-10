@@ -148,6 +148,53 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `decide-agent.test.ts` (25/25, sem regressão). **Nota honesta:** isto liga o caminho,
   não acende o ciclo — o R-17 do roadmap só fecha com 1 caller real, 1 corrida agendada e
   1 actualização de peso registada no ledger.
+  **2026-09-10 · o piso do `js-yaml` nos dois pacotes que o bundle inlina**
+  allowlists **uma linha** de `packages/cli/package.json` e **uma linha** de
+  `packages/router/package.json` — o devDep `js-yaml` sobe de `^4.1.1` e de
+  `^4.2.0` para `^4.3.2` — mais as 4 linhas correspondentes em cada
+  `package-lock.json` (o range em `packages[""]`, e `version`/`resolved`/
+  `integrity`). O lockfile do `packages/router` leva ainda **3 linhas** que este
+  trabalho não decidiu: o `npm install --package-lock-only` sincronizou o bloco
+  `engines: { "node": ">=22" }` que o `package.json` declara desde a entrada
+  «2026-08-22 · piso de Node» e que o lockfile nunca recebeu. É deriva
+  pré-existente a ser corrigida, não um valor novo — fica registado para o diff
+  não ter uma linha sem dono. Autorizado pelo dono nesta data, a pedido explícito:
+  «corrigir o advisory HIGH … confirma que os três checks de audit passam antes
+  de abrir PR». O `GHSA-2883-xcg3-v3hh` afecta `js-yaml 4.0.0–4.3.1` e era ele,
+  **não** o `sharp`, que punha a vermelho duas das três pernas do
+  `npm audit (block on HIGH)` (`packages/cli` e `tools/router`; só o `hub` era o
+  `sharp`). Zero linhas de lógica: só o piso do range e o `resolved`/`integrity`.
+  Não é dev-only apesar de viver em `devDependencies`. O `build.mjs` do CLI
+  inlina **duas** cópias de `js-yaml` no `packages/cli/mooter.js`: uma resolvida
+  em `packages/cli/node_modules`, outra em `packages/router/node_modules` (por
+  `src/commands/adapter.ts` e `cost-perf.ts` → `packages/router/src/`
+  `classify_domain` · `embedding_store` · `pack_resolve`). Este advisory viajava
+  para a máquina de quem instala, e **corrigir só o `packages/cli` deixava-o lá**:
+  a 2.ª cópia era a 4.2.0, anterior à mitigação, sem uma única ocorrência de
+  `maxTotalMergeKeys`. Foi o gate de pré-merge desta onda que o apanhou, e o
+  motivo por que passou despercebido é estrutural: `packages/router` **não está
+  na matriz** do `.github/workflows/security.yml` (`[tools/router, packages/cli,
+  hub]`) — um pacote que ninguém audita não fica verde, fica invisível. Medido no
+  artefacto, não no lockfile, e com um marcador que **separa 4.3.1 de 4.3.2** —
+  `abnormal merge sequence size`, que existe 1× no dist da 4.3.2 e **0×** no da
+  4.3.1 e no da 4.2.0: antes, **0** ocorrências no bundle; depois, **2** (uma por
+  cópia). Contar `maxTotalMergeKeys` **não** servia — a 4.3.1, que está dentro
+  do advisory, tem as mesmas 7 que a 4.3.2. O bump fecha ainda um segundo
+  artefacto entregue: o `packages/router/pack-hint.cjs`, que o `install.sh`
+  compila na máquina do utilizador e instala como hook, e que também inlina
+  `js-yaml`.
+  Provado por `npm ci && npm test` nos dois pacotes, com o conjunto de falhas
+  **idêntico** antes e depois — `packages/cli` 669 testes, 668 pass, 0 fail, 1
+  skipped; `packages/router` 315 testes, 308 pass, 3 fail, 4 skipped (as 3 são
+  pré-existentes e de ambiente: `0o700` em Windows e duas contagens de packs
+  desactualizadas, 7 esperados contra os 10 `pack.yaml` que o repo tem) — e por `npm run build` a fechar
+  em 0. **Nota honesta:** isto fecha o `js-yaml`, não o `packages/router`. Esse
+  pacote continua fora da matriz de auditoria e mantém, medido a
+  `npm audit --json`, **3 nós HIGH e 1 low**: `fast-uri` (6 advisories),
+  `thrift` (2) e o `@dsnp/parquetjs` que o puxa — devDep **directa** deste
+  package — mais `esbuild`, que é **low**, não HIGH. Ficam por corrigir, e fica
+  por decidir se a matriz cresce: acrescentar `packages/router` hoje poria o CI
+  vermelho de imediato.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)
