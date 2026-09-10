@@ -1,0 +1,29 @@
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P8",
+  "title": "Cabeça-a-cabeça — a tabela que junta as sete provas contra quem existe",
+  "estado": "CONGELADO",
+  "congelado_em_fonte": "este ficheiro nao mede nada: e a regra de composicao da tabela; a anterioridade que conta e a de cada prova (P1-P7)",
+  "regra": "Cada celula vem de UMA prova (P1-P7) com o ficheiro de resultados ao lado, ou e 'n/d' com o motivo literal. Nunca 'nao tem'. Nenhum numero nasce aqui. Uma celula 'n/a' so quando a operacao nao existe por definicao no sistema (ex.: 'decidir' no cliente nativo).",
+  "colunas": {
+    "mooter": "hook instalado nesta maquina (runtime ~/.claude/tools/router), sem ANTHROPIC_API_KEY, defeito D1 vivo",
+    "claude-code-router": "@musistudio/claude-code-router 3.0.22 (npm 2026-08-24; upstream 5ad5083b 2026-09-01), instalado isolado com npm --prefix, APPDATA isolado",
+    "tzachbon": "tzachbon/claude-model-router-hook @ f687111e (2026-08-29), clone; hooks invocados com python; USERPROFILE isolado; apply_mode=warn",
+    "litellm": "LiteLLM 1.100.0 via pip --target; bin/litellm.exe; PYTHONUTF8=1",
+    "nativo": "Claude Code 2.1.224 (claude.exe), hooks e tools desligados nos bracos nativos"
+  },
+  "linhas": [
+    "tokens/hosts para decidir (P1, P5)",
+    "precisao do tier vs rotulo cego, 40 prompts reais (P1)",
+    "para onde vai o prompt cru ao decidir (P5)",
+    "escolhe o deployment local a $0 (P2, P5-D)",
+    "delegacao executada / obediencia (P3)",
+    "critico != autor em defeitos plantados (P4)",
+    "linha de custo com origem (P6)",
+    "mesma tarefa com vs sem (P7)",
+    "instala e corre em isolamento em <= 60 min (R8)"
+  ],
+  "adversario": "uma ronda Codex sobre a tabela inteira, celula a celula, depois do P7 fechar",
+  "nao_prova": ["nada fora desta maquina e configuracao", "poupanca (proibido)", "que um concorrente 'nao tem' uma capacidade — so que foi ou nao medida aqui"],
+  "comando_reproduzir": "ler os results/analysis.json de P1-P7 e cruzar com P8/slide.md; nao ha script: a tabela e composicao manual verificavel celula a celula"
+}

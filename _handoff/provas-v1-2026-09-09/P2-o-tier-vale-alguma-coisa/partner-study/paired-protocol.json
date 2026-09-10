@@ -1,0 +1,28 @@
+{
+  "frozen": "2026-09-09T11:27:17.761Z",
+  "scope": "20 real calls: native fixed qwen2.5-coder:14b vs actual staging classifier-selected local model using buildPayload. No prompt augmentation. Component experiment, not installed connector, automatic hardware routing or full Moo Pilot.",
+  "order": "Alternating AB/BA by case index; models explicitly fully offloaded; cold load reported separately",
+  "cases": [
+    "L1-a",
+    "L1-b",
+    "L2-a",
+    "L2-b",
+    "L3-a",
+    "L3-b",
+    "L4-a",
+    "L4-b",
+    "L5-a",
+    "L5-b"
+  ],
+  "temperature": 0.2,
+  "seed": 90217,
+  "numCtx": 4096,
+  "numPredict": 256,
+  "retries": 0,
+  "limits": [
+    "Same synthetic tasks as engineering study, not independent holdout",
+    "Two cases per level; no market ranking",
+    "Prompt complexity labels are manually assigned",
+    "A classifier recommending nonlocal/unavailable model is blocked, not silently substituted"
+  ]
+}

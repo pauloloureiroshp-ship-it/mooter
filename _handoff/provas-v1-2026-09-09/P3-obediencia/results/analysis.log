@@ -1,0 +1,240 @@
+-> results\analysis.json
+{
+ "at": "2026-09-09T16:11:25.241Z",
+ "arms": {
+  "A-opus": {
+   "n": 5,
+   "exits": "0 0 0 0 1",
+   "recommendations_by_tier": {
+    "T0": 5
+   },
+   "sessions_with_delegation": {
+    "k": 1,
+    "p": 0.2,
+    "lo": 0.03622410822563066,
+    "hi": 0.6244653729700049
+   },
+   "sessions_with_any_ollama_call": {
+    "k": 3,
+    "p": 0.6,
+    "lo": 0.2307242794091186,
+    "hi": 0.8823792268590027,
+    "note": "proxy largo: inclui as chamadas do Option A do hook"
+   },
+   "sessions_with_local_spawn_AND_any_ollama_call": {
+    "k": 1,
+    "p": 0.2,
+    "lo": 0.03622410822563066,
+    "hi": 0.6244653729700049,
+    "definicao": "coocorrencia: spawn local-* E chamada Ollama com eval_count na mesma sessao — NAO atribui a chamada ao subagente (AMENDMENT-1)"
+   },
+   "sessions_with_EXECUTED_local_delegation_strict": {
+    "k": 0,
+    "p": 0,
+    "lo": 2.7755575615628914e-17,
+    "hi": 0.4344824686593928,
+    "definicao": "spawn local-* E chamada Ollama sem a assinatura do Option A do hook (eval_count != 256, modelo != gemma4/qwen2.5:3b) e, em B, posterior ao rewrite — a metrica do protocolo (executed)"
+   },
+   "ollama_calls_by_signature": {
+    "assinatura_do_hook_option_a": 3
+   },
+   "decision_at_spawn_note": "decision_at_spawn e lido no FIM da sessao de ~/.claude/tools/router/last-subagent.json, ficheiro partilhado que a sessao do operador tambem escreve: NAO e a decisao no instante do spawn (D10); recommendations_by_tier e n/d como medida",
+   "ollama_calls_by_model": {
+    "qwen3:30b": {
+     "calls": 3,
+     "with_eval": 3
+    }
+   },
+   "sessions_spawning_local_subagent": 1,
+   "sessions_spawning_cheap_or_haiku": 0,
+   "hook_reached_sessions": 0,
+   "hook_rewrites": 0,
+   "ollama_calls_total": 3,
+   "ollama_tokens": 1046,
+   "usage_mean": {
+    "in": 10.8,
+    "out": 3141.4,
+    "cache_read": 491298.2
+   },
+   "mean_s": 60.5116,
+   "per_prompt": [
+    "n01:T0:0:0:",
+    "n02:T0:0:0:",
+    "n03:T0:0:1:",
+    "n04:T0:0:1:",
+    "n05:T0:1:1:"
+   ]
+  },
+  "A-sonnet": {
+   "n": 20,
+   "exits": "0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0",
+   "recommendations_by_tier": {
+    "T0": 17,
+    "T3": 3
+   },
+   "sessions_with_delegation": {
+    "k": 4,
+    "p": 0.2,
+    "lo": 0.0806576620177607,
+    "hi": 0.41601743409331715
+   },
+   "sessions_with_any_ollama_call": {
+    "k": 16,
+    "p": 0.8,
+    "lo": 0.583982565906683,
+    "hi": 0.9193423379822393,
+    "note": "proxy largo: inclui as chamadas do Option A do hook"
+   },
+   "sessions_with_local_spawn_AND_any_ollama_call": {
+    "k": 3,
+    "p": 0.15,
+    "lo": 0.05236874548672649,
+    "hi": 0.36041886664286427,
+    "definicao": "coocorrencia: spawn local-* E chamada Ollama com eval_count na mesma sessao — NAO atribui a chamada ao subagente (AMENDMENT-1)"
+   },
+   "sessions_with_EXECUTED_local_delegation_strict": {
+    "k": 0,
+    "p": 0,
+    "lo": 0,
+    "hi": 0.16112516018512968,
+    "definicao": "spawn local-* E chamada Ollama sem a assinatura do Option A do hook (eval_count != 256, modelo != gemma4/qwen2.5:3b) e, em B, posterior ao rewrite — a metrica do protocolo (executed)"
+   },
+   "ollama_calls_by_signature": {
+    "assinatura_do_hook_option_a": 18
+   },
+   "decision_at_spawn_note": "decision_at_spawn e lido no FIM da sessao de ~/.claude/tools/router/last-subagent.json, ficheiro partilhado que a sessao do operador tambem escreve: NAO e a decisao no instante do spawn (D10); recommendations_by_tier e n/d como medida",
+   "ollama_calls_by_model": {
+    "qwen3:30b": {
+     "calls": 15,
+     "with_eval": 15
+    },
+    "qwen2.5:3b": {
+     "calls": 1,
+     "with_eval": 1
+    },
+    "gemma4:e4b": {
+     "calls": 2,
+     "with_eval": 0
+    }
+   },
+   "sessions_spawning_local_subagent": 3,
+   "sessions_spawning_cheap_or_haiku": 0,
+   "hook_reached_sessions": 0,
+   "hook_rewrites": 0,
+   "ollama_calls_total": 18,
+   "ollama_tokens": 5389,
+   "usage_mean": {
+    "in": 9.3,
+    "out": 4092.7,
+    "cache_read": 460839.95
+   },
+   "mean_s": 77.0801,
+   "per_prompt": [
+    "n01:T0:0:0:",
+    "n02:T3:1:0:",
+    "n03:T3:1:1:",
+    "n04:T0:0:1:",
+    "n05:T0:0:1:",
+    "n06:T0:0:1:",
+    "n07:T0:0:1:",
+    "n08:T0:0:0:",
+    "n09:T0:1:1:",
+    "n10:T0:0:1:",
+    "n11:T0:0:1:",
+    "n12:T0:0:1:",
+    "n13:T0:0:1:",
+    "n15:T3:1:1:",
+    "n16:T0:0:1:",
+    "n17:T0:0:1:",
+    "n18:T0:0:1:",
+    "n19:T0:0:0:",
+    "n20:T0:0:1:",
+    "n21:T0:0:1:"
+   ]
+  },
+  "B-sonnet": {
+   "n": 20,
+   "exits": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+   "recommendations_by_tier": {
+    "T0": 16,
+    "T3": 3,
+    "T2": 1
+   },
+   "sessions_with_delegation": {
+    "k": 8,
+    "p": 0.4,
+    "lo": 0.21880653127178018,
+    "hi": 0.6134185007652458
+   },
+   "sessions_with_any_ollama_call": {
+    "k": 16,
+    "p": 0.8,
+    "lo": 0.583982565906683,
+    "hi": 0.9193423379822393,
+    "note": "proxy largo: inclui as chamadas do Option A do hook"
+   },
+   "sessions_with_local_spawn_AND_any_ollama_call": {
+    "k": 4,
+    "p": 0.2,
+    "lo": 0.0806576620177607,
+    "hi": 0.41601743409331715,
+    "definicao": "coocorrencia: spawn local-* E chamada Ollama com eval_count na mesma sessao — NAO atribui a chamada ao subagente (AMENDMENT-1)"
+   },
+   "sessions_with_EXECUTED_local_delegation_strict": {
+    "k": 0,
+    "p": 0,
+    "lo": 0,
+    "hi": 0.16112516018512968,
+    "definicao": "spawn local-* E chamada Ollama sem a assinatura do Option A do hook (eval_count != 256, modelo != gemma4/qwen2.5:3b) e, em B, posterior ao rewrite — a metrica do protocolo (executed)"
+   },
+   "ollama_calls_by_signature": {
+    "assinatura_do_hook_option_a": 17
+   },
+   "decision_at_spawn_note": "decision_at_spawn e lido no FIM da sessao de ~/.claude/tools/router/last-subagent.json, ficheiro partilhado que a sessao do operador tambem escreve: NAO e a decisao no instante do spawn (D10); recommendations_by_tier e n/d como medida",
+   "ollama_calls_by_model": {
+    "qwen3:30b": {
+     "calls": 15,
+     "with_eval": 15
+    },
+    "qwen2.5:3b": {
+     "calls": 2,
+     "with_eval": 2
+    }
+   },
+   "sessions_spawning_local_subagent": 4,
+   "sessions_spawning_cheap_or_haiku": 0,
+   "hook_reached_sessions": 8,
+   "hook_rewrites": 8,
+   "ollama_calls_total": 17,
+   "ollama_tokens": 5420,
+   "usage_mean": {
+    "in": 7.7,
+    "out": 3342.35,
+    "cache_read": 357651.8
+   },
+   "mean_s": 75.67905,
+   "per_prompt": [
+    "n01:T0:0:0:",
+    "n02:T0:1:0:rewrite->T0/local-summarizer",
+    "n03:T0:1:1:rewrite->T0/local-summarizer",
+    "n04:T3:1:1:rewrite->T0/local-summarizer",
+    "n05:T0:0:1:",
+    "n06:T0:0:1:",
+    "n07:T3:0:1:",
+    "n08:T0:1:0:rewrite->T0/local-summarizer",
+    "n09:T0:1:1:rewrite->T0/local-summarizer",
+    "n10:T0:0:1:",
+    "n11:T2:1:1:rewrite->T0/local-summarizer",
+    "n12:T0:0:1:",
+    "n13:T0:0:1:",
+    "n15:T3:1:1:rewrite->T0/local-summarizer",
+    "n16:T0:1:1:rewrite->T0/local-summarizer",
+    "n17:T0:0:1:",
+    "n18:T0:0:1:",
+    "n19:T0:0:0:",
+    "n20:T0:0:2:",
+    "n21:T0:0:1:"
+   ]
+  }
+ }
+}

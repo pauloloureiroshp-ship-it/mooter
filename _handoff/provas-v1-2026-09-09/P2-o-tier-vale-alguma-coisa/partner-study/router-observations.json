@@ -1,0 +1,82 @@
+[
+  {
+    "caseId": "L1-a",
+    "ms": 2.903499999999994,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5:3b",
+    "confidence": 0.9
+  },
+  {
+    "caseId": "L1-b",
+    "ms": 19.1156,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.65
+  },
+  {
+    "caseId": "L2-a",
+    "ms": 2.4638999999999953,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.6
+  },
+  {
+    "caseId": "L2-b",
+    "ms": 1.1809999999999974,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.6
+  },
+  {
+    "caseId": "L3-a",
+    "ms": 1.226699999999994,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.6
+  },
+  {
+    "caseId": "L3-b",
+    "ms": 1.2244000000000028,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.65
+  },
+  {
+    "caseId": "L4-a",
+    "ms": 1.2541999999999973,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.6
+  },
+  {
+    "caseId": "L4-b",
+    "ms": 1.396799999999999,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.6
+  },
+  {
+    "caseId": "L5-a",
+    "ms": 1.4614000000000118,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.6
+  },
+  {
+    "caseId": "L5-b",
+    "ms": 1.1723999999999961,
+    "tier": "T0",
+    "backend": "ollama",
+    "model": "qwen2.5-coder:14b",
+    "confidence": 0.6
+  }
+]

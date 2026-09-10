@@ -1,0 +1,21 @@
+n01 exit 0 conns 41 hosts 4 out 1632823 in 1442277 api_out 1392540
+n02 exit 0 conns 38 hosts 4 out 1633557 in 1421073 api_out 1395524
+n03 exit 1 conns 41 hosts 4 out 1620554 in 1424921 api_out 1380543
+n04 exit 0 conns 43 hosts 4 out 1631030 in 1433431 api_out 1390027
+n05 exit 1 conns 40 hosts 4 out 1624545 in 1420295 api_out 1387295
+n06 exit 1 conns 40 hosts 4 out 1626291 in 1420040 api_out 1388856
+n07 exit 0 conns 46 hosts 4 out 1610580 in 1447128 api_out 1369762
+n08 exit 1 conns 43 hosts 4 out 1634119 in 1432458 api_out 1391563
+n09 exit 1 conns 37 hosts 4 out 1597315 in 1398895 api_out 1379912
+n10 exit 0 conns 40 hosts 4 out 1641889 in 1422008 api_out 1402892
+n11 exit 1 conns 37 hosts 4 out 1635935 in 1404170 api_out 1394886
+n12 exit 0 conns 43 hosts 4 out 1610756 in 1435823 api_out 1371740
+n13 exit 1 conns 41 hosts 4 out 1624321 in 1424847 api_out 1386339
+n14 exit 1 conns 41 hosts 4 out 1619474 in 1425540 api_out 1381386
+n15 exit 1 conns 39 hosts 4 out 1618858 in 1413643 api_out 1383668
+n16 exit 1 conns 41 hosts 4 out 1624212 in 1424232 api_out 1387750
+n17 exit 1 conns 39 hosts 4 out 1613663 in 1414955 api_out 1378422
+n18 exit 1 conns 40 hosts 4 out 1615393 in 1419116 api_out 1387324
+n19 exit 0 conns 40 hosts 4 out 1601537 in 1425253 api_out 1363977
+n20 exit 1 conns 45 hosts 4 out 1620845 in 1442247 api_out 1382104
+-> results\E-native.json

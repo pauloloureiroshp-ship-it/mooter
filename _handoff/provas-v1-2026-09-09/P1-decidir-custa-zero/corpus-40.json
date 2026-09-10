@@ -1,0 +1,249 @@
+{
+ "_schema": "provas-v1/corpus-40",
+ "_seed": 20260909,
+ "_pool_size": 360,
+ "_eligible": 298,
+ "_generated": "2026-09-09T12:44:52.272Z",
+ "items": [
+  {
+   "id": "n01",
+   "ts": "2026-08-25T15:28:07.592Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:f6e395983cbe chars:222]]"
+  },
+  {
+   "id": "n02",
+   "ts": "2026-08-17T17:37:26.595Z",
+   "source_proj_hash": "f4ca075a",
+   "prompt": "[[redigido sha256:238c9572a530 chars:319]]"
+  },
+  {
+   "id": "n03",
+   "ts": "2026-08-25T21:59:49.835Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:b5595535f31b chars:33]]"
+  },
+  {
+   "id": "n04",
+   "ts": "2026-08-16T06:30:53.422Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:12e51cbb2966 chars:26]]"
+  },
+  {
+   "id": "n05",
+   "ts": "2026-08-16T15:00:58.966Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:8bdb487f3406 chars:28]]"
+  },
+  {
+   "id": "n06",
+   "ts": "2026-08-25T16:28:45.528Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:f51eceda498e chars:33]]"
+  },
+  {
+   "id": "n07",
+   "ts": "2026-08-16T20:02:32.241Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:a181b662984f chars:31]]"
+  },
+  {
+   "id": "n08",
+   "ts": "2026-08-17T17:50:00.730Z",
+   "source_proj_hash": "f4ca075a",
+   "prompt": "[[redigido sha256:aa4e0fe7260e chars:410]]"
+  },
+  {
+   "id": "n09",
+   "ts": "2026-08-01T18:03:48.487Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:491a26c11a43 chars:131]]"
+  },
+  {
+   "id": "n10",
+   "ts": "2026-08-16T13:38:20.922Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:0804ac732adf chars:26]]"
+  },
+  {
+   "id": "n11",
+   "ts": "2026-08-25T12:19:20.858Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:3ec0d6a97598 chars:38]]"
+  },
+  {
+   "id": "n12",
+   "ts": "2026-09-01T01:59:08.839Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:a4a60f46c71b chars:36]]"
+  },
+  {
+   "id": "n13",
+   "ts": "2026-08-03T03:12:57.505Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:23b2d74a593b chars:36]]"
+  },
+  {
+   "id": "n14",
+   "ts": "2026-08-18T12:41:23.919Z",
+   "source_proj_hash": "f4ca075a",
+   "prompt": "[[redigido sha256:db24fdfd230d chars:89]]"
+  },
+  {
+   "id": "n15",
+   "ts": "2026-08-17T17:19:44.948Z",
+   "source_proj_hash": "f4ca075a",
+   "prompt": "[[redigido sha256:b97085a30451 chars:57]]"
+  },
+  {
+   "id": "n16",
+   "ts": "2026-08-28T11:12:33.925Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:7297875a2fca chars:55]]"
+  },
+  {
+   "id": "n17",
+   "ts": "2026-08-25T00:47:36.901Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:4746a07406cf chars:30]]"
+  },
+  {
+   "id": "n18",
+   "ts": "2026-08-25T18:50:52.551Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:7c44160a0cdc chars:79]]"
+  },
+  {
+   "id": "n19",
+   "ts": "2026-08-26T15:14:46.324Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:4a5b67d2cc04 chars:260]]"
+  },
+  {
+   "id": "n20",
+   "ts": "2026-08-15T13:39:00.995Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:8887edbecbaa chars:27]]"
+  },
+  {
+   "id": "n21",
+   "ts": "2026-08-25T13:06:57.815Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:00b2d8bf01cf chars:26]]"
+  },
+  {
+   "id": "n22",
+   "ts": "2026-08-28T10:45:07.376Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:0f6cead9e4c2 chars:208]]"
+  },
+  {
+   "id": "n23",
+   "ts": "2026-09-01T02:07:26.957Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:358e51119479 chars:22]]"
+  },
+  {
+   "id": "n24",
+   "ts": "2026-08-26T18:57:33.141Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:0e5eb377d72a chars:50]]"
+  },
+  {
+   "id": "n25",
+   "ts": "2026-08-16T06:06:59.924Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:f25626961df0 chars:48]]"
+  },
+  {
+   "id": "n26",
+   "ts": "2026-08-15T16:39:55.813Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:19d0fc854d87 chars:36]]"
+  },
+  {
+   "id": "n27",
+   "ts": "2026-09-01T11:09:32.340Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:31e9b9f9ae84 chars:28]]"
+  },
+  {
+   "id": "n28",
+   "ts": "2026-08-25T11:25:16.553Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:c1f2850bf7ae chars:34]]"
+  },
+  {
+   "id": "n29",
+   "ts": "2026-08-27T12:39:10.760Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:dcee578df10b chars:214]]"
+  },
+  {
+   "id": "n30",
+   "ts": "2026-08-06T17:07:02.668Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:7fc73e58ccd2 chars:402]]"
+  },
+  {
+   "id": "n31",
+   "ts": "2026-08-25T19:29:40.767Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:82496f7d1c9f chars:172]]"
+  },
+  {
+   "id": "n32",
+   "ts": "2026-08-25T19:46:35.554Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:08b365548732 chars:184]]"
+  },
+  {
+   "id": "n33",
+   "ts": "2026-08-17T17:44:05.741Z",
+   "source_proj_hash": "f4ca075a",
+   "prompt": "[[redigido sha256:fa5c0c9b5909 chars:187]]"
+  },
+  {
+   "id": "n34",
+   "ts": "2026-08-25T19:54:18.604Z",
+   "source_proj_hash": "61ded45c",
+   "prompt": "[[redigido sha256:b2ccf772e20f chars:50]]"
+  },
+  {
+   "id": "n35",
+   "ts": "2026-08-15T18:07:26.282Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:5d573b0dd596 chars:32]]"
+  },
+  {
+   "id": "n36",
+   "ts": "2026-09-04T09:52:57.938Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:5f48cff05908 chars:29]]"
+  },
+  {
+   "id": "n37",
+   "ts": "2026-09-01T02:30:23.575Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:55b70316adeb chars:23]]"
+  },
+  {
+   "id": "n38",
+   "ts": "2026-08-18T08:54:48.354Z",
+   "source_proj_hash": "f4ca075a",
+   "prompt": "[[redigido sha256:1bdf66ddc455 chars:149]]"
+  },
+  {
+   "id": "n39",
+   "ts": "2026-09-01T13:26:53.227Z",
+   "source_proj_hash": "1d519314",
+   "prompt": "[[redigido sha256:b6b92d742a33 chars:45]]"
+  },
+  {
+   "id": "n40",
+   "ts": "2026-08-06T21:42:02.266Z",
+   "source_proj_hash": "7146253a",
+   "prompt": "[[redigido sha256:2a8389ecc8c9 chars:463]]"
+  }
+ ]
+}

@@ -1,0 +1,574 @@
+{
+ "arm": "rater2",
+ "model": "qwen3.6:27b",
+ "at": "2026-09-09T13:04:25.992Z",
+ "rows": [
+  {
+   "id": "n01",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 467,
+   "tokens_out": 3,
+   "wall_ms": 6392.7641,
+   "error": null
+  },
+  {
+   "id": "n02",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 489,
+   "tokens_out": 3,
+   "wall_ms": 328.4913,
+   "error": null
+  },
+  {
+   "id": "n03",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 426,
+   "tokens_out": 3,
+   "wall_ms": 328.6682,
+   "error": null
+  },
+  {
+   "id": "n04",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 427,
+   "tokens_out": 3,
+   "wall_ms": 304.8474,
+   "error": null
+  },
+  {
+   "id": "n05",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 423,
+   "tokens_out": 3,
+   "wall_ms": 307.2801,
+   "error": null
+  },
+  {
+   "id": "n06",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 425,
+   "tokens_out": 3,
+   "wall_ms": 319.8339,
+   "error": null
+  },
+  {
+   "id": "n07",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 426,
+   "tokens_out": 3,
+   "wall_ms": 305.2762,
+   "error": null
+  },
+  {
+   "id": "n08",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 506,
+   "tokens_out": 3,
+   "wall_ms": 323.879,
+   "error": null
+  },
+  {
+   "id": "n09",
+   "tier": "T1",
+   "raw": "T1",
+   "tokens_in": 458,
+   "tokens_out": 3,
+   "wall_ms": 314.1168,
+   "error": null
+  },
+  {
+   "id": "n10",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 424,
+   "tokens_out": 3,
+   "wall_ms": 298.7914,
+   "error": null
+  },
+  {
+   "id": "n11",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 430,
+   "tokens_out": 3,
+   "wall_ms": 304.0345,
+   "error": null
+  },
+  {
+   "id": "n12",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 427,
+   "tokens_out": 3,
+   "wall_ms": 304.1515,
+   "error": null
+  },
+  {
+   "id": "n13",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 426,
+   "tokens_out": 3,
+   "wall_ms": 304.3691,
+   "error": null
+  },
+  {
+   "id": "n14",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 440,
+   "tokens_out": 3,
+   "wall_ms": 305.0896,
+   "error": null
+  },
+  {
+   "id": "n15",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 431,
+   "tokens_out": 3,
+   "wall_ms": 303.1179,
+   "error": null
+  },
+  {
+   "id": "n16",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 432,
+   "tokens_out": 3,
+   "wall_ms": 302.9316,
+   "error": null
+  },
+  {
+   "id": "n17",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 426,
+   "tokens_out": 3,
+   "wall_ms": 300.6832,
+   "error": null
+  },
+  {
+   "id": "n18",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 435,
+   "tokens_out": 3,
+   "wall_ms": 301.32,
+   "error": null
+  },
+  {
+   "id": "n19",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 476,
+   "tokens_out": 3,
+   "wall_ms": 353.2821,
+   "error": null
+  },
+  {
+   "id": "n20",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 431,
+   "tokens_out": 3,
+   "wall_ms": 300.7909,
+   "error": null
+  },
+  {
+   "id": "n21",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 424,
+   "tokens_out": 3,
+   "wall_ms": 306.7515,
+   "error": null
+  },
+  {
+   "id": "n22",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 462,
+   "tokens_out": 3,
+   "wall_ms": 321.2166,
+   "error": null
+  },
+  {
+   "id": "n23",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 424,
+   "tokens_out": 3,
+   "wall_ms": 314.5006,
+   "error": null
+  },
+  {
+   "id": "n24",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 430,
+   "tokens_out": 3,
+   "wall_ms": 304.7346,
+   "error": null
+  },
+  {
+   "id": "n25",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 430,
+   "tokens_out": 3,
+   "wall_ms": 304.3052,
+   "error": null
+  },
+  {
+   "id": "n26",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 427,
+   "tokens_out": 3,
+   "wall_ms": 305.7199,
+   "error": null
+  },
+  {
+   "id": "n27",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 432,
+   "tokens_out": 3,
+   "wall_ms": 304.5225,
+   "error": null
+  },
+  {
+   "id": "n28",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 427,
+   "tokens_out": 3,
+   "wall_ms": 301.3351,
+   "error": null
+  },
+  {
+   "id": "n29",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 466,
+   "tokens_out": 3,
+   "wall_ms": 313.2283,
+   "error": null
+  },
+  {
+   "id": "n30",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 512,
+   "tokens_out": 3,
+   "wall_ms": 321.7698,
+   "error": null
+  },
+  {
+   "id": "n31",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 456,
+   "tokens_out": 3,
+   "wall_ms": 316.4225,
+   "error": null
+  },
+  {
+   "id": "n32",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 456,
+   "tokens_out": 3,
+   "wall_ms": 316.8068,
+   "error": null
+  },
+  {
+   "id": "n33",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 459,
+   "tokens_out": 3,
+   "wall_ms": 316.2058,
+   "error": null
+  },
+  {
+   "id": "n34",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 430,
+   "tokens_out": 3,
+   "wall_ms": 303.443,
+   "error": null
+  },
+  {
+   "id": "n35",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 426,
+   "tokens_out": 3,
+   "wall_ms": 300.8079,
+   "error": null
+  },
+  {
+   "id": "n36",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 426,
+   "tokens_out": 3,
+   "wall_ms": 300.9875,
+   "error": null
+  },
+  {
+   "id": "n37",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 425,
+   "tokens_out": 3,
+   "wall_ms": 301.6646,
+   "error": null
+  },
+  {
+   "id": "n38",
+   "tier": "T0",
+   "raw": "T0",
+   "tokens_in": 451,
+   "tokens_out": 3,
+   "wall_ms": 308.6889,
+   "error": null
+  },
+  {
+   "id": "n39",
+   "tier": "T3",
+   "raw": "T3",
+   "tokens_in": 431,
+   "tokens_out": 3,
+   "wall_ms": 301.1729,
+   "error": null
+  },
+  {
+   "id": "n40",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 551,
+   "tokens_out": 3,
+   "wall_ms": 386.9379,
+   "error": null
+  },
+  {
+   "id": "r01",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 593,
+   "tokens_out": 3,
+   "wall_ms": 401.3831,
+   "error": null
+  },
+  {
+   "id": "r02",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 593,
+   "tokens_out": 3,
+   "wall_ms": 408.3359,
+   "error": null
+  },
+  {
+   "id": "r03",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 597,
+   "tokens_out": 3,
+   "wall_ms": 400.3058,
+   "error": null
+  },
+  {
+   "id": "r04",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 593,
+   "tokens_out": 3,
+   "wall_ms": 364.6389,
+   "error": null
+  },
+  {
+   "id": "r05",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 362.1338,
+   "error": null
+  },
+  {
+   "id": "r06",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 568,
+   "tokens_out": 3,
+   "wall_ms": 361.1942,
+   "error": null
+  },
+  {
+   "id": "r07",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 363.108,
+   "error": null
+  },
+  {
+   "id": "r08",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 154.8915,
+   "error": null
+  },
+  {
+   "id": "r09",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 562,
+   "tokens_out": 3,
+   "wall_ms": 395.6988,
+   "error": null
+  },
+  {
+   "id": "r10",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 562,
+   "tokens_out": 3,
+   "wall_ms": 157.2094,
+   "error": null
+  },
+  {
+   "id": "r11",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 563,
+   "tokens_out": 3,
+   "wall_ms": 394.7982,
+   "error": null
+  },
+  {
+   "id": "r12",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 391.8541,
+   "error": null
+  },
+  {
+   "id": "r13",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 568,
+   "tokens_out": 3,
+   "wall_ms": 396.5015,
+   "error": null
+  },
+  {
+   "id": "r14",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 366.1445,
+   "error": null
+  },
+  {
+   "id": "r15",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 570,
+   "tokens_out": 3,
+   "wall_ms": 388.8869,
+   "error": null
+  },
+  {
+   "id": "r16",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 566,
+   "tokens_out": 3,
+   "wall_ms": 362.4474,
+   "error": null
+  },
+  {
+   "id": "r17",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 566,
+   "tokens_out": 3,
+   "wall_ms": 157.6682,
+   "error": null
+  },
+  {
+   "id": "r18",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 396.4439,
+   "error": null
+  },
+  {
+   "id": "r19",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 570,
+   "tokens_out": 3,
+   "wall_ms": 395.6763,
+   "error": null
+  },
+  {
+   "id": "r20",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 570,
+   "tokens_out": 3,
+   "wall_ms": 158.2778,
+   "error": null
+  },
+  {
+   "id": "r21",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 398.9191,
+   "error": null
+  },
+  {
+   "id": "r22",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 564,
+   "tokens_out": 3,
+   "wall_ms": 157.7308,
+   "error": null
+  },
+  {
+   "id": "r23",
+   "tier": "T2",
+   "raw": "T2",
+   "tokens_in": 568,
+   "tokens_out": 3,
+   "wall_ms": 394.4279,
+   "error": null
+  }
+ ]
+}

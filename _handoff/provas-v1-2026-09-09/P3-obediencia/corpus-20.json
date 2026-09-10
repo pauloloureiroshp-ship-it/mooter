@@ -1,0 +1,107 @@
+{
+ "_schema": "provas-v1/p3-corpus-20",
+ "_generated": "2026-09-09T13:47:54.289Z",
+ "_rule": "primeiros 20 por id com tier T0/T1 (A-key corrida 1), sem push/deploy/delete/rm/drop/force",
+ "items": [
+  {
+   "id": "n01",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:f6e395983cbe chars:222]]"
+  },
+  {
+   "id": "n02",
+   "tier_key": "T1",
+   "prompt": "[[redigido sha256:238c9572a530 chars:319]]"
+  },
+  {
+   "id": "n03",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:b5595535f31b chars:33]]"
+  },
+  {
+   "id": "n04",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:12e51cbb2966 chars:26]]"
+  },
+  {
+   "id": "n05",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:8bdb487f3406 chars:28]]"
+  },
+  {
+   "id": "n06",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:f51eceda498e chars:33]]"
+  },
+  {
+   "id": "n07",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:a181b662984f chars:31]]"
+  },
+  {
+   "id": "n08",
+   "tier_key": "T1",
+   "prompt": "[[redigido sha256:aa4e0fe7260e chars:410]]"
+  },
+  {
+   "id": "n09",
+   "tier_key": "T1",
+   "prompt": "[[redigido sha256:491a26c11a43 chars:131]]"
+  },
+  {
+   "id": "n10",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:0804ac732adf chars:26]]"
+  },
+  {
+   "id": "n11",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:3ec0d6a97598 chars:38]]"
+  },
+  {
+   "id": "n12",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:a4a60f46c71b chars:36]]"
+  },
+  {
+   "id": "n13",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:23b2d74a593b chars:36]]"
+  },
+  {
+   "id": "n15",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:b97085a30451 chars:57]]"
+  },
+  {
+   "id": "n16",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:7297875a2fca chars:55]]"
+  },
+  {
+   "id": "n17",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:4746a07406cf chars:30]]"
+  },
+  {
+   "id": "n18",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:7c44160a0cdc chars:79]]"
+  },
+  {
+   "id": "n19",
+   "tier_key": "T1",
+   "prompt": "[[redigido sha256:4a5b67d2cc04 chars:260]]"
+  },
+  {
+   "id": "n20",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:8887edbecbaa chars:27]]"
+  },
+  {
+   "id": "n21",
+   "tier_key": "T0",
+   "prompt": "[[redigido sha256:00b2d8bf01cf chars:26]]"
+  }
+ ]
+}
