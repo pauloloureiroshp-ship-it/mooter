@@ -4,7 +4,7 @@
 node lib/conferir-cartoes.mjs .        # da raiz do pacote; exit 0 = tudo confere, exit 1 = diverge
 ```
 
-53 verificações, `$0`, sem chamar modelo nenhum. Lê os `results/*.json` de cada cartão e confronta-os com o que os `.md` publicam. Não confia na minha memória nem na minha palavra: se um número do slide deixar de bater com o bruto, o comando reprova e diz qual.
+54 verificações, `$0`, sem chamar modelo nenhum. Lê os `results/*.json` de cada cartão e confronta-os com o que os `.md` publicam. Não confia na minha memória nem na minha palavra: se um número do slide deixar de bater com o bruto, o comando reprova e diz qual.
 
 ## O que confere
 

@@ -31,7 +31,7 @@
    "num_turns": 1,
    "is_error": false,
    "stderr": "",
-   "result_text": "[[redigido sha256:8cd8fc7f2839 chars:200]]"
+   "result_text": "[[redigido sha256:9e504d9fd15b chars:42]]"
   },
   {
    "id": "n02",
@@ -60,7 +60,7 @@
    "num_turns": 6,
    "is_error": false,
    "stderr": "",
-   "result_text": "[[redigido sha256:b3a1e52050f8 chars:200]]"
+   "result_text": "[[redigido sha256:0aa41db8a020 chars:42]]"
   },
   {
    "id": "n03",
@@ -99,7 +99,7 @@
    "num_turns": 6,
    "is_error": false,
    "stderr": "",
-   "result_text": "[[redigido sha256:8104672e28af chars:200]]"
+   "result_text": "[[redigido sha256:8f2ef1c24b54 chars:42]]"
   },
   {
    "id": "n04",
@@ -138,7 +138,7 @@
    "num_turns": 9,
    "is_error": false,
    "stderr": "",
-   "result_text": "[[redigido sha256:16bd137f4f3f chars:200]]"
+   "result_text": "[[redigido sha256:e2c0c45e289a chars:42]]"
   },
   {
    "id": "n05",
