@@ -96,6 +96,55 @@ export function windowsArgs({ nodePath, runnerPath, repo }) {
   ];
 }
 
+/**
+ * O `.cmd` que o dono corre. NAO e a receita embrulhada -- e a receita mais a
+ * verificacao, porque sem ela o remedio esconde a propria falha.
+ *
+ * Medido a 2026-09-10, depois de #488: escrevemos o ficheiro, o dono correu-o,
+ * disse "funcionou", e a tarefa NAO existia -- confirmado por tres vias
+ * (`schtasks /Query`, listagem CSV, `Get-ScheduledTask`). Um `.cmd` aberto por
+ * duplo-clique fecha a janela no instante em que acaba: se o `schtasks` recusa,
+ * o erro pisca e desaparece, e o que fica e a impressao de sucesso. Mandar
+ * correr um ficheiro que nao deixa ler o resultado e a mesma classe de defeito
+ * que o #488 corrigiu no `--install`, um degrau mais abaixo.
+ *
+ * Por isso o ficheiro pergunta ao ESTADO (um `/Query` depois do `/Create`),
+ * imprime um veredicto de uma linha, e faz `pause`. O codigo de saida do
+ * `schtasks` entra no texto como informacao, nao como veredicto -- pela mesma
+ * razao que o `desinstalarWindows()` nao acredita na mensagem dele.
+ */
+export function conteudoDoCmd(alvo) {
+  const NL = String.fromCharCode(13, 10);
+  // A receita vem com `\n` (o `windowsCommand` junta assim, e para imprimir na
+  // consola esta certo). Num ficheiro .cmd nao esta: a linha que ela parte e
+  // precisamente a da continuacao `^`, a mais fragil de todas. Normaliza-se
+  // aqui em vez de mudar o `windowsCommand`, que tem outro consumidor.
+  const receita = windowsCommand(alvo).split('\n').join(NL);
+  return [
+    '@echo off',
+    'setlocal',
+    `echo Instalando a tarefa agendada ${TASK_NAME}...`,
+    'echo.',
+    receita,
+    'set CODIGO=%ERRORLEVEL%',
+    'echo.',
+    `schtasks /Query /TN "${TASK_NAME}" >nul 2>&1`,
+    'if errorlevel 1 (',
+    `  echo   NAO INSTALADA. O schtasks saiu com codigo %CODIGO% e a tarefa nao esta la.`,
+    // ASCII puro, sem excepcao. O `cmd.exe` le o ficheiro na codepage OEM
+    // (850/437), nao em UTF-8: um travessao escrito aqui chegou ao ecra do dono
+    // como `ÔÇö`. Ver o teste que exige `charCodeAt < 128` em todo o conteudo.
+    '  echo   Le a mensagem de erro acima - ela diz o motivo.',
+    ') else (',
+    `  echo   INSTALADA. Confirmado por schtasks /Query, nao pelo codigo de saida.`,
+    '  echo   O arranque automatico NUNCA levanta o STOP.',
+    ')',
+    'echo.',
+    'pause',
+    '',
+  ].join(NL);
+}
+
 /** The Windows equivalent, as a command the owner runs in their own shell. */
 export function windowsCommand({ nodePath, runnerPath, repo }) {
   return [
@@ -120,19 +169,32 @@ export function windowsCommand({ nodePath, runnerPath, repo }) {
  *
  * Sobre o `Access is denied`, e a distincao importa porque muda o conselho:
  *
- *   OBSERVADO a 2026-09-10 nesta maquina -- `/Query` corre; `/Create` da
- *   "Access is denied" mesmo com um `/TR` de 13 chars e sem `/RL`, logo nao e
- *   comprimento nem nivel de execucao; o utilizador nao esta elevado; e a
- *   cadeia de processos passa por `C:\\Program Files\\WindowsApps\\`.
+ *   MEDIDO a 2026-09-10 nesta maquina, no token do processo:
+ *     BUILTIN\\Administradores  S-1-5-32-544  "Group used for deny only"
+ *     Rotulo Obrigatorio\\Nivel Obrigatorio Medio  S-1-16-8192
+ *     IsInRole(Administrator) = False
+ *   MEDIDO tambem: sem elevar, `/Create` da "Access is denied" e `/Query`
+ *   corre; elevando, `/Create` cria a tarefa. Isso e o facto, e chega para o
+ *   conselho.
  *
- *   HIPOTESE (nao testada -- falta correr o mesmo schtasks a partir de uma
- *   shell nao-empacotada): a shell herda a identidade do pacote MSIX e a
- *   escrita e recusada.
+ *   INFERIDO, e fica marcado como tal: que a causa operativa seja o grupo
+ *   estar "deny only". Um token de admin filtrado carrega, no minimo, os
+ *   direitos de um utilizador padrao -- e um utilizador padrao devia poder
+ *   criar uma tarefa que corre como ele proprio. Ou essa premissa nao vale
+ *   nesta maquina (politica, ACL do agendador), ou o "deny only" nao e o
+ *   mecanismo. O contrafactual que decidiria -- correr o mesmo `/Create` como
+ *   nao-admin aqui -- NAO foi corrido: `n/d`.
  *
- *   ALTERNATIVA NAO EXCLUIDA: filtragem UAC de um administrador nao-elevado.
+ * ESTA ENTRADA JA ESTEVE ERRADA, e o erro fica registado porque foi
+ * instrutivo. A primeira versao punha a hipotese MSIX em primeiro lugar --
+ * "a shell e filha de C:\\Program Files\\WindowsApps\\ e herda a identidade do
+ * pacote" -- e relegava a filtragem UAC a "alternativa nao excluida". Os
+ * sintomas eram compativeis com as duas (ler corre, escrever nao) e eu escolhi
+ * a mais exotica sem a testar. Um revisor apontou que era inferencia disfarcada
+ * de medicao; bastou ler o token para a decidir, e o token diz UAC.
  *
- * Mediu-se o sintoma e inferiu-se o mecanismo. Por isso o que se imprime ao
- * dono nao e a tese, e a experiencia que a decide em cinco segundos.
+ * Licao operacional: quando duas causas explicam o mesmo sintoma, procura o
+ * facto que as separa em vez de escolher a que parece mais interessante.
  */
 /**
  * O ramo win32 do `install()`, extraido para ser EXECUTAVEL num teste.
@@ -163,13 +225,21 @@ export async function ramoWindowsDoInstall({
   sayImpl(`    ${r.erro.split('\n')[0]}`);
   if (r.acessoNegado) {
     sayImpl('');
-    sayImpl('  "Access is denied" aqui raramente e falta de admin: um utilizador');
-    sayImpl('  padrao cria tarefas que correm como ele proprio. Uma hipotese e');
-    sayImpl('  esta shell ser filha de uma app empacotada');
-    sayImpl('  (C:\\Program Files\\WindowsApps\\...) e herdar a identidade do');
-    sayImpl('  pacote. Nao adivinhes — faz a experiencia em 5 segundos:');
-    sayImpl('  Win+R -> cmd -> corre o ficheiro abaixo. Se funcionar ai, o');
-    sayImpl('  problema era esta shell e nao os teus privilegios.');
+    sayImpl('  A causa mais provavel e o teu token estar filtrado pelo UAC. Se');
+    sayImpl('  fores administrador da maquina mas nao estiveres ELEVADO, o grupo');
+    sayImpl('  de Administradores aparece no token como "deny only" e a escrita e');
+    sayImpl('  recusada — enquanto a leitura (schtasks /Query) continua a correr.');
+    sayImpl('  Confirma numa linha:');
+    sayImpl('');
+    sayImpl('    whoami /groups | findstr S-1-5-32-544');
+    sayImpl('');
+    sayImpl('  Se disser "deny only", corre o ficheiro abaixo com o botao direito');
+    sayImpl('  -> "Executar como administrador".');
+    sayImpl('');
+    sayImpl('  Se NAO disser, ha uma segunda hipotese: esta shell ser filha de uma');
+    sayImpl('  app empacotada (C:\\Program Files\\WindowsApps\\...) e herdar a');
+    sayImpl('  identidade do pacote. Nesse caso abre uma janela cmd a partir do');
+    sayImpl('  Explorador e tenta de novo, sem elevar.');
   }
 
   // A receita NAO sobrevive ao PowerShell. Medido a 2026-09-10 numa revisao
@@ -183,7 +253,7 @@ export async function ramoWindowsDoInstall({
   try {
     criarPastaImpl(mooDir, { recursive: true });
     ficheiro = path.join(mooDir, 'instalar-mooterrunner.cmd');
-    escreverImpl(ficheiro, `@echo off\r\n${windowsCommand(alvo)}\r\n`, 'utf8');
+    escreverImpl(ficheiro, conteudoDoCmd(alvo), 'utf8');
   } catch {
     ficheiro = null;                                     // sem disco, resta a receita
   }
@@ -191,7 +261,9 @@ export async function ramoWindowsDoInstall({
   sayImpl('');
   if (ficheiro) {
     sayImpl(`  Escrevi o comando aqui:  ${ficheiro}`);
-    sayImpl('  Corre esse ficheiro numa janela cmd.exe (NAO PowerShell).');
+    sayImpl('  Corre esse ficheiro numa janela cmd.exe (NAO PowerShell). Ele');
+    sayImpl('  confirma sozinho se a tarefa ficou la e espera que carregues numa');
+    sayImpl('  tecla — nao te fies no facto de a janela fechar sem queixas.');
     sayImpl('');
   }
   sayImpl(windowsCommand(alvo));
