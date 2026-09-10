@@ -182,9 +182,46 @@ function gateOptedIn() {
   return exists('mooter.verify.json') || process.env.MOOTER_VERIFY_GATE === '1';
 }
 
+/**
+ * `moo-verify manifest <ficheiro>` — verificar um manifesto de release.
+ *
+ * Vive aqui, e nao num binario proprio, porque o `moo-verify` ja e o sitio da
+ * casa para "o critico determinista, a $0, sem LLM nenhum". Um manifesto
+ * assinado e exactamente isso: uma pergunta com resposta mecanica.
+ *
+ * Reutiliza `tools/cli/lib/manifesto.js` — a MESMA funcao que o `mooter update`
+ * corre antes de trocar o payload. Duas implementacoes divergiriam, e a que
+ * diverge em silencio e sempre a que nao esta a ser olhada.
+ */
+function verificarManifestoCLI(args) {
+  const ficheiro = args.find((a) => !a.startsWith('-'));
+  const canal = (args.find((a) => a.startsWith('--canal=')) || '').split('=')[1] || null;
+  if (!ficheiro) {
+    process.stderr.write('uso: moo-verify manifest <ficheiro.json> [--canal=<canal>]\n');
+    process.exit(2);
+  }
+  let m;
+  try {
+    m = JSON.parse(fs.readFileSync(ficheiro, 'utf8'));
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ ok: false, codigo: 'ilegivel', porque: String(e && e.message) }, null, 2) + '\n');
+    process.exit(2);
+  }
+  const { verificarManifesto } = require('../cli/lib/manifesto.js');
+  // Sem `--canal`, verifica-se contra o canal que o proprio manifesto declara.
+  // Isso prova a ASSINATURA, nao prova que o manifesto e o do canal certo — e
+  // o resultado diz isso, em vez de deixar o leitor concluir de mais.
+  const r = verificarManifesto(m, { canalPedido: canal || m.channel });
+  if (!canal) r.aviso = 'sem --canal: verificou-se a assinatura, nao a correspondencia de canal';
+  process.stdout.write(JSON.stringify(r, null, 2) + '\n');
+  process.exit(r.ok ? 0 : 2);
+}
+
 function main() {
   const args = process.argv.slice(2);
   const gate = args.includes('--gate');
+
+  if (args[0] === 'manifest') return verificarManifestoCLI(args.slice(1));
 
   if (gate) {
     // drain stdin (Stop payload) — we don't need it, but the harness pipes it
@@ -215,6 +252,6 @@ function main() {
   process.exit(result.pass ? 0 : 2);
 }
 
-module.exports = { verify, detectChecks, run, gateOptedIn };
+module.exports = { verify, detectChecks, run, gateOptedIn, verificarManifestoCLI };
 
 if (require.main === module) main();

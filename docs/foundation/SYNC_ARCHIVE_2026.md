@@ -9597,3 +9597,25 @@ precisa de rótulos novos que os padrões nunca tenham visto** · n=35 é pequen
 para separar routers (efeito mínimo detectável ~20 pts) · nenhuma medição válida
 de prompts reais e longos — precisa de rótulos humanos · a obediência a 0%
 (43 de 112 pedidos marcados como trabalho de graça, 0 delegações).
+
+---
+
+## Rolado de `SYNC.md` a 2026-09-10 (onda onboarding v2 · W1)
+
+> O `SYNC.md` chegou a 224 linhas ao ganhar as entradas de W0 e W1, e o tecto
+> sao 200 (AGENTS.md § Information architecture). Este bloco saiu de la INTEIRO,
+> verbatim. Movido, nunca apagado.
+
+## 2026-09-09 · Pacote de provas v1 — as hipóteses do deck trocadas por medições
+
+`_handoff/provas-v1-2026-09-09/` (branch `claude/pacote-provas-v1-255558`, **por fundir e por empurrar**). Índice em `08-PACOTE.md`; cópia no vault `20-mooter/artifacts/`.
+
+**Ganhou por construção:** classificar custa 0 tokens e não registou destino externo (1 176 classificações); o routing por custo do LiteLLM escolheu o motor a $0 **0 de 40 vezes**; o protótipo do recibo faz 156/156 com custo, origem e tokens.
+
+**Perdeu, e está impresso:** precisão da regra em prompts reais **35 %** [22, 51] contra 52,5 % de um juíz local e 45 % de «T2 sempre»; obediência executada **0/20 nos dois braços**; recibo com custo e origem no ledger vivo **0/1 451**; com chave, o árbitro monta o pedido com o prompt inteiro (20/20); o hook custa 207 ms de mediana. Empate: crítico noutro motor 26/28 contra 27/28 do Opus, p = 1,0.
+
+**P7 (R-24, usar vs não usar) fechou à quarta corrida: `GANHOU`, 18 de 23 tarefas com trabalho aceite em ≤ 0,8× do tempo** (limiar pré-registado 16, p nominal 0,00531, 23/23 pares válidos). Os dois braços passaram o teste congelado em 23/23 — mexeu o tempo, não a qualidade observável (mediana 77 s contra 145 s). **O estatuto confirmatório não se reclama:** a regra de paragem foi quebrada (a 4.ª corrida arrancou depois de 3 não-resultados, com parciais favoráveis à vista), e isso está no próprio título do cartão. As quatro corridas ficam publicadas inteiras. As duas rondas finais de adversário deram **35 ataques, 5 fatais, todos aceites**; a tabela P8 perdeu as «vitórias por construção» por serem tautologias e deixou de se apresentar como cabeça-a-cabeça. **8 de 8 provas com veredicto e com adversário.**
+
+**15 defeitos apanhados** (`09-DEFEITOS-APANHADOS.md`). Dois que valem para além deste pacote: **D1**, o `applyBudgetCap` compara um objecto com números e manda tudo para T0 — inclusive HIGH-RISK — e o PR continua por fundir; **D12**, o `.gitignore` apanhava `*.log` e `*.jsonl` dentro de `results/` e **30 ficheiros de prova nunca entraram no git**, apesar de uma emenda escrita no dia anterior prometer «preservada e publicada, inteira». Uma promessa de preservação verifica-se contra o índice, não contra o disco.
+
+**Poluição declarada:** as corridas do P3 e do P5 escreveram no `decisions.log` **vivo** do dono (D6 — o hook não honra `MOOTER_DECISIONS_LOG`); as linhas ficam, identificáveis por `session_id` e janela horária.

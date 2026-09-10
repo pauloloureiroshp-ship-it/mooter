@@ -50,45 +50,37 @@
 
 # Mooter — Sync Snapshot
 
-## 2026-09-10 · Onboarding v2 · W0 — o `/dashboard` deixa de publicar poupanca
+## 2026-09-10 · Onboarding v2 — W0 e W1 (branches `feat/onboarding-v2-w0` e `-w1`)
 
-Branch `feat/onboarding-v2-w0` (worktree `../frugal-onboarding-v2`, **por fundir e por empurrar**).
-Decisoes D1–D6 do dono gravadas em `docs/adr/ADR-onboarding-v2.md`, com a refutacao do codex
-(`job-mtvmlw3l-f78e`) anexada na integra e sete `n/d` declarados.
+PR **#491** aberto (W0). W1 por empurrar. Detalhe: `docs/adr/ADR-onboarding-v2.md`,
+`_handoff/onboarding-v2/`, vault `10-projects/2026-09-10-mac-onboarding-v2-*`.
 
-**O que saiu, e porque.** O `/dashboard` tinha **seis** superficies de poupanca, todas derivadas
-da mesma aritmetica modelada (`decisoes x $0,015` ou `x $0,045` — precos de tabela que ninguem
-pagou): a calculadora com tres literais e um slider, o heroi com `$saved` e a percentagem contra
-all-Opus, o cartao de profundidade com quatro cifras, a cifra por device, a cifra por dia no
-historico, e uma coluna «Savings» com adjectivos. **Grep no build: 0 ocorrencias** de `saved vs`
-e de `Savings calculator` em `.next/`.
+**W0 — o `/dashboard` deixa de publicar poupanca.** Nao era uma superficie: eram **seis**, as
+seis derivadas do mesmo preco de tabela que ninguem pagou (`decisoes x $0,015` ou `x $0,045`) —
+calculadora com sliders, heroi, cartao de profundidade, cifra por device, cifra por dia, e uma
+coluna «Savings» com adjectivos. Entram 4 KPIs (`landing/app/(app)/dashboard/_kpis.ts`):
+tarefas roteadas · cobertura local · janela preservada (**estimado**, conta tarefas e nao
+tokens) · **ESR `n/d` com a razao**. O ESR exige tokens dos dois lados; medido: **0/156** eventos
+do ledger tem campos de tokens. **Tres testes que EXIGIAM a string removida foram invertidos,
+nao apagados** — um teste que pede a coisa removida e um roquete no sentido errado.
+Grep no build: **0** de `saved vs`. ADR grava D1–D6 com a refutacao do codex na integra e 7 `n/d`.
 
-**O que entrou.** Quatro KPIs em `landing/app/(app)/dashboard/_kpis.ts` (puro, testado):
-tarefas roteadas · cobertura local (fraccao T0 do proprio sync) · janela preservada
-(**estimado** — conta tarefas, nao tokens) · **ESR `n/d`, com a razao a vista**. O ESR exige
-tokens medidos dos dois lados; medido pelo adversario a 2026-09-10: **0 de 156** eventos do
-ledger tem campos de tokens estruturados. W4 e a onda que fecha isso.
+**W1 — o canal evaporava-se, e nada era verificado.** Uma premissa do kickoff estava **errada**:
+nao ha chave publica embutida em lado nenhum (procurado; o HMAC e simetrico e o Ed25519 e por
+device contra um registo no vault, que um cliente instalado nao tem). Correccao: chave de
+**release**, publica pregada no cliente, e **falha fechada** — como essa chave ainda nao existe
+(exige um segredo do dono), nao ha chave inventada no repo e o `update` **recusa-se a trocar o
+payload** (`sem-ancora`). Tres defeitos fechados: o canal so era IMPRESSO (`install.sh:101`) e
+perdia-se a cada update — passa a vir do `entitlement.json`, escrito so pela conta (D4), com o
+`profile.json` proibido; nao havia verificacao; nao havia volta — entram `cli.prev` e
+`--rollback` (B14). **28 testes novos**, incluindo rebaixamento de canal e «uma troca falhada
+nao deixa a maquina sem payload nenhum».
 
-**Tres testes que exigiam o numero de volta foram invertidos, nao apagados** (`parity.test.ts`
-Wave 9, `wave12-dashboard.test.ts` D7 x2): um teste que pede a coisa removida nao e guarda, e
-um roquete no sentido errado. Guardam agora a ausencia. Portoes: **232/232** no vitest do
-landing, `tsc --noEmit` limpo. O `next build` completa a compilacao e falha na recolha de
-paginas por faltarem `NEXT_PUBLIC_SUPABASE_*` nesta bancada — credencial que o executor nao tem;
-os chunks compilados existem e foi neles que o grep correu.
+**Aberto, nao corrigido:** `UserPromptSubmit · loader:1520` (`_handoff/onboarding-v2/DEFEITOS.md`
+W1-D1). Causa `n/d` — e do carregador do Claude Code. Descartado por medicao: sintaxe, excepcao,
+saida ≠0, hook duplicado.
 
-## 2026-09-09 · Pacote de provas v1 — as hipóteses do deck trocadas por medições
-
-`_handoff/provas-v1-2026-09-09/` (branch `claude/pacote-provas-v1-255558`, **por fundir e por empurrar**). Índice em `08-PACOTE.md`; cópia no vault `20-mooter/artifacts/`.
-
-**Ganhou por construção:** classificar custa 0 tokens e não registou destino externo (1 176 classificações); o routing por custo do LiteLLM escolheu o motor a $0 **0 de 40 vezes**; o protótipo do recibo faz 156/156 com custo, origem e tokens.
-
-**Perdeu, e está impresso:** precisão da regra em prompts reais **35 %** [22, 51] contra 52,5 % de um juíz local e 45 % de «T2 sempre»; obediência executada **0/20 nos dois braços**; recibo com custo e origem no ledger vivo **0/1 451**; com chave, o árbitro monta o pedido com o prompt inteiro (20/20); o hook custa 207 ms de mediana. Empate: crítico noutro motor 26/28 contra 27/28 do Opus, p = 1,0.
-
-**P7 (R-24, usar vs não usar) fechou à quarta corrida: `GANHOU`, 18 de 23 tarefas com trabalho aceite em ≤ 0,8× do tempo** (limiar pré-registado 16, p nominal 0,00531, 23/23 pares válidos). Os dois braços passaram o teste congelado em 23/23 — mexeu o tempo, não a qualidade observável (mediana 77 s contra 145 s). **O estatuto confirmatório não se reclama:** a regra de paragem foi quebrada (a 4.ª corrida arrancou depois de 3 não-resultados, com parciais favoráveis à vista), e isso está no próprio título do cartão. As quatro corridas ficam publicadas inteiras. As duas rondas finais de adversário deram **35 ataques, 5 fatais, todos aceites**; a tabela P8 perdeu as «vitórias por construção» por serem tautologias e deixou de se apresentar como cabeça-a-cabeça. **8 de 8 provas com veredicto e com adversário.**
-
-**15 defeitos apanhados** (`09-DEFEITOS-APANHADOS.md`). Dois que valem para além deste pacote: **D1**, o `applyBudgetCap` compara um objecto com números e manda tudo para T0 — inclusive HIGH-RISK — e o PR continua por fundir; **D12**, o `.gitignore` apanhava `*.log` e `*.jsonl` dentro de `results/` e **30 ficheiros de prova nunca entraram no git**, apesar de uma emenda escrita no dia anterior prometer «preservada e publicada, inteira». Uma promessa de preservação verifica-se contra o índice, não contra o disco.
-
-**Poluição declarada:** as corridas do P3 e do P5 escreveram no `decisions.log` **vivo** do dono (D6 — o hook não honra `MOOTER_DECISIONS_LOG`); as linhas ficam, identificáveis por `session_id` e janela horária.
+**Portoes:** `tools/router` 1109/1109 · `landing` 232/232 · `tsc` limpo · `classify.js` intacto.
 
 ## ⏳ PENDENTE — o que continua aberto
 
