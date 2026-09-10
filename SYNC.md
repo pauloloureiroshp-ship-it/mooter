@@ -80,7 +80,21 @@ nao deixa a maquina sem payload nenhum».
 W1-D1). Causa `n/d` — e do carregador do Claude Code. Descartado por medicao: sintaxe, excepcao,
 saida ≠0, hook duplicado.
 
-**Portoes:** `tools/router` 1109/1109 · `landing` 232/232 · `tsc` limpo · `classify.js` intacto.
+**W2 — launcher `.mcpb`, e o download que ia queimar o codigo do utilizador.** `packages/launcher/`
+(pacote NOVO, allowlist registada no `CLAUDE.md`): `index.js` com **200 linhas**, **zero
+dependencias**, e o `pack-mcpb.mjs` **recusa empacotar** um launcher que viole qualquer dos dois —
+o risco de um launcher nao e ter um bug, e deixar de ser um launcher. Bundle **reproduzivel**
+(mesmo sha256 em dois builds), provado contra o `unzip` do sistema. **ADR ganha a D3.1**: o
+`.mcpb` fica **sem token pre-preenchido** — o kickoff deixava a escolha em aberto e o adversario
+ja tinha dito «bundle copiavel = credencial copiavel»; um `.mcpb` aterra em `~/Downloads`
+sincronizado e e reenviado a colegas. Achado ao construir a rota: `/i/<token>.mcpb` **nao pode
+fazer `redeem`** — o codigo e de uso unico e o download consumia-o, deixando a pessoa com o
+ficheiro e sem codigo para colar; usa `peek_install_token`, que ja existia. **39 testes novos**
+(31 launcher + 7 rota + 1). **TTV: `n/d`** — exige conta de utilizador nova num Mac limpo
+(`DEFEITOS.md` W2-D1).
+
+**Portoes:** `tools/router` 1109/1109 · `landing` 239/239 · `launcher` 31/31 · `tsc` limpo ·
+`classify.js` intacto.
 
 ## ⏳ PENDENTE — o que continua aberto
 

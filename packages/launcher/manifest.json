@@ -1,0 +1,56 @@
+{
+  "manifest_version": "0.3",
+  "name": "mooter",
+  "display_name": "Mooter",
+  "version": "0.1.0",
+  "description": "Roteia cada pedido para o motor mais barato que o consegue fazer — a tua GPU primeiro, as tuas subscrições depois. Hook, não proxy: nunca intercepta o teu tráfego.",
+  "long_description": "Este bundle é um LAUNCHER, não o produto. São menos de 200 linhas cujo único trabalho é garantir que o payload do Mooter está instalado em ~/.mooter/cli e passar-lhe o stdio.\n\nPORQUÊ ASSIM. Um conector que traz o produto inteiro dentro do zip fica preso à versão do dia em que foi instalado, e actualizá-lo obriga a pessoa a descarregar outro bundle. Separando launcher e payload, o launcher quase nunca muda e o payload actualiza-se sozinho pelo canal do teu entitlement — com o manifesto assinado e verificado antes de qualquer troca, e com rollback se correr mal.\n\nPRIMEIRA VEZ. Se o payload ainda não existir, o primeiro pedido pergunta-te se pode prepará-lo. Nada é descarregado sem essa resposta.\n\nO QUE NÃO FAZ. Não tem lógica de produto nenhuma. Não lê os teus prompts. Não guarda credenciais: o código de bootstrap que colas no diálogo é de uso único e válido 24 h, e o `mooter init` troca-o por uma chave deste device, guardada com permissões 0600.",
+  "author": {
+    "name": "Paulo Loureiro"
+  },
+  "license": "MIT",
+  "homepage": "https://mooter.ai",
+  "documentation": "https://mooter.ai",
+  "keywords": [
+    "router",
+    "cost-optimization",
+    "ollama",
+    "local-first",
+    "model-routing"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/index.js"
+      ],
+      "env": {
+        "MOOTER_TOKEN": "${user_config.mooter_token}"
+      }
+    }
+  },
+  "user_config": {
+    "mooter_token": {
+      "type": "string",
+      "title": "Código de instalação",
+      "description": "Cola aqui o código de uso único que o mooter.ai te deu (válido 24 h). Deixa vazio para usar o Mooter em modo Free local, sem conta.",
+      "required": false,
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=20.0.0"
+    }
+  },
+  "privacy_policies": [
+    "https://mooter.ai/privacy"
+  ]
+}

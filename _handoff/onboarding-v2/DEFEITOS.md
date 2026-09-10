@@ -112,3 +112,37 @@ teve o azar de lhe passar ao lado.
 4. Considerar tirar o filtro de caminhos do `security.yml`, ou correr o audit também
    em `push: main`. Sem isso, o próximo a tocar em `tools/router/` volta a herdar
    um vermelho que não é dele.
+
+---
+
+## W2-D1 · TTV por cronometrar — `n/d`, e porquê (aberto)
+
+**Estado:** **`n/d`**. Não é um esquecimento; é uma medição que este executor não pode fazer.
+
+O DoD nº 1 do kickoff pede: «Mac limpo → `.mcpb` → 1.º recibo, sem terminal, **TTV
+cronometrado**». O teste exige uma **conta de utilizador nova** num Mac limpo, um duplo
+clique no Finder e o Claude Desktop a instalar o bundle. Nada disso é acessível a partir
+daqui: criar uma conta de utilizador no macOS é uma acção administrativa, e não há como
+cronometrar um duplo clique que não acontece.
+
+**O que ficou provado, e que não é a mesma coisa:**
+
+| Provado | Como |
+|---|---|
+| O bundle constrói | `node pack-mcpb.mjs` → 2 ficheiros, 9 713 bytes |
+| O bundle é **reproduzível** | dois empacotamentos dão o mesmo sha256 |
+| O bundle abre num descompactador que não é o nosso | `unzip -l` do sistema |
+| O manifesto dentro do zip é byte-a-byte o do disco | extraído e comparado |
+| O launcher delega com `stdio: 'inherit'` | teste com `spawn` injectado |
+| B1 e B2 dizem o que o mapa manda | 8 testes |
+
+**O que continua por provar:** que o Claude Desktop **aceita** este manifesto, que o
+diálogo de `user_config` aparece como se espera, e quanto tempo tudo isso demora. Um
+`manifest_version` que o host recuse é exactamente o tipo de coisa que nenhum teste local
+apanha.
+
+**Para fechar** (dono, ≤10 min): conta de utilizador nova no Mac mini → duplo clique no
+`.mcpb` → cronometrar até ao 1.º recibo → escrever o número, o que for.
+
+**Regra que se aplica aqui:** R10. Um TTV inventado seria pior do que `n/d`, porque
+`n/d` diz a verdade e um número inventado entra em copy.

@@ -148,6 +148,21 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   `decide-agent.test.ts` (25/25, sem regressão). **Nota honesta:** isto liga o caminho,
   não acende o ciclo — o R-17 do roadmap só fecha com 1 caller real, 1 corrida agendada e
   1 actualização de peso registada no ledger.
+  **2026-09-10 · onboarding v2 W2 · `packages/launcher/`** allowlists a criação de um
+  **pacote novo** (`manifest.json`, `index.js`, `package.json`, `pack-mcpb.mjs`,
+  `launcher.test.js`, `pack.test.mjs`) — zero linhas alteradas em qualquer pacote
+  existente. Autorizado pelo dono no kickoff `_handoff/onboarding-v2/KICKOFF-ONBOARDING-V2-MAGIA.md`
+  § W2, que nomeia o caminho: «`packages/launcher/`: `manifest.json` … `index.js` ≤ 200 linhas».
+  Fica registado porque a regra o exige mesmo para adições: o congelamento é
+  **documentário**, e uma edição não registada é indistinguível de uma violação —
+  precedente exacto, a onda 58 (`packages/router/src/`, só ficheiros novos) e as
+  4 linhas de `fleet-ui.html` a 2026-08-28, apanhadas por commitarem sem entrada.
+  O launcher tem **zero dependências** e um tecto de **200 linhas**, os dois
+  guardados por teste e pelo `pack-mcpb.mjs`, que **recusa empacotar** um launcher
+  que os viole — porque o risco real de um launcher não é ter um bug, é deixar de
+  ser um launcher: tudo o que ele souber fazer sozinho é uma coisa que deixa de se
+  poder actualizar pelo canal.
+
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)
