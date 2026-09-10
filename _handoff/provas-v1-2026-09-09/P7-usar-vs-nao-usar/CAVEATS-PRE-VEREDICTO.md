@@ -34,3 +34,13 @@ Generalização a outro repositório, outra máquina ou outro modelo. Qualidade 
 ## O número parcial que existe neste momento, e que não é o resultado
 
 Com 11 dos 23 pares fechados, o leitor independente imprime `X = 10 · pares válidos 11 · p = 0,798 · INCOMPLETA (pares válidos < n)` e **recusa-se a dar veredicto**, que é o comportamento certo. Fica escrito aqui pelo mesmo motivo que o número da corrida 1 ficou escrito na `AMENDMENT-1.md`: existe, qualquer pessoa o recalcula do ledger, e esconder um número que existe é pior do que o problema que resolve. **O limiar 16 foi calculado para 23 pares. 10 em 11 não é o mesmo teste, e aceitá-lo seria exactamente a «correcção honesta» que o pré-registo bloqueia por escrito.**
+
+---
+
+## Correcção escrita depois do veredicto: um destes avisos estava errado
+
+Este ficheiro foi escrito com a corrida 3 a meio e diz, na secção «o que o tratamento é», que **o hint disse T0 em todos os braços ON**. Era verdade nos 13 pares da corrida 3. **Não é verdade na corrida 4**, que é a que conta: `hint_tier` foi **T0 em 20 tarefas e T2 em 3** (`t21`, `t22`, `t23`).
+
+A conclusão que eu tirava daí — «isto mede o hook a recomendar T0, não o router a escolher tier» — fica **mais fraca e mais interessante**: em 3 das 23 tarefas o router escolheu mesmo um tier acima, e são exactamente as 3 em que o Mooter **não ganhou** (Z = 0 nas três). Ver o veredicto.
+
+Deixo o erro à vista em vez de o editar para trás. Um aviso pré-escrito só vale se se aceitar que os dados o podem desmentir, e este desmentiu.
