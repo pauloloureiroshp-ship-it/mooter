@@ -1,3 +1,27 @@
+/**
+ * mooter init — o device apresenta-se, em vez de o utilizador o descrever.
+ *
+ * O QUE ISTO ERA, ate 2026-09-10: **onze perguntas** seguidas — «tens Claude
+ * Max?», «tens uma OPENAI_API_KEY?», «tens um plano Pro do Claude Code?»,
+ * «usas o Cursor?», «tens Copilot?». Tres problemas, e nenhum era de estilo:
+ *
+ *  1. A pessoa pode nao saber. «Tens um plano Pro do Claude Code?» e uma
+ *     pergunta de faturacao, nao de configuracao.
+ *  2. A pessoa pode enganar-se — e um perfil errado roteia mal para sempre,
+ *     em silencio, sem nada que o denuncie.
+ *  3. Onze prompts sao onze oportunidades de desistir antes do 1.º recibo.
+ *
+ * O QUE E AGORA: um **probe** (`../lib/probe.js`) que mede GPU, RAM, Ollama e
+ * as CLIs presentes, imprime a tabela do ecra 4 do canvas, e faz **uma** pergunta
+ * que nao se consegue medir (Claude Max — nao ha sinal nenhum dele no ambiente,
+ * e a R6 proibe ir espreitar sessoes) mais **uma** de preferencia (a rota).
+ *
+ * A FORMA do `subscription-profile.json` NAO muda: dez ficheiros a leem. O que
+ * muda e de onde vem cada valor — ver `../lib/perfil.js`.
+ */
+
+'use strict';
+
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -5,6 +29,12 @@ const readline = require('readline');
 const crypto = require('crypto');
 const { color, say, ok, warn, info } = require('../lib/ui');
 const { paths, which } = require('../lib/paths');
+
+const probe = require('../lib/probe.js');
+const perfilLib = require('../lib/perfil.js');
+const rota = require('../lib/rota.js');
+const enrolment = require('../lib/enrolment.js');
+const conectores = require('../lib/conectores.js');
 
 function prompt(q, def = 'n') {
   return new Promise((resolve) => {
@@ -19,174 +49,140 @@ function prompt(q, def = 'n') {
   });
 }
 
+/** Escolha entre opcoes numeradas. Enter aceita a primeira. */
+function escolher(titulo, opcoes) {
+  return new Promise((resolve) => {
+    console.log('');
+    say(titulo);
+    opcoes.forEach((o, i) => {
+      console.log(`    ${color.bold ? color.bold(`[${i + 1}]`) : `[${i + 1}]`} ${o.titulo}`);
+      console.log(`        ${color.dim(o.descricao)}`);
+    });
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question('  Escolhe [1]: ', (ans) => {
+      rl.close();
+      const n = parseInt((ans || '').trim(), 10);
+      resolve(opcoes[Number.isFinite(n) && n >= 1 && n <= opcoes.length ? n - 1 : 0]);
+    });
+  });
+}
+
 async function run() {
   console.log('');
-  console.log(`  ${color.magenta('mooter init')} ${color.dim('— first-run setup wizard')}`);
+  console.log(`  ${color.magenta('mooter init')} ${color.dim('— o teu device apresenta-se')}`);
   console.log('');
 
   if (!fs.existsSync(paths.mooter)) fs.mkdirSync(paths.mooter, { recursive: true });
-
   if (!fs.existsSync(paths.deviceId)) {
     fs.writeFileSync(paths.deviceId, crypto.randomUUID() + '\n');
-    ok('Device ID generated');
-  } else {
-    ok('Device ID already set');
   }
+  const deviceId = fs.readFileSync(paths.deviceId, 'utf8').trim();
 
+  // ── 1. O probe ──────────────────────────────────────────────────────────
+  say('A olhar para esta maquina…');
+  const retrato = await probe.retrato();
+  console.log('');
+  for (const linha of probe.tabela(retrato)) console.log(`    ${linha}`);
+  console.log('');
+
+  // ── 2. O perfil: uma pergunta, e so porque muda a rota ──────────────────
   const subFile = path.join(paths.router, 'subscription-profile.json');
   if (!fs.existsSync(subFile)) {
-    say("Let's configure your subscription profile.");
-
-    // 2026-05-05 (deepdive #38 follow-up): probe env for API keys before
-    // asking. If the user has already exported a key, default the answer
-    // to 'y' so they can just press Enter — and surface the detection so
-    // they understand why. Claude Max has no env signal, stays a question.
-    const detectedAnthropic = !!process.env.ANTHROPIC_API_KEY;
-    const detectedOpenAI    = !!process.env.OPENAI_API_KEY;
-    const detectedGemini    = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
-
-    const detectedSummary = [
-      detectedAnthropic && 'ANTHROPIC_API_KEY',
-      detectedOpenAI    && 'OPENAI_API_KEY',
-      detectedGemini    && (process.env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : 'GOOGLE_API_KEY'),
-    ].filter(Boolean);
-    if (detectedSummary.length) {
-      info(`Detected in environment: ${detectedSummary.join(', ')} — pre-filled below.`);
-    }
-
-    const hasMax    = await prompt('Do you have Claude Max (unlimited Opus)?');
-    const hasApi    = hasMax ? false : await prompt(
-      detectedAnthropic
-        ? 'Anthropic API key detected — confirm pay-per-token plan?'
-        : 'Do you have an Anthropic API key (pay-per-token)?',
-      detectedAnthropic ? 'y' : 'n',
-    );
-
-    // Claude Code subscription tier (separate product from API key).
-    // Max users: implicitly bundled. Others: explicit.
-    let claudeCodeTier = 'none';
-    if (hasMax) {
-      claudeCodeTier = 'max';
-    } else if (hasApi) {
-      const ccPro = await prompt('Do you have a Claude Code Pro plan (claude.ai/code)?');
-      claudeCodeTier = ccPro ? 'pro' : 'api-paid';
-    } else {
-      const ccProOnly = await prompt('Do you have a Claude Code Pro plan (without separate API key)?');
-      if (ccProOnly) claudeCodeTier = 'pro';
-    }
-
-    const hasOpenAI = await prompt(
-      detectedOpenAI
-        ? 'OpenAI API key detected — confirm?'
-        : 'Do you have an OpenAI API key?',
-      detectedOpenAI ? 'y' : 'n',
-    );
-
-    // ChatGPT Plus / Pro is a distinct product from OpenAI API access.
-    // Many users have one but not the other; routing benefits from knowing both.
-    const hasOpenAIPlus = await prompt(
-      'Do you have a ChatGPT Plus or Pro subscription (chat.openai.com)?',
-    );
-
-    const hasGemini = await prompt(
-      detectedGemini
-        ? 'Gemini / Google API key detected — confirm?'
-        : 'Do you have Gemini API access?',
-      detectedGemini ? 'y' : 'n',
-    );
-
-    // Other premium AI subscriptions the router can leverage for cost optimisation.
-    const hasCursor   = await prompt('Do you use Cursor IDE with a Pro subscription (cursor.com)?');
-    const hasCopilot  = await prompt('Do you have GitHub Copilot (Individual / Business)?');
-
-    const profile = {
-      updated_at: new Date().toISOString(),
-      profiles: {
-        anthropic: hasMax ? 'max' : hasApi ? 'api-paid' : 'none',
-        claude_code: claudeCodeTier,
-        openai: hasOpenAI ? 'api-paid' : 'none',
-        openai_plus: hasOpenAIPlus,
-        gemini: hasGemini ? 'api-paid' : 'none',
-        cursor: hasCursor ? 'pro' : 'none',
-        github: hasCopilot ? 'copilot' : 'none',
-      },
-      budget_strategy: 'auto',
-      detection: {
-        anthropic_env: detectedAnthropic,
-        openai_env:    detectedOpenAI,
-        gemini_env:    detectedGemini,
-      },
-      notes: 'Configured via mooter init',
-    };
+    info('Nao consigo medir planos de subscricao sem espreitar sessoes — e nao o faco.');
+    const claudeMax = await prompt('Tens Claude Max (Opus sem tecto)?');
+    const perfil = perfilLib.construir(retrato, { claude_max: claudeMax });
     fs.mkdirSync(paths.router, { recursive: true });
-    fs.writeFileSync(subFile, JSON.stringify(profile, null, 2));
-    ok(`Subscription profile saved (anthropic: ${profile.profiles.anthropic})`);
+    fs.writeFileSync(subFile, JSON.stringify(perfil, null, 2));
+    ok(`Perfil guardado (anthropic: ${perfil.profiles.anthropic})`);
   } else {
-    ok('Subscription profile already configured');
+    ok('Perfil de subscricao ja configurado');
   }
 
-  const ollamaBin = which('ollama');
-  if (!ollamaBin) {
-    console.log('');
-    warn('Ollama not installed. T0 tier (local, free) will be disabled.');
-    console.log('');
-    console.log('  Options:');
-    console.log(`    [1] I'll install Ollama now: ${color.bold('https://ollama.com/download')}`);
-    console.log(`    [2] Skip — continue cloud-only (T1+ still works)`);
-    console.log('');
-    info('After installing Ollama, run: mooter doctor');
+  // ── 3. Enrolment: o codigo de uso unico morre, nasce a chave do device ──
+  if (enrolment.ligado()) {
+    ok('Este device ja esta ligado a tua conta');
   } else {
-    say('Ollama detected. Checking required models...');
-    let list = '';
-    try {
-      list = execSync('ollama list').toString();
-    } catch {
-      warn('Ollama installed but daemon not running. Start the Ollama app or: ollama serve');
+    const codigo = process.env.MOOTER_TOKEN || null;
+    const r = await enrolment.enrolar(codigo, { deviceId });
+    // Nunca `fail`: falhar aqui NAO impede o Mooter de funcionar. A regra do
+    // mapa e' «nenhum estado bloqueia o router — degrada, avisa, nunca para».
+    if (r.ok) ok(r.porque);
+    else info(r.porque);
+  }
+
+  // ── 4. Conectores ───────────────────────────────────────────────────────
+  const alvo = path.join(paths.mooter, 'cli', 'mooter.js');
+  const reg = conectores.registarTudo({ comando: process.execPath, args: [alvo] });
+  for (const [onde, r] of Object.entries(reg)) {
+    if (r.ok && r.codigo === 'cli-ausente') info(`${onde}: ${r.porque}`);
+    else if (r.ok) ok(r.porque);
+    else warn(`${onde}: ${r.porque}`);
+    if (r.backup) info(`  copia de seguranca: ${r.backup}`);
+    if (r.comando_para_depois) info(`  quando quiseres: ${r.comando_para_depois}`);
+  }
+
+  // ── 5. Motor local — modelo pequeno PRIMEIRO (D5) ───────────────────────
+  if (!retrato.ollama.presente) {
+    console.log('');
+    warn(`Motor local ausente — ${retrato.ollama.porque}. O tier T0 (gratis) fica desligado.`);
+    if (which('ollama')) {
+      info('O `ollama` esta instalado mas nao esta a atender. Arranca a app, ou: ollama serve');
+    } else {
+      console.log('    Instalar: https://ollama.com/download');
+      info('Depois de instalares, corre: mooter doctor');
     }
-    if (list) {
-      const needsTerse = !/qwen2\.5:3b/.test(list);
-      const needsEmbed = !/nomic-embed-text/.test(list);
-      if (needsTerse) {
-        say('Pulling qwen2.5:3b (~1.9 GB) in the foreground...');
-        try {
-          execSync('ollama pull qwen2.5:3b', { stdio: 'inherit' });
-          ok('qwen2.5:3b ready');
-        } catch {
-          warn('Pull failed — you can retry later: ollama pull qwen2.5:3b');
-        }
-      } else {
-        ok('qwen2.5:3b already pulled');
+  } else {
+    const tem = (re) => retrato.ollama.modelos.some((m) => re.test(m));
+    // D5 — o pequeno em primeiro plano: e ele que faz o 1.º recibo existir
+    // depressa. O resto vai atras e a sua ausencia nunca impede nada.
+    if (!tem(/qwen2\.5:3b/)) {
+      say('A puxar o modelo pequeno (qwen2.5:3b, ~1,9 GB) — e este que faz o teu 1.º recibo…');
+      try {
+        execSync('ollama pull qwen2.5:3b', { stdio: 'inherit' });
+        ok('qwen2.5:3b pronto');
+      } catch {
+        warn('Falhou — podes tentar depois: ollama pull qwen2.5:3b');
       }
-      if (needsEmbed) {
-        say('Pulling nomic-embed-text (~274 MB) for KNN similarity...');
-        try {
-          execSync('ollama pull nomic-embed-text', { stdio: 'inherit' });
-          ok('nomic-embed-text ready');
-        } catch {
-          warn('nomic-embed-text pull failed — KNN will fall back');
-        }
-      } else {
-        ok('nomic-embed-text already pulled');
+    } else {
+      ok('qwen2.5:3b ja esta ca');
+    }
+    if (!tem(/nomic-embed-text/)) {
+      say('A puxar nomic-embed-text (~274 MB) para a similaridade KNN…');
+      try {
+        execSync('ollama pull nomic-embed-text', { stdio: 'inherit' });
+        ok('nomic-embed-text pronto');
+      } catch {
+        warn('nomic-embed-text falhou — o KNN degrada, nao para');
       }
     }
   }
 
-  // Generate the /mooter-<model> pin slash commands from detected subscriptions.
+  // ── 6. A rota: a pergunta unica ─────────────────────────────────────────
+  if (rota.ler().fonte === 'omissao') {
+    const opcoes = Object.entries(rota.POLITICAS).map(([k, v]) => Object.assign({ chave: k }, v));
+    const escolha = await escolher('Como queres que o Mooter reparta o trabalho?', opcoes);
+    const r = rota.escrever(escolha.chave);
+    if (r.ok) ok(`Rota: ${escolha.titulo}. Mudar depois: \`mooter route\``);
+  } else {
+    ok(`Rota ja definida: ${rota.ler().titulo}`);
+  }
+
+  // ── 7. As skills de pin ─────────────────────────────────────────────────
   try {
     const { generateMooterSkills } = require('../lib/generate-mooter-skills');
     const { written, skipped } = generateMooterSkills({ dryRun: false });
     const total = written.length + skipped.length;
-    if (total > 0) ok(`Generated ${total} /mooter-<model> pin skill${total === 1 ? '' : 's'}`);
+    if (total > 0) ok(`${total} skill(s) /mooter-<modelo> geradas`);
   } catch (e) {
-    warn(`Could not generate mooter pin skills: ${e.message}`);
+    warn(`Nao consegui gerar as skills de pin: ${e.message}`);
   }
 
   console.log('');
-  ok('mooter init complete.');
+  ok('mooter init completo.');
   console.log('');
-  console.log('  Next steps:');
-  console.log(`    1. ${color.bold('mooter doctor')}   ${color.dim('— verify everything')}`);
-  console.log(`    2. ${color.bold('mooter')}           ${color.dim('— launch Claude Code with routing')}`);
+  console.log('  A seguir:');
+  console.log('    1. mooter doctor   — verificar tudo');
+  console.log('    2. mooter          — lancar o Claude Code com routing');
   console.log('');
 }
 

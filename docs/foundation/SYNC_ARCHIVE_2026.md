@@ -9619,3 +9619,79 @@ de prompts reais e longos — precisa de rótulos humanos · a obediência a 0%
 **15 defeitos apanhados** (`09-DEFEITOS-APANHADOS.md`). Dois que valem para além deste pacote: **D1**, o `applyBudgetCap` compara um objecto com números e manda tudo para T0 — inclusive HIGH-RISK — e o PR continua por fundir; **D12**, o `.gitignore` apanhava `*.log` e `*.jsonl` dentro de `results/` e **30 ficheiros de prova nunca entraram no git**, apesar de uma emenda escrita no dia anterior prometer «preservada e publicada, inteira». Uma promessa de preservação verifica-se contra o índice, não contra o disco.
 
 **Poluição declarada:** as corridas do P3 e do P5 escreveram no `decisions.log` **vivo** do dono (D6 — o hook não honra `MOOTER_DECISIONS_LOG`); as linhas ficam, identificáveis por `session_id` e janela horária.
+
+---
+
+## Rolado de `SYNC.md` a 2026-09-10 (onda onboarding v2 · W3)
+
+> As entradas de W0, W1, W2 e W3, na integra. Sairam do `SYNC.md` para ele voltar a caber
+> no tecto de 200 linhas (AGENTS.md § Information architecture), e o snapshot ficou com um
+> resumo de quatro linhas mais os ponteiros. Movido, nunca apagado.
+
+## 2026-09-10 · Onboarding v2 — W0 e W1 (branches `feat/onboarding-v2-w0` e `-w1`)
+
+PR **#491** aberto (W0). W1 por empurrar. Detalhe: `docs/adr/ADR-onboarding-v2.md`,
+`_handoff/onboarding-v2/`, vault `10-projects/2026-09-10-mac-onboarding-v2-*`.
+
+**W0 — o `/dashboard` deixa de publicar poupanca.** Nao era uma superficie: eram **seis**, as
+seis derivadas do mesmo preco de tabela que ninguem pagou (`decisoes x $0,015` ou `x $0,045`) —
+calculadora com sliders, heroi, cartao de profundidade, cifra por device, cifra por dia, e uma
+coluna «Savings» com adjectivos. Entram 4 KPIs (`landing/app/(app)/dashboard/_kpis.ts`):
+tarefas roteadas · cobertura local · janela preservada (**estimado**, conta tarefas e nao
+tokens) · **ESR `n/d` com a razao**. O ESR exige tokens dos dois lados; medido: **0/156** eventos
+do ledger tem campos de tokens. **Tres testes que EXIGIAM a string removida foram invertidos,
+nao apagados** — um teste que pede a coisa removida e um roquete no sentido errado.
+Grep no build: **0** de `saved vs`. ADR grava D1–D6 com a refutacao do codex na integra e 7 `n/d`.
+
+**W1 — o canal evaporava-se, e nada era verificado.** Uma premissa do kickoff estava **errada**:
+nao ha chave publica embutida em lado nenhum (procurado; o HMAC e simetrico e o Ed25519 e por
+device contra um registo no vault, que um cliente instalado nao tem). Correccao: chave de
+**release**, publica pregada no cliente, e **falha fechada** — como essa chave ainda nao existe
+(exige um segredo do dono), nao ha chave inventada no repo e o `update` **recusa-se a trocar o
+payload** (`sem-ancora`). Tres defeitos fechados: o canal so era IMPRESSO (`install.sh:101`) e
+perdia-se a cada update — passa a vir do `entitlement.json`, escrito so pela conta (D4), com o
+`profile.json` proibido; nao havia verificacao; nao havia volta — entram `cli.prev` e
+`--rollback` (B14). **28 testes novos**, incluindo rebaixamento de canal e «uma troca falhada
+nao deixa a maquina sem payload nenhum».
+
+**Aberto, nao corrigido:** `UserPromptSubmit · loader:1520` (`_handoff/onboarding-v2/DEFEITOS.md`
+W1-D1). Causa `n/d` — e do carregador do Claude Code. Descartado por medicao: sintaxe, excepcao,
+saida ≠0, hook duplicado.
+
+**W2 — launcher `.mcpb`, e o download que ia queimar o codigo do utilizador.** `packages/launcher/`
+(pacote NOVO, allowlist registada no `CLAUDE.md`): `index.js` com **200 linhas**, **zero
+dependencias**, e o `pack-mcpb.mjs` **recusa empacotar** um launcher que viole qualquer dos dois —
+o risco de um launcher nao e ter um bug, e deixar de ser um launcher. Bundle **reproduzivel**
+(mesmo sha256 em dois builds), provado contra o `unzip` do sistema. **ADR ganha a D3.1**: o
+`.mcpb` fica **sem token pre-preenchido** — o kickoff deixava a escolha em aberto e o adversario
+ja tinha dito «bundle copiavel = credencial copiavel»; um `.mcpb` aterra em `~/Downloads`
+sincronizado e e reenviado a colegas. Achado ao construir a rota: `/i/<token>.mcpb` **nao pode
+fazer `redeem`** — o codigo e de uso unico e o download consumia-o, deixando a pessoa com o
+ficheiro e sem codigo para colar; usa `peek_install_token`, que ja existia. **39 testes novos**
+(31 launcher + 7 rota + 1). **TTV: `n/d`** — exige conta de utilizador nova num Mac limpo
+(`DEFEITOS.md` W2-D1).
+
+**W3 — o `init` deixa de fazer onze perguntas, e a suite deixa de mentir.** O `init` perguntava
+**onze** coisas de faturacao («tens Claude Max?», «usas o Cursor?»): a pessoa pode nao saber, pode
+enganar-se — e um perfil errado roteia mal para sempre, em silencio. Passa a haver um **probe**
+(`tools/cli/lib/probe.js`) que mede GPU, RAM, Ollama e CLIs, e **duas** perguntas: a que nao se
+consegue medir (Claude Max, sem sinal no ambiente e a R6 proibe espreitar sessoes) e a rota.
+Medido nesta maquina: `Apple M4 Pro · 15,8 GB · RAM 24 GB · Ollama 6 modelos · claude 2.1.267 ·
+codex 0.149.1 · gemini 0.57.0 · kimi 0.38.0`. A **forma** do `subscription-profile.json` nao muda —
+dez ficheiros a leem; muda de onde vem cada valor, e uma CLI instalada fica `n/d` em vez de virar
+uma subscricao inventada. Mais: enrolment que troca o codigo de uso unico por **chave de device**
+(0600, privada nunca sai, chave nunca impressa), registo de conectores **com backup verificado**
+(um JSON ilegivel NAO e reescrito), e a rota unica em `route.json` — **politica sobre as classes
+que o classificador ja produz**, sem lhe tocar.
+
+**ACHADO GRAVE, pre-existente:** `--test-force-exit` no script `test` do `tools/router` **mata os
+testes assincronos** e a suite sai VERDE. Medido: **com** a flag 1110 testes / 0 falhas; **sem**
+ela **1316 testes / 6 falhas**. **206 testes nunca correm.** Uma das 6 falhas era minha e foi
+apanhada por uma guarda que a flag teria escondido (o `probe.js` normalizava `OLLAMA_HOST` a mao
+em vez de usar `ollamaHostFromEnv()`) — corrigida. As outras 5 sao `listen EPERM` da sandbox
+desta bancada e precisam de reconfirmacao fora dela. Mitigado com `npm run test:onboarding-v2`
+(sem a flag, passo proprio no CI): sem isso, 78 casos desta onda passavam a 29. A causa **nao**
+foi tocada — tirar a flag as cegas pode pendurar o CI inteiro (`DEFEITOS.md` W3-D1).
+
+**Portoes:** `landing` 246/246 · `launcher` 31/31 · `test:onboarding-v2` **78/78** · `tsc` limpo ·
+`classify.js` e `patterns.js` intactos.
