@@ -8,7 +8,8 @@
 //   mooter doctor          health check
 //   mooter init            first-run wizard (subscription + Ollama)
 //   mooter dashboard       live routing dashboard
-//   mooter update          re-run the installer
+//   mooter update          update the payload on the entitlement channel
+//                          (--check to only report; --rollback to go back)
 //   mooter uninstall       clean removal
 //   mooter --version       print version
 //   mooter --help          help text
@@ -34,7 +35,7 @@ const commands = {
   init: () => require('./commands/init').run(),
   dashboard: () => require('./commands/dashboard').run(),
   recibo: () => require('./commands/recibo').run(args.slice(1)),
-  update: () => require('./commands/update').run(),
+  update: () => require('./commands/update').run(args.slice(1)),
   uninstall: () => require('./commands/uninstall').run(args.slice(1)),
 };
 
