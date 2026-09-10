@@ -11,9 +11,14 @@ describe('dashboard prod-parity (Wave 9)', () => {
     expect(matches, `found PT characters: ${matches.join('')}`).toHaveLength(0);
   });
 
-  it('stats label is honest: "% saved vs all-Opus" matches the % value, not "Routed away from Opus"', () => {
-    // The value rendered here is `{savingsPct}%`, so the label must read % (not $).
-    expect(src).toContain('% saved vs all-Opus');
+  // Onboarding v2 W0 (2026-09-10) supersedes the Wave 9 assertion that used to
+  // live here. Wave 9 asked "does the label match the value?" and the answer was
+  // yes - but both halves came from a MODELLED all-Opus cost. The owner decision
+  // of 2026-08-24, restated in docs/adr/ADR-onboarding-v2.md, removes the metric
+  // itself. The honest successor is `kpis.test.ts`, which greps this same source
+  // for the banned strings and pins the four KPIs that replaced them.
+  it('the hero no longer claims a percentage against all-Opus', () => {
+    expect(src).not.toContain('saved vs all-Opus');
     expect(src).not.toContain('Routed away from Opus');
   });
 

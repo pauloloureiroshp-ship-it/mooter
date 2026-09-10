@@ -1,6 +1,8 @@
 'use client';
 
-import { Modelado, ModeladoNota, MODELADO_PORQUE } from '../_modelado';
+// Onboarding v2 W0 - `Modelado` / `ModeladoNota` marked the modelled dollar
+// figures. Those figures are gone, so only the reason string is still needed.
+import { MODELADO_PORQUE } from '../_modelado';
 import { useEffect, useState } from 'react';
 // Wave 4 Phase C — new dashboard cards (extend, not replace).
 import { CliStatusCard, ActivityNote, CliSettingsLink, DashboardFooterNote, PHASE_C } from './_phase_c';
@@ -8,6 +10,8 @@ import DataSourceBadge from '../../_components/DataSourceBadge';
 import { VersionBadge } from '../../_components/VersionBadge';
 import { formatGpuLabel } from '../../onboarding/_lib/hardware';
 import { heroDataSource, installedOllamaModels, isModelInstalled } from './_state';
+// Onboarding v2 W0 - the four honest KPIs that replaced the savings surfaces.
+import { computeKpis, NO_SAVINGS_ANSWER } from './_kpis';
 import { personaOption, personaPackHint } from '../../onboarding/_lib/persona';
 // Wave 58 batch 4 (A.13) — admin-only specialization-matrix panel.
 import { MatrixPanel } from './_matrix_panel';
@@ -237,10 +241,11 @@ function DevicesTab({ profile }: { profile: Profile }) {
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: '0.85rem', color: 'var(--text)' }}>
-              {(d.decisions_count || 0).toLocaleString()} prompts ·{' '}
-              <span style={{ color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>
-                ${Number(d.savings_usd || 0).toFixed(2)}<Modelado />
-              </span>
+              {/* Onboarding v2 W0 - this used to print $savings_usd per device.
+                  The hub still stores the field; it is modelled on both sides
+                  (decisions x a list price nobody paid), so we stop rendering it
+                  and print the count that IS measured. */}
+              {(d.decisions_count || 0).toLocaleString()} prompts
             </div>
             <div style={{ color: 'var(--muted)', fontSize: '0.72rem', marginTop: 2 }}>
               {d.last_sync_at ? timeAgo(d.last_sync_at) : 'never'}
@@ -353,7 +358,7 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
         '  win32 \u00b7 x64 \u00b7 Node v24',
         '  \u2713 Core Files         10/10',
         '  \u2713 Hook               active',
-        '  \u2713 Savings %          \u2014',
+        '  \u2713 Local coverage     \u2014',
         '  \u2713 profile updated',
       ],
     },
@@ -430,112 +435,14 @@ function SetupGuideTab({ profile }: { profile: Profile }) {
   );
 }
 
-// ── Savings Calculator ───────────────────────────────────────────────────
-function SavingsCalculatorCard() {
-  const [promptsPerDay, setPromptsPerDay] = useState(50);
-  const [avgTokens, setAvgTokens] = useState(2000);
-
-  const opusPricePerToken = 0.000015;
-  const withoutFrugal = promptsPerDay * avgTokens * opusPricePerToken;
-  const savingsRate = 0.7;
-  const withFrugal = withoutFrugal * (1 - savingsRate);
-  const monthlySaving = (withoutFrugal - withFrugal) * 30;
-
-  const sliderStyle: React.CSSProperties = {
-    width: '100%',
-    accentColor: 'var(--accent)',
-    background: 'transparent',
-    cursor: 'pointer',
-  };
-
-  return (
-    <div style={card}>
-      <h2 style={sectionHeading}>Savings calculator</h2>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{
-            fontSize: '0.72rem', color: 'var(--muted)',
-            textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600,
-          }}>
-            Prompts/day
-          </span>
-          <span style={{
-            fontSize: '0.9rem', fontWeight: 700,
-            fontFamily: 'var(--mono)', color: 'var(--text)',
-          }}>
-            {promptsPerDay}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={5}
-          max={200}
-          value={promptsPerDay}
-          onChange={e => setPromptsPerDay(Number(e.target.value))}
-          style={sliderStyle}
-        />
-      </div>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{
-            fontSize: '0.72rem', color: 'var(--muted)',
-            textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600,
-          }}>
-            Avg tokens
-          </span>
-          <span style={{
-            fontSize: '0.9rem', fontWeight: 700,
-            fontFamily: 'var(--mono)', color: 'var(--text)',
-          }}>
-            {avgTokens}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={500}
-          max={8000}
-          step={500}
-          value={avgTokens}
-          onChange={e => setAvgTokens(Number(e.target.value))}
-          style={sliderStyle}
-        />
-      </div>
-      <div style={{
-        background: 'var(--surface)',
-        borderRadius: 'var(--r-sm)',
-        padding: 14,
-        border: '1px solid var(--border)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Without mooter</span>
-          <span style={{ fontSize: '0.9rem', fontFamily: 'var(--mono)', color: 'var(--text)' }}>
-            ~${withoutFrugal.toFixed(2)}/day
-          </span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>With mooter</span>
-          <span style={{ fontSize: '0.9rem', color: 'var(--tier-0)', fontFamily: 'var(--mono)' }}>
-            ~${withFrugal.toFixed(2)}/day
-          </span>
-        </div>
-        <div style={{
-          borderTop: '1px solid var(--border)', paddingTop: 8,
-          display: 'flex', justifyContent: 'space-between',
-        }}>
-          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>
-            Monthly saving
-          </span>
-          <span style={{
-            fontWeight: 800, fontSize: '1.15rem',
-            color: 'var(--tier-0)', fontFamily: 'var(--mono)',
-          }}>
-            ~${monthlySaving.toFixed(0)}/mo
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ── Savings Calculator: REMOVED (onboarding v2 W0) ─────────────────
+// It multiplied three literals nobody measured - 50 prompts/day, 2000
+// tokens, a flat 0.7 savings rate - and printed a monthly dollar figure.
+// A slider makes an invention feel personal. Owner decision 2026-08-24,
+// restated in docs/adr/ADR-onboarding-v2.md (R2): no savings number ships
+// without >= 20 tasks with tokens measured on BOTH sides. Measured
+// 2026-09-10: 0 of 156 ledger events carry structured token fields.
+// What replaced it: the four KPIs in ./_kpis.ts.
 
 // ── Recommended Mode ─────────────────────────────────────────────────────
 type RecommendedMode = {
@@ -621,10 +528,14 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
 
   const rec = calcRecommendedMode(profile);
 
+  // Onboarding v2 W0 - the table had a fourth column, "Savings",
+  // reading None / High / Maximum. Nothing measured those words; they were a
+  // savings claim wearing an adjective. "Cost" already carries the relative
+  // ordering, and it is the one column derived from the tier the mode uses.
   const modeCompare = [
-    { mode: 'beast', label: 'Beast', desc: 'T3 Opus always', cost: 'Highest', savings: 'None' },
-    { mode: 'auto', label: 'Auto', desc: 'Smart routing', cost: 'Balanced', savings: 'High' },
-    { mode: 'zen', label: 'Zen', desc: 'T0/T1 only', cost: 'Lowest', savings: 'Maximum' },
+    { mode: 'beast', label: 'Beast', desc: 'T3 Opus always', cost: 'Highest' },
+    { mode: 'auto', label: 'Auto', desc: 'Smart routing', cost: 'Balanced' },
+    { mode: 'zen', label: 'Zen', desc: 'T0/T1 only', cost: 'Lowest' },
   ];
 
   return (
@@ -714,7 +625,7 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
           <thead>
             <tr>
-              {['Mode', 'Strategy', 'Cost', 'Savings'].map(h => (
+              {['Mode', 'Strategy', 'Cost'].map(h => (
                 <th
                   key={h}
                   style={{
@@ -743,7 +654,6 @@ function RecommendedModeCard({ profile }: { profile: Profile }) {
                 </td>
                 <td style={{ padding: '6px 10px', color: 'var(--muted)' }}>{m.desc}</td>
                 <td style={{ padding: '6px 10px', color: 'var(--muted)' }}>{m.cost}</td>
-                <td style={{ padding: '6px 10px', color: 'var(--muted)' }}>{m.savings}</td>
               </tr>
             ))}
           </tbody>
@@ -1102,10 +1012,67 @@ function daysSinceSync(iso: string | null | undefined, nowMs: number = Date.now(
   return Math.floor((nowMs - ms) / 86_400_000);
 }
 
+// ── The four honest KPIs (onboarding v2 W0) ──────────────────────────────
+// Derivation lives in ./_kpis.ts (pure, unit-tested). This component only
+// fetches the user's own tier breakdown and renders. A KPI with no measurement
+// behind it renders `n/d` plus the reason - never a 0 pretending to be a fact.
+function KpiStrip({ tasksRouted, dimmed }: { tasksRouted: number; dimmed?: boolean }) {
+  const [dist, setDist] = useState<Record<string, number> | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/dashboard/aggregates?scope=user')
+      .then((r) => r.json())
+      .then((d: { source?: string; tier_distribution?: Record<string, number> }) => {
+        if (!alive) return;
+        setDist(d?.source === 'live' && d.tier_distribution ? d.tier_distribution : null);
+        setLoaded(true);
+      })
+      .catch(() => { if (alive) { setDist(null); setLoaded(true); } });
+    return () => { alive = false; };
+  }, []);
+
+  const kpis = computeKpis({ tasksRouted, tierDistribution: dist });
+
+  return (
+    <div style={{
+      width: '100%',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      gap: 24,
+      opacity: dimmed ? 0.5 : 1,
+    }}>
+      {kpis.map((k) => (
+        <div key={k.key}>
+          <div style={{
+            fontSize: '2.1rem', fontWeight: 800, lineHeight: 1,
+            fontFamily: 'var(--mono)', letterSpacing: '-0.02em',
+            color: k.value == null ? 'var(--muted)' : 'var(--text)',
+          }}>
+            {k.value == null ? (loaded ? 'n/d' : '\u2026') : k.value}
+          </div>
+          <div style={{
+            fontSize: '0.72rem', color: 'var(--muted)',
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            marginTop: 6, fontWeight: 600,
+          }}>
+            {k.label}
+          </div>
+          <div style={{
+            fontSize: '0.7rem', color: 'var(--muted)',
+            marginTop: 4, lineHeight: 1.5, opacity: 0.85,
+          }}>
+            {k.note}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OverviewTab({ profile }: { profile: Profile }) {
-  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
-  const allOpusCost = decisionsCount * 0.015;
-  const savingsPct = allOpusCost > 0 ? Math.min(100, Math.round((savingsUsd / allOpusCost) * 100)) : 0;
+  const { decisionsCount } = aggregateDevices(profile);
 
   const config = (profile.frugal_config || {}) as Record<string, unknown>;
   const legacyCfg = cfgVal(config);
@@ -1122,7 +1089,7 @@ function OverviewTab({ profile }: { profile: Profile }) {
   const healthItems = [
     { label: 'Router', ok: decisionsCount > 0 },
     { label: 'Hook', ok: profile.install_completed || decisionsCount > 0 },
-    { label: 'Tracker', ok: savingsUsd > 0 },
+    { label: 'Tracker', ok: decisionsCount > 0 },
     { label: 'Sync', ok: !!(profile.devices && profile.devices.length > 0) },
   ];
 
@@ -1218,56 +1185,12 @@ function OverviewTab({ profile }: { profile: Profile }) {
               return <DataSourceBadge source={heroSource} detail={detail} />;
             })()}
           </div>
-          <div style={syncStale ? { opacity: 0.5 } : undefined}>
-            <div style={{
-              fontSize: '2.5rem', fontWeight: 800,
-              color: 'var(--tier-0)', lineHeight: 1,
-              fontFamily: 'var(--mono)', letterSpacing: '-0.02em',
-            }}>
-              {/* Wave 60 — animate the real synced value in (count-up); the final
-                  rendered number is exactly savingsUsd.toFixed(2), unchanged. */}
-              <AnimatedCounter value={savingsUsd} prefix="$" decimals={2} />
-            </div>
-            <div style={{
-              fontSize: '0.72rem', color: 'var(--muted)',
-              textTransform: 'uppercase', letterSpacing: '0.08em',
-              marginTop: 6, fontWeight: 600,
-            }}>
-              Saved
-            </div>
-          </div>
-          <div style={syncStale ? { opacity: 0.5 } : undefined}>
-            <div style={{
-              fontSize: '2.5rem', fontWeight: 800,
-              color: 'var(--text)', lineHeight: 1,
-              fontFamily: 'var(--mono)', letterSpacing: '-0.02em',
-            }}>
-              <AnimatedCounter value={decisionsCount} decimals={0} />
-            </div>
-            <div style={{
-              fontSize: '0.72rem', color: 'var(--muted)',
-              textTransform: 'uppercase', letterSpacing: '0.08em',
-              marginTop: 6, fontWeight: 600,
-            }}>
-              Decisions
-            </div>
-          </div>
-          <div style={syncStale ? { opacity: 0.5 } : undefined}>
-            <div style={{
-              fontSize: '2.5rem', fontWeight: 800,
-              color: 'var(--text)', lineHeight: 1,
-              fontFamily: 'var(--mono)', letterSpacing: '-0.02em',
-            }}>
-              <AnimatedCounter value={savingsPct} decimals={0} suffix="%" />
-            </div>
-            <div style={{
-              fontSize: '0.72rem', color: 'var(--muted)',
-              textTransform: 'uppercase', letterSpacing: '0.08em',
-              marginTop: 6, fontWeight: 600,
-            }}>
-              % saved vs all-Opus
-            </div>
-          </div>
+          {/* Onboarding v2 W0 - the hero used to lead with $saved and
+              a percentage against all-Opus, both derived from a MODELLED
+              cost (decisions x $0.015). Neither side was measured. The four
+              KPIs below are the honest replacement; the one that cannot be
+              measured yet says n/d and says why. See ./_kpis.ts. */}
+          <KpiStrip tasksRouted={decisionsCount} dimmed={syncStale} />
 
           {latestDevice && (
             <div style={{
@@ -1321,30 +1244,14 @@ function OverviewTab({ profile }: { profile: Profile }) {
         </div>
       )}
 
-      {/* D7 — Savings depth. D7-2 (all-Opus) is REAL; D7-1/D7-3 are honest
-          placeholders until the per-category telemetry pipeline ships (no fabricated data). */}
+      {/* Onboarding v2 W0 - was the savings-depth card: four dollar tiles, all four
+          derived from the same modelled all-Opus cost. Replaced by what we can
+          actually answer - where the work went, and where to look for the rest. */}
       <div style={card}>
-        <h2 style={sectionHeading}>Savings depth</h2>
-        {decisionsCount > 0 ? (
-          <>
-          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 16 }}>
-            {[
-              { v: `$${savingsUsd.toFixed(2)}`, l: 'you saved', c: 'var(--tier-0)', modelado: true },
-              { v: `$${allOpusCost.toFixed(2)}`, l: 'all-Opus would cost', c: 'var(--text)', modelado: true },
-              { v: `$${Math.max(0, allOpusCost - savingsUsd).toFixed(2)}`, l: 'you actually paid', c: 'var(--text)', modelado: true },
-              { v: `${savingsPct}%`, l: 'saved vs all-Opus', c: 'var(--tier-0)', modelado: true },
-            ].map((m) => (
-              <div key={m.l}>
-                <div style={{ fontSize: '1.6rem', fontWeight: 700, fontFamily: 'var(--mono)', color: m.c, lineHeight: 1 }}>{m.v}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{m.l}{m.modelado ? <Modelado /> : null}</div>
-              </div>
-            ))}
-          </div>
-            <ModeladoNota />
-          </>
-        ) : (
-          <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: 16 }}>Run a few prompts to see your all-Opus comparison.</p>
-        )}
+        <h2 style={sectionHeading}>Where your tasks went</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.85rem', lineHeight: 1.6, marginTop: 0, marginBottom: 16 }}>
+          {NO_SAVINGS_ANSWER}
+        </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
           <div style={{ padding: 14, border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', background: 'var(--bg)' }}>
             <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 4 }}>Per-task-type savings</div>
@@ -1408,7 +1315,6 @@ function OverviewTab({ profile }: { profile: Profile }) {
       </div>
 
       {/* Rest of overview cards */}
-      <SavingsCalculatorCard />
       <RecommendedModeCard profile={profile} />
       <ProjectContextCard profile={profile} />
       <RecommendationsCard profile={profile} />
@@ -1436,7 +1342,7 @@ const stackTileName: React.CSSProperties = {
 
 // ── Metrics Tab ──────────────────────────────────────────────────────────
 function MetricsTab({ profile }: { profile: Profile }) {
-  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
+  const { decisionsCount } = aggregateDevices(profile);
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -1446,11 +1352,13 @@ function MetricsTab({ profile }: { profile: Profile }) {
           fontWeight: 700, color: 'var(--text)',
           fontFamily: 'var(--font)', letterSpacing: '-0.01em',
         }}>
-          How mooter measures savings
+          Where each number comes from
         </h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem', lineHeight: 1.6 }}>
-          mooter tracks routing decisions, not tokens. Here&apos;s what each number means and why
-          they may differ from what you see in VSCode or the Claude interface.
+          mooter counts routing decisions, not tokens. That is why this page publishes no
+          savings number: a savings figure needs tokens measured on both sides, and this page
+          only ever sees what your devices chose to sync. Here is what each source can and
+          cannot tell you.
         </p>
       </div>
 
@@ -1463,8 +1371,8 @@ function MetricsTab({ profile }: { profile: Profile }) {
               source: 'mooter dashboard',
               badge: '~est',
               badgeColor: 'var(--yellow)',
-              what: `${decisionsCount} decisions · $${savingsUsd.toFixed(2)} saved (Modelado: ${MODELADO_PORQUE})`,
-              how: 'Counts user prompts routed. Savings = (what Opus would cost) − (what mooter paid). Uses estimated token counts from prompt length.',
+              what: `${decisionsCount} decisions routed · no savings figure (Modelado: ${MODELADO_PORQUE})`,
+              how: 'Counts user prompts routed, and which tier ran them. It does NOT count tokens, so it cannot compute a savings rate.',
               /* 2026-08-29 · dizia «real token counts require API access mooter doesn't have».
                  Era verdade quando foi escrito e DEIXOU de ser: `tools/router/recibo.js` le o
                  `message.usage` que o Claude Code ja escreve em `~/.claude/projects`, sem API
@@ -1492,8 +1400,8 @@ function MetricsTab({ profile }: { profile: Profile }) {
               source: 'statusline (terminal)',
               badge: '~est',
               badgeColor: 'var(--yellow)',
-              what: 'Live savings % per session',
-              how: 'Reads the same decisions.log. Shows per-session and cumulative savings with tier breakdown.',
+              what: 'Live tier breakdown per session',
+              how: 'Reads the same decisions.log. Shows per-session and cumulative tier distribution.',
               why: 'Same methodology as the dashboard — refreshes in real time as you work.',
             },
           ].map(row => (
@@ -1575,9 +1483,11 @@ function MetricsTab({ profile }: { profile: Profile }) {
           lineHeight: 1.7, margin: 0,
         }}>
           mooter&apos;s <strong style={{ color: 'var(--text)' }}>decisions count</strong> tells you how many times
-          the router intervened. The <strong style={{ color: 'var(--text)' }}>savings estimate</strong> is a
-          lower bound — real savings are higher because mooter also reduces latency and context window usage.
-          The VSCode token count is the ground truth for what Anthropic actually processed.
+          the router intervened, and the tier breakdown tells you where the work ran. Neither is a cost.
+          There is no savings figure on this page: publishing one needs tokens measured on both sides, and
+          this page never sees them. The VSCode token count is the ground truth for what Anthropic actually
+          processed; <code style={{ fontFamily: 'var(--mono)' }}>mooter recibo</code> reads the same usage
+          from your own machine.
         </p>
       </div>
 
@@ -1587,11 +1497,10 @@ function MetricsTab({ profile }: { profile: Profile }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
             { term: 'decision', def: 'One user prompt that went through classify.js and was routed to a tier.' },
-            { term: 'naive cost', def: 'What that decision would have cost if routed to Opus every time.' },
-            { term: 'real cost (est.)', def: 'Estimated actual cost based on the tier it was routed to × avg token estimate.' },
-            { term: 'saved (est.)', def: 'naive cost − real cost (est.). This is the savings number shown in the dashboard.' },
-            { term: 'guaranteed saved', def: 'Only Option A hits where Ollama answered directly instead of Opus. Conservative floor.' },
-            { term: 'savings %', def: 'saved / naive × 100 — both modelled from prompt length, so this ratio is modelled too. Nothing here counts a token; `mooter recibo` does, on your own machine.' },
+            { term: 'local coverage', def: 'Share of your routed tasks that ran on your own hardware (tier T0). Counted from your own sync, in tasks.' },
+            { term: 'window preserved', def: 'Tasks never dispatched to a paid window. Estimated: it counts tasks, not tokens, because tokens are not measured yet.' },
+            { term: 'ESR', def: 'Effective Savings Rate: (cloud-equivalent cost − cost actually paid, energy included) ÷ cloud-equivalent cost. Shown as n/d until 20 tasks carry tokens measured on both sides.' },
+            { term: 'saved / savings %', def: 'Retired 2026-09-10. Both were modelled from prompt length against a list price nobody paid. See docs/adr/ADR-onboarding-v2.md.' },
           ].map(({ term, def }) => (
             <div key={term} style={{ display: 'flex', gap: 14, fontSize: '0.82rem' }}>
               <code style={{
@@ -1777,7 +1686,7 @@ function ModelCard({ label, badge, color, cost, tooltip }: {
 const PATTERN_COUNT = 173;
 
 function HowItWorksTab({ profile }: { profile: Profile }) {
-  const { decisionsCount, savingsUsd } = aggregateDevices(profile);
+  const { decisionsCount } = aggregateDevices(profile);
   const config = (profile.frugal_config || {}) as Record<string, unknown>;
   const pctByTier = (config.pct_by_tier || {}) as Record<string, number>;
   const t0Pct = pctByTier.t0 ?? 59;
@@ -1789,8 +1698,6 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
   const latestDevice = (profile.devices || [])[0];
   const gpuName = formatGpuLabel(latestDevice?.gpu_name ?? null) || 'GPU';
   const osType = latestDevice?.os_type || profile.os_type || 'unknown';
-
-  const naiveCost = decisionsCount * 0.045;
 
   const tiers: { key: string; pct: number; color: string }[] = [
     { key: 'T0', pct: t0Pct, color: 'var(--tier-0)' },
@@ -1926,7 +1833,11 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
         </div>
       </div>
 
-      {/* Savings block */}
+      {/* Onboarding v2 W0 - was the second savings block on this page: a
+          $saved counter plus "if every prompt went to Opus / mooter actually
+          spent", all three derived from decisions x $0.045. Nobody measured
+          that price and nobody paid it. What survives is what the sync really
+          carries: how many tasks, and where they ran. */}
       {decisionsCount > 0 && (
         <div style={{
           marginTop: 32,
@@ -1944,9 +1855,9 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
                 fontSize: '1.75rem', fontWeight: 800,
                 color: 'var(--tier-0)', fontFamily: 'var(--mono)',
               }}>
-                <AnimatedCounter value={savingsUsd} prefix="$" />
+                <AnimatedCounter value={t0Pct} suffix="%" decimals={0} />
               </div>
-              <div style={savingsLabel}>saved</div>
+              <div style={savingsLabel}>local coverage</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{
@@ -1971,8 +1882,7 @@ function HowItWorksTab({ profile }: { profile: Profile }) {
             fontSize: '0.82rem', color: 'var(--muted)',
             textAlign: 'center', lineHeight: 1.7,
           }}>
-            If every prompt went to Opus: ~${naiveCost.toFixed(2)}<br />
-            mooter actually spent: ~${Math.max(0, naiveCost - savingsUsd).toFixed(2)}<Modelado />
+            {NO_SAVINGS_ANSWER}
           </div>
           <div style={{
             fontSize: '0.7rem', color: 'var(--faint)',
@@ -2059,12 +1969,10 @@ function DecisionsTab({ profile: _profile }: { profile: Profile }) {
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
                 {row.decisions.toLocaleString()} decisions
               </span>
-              <span style={{
-                color: 'var(--tier-0)', fontFamily: 'var(--mono)',
-                textAlign: 'right',
-              }}>
-                ${Number(row.savings_usd).toFixed(2)}<Modelado />
-              </span>
+              {/* Onboarding v2 W0 - the per-day $savings_usd column came from
+                  the same modelled arithmetic; the decision count beside it is
+                  the measured half, and it stays. */}
+              <span />
               {delta !== null && delta > 0 ? (
                 <span style={{
                   color: 'var(--muted)', fontSize: '0.72rem',
@@ -2214,10 +2122,10 @@ function WorkflowTab() {
       )}
       {scope === 'user' && userLive && (
         <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: '8px 0 0' }}>
+          {/* Onboarding v2 W0 - the hub still returns `saved_usd`, and we
+              deliberately stop rendering it: it is modelled on both sides.
+              Tasks routed is measured, so tasks routed is what we print. */}
           <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>{(userAgg!.total_calls || 0).toLocaleString('en-US')}</span> calls routed
-          {typeof userAgg!.saved_usd === 'number' && (
-            <> · <span style={{ color: 'var(--text)', fontFamily: 'var(--mono)' }}>${(userAgg!.saved_usd).toFixed(2)}</span> saved vs all-Opus<Modelado /></>
-          )}
         </p>
       )}
       {!(userPending || userUnauth || userEmpty) && (<>
