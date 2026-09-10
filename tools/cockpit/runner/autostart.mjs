@@ -75,12 +75,177 @@ export function buildPlist({ nodePath, runnerPath, repo, mooDir, device }) {
 `;
 }
 
+/**
+ * O que a tarefa corre. UMA definicao, usada pelos dois caminhos: os argumentos
+ * que o `schtasks` recebe de facto, e a receita que se imprime ao dono quando
+ * nao da para os executar. Derivar a segunda da primeira e o que impede que
+ * divirjam -- que e a mesma classe de defeito de ter instalador e verificador
+ * com definicoes diferentes do que esta instalado.
+ *
+ * Sem `--play`, por desenho: ver o cabecalho deste ficheiro.
+ */
+export function trDaTarefa({ nodePath, runnerPath, repo }) {
+  return `cmd /c cd /d "${repo}" && "${nodePath}" "${runnerPath}"`;
+}
+
+/** Os argumentos do schtasks, na forma que o `execFile` precisa (sem shell). */
+export function windowsArgs({ nodePath, runnerPath, repo }) {
+  return [
+    '/Create', '/TN', TASK_NAME, '/SC', 'ONLOGON', '/RL', 'LIMITED', '/F',
+    '/TR', trDaTarefa({ nodePath, runnerPath, repo }),
+  ];
+}
+
 /** The Windows equivalent, as a command the owner runs in their own shell. */
 export function windowsCommand({ nodePath, runnerPath, repo }) {
   return [
     `schtasks /Create /TN "${TASK_NAME}" /SC ONLOGON /RL LIMITED /F ^`,
     `  /TR "cmd /c cd /d \\"${repo}\\" && \\"${nodePath}\\" \\"${runnerPath}\\""`,
   ].join('\n');
+}
+
+/**
+ * Instala a tarefa agendada A SERIO.
+ *
+ * Ate 2026-09-10 este ramo do `install()` imprimia o comando e saia com codigo
+ * 0. Ou seja: `--install` no Windows **nunca instalou nada** e ainda assim
+ * parecia ter feito o trabalho -- enquanto no macOS escrevia o plist e fazia
+ * `launchctl load`. O `sync-cockpit.mjs --check` reprovava para sempre com
+ * "nenhum lancador configurado", e correr o instalador outra vez nao mudava
+ * nada, porque nao havia nada a mudar.
+ *
+ * Devolve o erro CRU em vez de o traduzir. Foi o que revelou, numa revisao
+ * adversarial, um `/TR` acima do limite de 261 chars do schtasks: a mensagem
+ * dizia-o exactamente, e uma traducao nossa teria dito "falhou".
+ *
+ * Sobre o `Access is denied`, e a distincao importa porque muda o conselho:
+ *
+ *   OBSERVADO a 2026-09-10 nesta maquina -- `/Query` corre; `/Create` da
+ *   "Access is denied" mesmo com um `/TR` de 13 chars e sem `/RL`, logo nao e
+ *   comprimento nem nivel de execucao; o utilizador nao esta elevado; e a
+ *   cadeia de processos passa por `C:\\Program Files\\WindowsApps\\`.
+ *
+ *   HIPOTESE (nao testada -- falta correr o mesmo schtasks a partir de uma
+ *   shell nao-empacotada): a shell herda a identidade do pacote MSIX e a
+ *   escrita e recusada.
+ *
+ *   ALTERNATIVA NAO EXCLUIDA: filtragem UAC de um administrador nao-elevado.
+ *
+ * Mediu-se o sintoma e inferiu-se o mecanismo. Por isso o que se imprime ao
+ * dono nao e a tese, e a experiencia que a decide em cinco segundos.
+ */
+/**
+ * O ramo win32 do `install()`, extraido para ser EXECUTAVEL num teste.
+ *
+ * Estava inline, e os testes cobriam-no por regex sobre o texto-fonte. Uma
+ * revisao adversarial encontrou quatro mutacoes que passavam os 7 testes a
+ * verde deixando o instalador mentir -- entre elas trocar `if (r.ok)` por
+ * `if (true)` (ressuscita o defeito de origem) e acrescentar `--play` ao
+ * runnerPath (instala uma tarefa que levanta o STOP do dono). A regex prende a
+ * FORMA e liberta o COMPORTAMENTO, que e o inverso do que este ficheiro quer.
+ *
+ * Com o ramo aqui, um teste monta-o com um `runImpl` falso e afirma sobre os
+ * argumentos que o call-site REALMENTE constroi.
+ */
+export async function ramoWindowsDoInstall({
+  pre, repo, runImpl = run, sayImpl = say, mooDir = MOO_DIR,
+  escreverImpl = fs.writeFileSync, criarPastaImpl = fs.mkdirSync,
+} = {}) {
+  const alvo = { nodePath: pre.nodePath, runnerPath: pre.runnerPath, repo };
+  const r = await instalarWindows({ ...alvo, runImpl });
+  if (r.ok) {
+    sayImpl(`\n  Tarefa agendada instalada — ${TASK_NAME} (ONLOGON, /RL LIMITED)`);
+    sayImpl('');
+    return { instalou: true, args: windowsArgs(alvo) };
+  }
+
+  sayImpl('\n  NAO INSTALADO — o schtasks recusou:');
+  sayImpl(`    ${r.erro.split('\n')[0]}`);
+  if (r.acessoNegado) {
+    sayImpl('');
+    sayImpl('  "Access is denied" aqui raramente e falta de admin: um utilizador');
+    sayImpl('  padrao cria tarefas que correm como ele proprio. Uma hipotese e');
+    sayImpl('  esta shell ser filha de uma app empacotada');
+    sayImpl('  (C:\\Program Files\\WindowsApps\\...) e herdar a identidade do');
+    sayImpl('  pacote. Nao adivinhes — faz a experiencia em 5 segundos:');
+    sayImpl('  Win+R -> cmd -> corre o ficheiro abaixo. Se funcionar ai, o');
+    sayImpl('  problema era esta shell e nao os teus privilegios.');
+  }
+
+  // A receita NAO sobrevive ao PowerShell. Medido a 2026-09-10 numa revisao
+  // adversarial: colada tal e qual, o 5.1 e o 7.6 entregam ambos ao schtasks
+  // `[... "/F", "^"]` -- o `/TR` desaparece. E as formas que funcionam sao
+  // INCOMPATIVEIS entre si (aspas simples funcionam no 7.6 e truncam em
+  // silencio no 5.1). Nao existe one-liner unico, por isso nao se pede ao dono
+  // que cole nada: escreve-se um .cmd e diz-se qual e o ficheiro. O cmd.exe
+  // le esta sintaxe correctamente -- isso esta provado.
+  let ficheiro = null;
+  try {
+    criarPastaImpl(mooDir, { recursive: true });
+    ficheiro = path.join(mooDir, 'instalar-mooterrunner.cmd');
+    escreverImpl(ficheiro, `@echo off\r\n${windowsCommand(alvo)}\r\n`, 'utf8');
+  } catch {
+    ficheiro = null;                                     // sem disco, resta a receita
+  }
+
+  sayImpl('');
+  if (ficheiro) {
+    sayImpl(`  Escrevi o comando aqui:  ${ficheiro}`);
+    sayImpl('  Corre esse ficheiro numa janela cmd.exe (NAO PowerShell).');
+    sayImpl('');
+  }
+  sayImpl(windowsCommand(alvo));
+  sayImpl('');
+  return { instalou: false, args: windowsArgs(alvo), ficheiro, erro: r.erro };
+}
+
+/**
+ * Remove a tarefa. Simetrico ao install, e pela mesma razao.
+ *
+ * NAO le a mensagem de erro. A primeira versao disto procurava
+ * "cannot find the file specified" para distinguir "ja nao existia" de "falhou"
+ * -- e a prosa do schtasks e traduzida: em pt-BR e "nao pode encontrar o
+ * arquivo", que nao casava com nenhuma das variantes escritas a mao. Um
+ * verificador que depende do idioma do sistema operativo nao e um verificador.
+ * Pergunta-se ao estado: se a tarefa nao esta la, foi removida, seja qual for
+ * a lingua em que o sistema o disse.
+ */
+export async function desinstalarWindows({ runImpl = run } = {}) {
+  // O `/Query` vem ANTES do `/Delete`, de proposito. A versao anterior so
+  // perguntava DEPOIS de o `/Delete` falhar, e nesse desenho duas recusas
+  // seguidas -- `/Delete` negado e `/Query` negado, que e o que acontece a uma
+  // shell sem permissoes -- liam-se como "ja nao existia". Dizia-se ao dono que
+  // a tarefa tinha sido removida com ela la. Medir a ausencia ANTES de mexer
+  // tira a ambiguidade: "nao encontrei" e uma leitura, "nao consegui ler" e
+  // outra, e as duas deixam de partilhar a mesma resposta.
+  const antes = await runImpl('schtasks', ['/Query', '/TN', TASK_NAME]);
+  if (antes && antes.ok === false) {
+    return { ok: true, mensagem: `Tarefa agendada ja nao existia — ${TASK_NAME}` };
+  }
+
+  const del = await runImpl('schtasks', ['/Delete', '/TN', TASK_NAME, '/F']);
+  if (del && del.ok) return { ok: true, mensagem: `Tarefa agendada removida — ${TASK_NAME}` };
+
+  const erro = String((del && del.err) || '').trim().split('\n')[0] || 'sem mensagem';
+  const depois = await runImpl('schtasks', ['/Query', '/TN', TASK_NAME]);
+  if (depois && depois.ok === false) {
+    // O /Delete queixou-se mas a tarefa saiu: conta como removida.
+    return { ok: true, mensagem: `Tarefa agendada removida — ${TASK_NAME}` };
+  }
+  return { ok: false, mensagem: `NAO REMOVIDA — a tarefa continua la. O schtasks disse: ${erro}` };
+}
+
+export async function instalarWindows({ nodePath, runnerPath, repo, runImpl = run } = {}) {
+  const r = await runImpl('schtasks', windowsArgs({ nodePath, runnerPath, repo }));
+  const receita = windowsCommand({ nodePath, runnerPath, repo });
+  if (r && r.ok) return { ok: true, receita };
+  const erro = String((r && r.err) || '').trim() || 'sem mensagem do schtasks';
+  return {
+    ok: false,
+    erro,
+    acessoNegado: /access is denied|acesso negado/i.test(erro),
+    receita,
+  };
 }
 
 /** Fail loudly rather than install something that quietly cannot work. */
@@ -128,6 +293,7 @@ async function install() {
   }
   const device = process.env.MOOTER_DEVICE
     || os.hostname().replace(/\.local$/i, '').toLowerCase();
+  let naoInstalou = false;
 
   if (process.platform === 'darwin') {
     fs.mkdirSync(path.dirname(PLIST), { recursive: true });
@@ -138,11 +304,13 @@ async function install() {
     await run('launchctl', ['unload', PLIST]);          // idempotente
     const r = await run('launchctl', ['load', PLIST]);
     say(`\n  LaunchAgent instalado e ${r.ok ? 'carregado' : 'NAO carregado'} — ${PLIST}`);
-    if (!r.ok) say(`  launchctl disse: ${r.err.trim().slice(0, 200)}`);
+    // O mesmo defeito que este commit corrige no Windows sobrevivia invertido
+    // aqui: o `launchctl load` falhava, imprimia-se "NAO carregado", e saia 0.
+    // Um plist escrito que ninguem carregou nao e um arranque automatico.
+    if (!r.ok) { naoInstalou = true; say(`  launchctl disse: ${r.err.trim().slice(0, 200)}`); }
   } else if (process.platform === 'win32') {
-    say('\n  No Windows a tarefa e criada por ti, numa shell tua:\n');
-    say(windowsCommand({ nodePath: pre.nodePath, runnerPath: pre.runnerPath, repo: REPO }));
-    say('');
+    const r = await ramoWindowsDoInstall({ pre, repo: REPO, sayImpl: say });
+    if (!r.instalou) naoInstalou = true;
   } else {
     say(`\n  Sem receita de arranque automatico para ${process.platform}.`);
     process.exit(1);
@@ -152,6 +320,11 @@ async function install() {
   say(`  STOP actual: ${stopped ? 'ACTIVO' : 'levantado'}`);
   say('  O arranque automatico NUNCA levanta o STOP — se estiver activo, a');
   say('  maquina arranca parada e espera pelo teu ▶.\n');
+
+  // Um instalador que nao instalou nao sai 0. Era exactamente assim que este
+  // ramo mentia: imprimia a receita, saia 0, e quem o corresse ficava a pensar
+  // que tinha ligado o arranque automatico.
+  if (naoInstalou) process.exit(1);
 }
 
 async function uninstall() {
@@ -160,7 +333,13 @@ async function uninstall() {
     fs.rmSync(PLIST, { force: true });
     say(`\n  LaunchAgent removido — ${PLIST}\n`);
   } else if (process.platform === 'win32') {
-    say(`\n  Corre na tua shell:  schtasks /Delete /TN "${TASK_NAME}" /F\n`);
+    const r = await desinstalarWindows();
+    say(`\n  ${r.mensagem}`);
+    if (!r.ok) {
+      say(`  Corre na tua shell:  schtasks /Delete /TN "${TASK_NAME}" /F\n`);
+      process.exit(1);
+    }
+    say('');
   }
 }
 
