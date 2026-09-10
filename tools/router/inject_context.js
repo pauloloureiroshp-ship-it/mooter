@@ -105,6 +105,8 @@ const TRACKER_STALE_MS = 60 * 60 * 1000; // 1h
 //   3. HIGH_RISK prompt + stale cache → keep sync behaviour (safety).
 const BUDGET_CACHE_PATH = path.join(ROUTER_DIR, '.budget-cache.json');
 const BUDGET_REFRESH_LOCK = path.join(ROUTER_DIR, '.budget-refresh.lock');
+// D15 — a mesma definição que o `refresh-budget.js` usa. Ver budget-freeze.js.
+const budgetFreeze = require('./budget-freeze.js');
 const BUDGET_CACHE_MS = 2 * 60 * 60 * 1000;      // 2h — considered fresh
 const BUDGET_STALE_HARD_MS = 4 * 60 * 60 * 1000; // 4h — sync fetch on HIGH_RISK
 const BUDGET_LOCK_STALE_MS = 30 * 1000;          // 30s — assume refresh died
@@ -152,6 +154,30 @@ function spawnBudgetRefresh() {
  * @param {boolean} isHighRisk
  */
 function getBudget(promptText, isHighRisk) {
+  // D15 — o congelamento vem ANTES de tudo, incluindo do kill-switch.
+  //
+  // Não é zelo: congelar só o refresh assíncrono tornava ESTE caminho
+  // inevitável. Sem refresh o cache nunca rejuvenesce, passa as 4 h de
+  // `BUDGET_STALE_HARD_MS`, e a partir daí cada prompt HIGH_RISK — push,
+  // deploy, migração — cai no `fetchBudgetSyncLegacy()`, que reescreve o
+  // ficheiro. Fechava-se a porta das 2 h e abria-se a das 4 h, com o defeito a
+  // voltar exactamente nos prompts que mais importam. Apanhado por revisão
+  // adversarial ao commit que dizia tê-lo fechado.
+  //
+  // Congelado = lê-se o que está em disco e não se escreve nada. Sem sentinela,
+  // a função continua byte-idêntica ao que era.
+  if (budgetFreeze.congelado()) {
+    // A visibilidade que substitui o TTL tem de acontecer AQUI, e não só no
+    // `refresh-budget.js`: quando está congelado, o hook nunca chega a lançar
+    // esse processo, portanto o único aviso que existia nunca era impresso.
+    // Um sentinela esquecido ficava a ser exactamente o silêncio contra o qual
+    // o desenho diz ter sido feito. stderr porque é o canal visível dos hooks.
+    try { process.stderr.write(`[mooter] ${budgetFreeze.linhaDeAviso()}\n`); } catch { /* nunca fatal */ }
+    const fixo = readBudgetCache();
+    if (fixo && fixo.cached.data && fixo.cached.data.type !== 'error') return fixo.cached.data;
+    return null;                       // sem tecto, que é o default seguro daqui
+  }
+
   if (V07_DISABLED) return fetchBudgetSyncLegacy();
 
   const state = readBudgetCache();
