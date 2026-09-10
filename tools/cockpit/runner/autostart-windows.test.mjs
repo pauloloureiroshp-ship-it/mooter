@@ -24,18 +24,32 @@
  * e EXECUTADO aqui com um `runImpl` falso: as asercoes passam a ser sobre os
  * argumentos que o call-site realmente constroi.
  *
- * O QUE ISTO NAO FECHA, e o registo importa mais do que a promessa. Uma segunda
- * revisao adversarial correu depois desta reescrita e encontrou mutacoes NOVAS
- * que sobrevivem a suite inteira (1328 testes) -- entre elas fazer o `install()`
- * `return` cedo no ramo win32, ou forcar `instalou:true` no objecto devolvido:
- * as duas mantem as 4 regexes e as 3 atribuicoes do `MORDIDA 6` e ressuscitam o
- * defeito de origem. A `MORDIDA 6` continua a ser uma asercao de FORMA, e cai a
- * essas duas. Fechar isso a serio pede executar o proprio `install()` com um
- * `exitImpl` injectado e afirmar o codigo de saida -- nao esta feito.
+ * O QUE ISTO NAO FECHA. Esta seccao ja esteve ERRADA nos dois sentidos: dizia
+ * que a `MORDIDA 6` caia a "duas" mutacoes e nomeava uma que, medida, e
+ * apanhada. Um terceiro revisor correu 36 mutacoes e contou as sobreviventes.
+ * O numero honesto:
  *
- * Portanto: estes testes mordem as 8 mutacoes abaixo, medidas uma a uma. Nao
- * mordem "a classe toda", e dizer que sim seria a mesma promessa por medir que
- * este ficheiro existe para desfazer.
+ *   O `install()` NAO e executado por teste nenhum -- faz E/S de processo
+ *   (`process.exit`, `fs`, `os.hostname`). A `MORDIDA 6` cobre-o por regex, e
+ *   sobrevivem-lhe pelo menos SETE mutacoes que ressuscitam o defeito de
+ *   origem: `return` cedo no ramo win32; o `process.exit(1)` comentado (a
+ *   regex nao esta ancorada e casa dentro do comentario); a mesma linha dentro
+ *   de `if (false)`; `exit(0)` real com a linha certa em ramo morto;
+ *   `process.exit(0)` antes do bloco; `r.instalou = true` antes de ser lido; e
+ *   `process.exitCode = 0` depois -- que a contagem de 3 atribuicoes nao ve.
+ *
+ * Fechar isto a serio pede executar o `install()` com `exitImpl`/`platformImpl`
+ * injectados e afirmar o codigo de saida. NAO esta feito, e enquanto nao
+ * estiver, a `MORDIDA 6` e uma asercao de forma com sete buracos conhecidos.
+ *
+ * Portanto: estes testes mordem as mutacoes medidas uma a uma, e nao "a classe
+ * toda". Contar as sobreviventes e mais util do que contar as apanhadas.
+ *
+ * A 11.a chegou pelo pior caminho possivel: depois de #488 fundido, o dono
+ * correu o `.cmd` que lhe escrevemos, disse "funcionou", e a tarefa NAO existia
+ * -- confirmado por tres vias. O ficheiro nao mentia; simplesmente fechava a
+ * janela antes de o resultado poder ser lido. Um remedio que esconde a propria
+ * falha e o mesmo defeito que este ficheiro persegue, um degrau mais abaixo.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +57,7 @@ import fs from 'node:fs';
 
 import {
   TASK_NAME, trDaTarefa, windowsArgs, windowsCommand,
-  instalarWindows, desinstalarWindows, ramoWindowsDoInstall, preflight,
+  instalarWindows, desinstalarWindows, ramoWindowsDoInstall, preflight, conteudoDoCmd,
 } from './autostart.mjs';
 
 // O que importa nesta fixture e o ESPACO no caminho -- e o que faz o quoting do
@@ -70,7 +84,7 @@ function bancada({ ok = true, err = '' } = {}) {
     pastas,
     correr: async (cmd, args) => { chamadas.push({ cmd, args }); return { ok, out: '', err }; },
     dizer: (s) => linhas.push(String(s)),
-    escrever: (f, c) => escritos.push({ f, c }),
+    escrever: (f, c, enc) => escritos.push({ f, c, enc }),
     get texto() { return linhas.join('\n'); },
   };
 }
@@ -178,15 +192,92 @@ test('MORDIDA 10 · o .cmd escrito CONTEM o comando, nao so o cabecalho', async 
   const b = bancada({ ok: false, err: 'ERROR: Access is denied.' });
   const r = await executar(b);
   assert.equal(b.escritos.length, 1, 'devia ter escrito exactamente um ficheiro');
-  const { f, c } = b.escritos[0];
+  const { f, c, enc } = b.escritos[0];
   assert.equal(f, r.ficheiro);
   assert.match(f, /instalar-mooterrunner\.cmd$/);
-  assert.match(c, /^@echo off/, 'e um .cmd');
-  assert.ok(c.includes('schtasks /Create'), 'o comando tem de la estar');
-  assert.ok(c.includes(PRE.runnerPath), 'e tem de apontar ao runner certo');
-  assert.ok(!c.includes('--play'), 'nem aqui o STOP do dono pode ser levantado');
+
+  // IGUALDADE, nao `includes`. As asercoes anteriores eram da era #488 --
+  // `@echo off` + `schtasks /Create` + runnerPath + sem `--play` -- e o ficheiro
+  // VELHO satisfazia-as todas. Um revisor mostrou que reverter esta linha para
+  // `@echo off\r\n${windowsCommand(alvo)}\r\n` passava 18/18: o commit inteiro
+  // era reversivel no call-site sem um unico teste vermelho.
+  assert.equal(c, conteudoDoCmd(ALVO),
+    'o que se escreve tem de ser exactamente o que a funcao produz');
+  assert.equal(enc, 'utf8',
+    'a prova de ASCII e sobre a string; sem fixar a codificacao, utf16le passava');
   assert.deepEqual(b.pastas, ['C:\\pasta-que-nenhum-teste-cria'],
     'a pasta e pedida ao injectado, nunca ao disco real');
+});
+
+test('MORDIDA 11 · o .cmd verifica o ESTADO e nao fecha antes de ser lido', async () => {
+  // 2026-09-10, depois de #488: o ficheiro foi escrito, o dono correu-o, disse
+  // «funcionou», e a tarefa NAO existia — confirmado por `schtasks /Query`,
+  // listagem CSV e `Get-ScheduledTask`. Um `.cmd` por duplo-clique fecha a
+  // janela ao acabar: o erro pisca e o que fica e a impressao de sucesso.
+  // Um remedio que esconde a propria falha e o mesmo defeito do `--install`,
+  // um degrau abaixo.
+  const c = conteudoDoCmd(ALVO);
+  const CRLF = String.fromCharCode(13, 10);
+  const ls = c.split(CRLF);
+  assert.match(c, /^@echo off/, 'e um .cmd');
+
+  // ORDEM e ADJACENCIA, nao presenca. Um revisor mostrou que `includes` deixava
+  // passar: trocar os corpos dos ramos (imprime INSTALADA com a tarefa
+  // ausente), meter um `echo.` entre o /Create e o `set CODIGO` (o
+  // %ERRORLEVEL% passa a ser o do echo), pôr o /Query ANTES do /Create (le o
+  // estado velho), e meter `exit /b 0` antes do pause (a ultima linha continua
+  // a ser `pause` e a janela fecha na mesma).
+  const iCreate = ls.findIndex((l) => l.includes('schtasks /Create'));
+  const iSet = ls.findIndex((l) => l.trim().startsWith('set CODIGO='));
+  const iQuery = ls.findIndex((l) => l.includes('schtasks /Query'));
+  const iIf = ls.findIndex((l) => l.trim() === 'if errorlevel 1 (');
+  assert.ok(iCreate >= 0 && iSet >= 0 && iQuery >= 0 && iIf >= 0, 'faltam linhas');
+
+  // O /Create ocupa 2 linhas (continuacao `^`), portanto o `set` e a linha logo
+  // a seguir ao fim dele. Nada pode correr entre os dois.
+  assert.equal(iSet, iCreate + 2,
+    'o `set CODIGO=%ERRORLEVEL%` tem de vir imediatamente depois do /Create');
+  assert.ok(iQuery > iCreate, 'o /Query confirma DEPOIS de criar, nao antes');
+  assert.ok(iIf > iQuery, 'so se ramifica depois de perguntar');
+  assert.match(ls[iIf + 1], /NAO INSTALADA/,
+    'o ramo de errorlevel 1 e o do fracasso — trocar os corpos mente ao dono');
+  const iElse = ls.findIndex((l) => l.trim() === ') else (');
+  assert.match(ls[iElse + 1], /INSTALADA\. Confirmado por schtasks \/Query/,
+    'e o outro ramo diz de onde vem a certeza');
+  // A ULTIMA linha tem de ser o comando `pause`, nao uma linha que contenha a
+  // palavra. Procurar /\bpause\b/ deixava passar `rem sem pause` -- a palavra
+  // presente, o comando ausente, a janela a fechar na mesma. E a terceira vez
+  // nesta sessao que "a palavra esta la" se disfarca de "a coisa esta feita".
+  const uteis = ls.filter((l) => l.trim() !== '');
+  assert.equal(uteis[uteis.length - 1].trim(), 'pause',
+    'a ultima linha tem de ser exactamente `pause`, senao a janela leva a mensagem com ela');
+  // E nada pode SAIR antes dela. `exit /b 0` a meio deixa a ultima linha
+  // intacta e fecha a janela na mesma — presenca outra vez a fingir-se de
+  // cobertura.
+  const iPause = ls.findIndex((l) => l.trim() === 'pause');
+  const antesDoPause = ls.slice(0, iPause).map((l) => l.trim().toLowerCase());
+  assert.ok(!antesDoPause.some((l) => /^(exit|goto\s+:?eof)\b/.test(l)),
+    'nenhuma saida antecipada antes do pause');
+  assert.ok(c.includes(ALVO.runnerPath) && !c.includes('--play'));
+  // CRLF: um .cmd com LF puro corre, mas o `^` de continuacao e fragil em
+  // ficheiro; escreve-se em CRLF de proposito.
+  // COBERTURA, nao presenca. `includes(CRLF)` dava verde com o ficheiro a ter
+  // uma linha em LF nu — e era precisamente a linha 4, a da continuacao `^`, a
+  // mais fragil, porque o `windowsCommand()` junta com `\n`. Mesma classe de
+  // defeito do portao de movimento reduzido de 2026-08-29: presenca aceite
+  // como cobertura. Aqui exige-se que NENHUM `\n` esteja desacompanhado.
+  const LF = String.fromCharCode(10);
+  const soltos = [...c].reduce((n, ch, i) => (
+    ch === LF && c.charCodeAt(i - 1) !== 13 ? n + 1 : n), 0);
+  assert.equal(soltos, 0, 'todas as quebras de linha do .cmd tem de ser CRLF');
+
+  // ASCII puro. O `cmd.exe` le o ficheiro na codepage OEM (850/437), nao em
+  // UTF-8: um travessao `—` escrito no texto chegou ao ecra do dono como `ÔÇö`.
+  // Nao e cosmetico -- a linha que sai trocada e precisamente a que lhe diz para
+  // ir ler a mensagem de erro.
+  const fora = [...c].filter((ch) => ch.charCodeAt(0) > 127);
+  assert.deepEqual(fora, [],
+    `o .cmd tem de ser ASCII puro; encontrei: ${fora.map((ch) => `${ch}(${ch.charCodeAt(0)})`).join(' ')}`);
 });
 
 test('sem disco onde escrever o .cmd, ainda assim imprime a receita', async () => {
