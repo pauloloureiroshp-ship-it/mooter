@@ -205,11 +205,32 @@ Os três ficheiros de teste do onboarding v2 correm num script próprio,
 78 casos desta onda passariam a 29 — e os 49 que faltavam eram precisamente os assíncronos:
 enrolment, troca de payload, `fetch` injectado.
 
+### Pista para a causa — verificada, mas **não** é ainda um diagnóstico
+
+Ao tentar correr a suite inteira nesta bancada, ela **não termina**. Dois ficheiros ficam vivos
+indefinidamente, e são reproduzíveis (duas corridas, uma delas com a máquina limpa de processos):
+
+- `pin-timeout.test.js`
+- `backtest.test.js`
+
+**Ambos passam sozinhos** (`pin-timeout` 9/9; `backtest` 97/97 sem a flag, 52 com ela — mais uma
+medição da truncagem). E **ambos referem o Ollama**. O `pin-timeout.test.js` testa `executePinned`
+contra `codex exec`, que o próprio cabeçalho do ficheiro descreve como «an agentic loop, not a
+chat», com um caso medido de **283 s** e um `timeoutMs` de 600 000.
+
+**A hipótese**, escrita como hipótese: a flag existe porque estes testes lançam motores reais com
+timeouts longos, e sem ela a suite espera por eles. Se assim for, a flag não é um descuido — é uma
+solução que resolveu o sintoma errado, e o custo (206 testes silenciados) nunca foi medido até hoje.
+
+**O que isto NÃO prova:** não confirmei que foi por isto que a flag foi acrescentada (não fui ao
+histórico do git), nem que estes dois são os únicos ficheiros a fazê-lo.
+
 ### O que é preciso para fechar (não feito aqui, de propósito)
 
-1. Descobrir **porque** é que a flag lá está. Ela foi acrescentada por alguma razão — quase de
-   certeza um teste que deixa um handle aberto e faz a suite pendurar. Tirá-la sem fechar essa
-   causa troca um problema silencioso por um bloqueio ruidoso.
+1. Confirmar a hipótese acima no histórico (`git log -p` sobre a linha `test` do `package.json`) e
+   isolar todos os ficheiros que lançam motores reais. Se forem esses, a correcção provavelmente
+   não é tirar a flag: é **separá-los** para uma suite própria — que é exactamente o padrão que
+   esta onda já usou para os seus (`test:onboarding-v2`).
 2. Encontrar o(s) ficheiro(s) que não fecham handles (`why-is-node-running`, ou bissecção).
 3. Reconfirmar as 5 falhas do `mooter-doctor` **fora** de uma sandbox.
 4. Só então tirar a flag, e cravar o número de testes num teste — o número que ninguém vigia
