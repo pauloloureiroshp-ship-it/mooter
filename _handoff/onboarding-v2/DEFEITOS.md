@@ -149,7 +149,7 @@ apanha.
 
 ---
 
-## W3-D1 · `--test-force-exit` esconde **206 testes e 6 falhas** — e a suite sai VERDE (aberto)
+## W3-D1 · `--test-force-exit` escondia **267 testes e 6 falhas** — ✅ **FECHADO na W3.5** (2026-09-11)
 
 **Encontrado:** 2026-09-10, ao ligar os testes desta onda ao script `test` do `tools/router`.
 **Severidade:** **alta.** O número que o CI publica não é o número de testes que existem.
@@ -238,3 +238,70 @@ histórico do git), nem que estes dois são os únicos ficheiros a fazê-lo.
 
 **Fora do âmbito da W3, e deliberadamente não tocado:** mexer nisto às cegas pode pendurar o CI
 inteiro, e essa decisão é do dono.
+
+
+---
+
+## W3.5 · o fecho do W3-D1 — medido, e metade da hipótese estava errada
+
+**Fechado:** 2026-09-11 · branch `feat/onboarding-v2-w35`.
+
+### Os números, antes e depois
+
+| | testes | pass | fail | termina? |
+|---|---|---|---|---|
+| antes (`--test-force-exit`) | 1110 | 1109 | 0 | sim, em 3,4 s — porque matava os filhos |
+| depois (sem a flag) | **1377** | **1376** | **0** | sim |
+| `test:integration` (opt-in) | 20 | 20 | 0 | sim |
+
+**+267 testes passam a correr mesmo.** O `1` de `skipped` é pré-existente.
+
+### A hipótese estava meio errada, e a medição desfê-la
+
+O plano dizia mover **dois** ficheiros para a suite de integração: `pin-timeout.test.js` e
+`backtest.test.js`. Medido antes de mexer:
+
+| corrida | resultado |
+|---|---|
+| suite sem **ambos** | termina — 1199 testes |
+| suite **com** `backtest`, sem `pin-timeout` | **termina** — 1293 testes |
+
+**Só o `pin-timeout.test.js` pendura.** O `backtest.test.js` parecia culpado por aparecer sempre
+ao lado dele na lista de processos vivos — mas era só a vítima de estar na mesma corrida. Movê-lo
+teria custado **~94 testes de cobertura no CI** por uma suposição que a medição desfez. Ficou onde
+estava.
+
+`pin-timeout.test.js` exercita `executePinned` contra o `codex exec` — o próprio cabeçalho do
+ficheiro chama-lhe «an agentic loop, not a chat», com um caso medido de 283 s e
+`timeoutMs: 600000`. É esse o ficheiro que justificava a flag.
+
+### As 5 falhas de `mooter-doctor.test.js`: reconfirmadas, e **não eram defeito**
+
+Corrido **fora** da sandbox: `mooter-doctor.test.js` dá **5/5 pass**. As 5 falhas eram
+`listen EPERM 127.0.0.1` — a sandbox desta bancada a recusar um listen local, e nada mais. Ficam
+arquivadas como artefacto de ambiente, não como defeito. (Era por isto que não lhes chamei defeito
+no dia em que apareceram.)
+
+Sobrava **uma** falha real das 6, e essa era minha — o `probe.js` a normalizar `OLLAMA_HOST` à
+mão —, já corrigida na W3.
+
+### A correcção não foi «tirar a flag»
+
+Foi, por esta ordem: **medir** o que a flag escondia · **isolar** o ficheiro que a justificava ·
+**mudá-lo** para `npm run test:integration` (opt-in, precisa de motores reais, não corre em CI) ·
+e só então **tirar a flag**. Tirá-la primeiro teria pendurado o CI inteiro.
+
+### O que impede a volta
+
+`tools/router/suite-honesta.test.js`, dentro da própria suite, com 6 guardas: a flag não pode
+voltar ao `test` nem a **nenhum** script `test*`; o `pin-timeout` não pode regressar à suite
+normal; o `backtest` não pode sair dela; a lista de ficheiros não pode encolher abaixo de um chão;
+e nenhum ficheiro listado pode deixar de existir no disco — um ficheiro renomeado sem actualizar o
+script **não dá erro**, o `node --test` ignora-o em silêncio.
+
+### Fica por medir (`n/d`)
+
+Os **20** testes de `test:integration` deixam de correr em CI, porque precisam de motores reais que
+o runner não tem. Antes disto corriam **truncados** (o `pin-timeout` dava 9 de 20 com a flag), o
+que não é melhor — mas é uma diferença e fica escrita. Fechá-la a sério exige um runner com
+`codex`/`ollama`, e isso é uma decisão de infraestrutura, não desta onda.

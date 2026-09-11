@@ -65,6 +65,16 @@ W2: o launcher `.mcpb` (200 linhas, 0 dependencias) e o achado de que `/i/<token
 perguntas — e descobriu-se que **`--test-force-exit` esconde 206 testes e 6 falhas** com a suite a
 sair verde.
 
+**W3.5 (2026-09-11) — a suite deixou de mentir sobre si propria.** O `--test-force-exit` escondia
+**267 testes e 6 falhas** com o CI a sair verde. Medido antes de mexer: a hipotese de mover DOIS
+ficheiros estava meio errada — so o `pin-timeout.test.js` pendura (exercita o `codex exec`, loop
+agentico, 283 s medidos); o `backtest.test.js` era vitima de estar na mesma corrida, e move-lo
+custaria ~94 testes de cobertura. Ordem da correccao: medir, isolar, mover para
+`test:integration` (opt-in), e SO ENTAO tirar a flag — ao contrario, pendurava o CI.
+**1110 -> 1377 testes, 0 falhas.** As 5 falhas de `mooter-doctor` reconfirmadas FORA da sandbox:
+**5/5 pass** — eram `listen EPERM` da bancada, nao defeito. Guarda contra a volta em
+`tools/router/suite-honesta.test.js` (6 asercoes).
+
 **Aberto, por decisao:** `npm audit` HIGH (divida de `main`, W1-D2) · `loader:1520` (W1-D1) · TTV
 `n/d` (W2-D1) · `--test-force-exit` (W3-D1) · chave de release por gerar · migracao
 `enroll_device` por aplicar.
