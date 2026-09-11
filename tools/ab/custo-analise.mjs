@@ -144,10 +144,15 @@
  *     contraditório — 19/29). NÃO verificado (declarado): ordem de execução
  *     das TAREFAS; os SUPLENTES não têm `tier_classificado` nem
  *     `tests_total_historico` no pré-registo (só ids), logo o tier vem do
- *     ledger e a condição 3 não se lhes aplica (X6/D2 do 10.º — lacuna do
- *     pré-registo, não desta análise); uma linha de B copiada de outra
+ *     ledger e a condição 3 não se lhes aplica (X6/D2 do 10.º — FECHADO
+ *     na 32 com `SUPLENTES_ESPERADOS`); uma linha de B copiada de outra
  *     tarefa com `session_id` novo (C2) só é apanhada se o
- *     `test_file_sha_antes` divergir; «skips/todo
+ *     `test_file_sha_antes` divergir; a ORDEM DOS BRAÇOS de um suplente
+ *     (o pré-registo não a define; b1 do 14.º); TAREFAS sobrepostas no
+ *     tempo (só os inícios se comparam; g2 do 14.º); um clone de A em B
+ *     com `duration_ms` ± 1 ms (e1b do 14.º — a marca exige os 3 campos
+ *     iguais); a deduplicação é O(n²) em `tentativas` (irrelevante para
+ *     67 linhas, declarado; i do 14.º); «skips/todo
  *     não aumentaram face ao histórico» (o pré-registo não tem baseline de
  *     skips por tarefa); coerências por tentativa (19, 20, 22) em tentativas
  *     órfãs — só as verificações globais as apanham; `modelo_reportado` vs
@@ -392,6 +397,24 @@
  *     `haiku_unavailable_no_provider_degraded_to_local` — o controlador
  *     corre SEM `ANTHROPIC_API_KEY` (R7), senão o tier muda e a corrida é
  *     INVÁLIDA por `tier_divergente`.
+ * 33. O MODELO É TRATAMENTO (o 14.º revisor: `modelo_pedido` e
+ *     `modelo_reportado` são chaves obrigatórias e nunca eram lidas — B em
+ *     `claude-opus-4-1` nas 5 falhas, com `modelUsage` só dessa chave e
+ *     prova coerente, dava «cumprido · A 20 B 20 · marcas 0»; em espelho,
+ *     A noutro Opus rejeitado baixava A sem marca). O modelo pré-registado
+ *     lê-se do `bracos.A.executor` («--model claude-opus-5»); numa claude-p
+ *     que chegou, `modelo_pedido` ≠ esse → `modelo_pedido_divergente`,
+ *     corrida INVÁLIDA, (c) no par; null → `campo_em_falta` e INVÁLIDA;
+ *     qualquer chave `claude-opus*` do `modelUsage` que não seja o
+ *     pré-registado → `opus_fora_do_pedido`, INVÁLIDA (os aliases da 20
+ *     contam tokens, não autorizam outro Opus); `modelo_reportado` que não
+ *     é chave do `modelUsage` marca. `tarefa_excluida` com `task_id` fora
+ *     do corpus ∪ suplentes → `suplente_fora_do_protocolo`, INVÁLIDA (d3).
+ *     O CLI aceita SÓ `--prereg`/`--ledger`/`--out` com valor separado por
+ *     espaço; `--flag=valor`, flags desconhecidas e argumentos soltos são
+ *     exit 2. O teste afirma a coluna `tier_classificado` de
+ *     `SUPLENTES_ESPERADOS` (e das 20 do corpus) correndo o `classify.js`
+ *     congelado sobre os prompts do manifesto, sem `ANTHROPIC_API_KEY`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -746,6 +769,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   const preVoos = porTipo('pre_voo');
 
   const tectoS = prereg.aceitacao && Number.isFinite(prereg.aceitacao.tecto_por_tentativa_s) ? prereg.aceitacao.tecto_por_tentativa_s : NaN;
+  // 33: o modelo pre-registado vem do executor do braco A («--model claude-opus-5»); a escalacao usa «o executor do braco A»
+  const modeloPrereg = (() => { const m = /--model\s+(\S+)/.exec((prereg.bracos && prereg.bracos.A && prereg.bracos.A.executor) || ''); return m ? m[1] : null; })();
   const marcas = [];   // pares/tentativas marcados, com motivo — nunca escondidos
   const marca = (m) => marcas.push(m);
   const corridaInvalidaPor = [];
@@ -817,6 +842,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   const substituicoes = {};
   const usos = {};
   for (const e of excluidas) {
+    // 33 (d3 do 14.o): a tarefa excluida e do corpus ou da lista de suplentes; outro id consome um suplente sem registo
+    if (!ordemIds.includes(e.task_id) && !suplentesPrereg.includes(e.task_id)) { marca({ task_id: e.task_id, tipo: 'suplente_fora_do_protocolo', motivo: `tarefa_excluida com task_id fora do corpus e da lista de suplentes${e.suplente_usado ? ` — consome ${e.suplente_usado} sem registo` : ''}` }); invalida('suplente fora do protocolo', `${e.task_id}: excluida sem ser do corpus nem suplente`); }
     // «suplentes nunca por resultado»: nem depois de uma tentativa_fim, nem depois de um tentativa_inicio (um braco LANCADO e depois retirado; X3 do 10.o)
     if (tentativas.some((t) => t.task_id === e.task_id) || inicios.some((i) => i.task_id === e.task_id)) {
       marca({ task_id: e.task_id, tipo: 'suplente_fora_do_protocolo', motivo: 'tarefa excluida DEPOIS de um braco ter sido lancado (tentativa_inicio ou tentativa_fim) — substituicao por resultado' });
@@ -900,7 +927,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     if (shaDivergente) { marca({ task_id: id, tipo: 'test_file_sha_divergente', motivo: `test_file_sha_antes ${shasAntes.join(' vs ')} — os bracos nao viram o mesmo ficheiro congelado; o par nao e um par` }); invalida('test_file_sha_antes divergente entre os bracos da mesma tarefa (interpretacao 29)', `${id}: ${shasAntes.join(' vs ')}`); }
     const braco = (b) => {
       const xs = ts.filter((t) => t.braco === b).sort((p, q) => (p.tentativa ?? 0) - (q.tentativa ?? 0));
-      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, arrancou_motivo_c: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, chave_omitida: false, sem_opus: false, repetida: false, ultima_puro: false, ultima_curta: false };
+      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, arrancou_motivo_c: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, chave_omitida: false, modelo_divergente: false, sem_opus: false, repetida: false, ultima_puro: false, ultima_curta: false };
       const toks = xs.map(tokensOpusDaTentativa);
       let contraditorio = null;
       let semOpus = false;
@@ -918,6 +945,17 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           invalida('tentativa claude-p sem Opus no modelUsage — executor mal configurado (interpretacao 20)', ref(t));
         }
         if (prob.campos.length > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: prob.campos.join(', ') });
+        // 33 (f do 14.o): o modelo pedido e o pre-registado, em TODAS as claude-p (A e escalacao); outro modelo e outro tratamento
+        if (!ehLocal(t) && modeloPrereg) {
+          if (t.modelo_pedido == null) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'modelo_pedido' }); if (chegou) invalida('modelo_pedido null numa claude-p que chegou — o tratamento nao e verificavel (interpretacao 33)', ref(t)); }
+          else if (t.modelo_pedido !== modeloPrereg) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_pedido_divergente', motivo: `modelo_pedido ${JSON.stringify(t.modelo_pedido)} != ${modeloPrereg} do pre-registo` }); invalida('modelo_pedido diferente do pre-registado — o tratamento nao foi aplicado como pre-registado (interpretacao 33)', `${ref(t)}: ${t.modelo_pedido}`); }
+          if (t.modelUsage && typeof t.modelUsage === 'object') {
+            const opusFora = Object.keys(t.modelUsage).filter((k) => ehOpus(k) && k !== modeloPrereg);
+            if (opusFora.length) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'opus_fora_do_pedido', motivo: `modelUsage com ${opusFora.join(', ')} — outro Opus que nao o pre-registado (${modeloPrereg}) conta tokens mas e outro tratamento` }); invalida('modelUsage com um Opus diferente do pre-registado (interpretacao 33)', `${ref(t)}: ${opusFora.join(', ')}`); }
+            if (typeof t.modelo_reportado === 'string' && !(t.modelo_reportado in t.modelUsage)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_reportado_divergente', motivo: `modelo_reportado ${JSON.stringify(t.modelo_reportado)} nao e uma chave do modelUsage {${Object.keys(t.modelUsage).join(', ')}}` });
+            if (t.modelo_reportado == null && chegou) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'modelo_reportado' });
+          }
+        }
         if (!ehLocal(t) && t.modelUsage && typeof t.modelUsage === 'object') {
           const tok = (v) => ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((s, c) => s + (Number.isFinite(v && v[c]) ? v[c] : 0), 0);
           const opus = Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + tok(v), 0);
@@ -1038,6 +1076,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         arrancou_motivo_c: arrancouMotivoC,
         tipo_invalido: xs.some((t) => tipoInvalidoDe.has(t)),
         chave_omitida: xs.some((t) => omitidasDe.has(t)),
+        modelo_divergente: xs.some((t) => !ehLocal(t) && modeloPrereg && ((typeof t.modelo_pedido === 'string' && t.modelo_pedido !== modeloPrereg) || (t.modelUsage && typeof t.modelUsage === 'object' && Object.keys(t.modelUsage).some((k) => ehOpus(k) && k !== modeloPrereg)))),
         sem_opus: semOpus,
         repetida: xs.some((t) => repetidas.has(t)),
         arrancou: arrancouDaTentativa(ultima),                         // interpretacao 2: a ultima tentativa, pela flag
@@ -1146,6 +1185,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && (A.local_aceite || B.local_aceite)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('passo local aceite — impossivel por construcao (interpretacao 14)'); }
     else if (temTentativas && (A.contraditorio || B.contraditorio)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`aceite contraditorio: ${A.contraditorio || B.contraditorio} (interpretacao 19)`); }
     else if (temTentativas && (A.sem_opus || B.sem_opus)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa claude-p sem Opus no modelUsage (interpretacao 20)'); }
+    else if (temTentativas && (A.modelo_divergente || B.modelo_divergente)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('modelo pedido ou Opus diferente do pre-registado (interpretacao 33)'); }
     else if (temTentativas && (A.fora_do_protocolo || B.fora_do_protocolo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`tentativas fora do protocolo: ${A.fora_do_protocolo || B.fora_do_protocolo}`); }
     else if (temTentativas && !pv) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo ausente'); }
     else if (temTentativas && !preVooOk) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo nao falhou (tarefa ja verde)'); }
@@ -1345,6 +1385,13 @@ function arg(nome, defeito) {
 
 const invocadoDirectamente = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invocadoDirectamente) {
+  // 33: so `--prereg`, `--ledger`, `--out`, cada um com valor separado por espaco; tudo o resto e erro (nunca o default em silencio)
+  const permitidos = new Set(['--prereg', '--ledger', '--out']);
+  for (let i = 2; i < process.argv.length; i++) {
+    const a = process.argv[i];
+    if (a.startsWith('--')) { if (!permitidos.has(a)) { console.error(`argumento desconhecido: ${a} (aceites: ${[...permitidos].join(', ')}, cada um com valor separado por espaco)`); process.exit(2); } i++; }
+    else { console.error(`argumento solto: ${a}`); process.exit(2); }
+  }
   const preregPath = arg('--prereg', path.join(HERE, 'custo-prereg.json'));
   const ledgerPath = arg('--ledger', path.join(HERE, 'custo-ledger.jsonl'));
   const outPath = arg('--out', path.join(HERE, 'custo-analysis.json'));

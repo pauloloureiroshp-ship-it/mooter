@@ -19,6 +19,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, tsCanonico, TRANSCRIPT_MINIMO, SUPLENTES_ESPERADOS, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
 
@@ -1637,6 +1638,9 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R13s1: [tentativa('t1', 'A'), tentativa('t1', 'B', { aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B', { tentativa: 2, e_escalacao: true }), ...parOk('t2', 'T0')],
     R13s3: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0', ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05Z' }), passoLocal('t2', { ts_inicio: '2026-09-11T00:10:00Z', ts_fim: '2026-09-11T00:10:30Z' }), escalacao('t2', { ts_inicio: '2026-09-11T00:10:10Z', ts_fim: '2026-09-11T00:10:20Z' })],
     R13a08: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { e_escalacao: false })],
+    // 14.o revisor (33)
+    R14f1b: [tentativa('t1', 'A'), tentativa('t1', 'B', { modelo_pedido: 'claude-opus-4-1', modelo_reportado: 'claude-opus-4-1', modelUsage: { 'claude-opus-4-1': SONDA.modelUsage['claude-opus-5'] } }), ...parOk('t2', 'T0')],
+    R14f4: [tentativa('t1', 'A', { modelo_pedido: null }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
   // 'veredicto' = sem veredicto; 'par' = esse par invalido (o par limpo ao lado DA veredicto, e isso e legitimo);
@@ -1652,6 +1656,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R11k1b: { corrida: false }, R11k4b: { corrida: false }, R11k4: { corrida: false }, R11b4b: { veredicto: null }, R11e1: { corrida: false }, R11j1: { corrida: false }, R11k8: { corrida: false }, R11k3: { corrida: false },
     R12a1: { corrida: false }, R12a3: { corrida: false }, R12l1: { corrida: false }, R12c2: { corrida: false }, R12b1: { corrida: false }, R12g1: { valorizacao: null },
     R13s1: { corrida: false }, R13s3: { corrida: false }, R13a08: { corrida: false },
+    R14f1b: { corrida: false }, R14f4: { corrida: false },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1684,6 +1689,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'aceite com skips a mais (E4)': { aceite: true, skips: 5, tests_corridos: 15 },
       'aceite com skips null (E6)': { aceite: true, skips: null, tests_corridos: 15 },
       'aceite com sha de outro ficheiro (Y1)': { aceite: true, test_file_sha_antes: 'OUTRO', test_file_sha_depois: 'OUTRO' },
+      'aceite noutro Opus (f1b)': { aceite: true, modelo_pedido: 'claude-opus-4-1', modelo_reportado: 'claude-opus-4-1', modelUsage: { 'claude-opus-4-1': SONDA.modelUsage['claude-opus-5'] } },
       'residual (arrancou null sem motivo)': { ...falha, arrancou: null, motivo_se_nao: null, session_id: null, modelUsage: null, usage: null, total_cost_usd: null, exit_code: null, tests_corridos: null, tests_passados: null, skips: null, duration_ms: 50 },
       'aceite com pre_voo sem contrato (K4b)': { aceite: true, __preVoo: { falhou: true, skips: 0 } },
       'aceite com estado_vivo null (B4b)': { aceite: true, estado_vivo_sha: null },
@@ -1714,6 +1720,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'A com ts sem zona (a3)': { ts_inicio: '2026-09-11T08:00:00', ts_fim: '2026-09-11T08:00:05' },
       'A com ts com espaco (a1)': { ts_inicio: '2026-09-11T08:00:00.000Z ', ts_fim: '2026-09-11T08:00:05.000Z ' },
       'A com ts_fim antes do inicio (b1)': { ts_inicio: '2026-09-11T08:00:00Z', ts_fim: '2026-09-11T07:59:00Z' },
+      'A noutro Opus rejeitado (f5b)': { aceite: false, exit_code: 1, tests_passados: 9, modelo_pedido: 'claude-opus-4-1', modelo_reportado: 'claude-opus-4-1', modelUsage: { 'claude-opus-4-1': SONDA.modelUsage['claude-opus-5'] } },
       'A local rotulado router-execute (E1)': { executor: 'router-execute', modelo_pedido: 'ollama', tokens_locais: 900, texto_local_sha256: 'x', aceite: false, exit_code: 1, tests_passados: 9 },
     };
     const evA = (o, semLinha, evento, trocar = false, excluir = false) => [
@@ -2367,9 +2374,12 @@ test('analise · 13.o (R13-A01/A02/A05/A08): fronteiras — tsCanonico com 4+ di
   assert.ok(r.corrida_invalida_por.some((x) => /e_escalacao incoerente/.test(x.motivo)));
 });
 
-test('analise · 13.o (e4/e5/e6): o main — exit 2 sem ledger, --out sem valor e erro, linhas invalidas no resumo, --out escreve o resultado', () => {
+test('analise · 13.o (e4/e5/e6): o main — exit 2 sem ledger, --out sem valor e erro, linhas invalidas no resumo, --out escreve o resultado', (tctx) => {
   const cli = path.join(HERE, 'custo-analise.mjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'custo-cli-'));
+  const defaultOut = path.join(HERE, 'custo-analysis.json');
+  const defaultExistia = fs.existsSync(defaultOut);   // um mutante que caia no default escreve aqui: limpa-se SEMPRE, mesmo que uma asserção falhe
+  tctx.after(() => { fs.rmSync(dir, { recursive: true, force: true }); if (!defaultExistia && fs.existsSync(defaultOut)) fs.rmSync(defaultOut); });
   const semLedger = spawnSync(process.execPath, [cli, '--ledger', path.join(dir, 'nao-existe.jsonl'), '--out', path.join(dir, 'o.json')], { encoding: 'utf8' });
   assert.equal(semLedger.status, 2);
   assert.match(semLedger.stderr, /falta o ledger/);
@@ -2379,6 +2389,15 @@ test('analise · 13.o (e4/e5/e6): o main — exit 2 sem ledger, --out sem valor 
   const semValor = spawnSync(process.execPath, [cli, '--ledger', ledger, '--out'], { encoding: 'utf8' });
   assert.equal(semValor.status, 2, 'e6: --out sem valor nunca cai no default em silencio');
   assert.match(semValor.stderr, /--out sem valor/);
+  const igual = spawnSync(process.execPath, [cli, `--ledger=${ledger}`, '--out', path.join(dir, 'x.json')], { encoding: 'utf8' });
+  assert.equal(igual.status, 2, '33: --flag=valor e erro, nunca o default');
+  const typo = spawnSync(process.execPath, [cli, '--ledger', ledger, '--out', path.join(dir, 'x.json'), '--typo', 'v'], { encoding: 'utf8' });
+  assert.equal(typo.status, 2, '33: flag desconhecida e erro (mesmo com ledger e out validos)');
+  const solto = spawnSync(process.execPath, [cli, '--ledger', ledger, '--out', path.join(dir, 'x.json'), 'solto'], { encoding: 'utf8' });
+  assert.equal(solto.status, 2, '33: argumento solto e erro');
+  const outLedger = spawnSync(process.execPath, [cli, '--out', '--ledger', ledger], { encoding: 'utf8' });
+  assert.equal(outLedger.status, 2, 'N13: --out sem valor seguido de outro flag');
+  assert.ok(!fs.existsSync(path.join(dir, 'x.json')) && !fs.existsSync('--ledger'));
   const out = path.join(dir, 'r.json');
   const ok = spawnSync(process.execPath, [cli, '--ledger', ledger, '--out', out], { encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stderr);
@@ -2387,7 +2406,68 @@ test('analise · 13.o (e4/e5/e6): o main — exit 2 sem ledger, --out sem valor 
   assert.equal(r.linhas_de_ledger_invalidas.length, 2);
   assert.equal(r.prereg_sha256, PREREG_SHA256_ESPERADO);
   assert.equal(r.corrida_fechou_os_pares, false, 't1 e uma das 20 do prereg real? nao — e orfa; o prefixo e 0/20');
-  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// ── 14.o revisor: o modelo e tratamento (interpretacao 33) ──
+
+test('analise · 14.o NO-SHIP (f1b/f5b/f3/f4, 33): modelo_pedido e modelUsage com outro Opus — outro tratamento, corrida INVALIDA; null e campo em falta', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const outroOpus = { 'claude-opus-4-1': SONDA.modelUsage['claude-opus-5'] };
+  // f1b: B nas 5 falhas em claude-opus-4-1 (pedido e modelUsage), aceite com prova coerente -> antes: «cumprido · A 20 B 20 · marcas 0»
+  const f1b = analisarReal(T.flatMap((t, i) => (falhaB(i) ? parReal(t) : parReal(t).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' ? { ...e, modelo_pedido: 'claude-opus-4-1', modelo_reportado: 'claude-opus-4-1', modelUsage: outroOpus } : e)))));
+  assert.equal(f1b.corrida_valida, false);
+  assert.equal(f1b.primaria.limiar_descritivo_cumprido, null);
+  assert.equal(f1b.marcas.filter((m) => m.tipo === 'modelo_pedido_divergente').length, 5);
+  assert.equal(f1b.marcas.filter((m) => m.tipo === 'opus_fora_do_pedido').length, 5);
+  assert.ok(f1b.fiabilidade.pares_invalidos.some((x) => /modelo pedido ou Opus diferente do pre-registado.*CORRIDA INVALIDA/.test(x.motivo)));
+  // f5b (espelho): A noutro Opus rejeitado em 3 tarefas do controlo 18/20 -> antes: «A 17 B 18 · valida · marcas 0»
+  const idsA = T.filter((t, i) => falhaB(i)).slice(0, 3).map((t) => t.task_id);
+  const f5b = analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: i !== 3 && i !== 7 }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' && idsA.includes(e.task_id) ? { ...e, modelo_pedido: 'claude-opus-4-1', modelo_reportado: 'claude-opus-4-1', modelUsage: outroOpus, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1 } : e))));
+  assert.equal(f5b.corrida_valida, false);
+  // f3: modelo_pedido haiku com modelUsage opus-5 -> divergente; f4: modelo_pedido null em A -> campo_em_falta e invalida
+  const p = preregDe(['t1', 't2']);
+  const f3 = correr(p, [tentativa('t1', 'A', { modelo_pedido: 'claude-haiku-4' }), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(f3.corrida_valida, false);
+  assert.ok(f3.marcas.some((m) => m.tipo === 'modelo_pedido_divergente' && /claude-haiku-4/.test(m.motivo)));
+  const f4 = correr(p, [tentativa('t1', 'A', { modelo_pedido: null }), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(f4.corrida_valida, false);
+  assert.ok(f4.marcas.some((m) => m.tipo === 'campo_em_falta' && m.motivo === 'modelo_pedido'));
+  // M304: modelo_pedido certo mas o modelUsage noutro Opus -> opus_fora_do_pedido invalida por si
+  const fo = correr(p, [tentativa('t1', 'A', { modelUsage: outroOpus, modelo_reportado: 'claude-opus-4-1' }), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(fo.corrida_valida, false);
+  assert.ok(fo.corrida_invalida_por.some((x) => /modelUsage com um Opus diferente do pre-registado/.test(x.motivo)));
+  assert.equal(fo.marcas.filter((m) => m.tipo === 'modelo_pedido_divergente').length, 0);
+  // M305: o modelo pre-registado le-se do prereg, nao esta cravado — com «--model claude-opus-6» no executor de A, o claude-opus-5 da bancada e divergente
+  const p6 = { ...p, bracos: { ...p.bracos, A: { ...p.bracos.A, executor: p.bracos.A.executor.replace('--model claude-opus-5', '--model claude-opus-6') } } };
+  const f6 = correr(p6, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(f6.corrida_valida, false);
+  assert.ok(f6.marcas.some((m) => m.tipo === 'modelo_pedido_divergente' && /!= claude-opus-6/.test(m.motivo)));
+  // modelo_reportado que nao e chave do modelUsage: so marca
+  const fr = correr(p, [tentativa('t1', 'A', { modelo_reportado: 'claude-opus-5-20260901' }), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.ok(fr.marcas.some((m) => m.tipo === 'modelo_reportado_divergente'));
+  assert.equal(fr.corrida_valida, true);
+  // o passo local nao entra (modelo_pedido 'ollama'); e uma segunda chave opus-5 nao existe — o Sonnet ao lado e a S9, nao a 33
+  const pL = preregDe(['t1', 't2'], { t2: 'T0' });
+  assert.equal(correr(pL, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2')]).marcas.length, 0);
+  // d3: tarefa_excluida com id fora do corpus e da lista de suplentes consome um suplente sem registo -> INVALIDA
+  const d3 = analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'tarefa_excluida', task_id: 'tXX-desconhecida', motivo: 'x', suplente_usado: 's1' }, preVoo('t2'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(d3.corrida_valida, false);
+  assert.ok(d3.marcas.some((m) => m.tipo === 'suplente_fora_do_protocolo' && /fora do corpus e da lista de suplentes/.test(m.motivo)));
+});
+
+test('analise · 14.o (N15/N16/N17, 32): a coluna tier_classificado de SUPLENTES_ESPERADOS e das 20 do corpus bate com o classify.js congelado sobre os prompts do manifesto, sem ANTHROPIC_API_KEY', (tctx) => {
+  const routerDir = path.join(HERE, '..', 'router');
+  if (fs.existsSync(path.join(routerDir, 'tuning-state.json'))) { tctx.skip('tuning-state.json vivo nesta maquina — o classify nao e o dos defaults commitados'); return; }
+  const require = createRequire(import.meta.url);
+  const chave = process.env.ANTHROPIC_API_KEY; delete process.env.ANTHROPIC_API_KEY;
+  try {
+    const { classify } = require(path.join(routerDir, 'classify.js'));
+    const manifesto = JSON.parse(fs.readFileSync(path.join(HERE, 'r24-manifest.json'), 'utf8'));
+    const tarefas = Object.values(manifesto).find(Array.isArray);
+    for (const [id, m] of Object.entries(SUPLENTES_ESPERADOS)) assert.equal(classify(tarefas.find((x) => x.task_id === id).prompt).tier, m.tier_classificado, `suplente ${id}`);
+    for (const t of PREREG.corpus.tarefas) assert.equal(classify(tarefas.find((x) => x.task_id === t.task_id).prompt).tier, t.tier_classificado, `corpus ${t.task_id}`);
+  } finally { if (chave !== undefined) process.env.ANTHROPIC_API_KEY = chave; }
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {
