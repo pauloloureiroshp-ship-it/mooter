@@ -43,9 +43,12 @@
  *     invalida o par. Uma tentativa não-local com `arrancou !== true` marca
  *     `tentativa_nao_arrancou` (e `campo_em_falta` se for null).
  *  3. Consumo ZERO por construção SÓ para uma tentativa com `arrancou ===
- *     false`, sem `modelUsage`, sem `session_id`, e `motivo_se_nao` a começar
- *     por `spawn:` — a definição do pré-registo («spawn:* sem JSON nem
- *     transcript»). Qualquer outro não-arrancou sem JSON tem consumo
+ *     false`, sem `modelUsage`, sem `session_id`, `motivo_se_nao` a começar
+ *     por `spawn:` e SEM «timeout»/«ETIMEDOUT» no motivo (o `spawnSync` deste
+ *     Node devolve `error.code=ETIMEDOUT` E `signal=SIGTERM` no mesmo
+ *     timeout; a grafia depende da ordem dos `if`) — a definição do
+ *     pré-registo («spawn:* sem JSON nem transcript»). Qualquer outro
+ *     não-arrancou sem JSON tem consumo
  *     DESCONHECIDO. Uma tentativa que arrancou e ficou sem JSON: se o ledger
  *     trouxer `tokens_transcript` > 0, é essa a fonte (categorias null,
  *     valorização null, marca `consumo_do_transcript`); senão null e marca
@@ -108,8 +111,9 @@
  *     `tokens_locais`/`modelo_reportado`, e — numa tentativa claude-p que
  *     chegou ao CLI — as PROVAS da aceitação (`exit_code`,
  *     `test_file_sha_antes`, `test_file_sha_depois`, `tests_corridos`,
- *     `tests_passados`). `aceite: null` e prova em falta tornam o par
- *     INVÁLIDO: são o input da primária.
+ *     `tests_passados`; um valor de tipo errado conta como em falta).
+ *     `aceite: null` e `aceite: true` sem prova completa → corrida INVÁLIDA
+ *     (27c); `aceite: false` sem prova completa conta como registado (27b).
  * 13. Arredondamento SÓ à saída: USD 4 casas, proporções 3, tokens e razões
  *     de tokens inteiros.
  * 14. Passo local com `aceite === true` é IMPOSSÍVEL POR CONSTRUÇÃO
@@ -124,7 +128,8 @@
  *     executor ≠ `claude-p`; B com > 2; B em T0/T1 sem passo local na 1.ª;
  *     B em T0/T1 com passo local não aceite e SEM escalação
  *     (`escalacao_em_falta`); B em T2/T3 com > 1 ou com passo local. Marca
- *     `tentativas_fora_do_protocolo`, par INVÁLIDO.
+ *     `tentativas_fora_do_protocolo`, par INVÁLIDO e corrida INVÁLIDA (27c):
+ *     o tratamento não foi aplicado como pré-registado.
  * 17. NÃO verificado (declarado): ordem de execução das TAREFAS; «skips/todo
  *     não aumentaram face ao histórico» (o pré-registo não tem baseline de
  *     skips por tarefa); coerências por tentativa (19, 20, 22) em tentativas
@@ -202,6 +207,32 @@
  *     tentativa) com mais de um `inicio` é `tentativa_reiniciada` → corrida
  *     INVÁLIDA (retoma com outra pegada); `inicio` sem `fim` marca
  *     `tentativa_sem_fim`. Sem nenhum `inicio` no ledger, não se verifica.
+ * 27. A REGRA DA ESCADA (o 8.º revisor mostrou que sete rondas fecharam sete
+ *     instâncias sem a codificar): num teste emparelhado de não-inferioridade
+ *     (B ≥ A − 2), retirar um par (A✓, B✗) do denominador FAVORECE B, e
+ *     baixar um A✓ também. Logo um defeito numa linha que CHEGOU ao CLI
+ *     NUNCA retira o par. Só há três saídas para um par que correu:
+ *     (a) PAR INVÁLIDO (sai da primária, consumo em `fiabilidade`) — SÓ para
+ *         as saídas que o pré-registo define: evento `par_invalido` legítimo
+ *         (o braço não chegou), braço sem tentativa registada, última
+ *         tentativa que é não-arrancou PURO (`spawn:*`, sem JSON, sem
+ *         `session_id`, sem tecto), ou o residual declarado (`arrancou:null`
+ *         sem motivo, sem JSON, curto);
+ *     (b) CONTA COMO REGISTADO, com marca — `aceite:false` numa claude-p que
+ *         chegou, com prova incompleta (`campo_em_falta`): a falha conta
+ *         contra o braço; a análise não a pode converter em «par inválido»
+ *         (classe (ii) do 8.º: `correrAceitacao` devolve `status:null` quando
+ *         a aceitação é morta por timeout);
+ *     (c) CORRIDA INVÁLIDA — qualquer outro defeito numa linha que chegou:
+ *         tipo inválido em qualquer chave, `aceite:null`, `aceite:true` sem
+ *         prova completa, passo local aceite, aceite contraditório, sem
+ *         Opus, TODAS as violações do protocolo de tentativas (incl.
+ *         `escalacao_em_falta`, classe (i) do 8.º), tentativa repetida,
+ *         arrancou contraditório, não-arrancou fora da definição, pré-voo
+ *         ausente ou não falhado numa tarefa que correu. O par fica também
+ *         marcado inválido para contabilidade.
+ *     O CONTRATO tem um controlo de DIRECÇÃO: para cada ataque, o veredicto
+ *     nunca pode ser «cumprido» quando o ledger honesto dá «não cumprido».
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -303,7 +334,7 @@ export function problemasDoModelUsage(mu) {
 export const evidenciaDeArranque = (t) => !!t && !ehLocal(t) && (typeof t.session_id === 'string' || (!!t.modelUsage && typeof t.modelUsage === 'object'));
 
 /** Não-arrancou «puro» do pré-registo: spawn falhou, sem JSON, sem session_id (interpretação 3). */
-export const naoArrancouPuro = (t) => !!t && t.arrancou === false && !t.modelUsage && typeof t.session_id !== 'string' && typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.startsWith('spawn:');
+export const naoArrancouPuro = (t) => !!t && t.arrancou === false && !t.modelUsage && typeof t.session_id !== 'string' && typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.startsWith('spawn:') && !/timeout|ETIMEDOUT/i.test(t.motivo_se_nao);
 
 /**
  * Tokens de Opus de UMA tentativa, por categoria (interpretações 1, 3 e 20).
@@ -523,6 +554,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       tipoInvalidoDe.set(t, viol);
       marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'tipo_invalido', motivo: viol.join('; ') });
       if (viol.some((v) => v.startsWith('aceite:') || v.startsWith('arrancou:'))) invalida('tipo invalido em aceite/arrancou — a aceitacao do controlador esta partida (interpretacao 18)', `${ref(t)}: ${viol.filter((v) => /^(aceite|arrancou):/.test(v)).join('; ')}`);
+      else invalida('tipo invalido numa chave obrigatoria — o par nao pode sair do denominador por isto (27c)', `${ref(t)}: ${viol.join('; ')}`);
     }
   }
   // tentativa_inicio (26): reinicio da mesma tentativa = retoma com outra pegada
@@ -604,11 +636,12 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (ordemObservada && meta.ordem_dos_bracos && ordemObservada !== meta.ordem_dos_bracos) marca({ task_id: id, tipo: 'ordem_divergente', motivo: `prereg ${meta.ordem_dos_bracos}, observado ${ordemObservada} (interpretacao 24)` });
     const braco = (b) => {
       const xs = ts.filter((t) => t.braco === b).sort((p, q) => (p.tentativa ?? 0) - (q.tentativa ?? 0));
-      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, sem_opus: false, repetida: false };
+      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, arrancou_motivo_c: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, sem_opus: false, repetida: false };
       const toks = xs.map(tokensOpusDaTentativa);
       let contraditorio = null;
       let semOpus = false;
       let arrancouContraditorio = false;
+      let arrancouMotivoC = null;
       let provaEmFalta = null;
       for (const [i, t] of xs.entries()) {
         const rec = reconciliar(t);
@@ -635,30 +668,35 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           if (t.arrancou == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'arrancou' });
           // interpretacao 22: nao-arrancou so e o que o prereg define (spawn:*, sem JSON, sem 900 s) — null incluido (B2 do 7.o)
           const segundosT = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
-          const motivoSpawn = typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.startsWith('spawn:');
-          const durouComoTecto = Number.isFinite(segundosT) && Number.isFinite(tectoS) && segundosT >= tectoS;
+          const motivoSpawn = typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.startsWith('spawn:') && !/timeout|ETIMEDOUT/i.test(t.motivo_se_nao);
+          const durouComoTecto = Number.isFinite(tectoS) && ((Number.isFinite(segundosT) && segundosT >= tectoS) || (Number.isFinite(t.duration_ms) && t.duration_ms >= tectoS * 1000));
           if (t.arrancou !== true && !evidenciaDeArranque(t) && ((typeof t.motivo_se_nao === 'string' && !motivoSpawn) || durouComoTecto)) {
-            arrancouContraditorio = true;
+            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'nao-arrancou fora da definicao do pre-registo (interpretacao 22)';
             marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'nao_arrancou_fora_da_definicao', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)} com motivo_se_nao=${JSON.stringify(t.motivo_se_nao ?? null)}${durouComoTecto ? ` e ${segundosT}s >= tecto ${tectoS}s` : ''} — nao-arrancou e SO spawn:* sem JSON e sem tecto; «estourar o tecto = nao aceite» conta contra o braco (interpretacao 22)` });
             invalida('nao-arrancou fora da definicao do pre-registo — o controlador classifica falhas como nao-arranques (interpretacao 22)', ref(t));
           }
           // interpretacao 22: a flag nao pode contradizer a evidencia da propria linha
           if (t.arrancou !== true && evidenciaDeArranque(t)) {
-            arrancouContraditorio = true;
+            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'arrancou contradiz a evidencia da linha (interpretacao 22)';
             const ev = [typeof t.session_id === 'string' ? 'session_id' : null, t.modelUsage && typeof t.modelUsage === 'object' ? 'modelUsage' : null].filter(Boolean).join('+');
             marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'arrancou_contraditorio', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)} (${t.motivo_se_nao ?? 'sem motivo'}) mas a linha tem ${ev}: a invocacao CHEGOU ao CLI (interpretacao 22)` });
             invalida('arrancou contradiz a evidencia da linha — o controlador escreve nao-arrancou em invocacoes que chegaram ao Opus (interpretacao 22)', ref(t));
           }
           // interpretacao 12/19: numa claude-p que chegou, as provas da aceitacao sao obrigatorias
           if (chegou && typeof t.aceite === 'boolean') {
-            const faltam = PROVAS_DA_ACEITACAO.filter((c) => t[c] == null);
-            if (faltam.length) { provaEmFalta = provaEmFalta || faltam.join(', '); marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: `provas da aceitacao: ${faltam.join(', ')}` }); }
+            const tipoErrado = new Set((tipoInvalidoDe.get(t) || []).map((v) => v.split(':')[0]));
+            const faltam = PROVAS_DA_ACEITACAO.filter((c) => t[c] == null || tipoErrado.has(c));
+            if (faltam.length) {
+              marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: `provas da aceitacao: ${faltam.join(', ')}${t.aceite === false ? ' — aceite=false conta como registado (27b)' : ''}` });
+              if (t.aceite === true) { provaEmFalta = provaEmFalta || faltam.join(', '); invalida('aceite=true sem prova completa — nao verificavel; retirar o par favorece um braco (27c)', `${ref(t)}: ${faltam.join(', ')}`); }
+            }
           }
+          if (typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' && t.ts_fim === t.ts_inicio && Number.isFinite(t.duration_ms) && t.duration_ms > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: `ts_fim === ts_inicio com duration_ms ${t.duration_ms} — os dois ts no momento da escrita` });
           if (chegou && ((typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' && t.ts_fim < t.ts_inicio) || t.duration_ms === 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: t.duration_ms === 0 ? 'duration_ms 0 numa invocacao que chegou' : `ts_fim ${t.ts_fim} < ts_inicio ${t.ts_inicio}` });
           if (durouComoTecto) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tecto_aparente', motivo: `ts_fim - ts_inicio = ${segundosT}s >= tecto ${tectoS}s (aceite=${JSON.stringify(t.aceite ?? null)}) — so marca, o intervalo pode incluir a aceitacao (interpretacao 19)` });
           if (t.arrancou === true && typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.length > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'motivo_com_arrancou', motivo: `arrancou=true com motivo_se_nao=${JSON.stringify(t.motivo_se_nao)} (interpretacao 25)` });
         }
-        if (t.aceite == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'aceite' });
+        if (t.aceite == null) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'aceite' }); if (!ehLocal(t) && chegou) invalida('aceite null numa claude-p que chegou — o input da primaria em falta; retirar o par favorece um braco (27c)', ref(t)); }
         if (meta && t.tier_classificado == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'tier_classificado (o runtime nao confirmou o tier pre-registado)' });
         if (typeof t.e_escalacao === 'boolean' && Number.isFinite(t.tentativa) && t.e_escalacao !== (t.tentativa === 2)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'escalacao_incoerente', motivo: `e_escalacao=${t.e_escalacao} com tentativa=${t.tentativa} (interpretacao 25)` });
         const contra = aceiteContraditorio(t, historico);
@@ -689,7 +727,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         else if (tier != null && !ehTierLocal(tier) && (xs.length > 1 || locais > 0)) foraDoProtocolo = `B em ${tier} com ${xs.length} tentativas e ${locais} passo(s) local(is) (prereg: 1, sem local)`;
         else if (locais > 1) foraDoProtocolo = `B com ${locais} passos locais`;
       }
-      if (foraDoProtocolo) marca({ task_id: id, braco: b, tipo: 'tentativas_fora_do_protocolo', motivo: foraDoProtocolo });
+      if (foraDoProtocolo) { marca({ task_id: id, braco: b, tipo: 'tentativas_fora_do_protocolo', motivo: foraDoProtocolo }); invalida('tentativas fora do protocolo — o tratamento nao foi aplicado como pre-registado (interpretacao 16, 27c)', `${id}/${b}: ${foraDoProtocolo}`); }
       const soma = (campo) => somaOuNull(toks.map((k) => (k === null ? null : k[campo])));
       const tokens = toks.some((k) => k === null) ? null : {
         input: soma('input'), output: soma('output'), cache_creation: soma('cache_creation'),
@@ -710,6 +748,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         fora_do_protocolo: foraDoProtocolo,
         contraditorio,
         arrancou_contraditorio: arrancouContraditorio,
+        arrancou_motivo_c: arrancouMotivoC,
         tipo_invalido: xs.some((t) => tipoInvalidoDe.has(t)),
         sem_opus: semOpus,
         repetida: xs.some((t) => repetidas.has(t)),
@@ -747,28 +786,32 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     const preVooOk = pv ? preVooFalhou(pv) : null;
     if (pv && pv.falhou === true && pv.exit_code === 0) marca({ task_id: id, tipo: 'pre_voo_incoerente', motivo: 'pre_voo com falhou=true e exit_code=0 (interpretacao 25)' });
     if (correu) {
-      if (!pv) marca({ task_id: id, tipo: 'pre_voo_ausente', motivo: 'tarefa correu sem evento pre_voo' });
-      else if (!preVooOk) marca({ task_id: id, tipo: 'pre_voo_nao_falhou', motivo: `pre-voo nao falhou (exit_code=${JSON.stringify(pv.exit_code ?? null)}, falhou=${JSON.stringify(pv.falhou ?? null)}) — tarefa ja verde, aceitacao nao mede nada` });
+      if (!pv) { marca({ task_id: id, tipo: 'pre_voo_ausente', motivo: 'tarefa correu sem evento pre_voo' }); if (temTentativas) invalida('pre-voo ausente numa tarefa que correu — retirar o par favorece um braco (interpretacao 7, 27c)', id); }
+      else if (!preVooOk) { marca({ task_id: id, tipo: 'pre_voo_nao_falhou', motivo: `pre-voo nao falhou (exit_code=${JSON.stringify(pv.exit_code ?? null)}, falhou=${JSON.stringify(pv.falhou ?? null)}) — tarefa ja verde, aceitacao nao mede nada` }); if (temTentativas) invalida('pre-voo nao falhou numa tarefa que correu — o controlador correu uma tarefa ja verde (interpretacao 7, 27c)', id); }
     }
     // validade do par: por ordem de gravidade, o primeiro motivo fica
+    // ── A ESCADA (interpretacao 27) ─────────────────────────────────────
+    // (a) par invalido: SO as saidas do prereg. (c) tudo o resto: a corrida ja foi invalidada pelos `invalida(...)` acima;
+    // o par fica marcado invalido so para contabilidade, e o motivo diz que a corrida e invalida por ele.
     const valor = (x) => JSON.stringify(x.arrancou_valor_ultima);
     let bracoQueNaoArrancou = null, motivoInvalido = null;
-    if (invalido) { bracoQueNaoArrancou = invalido.braco; motivoInvalido = invalido.motivo; }
-    else if (temTentativas && A.tentativas === 0) { bracoQueNaoArrancou = 'A'; motivoInvalido = 'sem tentativa registada no braco A'; }
-    else if (temTentativas && B.tentativas === 0) { bracoQueNaoArrancou = 'B'; motivoInvalido = 'sem tentativa registada no braco B'; }
-    else if (temTentativas && (A.arrancou_contraditorio || B.arrancou_contraditorio)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'arrancou contradiz a evidencia da linha (interpretacao 22)'; }
-    else if (temTentativas && A.arrancou !== true) { bracoQueNaoArrancou = 'A'; motivoInvalido = `ultima tentativa com arrancou=${valor(A)} sem evento par_invalido${A.motivo_se_nao ? ' · ' + A.motivo_se_nao : ''}`; }
-    else if (temTentativas && B.arrancou !== true) { bracoQueNaoArrancou = 'B'; motivoInvalido = `ultima tentativa com arrancou=${valor(B)} sem evento par_invalido${B.motivo_se_nao ? ' · ' + B.motivo_se_nao : ''}`; }
-    else if (temTentativas && (A.tipo_invalido || B.tipo_invalido)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'tipo invalido em campo obrigatorio (interpretacao 18)'; }
-    else if (temTentativas && (A.repetida || B.repetida)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'tentativa repetida por cima (interpretacao 23)'; }
-    else if (temTentativas && (A.aceite_indecidivel || B.aceite_indecidivel)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'aceite null — o input da primaria esta em falta (interpretacao 12)'; }
-    else if (temTentativas && (A.prova_em_falta || B.prova_em_falta)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = `aceite sem prova completa: ${A.prova_em_falta || B.prova_em_falta} (interpretacao 12)`; }
-    else if (temTentativas && (A.local_aceite || B.local_aceite)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'passo local aceite — impossivel por construcao (interpretacao 14)'; }
-    else if (temTentativas && (A.contraditorio || B.contraditorio)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = `aceite contraditorio: ${A.contraditorio || B.contraditorio} (interpretacao 19)`; }
-    else if (temTentativas && (A.sem_opus || B.sem_opus)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'tentativa claude-p sem Opus no modelUsage (interpretacao 20)'; }
-    else if (temTentativas && (A.fora_do_protocolo || B.fora_do_protocolo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = `tentativas fora do protocolo: ${A.fora_do_protocolo || B.fora_do_protocolo}`; }
-    else if (temTentativas && !pv) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'pre-voo ausente'; }
-    else if (temTentativas && !preVooOk) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = 'pre-voo nao falhou (tarefa ja verde)'; }
+    const c = (m) => `${m} — CORRIDA INVALIDA por isto (27c)`;
+    if (invalido) { bracoQueNaoArrancou = invalido.braco; motivoInvalido = invalido.motivo; }                                                     // (a) ou (c) via 21
+    else if (temTentativas && A.tentativas === 0) { bracoQueNaoArrancou = 'A'; motivoInvalido = 'sem tentativa registada no braco A'; }          // (a)
+    else if (temTentativas && B.tentativas === 0) { bracoQueNaoArrancou = 'B'; motivoInvalido = 'sem tentativa registada no braco B'; }          // (a)
+    else if (temTentativas && (A.arrancou_contraditorio || B.arrancou_contraditorio)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c((A.arrancou_contraditorio ? A : B).arrancou_motivo_c); }   // (c)
+    else if (temTentativas && A.arrancou !== true) { bracoQueNaoArrancou = 'A'; motivoInvalido = `ultima tentativa com arrancou=${valor(A)} sem evento par_invalido${A.motivo_se_nao ? ' · ' + A.motivo_se_nao : ''}`; }   // (a): puro ou residual
+    else if (temTentativas && B.arrancou !== true) { bracoQueNaoArrancou = 'B'; motivoInvalido = `ultima tentativa com arrancou=${valor(B)} sem evento par_invalido${B.motivo_se_nao ? ' · ' + B.motivo_se_nao : ''}`; }   // (a): puro ou residual
+    else if (temTentativas && (A.tipo_invalido || B.tipo_invalido)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tipo invalido em campo obrigatorio (interpretacao 18)'); }
+    else if (temTentativas && (A.repetida || B.repetida)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa repetida por cima (interpretacao 23)'); }
+    else if (temTentativas && (A.aceite_indecidivel || B.aceite_indecidivel)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('aceite null — o input da primaria esta em falta (interpretacao 12)'); }
+    else if (temTentativas && (A.prova_em_falta || B.prova_em_falta)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`aceite=true sem prova completa: ${A.prova_em_falta || B.prova_em_falta} (interpretacao 12)`); }
+    else if (temTentativas && (A.local_aceite || B.local_aceite)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('passo local aceite — impossivel por construcao (interpretacao 14)'); }
+    else if (temTentativas && (A.contraditorio || B.contraditorio)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`aceite contraditorio: ${A.contraditorio || B.contraditorio} (interpretacao 19)`); }
+    else if (temTentativas && (A.sem_opus || B.sem_opus)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa claude-p sem Opus no modelUsage (interpretacao 20)'); }
+    else if (temTentativas && (A.fora_do_protocolo || B.fora_do_protocolo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`tentativas fora do protocolo: ${A.fora_do_protocolo || B.fora_do_protocolo}`); }
+    else if (temTentativas && !pv) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo ausente'); }
+    else if (temTentativas && !preVooOk) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo nao falhou (tarefa ja verde)'); }
     const parValido = correu && motivoInvalido === null;
     // par fechado: os dois bracos tem tentativa, ou um evento par_invalido fechou-o (interpretacao 4)
     const parFechado = !!invalido || (A.tentativas > 0 && B.tentativas > 0);

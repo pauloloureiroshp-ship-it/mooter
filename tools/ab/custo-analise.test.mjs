@@ -128,6 +128,10 @@ test('tokens · arrancou sem modelUsage e consumo DESCONHECIDO (null); nao arran
   assert.equal(tokensOpusDaTentativa(naoArrancou('t1', 'A', { motivo_se_nao: 'cli_is_error:Reached max turns' })), null);
   assert.equal(tokensOpusDaTentativa(naoArrancou('t1', 'A', { motivo_se_nao: null })), null);
   assert.equal(tokensOpusDaTentativa(naoArrancou('t1', 'A', { session_id: 'abc' })), null, 'com session_id nao e nao-arrancou puro');
+  // 8.o revisor (iii): «spawn:ETIMEDOUT» e um tecto do spawn, nao um spawn que nao arrancou — o consumo e desconhecido, nao zero
+  assert.ok(!naoArrancouPuro(naoArrancou('t1', 'A', { motivo_se_nao: 'spawn:ETIMEDOUT' })));
+  assert.equal(tokensOpusDaTentativa(naoArrancou('t1', 'A', { motivo_se_nao: 'spawn:ETIMEDOUT' })), null);
+  assert.ok(!naoArrancouPuro(naoArrancou('t1', 'A', { motivo_se_nao: 'spawn:timeout' })));
 });
 
 test('tokens · arrancou sem JSON mas com tokens_transcript > 0: o transcript e a fonte, categorias null; 0 e "nao encontrado"', () => {
@@ -454,7 +458,8 @@ test('analise · 3.o NO-SHIP (chaves omitidas): ledger.regra — chave omitida m
   const semProva = tentativa('t1', 'A'); delete semProva.tests_corridos;
   const r2 = correr(p, [semProva, tentativa('t1', 'B')]);
   assert.equal(r2.primaria.n_pares_validos, 0);
-  assert.match(r2.fiabilidade.pares_invalidos[0].motivo, /aceite sem prova completa: tests_corridos/);
+  assert.match(r2.fiabilidade.pares_invalidos[0].motivo, /aceite=true sem prova completa: tests_corridos.*CORRIDA INVALIDA/);
+  assert.equal(r2.corrida_valida, false, '27c: aceite=true sem prova invalida a corrida');
 });
 
 test('analise · 3.o NO-SHIP (protocolo de tentativas): A com 2, B com 3, B em T0 sem local, B em T3 com local — marca e par invalido', () => {
@@ -475,13 +480,14 @@ test('analise · 3.o NO-SHIP (protocolo de tentativas): A com 2, B com 3, B em T
   assert.equal(r.marcas.filter((m) => m.tipo === 'tentativas_fora_do_protocolo').length, 4);
   assert.equal(r.fiabilidade.pares_invalidos[0].consumo_A_tokens, 2 * OPUS_TOTAL, 'o consumo das duas tentativas de A fica visivel');
   assert.equal(r.corrida_fechou_os_pares, true);
-  assert.equal(r.corrida_valida, true, 'protocolo de tentativas invalida o PAR, nao a corrida');
+  assert.equal(r.corrida_valida, false, '27c (8.o revisor, classe i): o tratamento nao foi aplicado como pre-registado — corrida INVALIDA');
+  assert.ok(r.corrida_invalida_por.some((x) => /fora do protocolo/.test(x.motivo)));
   // B com 3: `tentativa: 3` ja e tipo invalido (valores {1,2}) — apanhado ANTES do protocolo, e e a corrida que nao fica valida por causa de aceite/arrancou? nao: so `tentativa`. Par invalido, corrida valida.
   const r2 = correr(preregDe(['t1'], { t1: 'T0' }), [tentativa('t1', 'A', { tier_classificado: 'T0' }), passoLocal('t1'), escalacao('t1', { aceite: false }), escalacao('t1', { tentativa: 3 })]);
   assert.match(r2.fiabilidade.pares_invalidos[0].motivo, /tipo invalido/);
   assert.ok(r2.marcas.some((m) => m.tipo === 'tipo_invalido' && /tentativa: 3 fora de/.test(m.motivo)));
   assert.ok(r2.marcas.some((m) => m.tipo === 'tentativas_fora_do_protocolo' && /B com 3 tentativas/.test(m.motivo)), 'a marca de protocolo existe na mesma');
-  assert.equal(r2.corrida_valida, true);
+  assert.equal(r2.corrida_valida, false);
 });
 
 test('analise · tier no ledger diferente do prereg marca tier_divergente (mesmo classify.js, mesmo prompt)', () => {
@@ -581,9 +587,10 @@ test('analise · tarefa que correu SEM pre_voo: marca e par invalido, consumo vi
   assert.equal(r.primaria.n_pares_validos, 1);
   assert.ok(r.marcas.some((m) => m.tipo === 'pre_voo_ausente' && m.task_id === 't2'));
   const inv = r.fiabilidade.pares_invalidos.find((x) => x.task_id === 't2');
-  assert.equal(inv.motivo, 'pre-voo ausente');
+  assert.match(inv.motivo, /^pre-voo ausente — CORRIDA INVALIDA/);
   assert.equal(inv.consumo_A_tokens, OPUS_TOTAL);
   assert.equal(r.por_tarefa[1].pre_voo_falhou, null);
+  assert.equal(r.corrida_valida, false, '27c: retirar o par favorece um braco');
 });
 
 test('analise · pre_voo que NAO falhou (tarefa ja verde) mas correu: marca e par invalido; `falhou` booleano manda, senao exit_code; fica o ULTIMO', () => {
@@ -593,6 +600,8 @@ test('analise · pre_voo que NAO falhou (tarefa ja verde) mas correu: marca e pa
   assert.ok(r.marcas.some((m) => m.tipo === 'pre_voo_nao_falhou'));
   assert.match(r.fiabilidade.pares_invalidos[0].motivo, /ja verde/);
   assert.equal(r.por_tarefa[0].pre_voo_falhou, false);
+  assert.equal(r.corrida_valida, false, '27c: uma tarefa ja verde que correu — o par nao pode sair por isto');
+  assert.ok(r.corrida_invalida_por.some((x) => /pre-voo nao falhou/.test(x.motivo)));
   assert.equal(analisar(p, [preVoo('t1', { exit_code: 1, falhou: undefined }), tentativa('t1', 'A'), tentativa('t1', 'B')]).primaria.n_pares_validos, 1, 'so exit_code != 0');
   assert.equal(analisar(p, [preVoo('t1', { exit_code: 0, falhou: undefined }), tentativa('t1', 'A'), tentativa('t1', 'B')]).primaria.n_pares_validos, 0, 'so exit_code 0');
   assert.equal(analisar(p, [preVoo('t1', { exit_code: 1, falhou: false }), tentativa('t1', 'A'), tentativa('t1', 'B')]).primaria.n_pares_validos, 0, 'falhou:false vence exit_code 1');
@@ -970,9 +979,12 @@ test('analise · 4.o NO-SHIP (P7A/B/C): aceite null ou "true" em todas — par i
   assert.equal(rB.primaria.aceites_A, 0);
   // tipo invalido noutra chave: par invalido, corrida valida
   const rD = correr(p, [tentativa('t1', 'A', { duration_ms: '4471' }), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
-  assert.equal(rD.corrida_valida, true);
+  assert.equal(rD.corrida_valida, false, '27c: tipo invalido em QUALQUER chave invalida a corrida — o par nao pode sair por isto');
+  assert.ok(rD.corrida_invalida_por.some((x) => /tipo invalido numa chave obrigatoria/.test(x.motivo)));
   assert.equal(rD.primaria.n_pares_validos, 1);
   assert.match(rD.fiabilidade.pares_invalidos[0].motivo, /tipo invalido/);
+  // P7A: aceite null numa claude-p que chegou tambem invalida a corrida
+  assert.equal(rA.corrida_valida, false);
 });
 
 test('analise · 4.o NO-SHIP (P7D/P7J): claude-p com modelUsage sem Opus (outro modelo, ou {}) — consumo desconhecido, par invalido, corrida INVALIDA', () => {
@@ -1053,19 +1065,20 @@ test('analise · 4.o NO-SHIP (P7K): T0 com passo local nao aceite e SEM escalaca
   const r = correr(p, [tentativa('t1', 'A', { tier_classificado: 'T0' }), passoLocal('t1')]);
   assert.equal(r.primaria.n_pares_validos, 0);
   assert.match(r.fiabilidade.pares_invalidos[0].motivo, /escalacao_em_falta/);
-  assert.equal(r.corrida_valida, true);
+  assert.equal(r.corrida_valida, false, '8.o revisor (classe i): por construcao o local nunca aceita, logo cada par retirado e (A ok, B nao) — favorece B');
 });
 
 test('analise · 4.o NO-SHIP (MUT-A): corrida fechada e valida com 0 pares validos — veredicto null, nao true', () => {
   const p = preregDe(['t1']);
-  const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'A', { tentativa: 2 }), tentativa('t1', 'B')]);   // A com 2: par invalido
+  // a unica saida (a) que deixa a corrida valida com 0 pares: B nao arrancou (spawn puro) com evento par_invalido
+  const r = correr(p, [tentativa('t1', 'A'), naoArrancou('t1', 'B'), { evento: 'par_invalido', task_id: 't1', braco: 'B', motivo: 'spawn:ENOENT' }]);
   assert.equal(r.corrida_fechou_os_pares, true);
   assert.equal(r.corrida_valida, true);
   assert.equal(r.primaria.n_pares_validos, 0);
   assert.equal(r.primaria.limiar_descritivo_cumprido, null);
   assert.equal(r.primaria.veredicto_ausente_porque, 'sem pares validos');
   assert.equal(r.secundaria.global.A.tokens_opus_total, null, 'sem validos, o total e null');
-  assert.equal(r.secundaria.global.A.tokens_opus_total_incluindo_pares_invalidos, 2 * OPUS_TOTAL, 'mas o consumo do invalido esta na 2.a leitura');
+  assert.equal(r.secundaria.global.A.tokens_opus_total_incluindo_pares_invalidos, OPUS_TOTAL, 'mas o consumo do invalido esta na 2.a leitura');
   assert.equal(r.valorizacao.A.valorizacao_teorica_usd, null);
 });
 
@@ -1166,18 +1179,25 @@ test('analise · 5.o NO-SHIP (R5-2): arrancou:false com campos null e motivo for
   assert.equal(r3.corrida_valida, false);
 });
 
-test('analise · 5.o NO-SHIP (R5-4/R5-4b): aceite:true sem prova (tudo null, ou so as contagens null) — campo_em_falta e par invalido', () => {
+test('analise · 5.o NO-SHIP (R5-4/R5-4b): aceite:true sem prova (tudo null, ou so as contagens null) — campo_em_falta, corrida INVALIDA (27c)', () => {
   const p = preregDe(['t1', 't2']);
   const semNada = { exit_code: null, test_file_sha_antes: null, test_file_sha_depois: null, tests_corridos: null, tests_passados: null };
   const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', semNada), tentativa('t2', 'A'), tentativa('t2', 'B')]);
   assert.equal(r.primaria.n_pares_validos, 1);
-  assert.match(r.fiabilidade.pares_invalidos[0].motivo, /aceite sem prova completa: exit_code, test_file_sha_antes/);
+  assert.match(r.fiabilidade.pares_invalidos[0].motivo, /aceite=true sem prova completa: exit_code, test_file_sha_antes/);
   assert.ok(r.marcas.some((m) => m.tipo === 'campo_em_falta' && /provas da aceitacao/.test(m.motivo)));
+  assert.equal(r.corrida_valida, false);
   // R5-4b: correrAceitacao() do R-24 devolve {aceite,status,sinal} e nada mais — as contagens exigem codigo novo
   const r2 = correr(p, [tentativa('t1', 'A', { tests_corridos: null, tests_passados: null, skips: null }), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
   assert.equal(r2.primaria.n_pares_validos, 1);
   assert.match(r2.fiabilidade.pares_invalidos[0].motivo, /tests_corridos, tests_passados/);
-  assert.equal(r2.corrida_valida, true, 'prova em falta invalida o PAR, nao a corrida');
+  assert.equal(r2.corrida_valida, false, '27c: um aceite=true que nao se verifica nao pode ficar nem sair — invalida a corrida');
+  assert.ok(r2.corrida_invalida_por.some((x) => /aceite=true sem prova completa/.test(x.motivo)));
+  // uma prova com o TIPO errado ('10' em vez de 10) conta como em falta, nao como presente
+  const rTipo = correr(p, [tentativa('t1', 'A', { tests_corridos: '10' }), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.ok(rTipo.corrida_invalida_por.some((x) => /aceite=true sem prova completa/.test(x.motivo) && /tests_corridos/.test(x.valores.join())), 'a prova com tipo errado conta como em falta, nao como presente');
+  assert.ok(rTipo.marcas.some((m) => m.tipo === 'campo_em_falta' && /provas da aceitacao: tests_corridos/.test(m.motivo)));
+  assert.equal(rTipo.corrida_valida, false);
   // numa tentativa que NAO chegou, as provas a null nao marcam
   const r3 = correr(p, [tentativa('t1', 'A'), naoArrancou('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
   assert.equal(r3.marcas.filter((m) => /provas da aceitacao/.test(m.motivo)).length, 0);
@@ -1359,6 +1379,11 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     // 7.o revisor: timeout com arrancou:null
     E2: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { arrancou: null, motivo_se_nao: 'timeout', session_id: null, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null, ts_fim: '2026-09-11T00:15:05Z', aceite: false, exit_code: 1 })],
     E2b: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { arrancou: null, motivo_se_nao: null, session_id: null, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null, ts_fim: '2026-09-11T00:15:05Z', aceite: false, exit_code: 1 })],
+    // 8.o revisor: (ii) rejeicao sem prova completa CONTA; (i) escalacao em falta invalida; (iii) spawn:ETIMEDOUT com ts iguais; tipo invalido noutra chave
+    Q7ii: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { aceite: false, exit_code: null, tests_corridos: null, tests_passados: null })],
+    Q7i: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2')],
+    Q7iii: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), naoArrancou('t2', 'B', { tentativa: 2, e_escalacao: true, tier_classificado: 'T0', motivo_se_nao: 'spawn:ETIMEDOUT', duration_ms: 900000, ts_inicio: '2026-09-11T00:15:05Z', ts_fim: '2026-09-11T00:15:05Z' })],
+    Q7tipo: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { aceite: false, exit_code: 1, tests_passados: 9, duration_ms: '4471' })],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
   // 'veredicto' = sem veredicto; 'par' = esse par invalido (o par limpo ao lado DA veredicto, e isso e legitimo);
@@ -1366,8 +1391,9 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
   const esperado = {
     P7A: { veredicto: null }, P7B: { corrida: false }, P7C: { veredicto: null },
     P7D: { corrida: false }, P7E: { veredicto: null }, P7F: { corrida: false }, P7G: { corrida: false },
-    P7H: { corrida: false }, P7I: { tokens: null }, P7J: { corrida: false }, P7K: { par: 't2' }, L1: { corrida: false },
-    R51: { corrida: false }, R52: { corrida: false }, R53: { corrida: false }, R54: { par: 't1' }, R54b: { par: 't1' }, R56: { corrida: false }, R57: { tokens: null }, R58: { corrida: false },
+    P7H: { corrida: false }, P7I: { tokens: null }, P7J: { corrida: false }, P7K: { corrida: false }, L1: { corrida: false },
+    R51: { corrida: false }, R52: { corrida: false }, R53: { corrida: false }, R54: { corrida: false }, R54b: { corrida: false }, R56: { corrida: false }, R57: { tokens: null }, R58: { corrida: false },
+    Q7ii: { direccao: true }, Q7i: { corrida: false }, Q7iii: { corrida: false }, Q7tipo: { corrida: false },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1379,12 +1405,104 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     if ('veredicto' in e) assert.equal(r.primaria.limiar_descritivo_cumprido, null, `${nome}: veredicto favoravel indevido`);
     if ('par' in e) { assert.ok(r.fiabilidade.pares_invalidos.some((x) => x.task_id === e.par), `${nome}: par ${e.par} devia ser invalido`); assert.ok(!r.por_tarefa.find((t) => t.task_id === e.par).par_valido); }
     if ('tokens' in e) { assert.equal(r.secundaria.global.A.tokens_opus_total, null, `${nome}: tokens A n/d`); assert.equal(r.secundaria.global.B.tokens_opus_total, null, `${nome}: tokens B n/d`); }
+    if ('direccao' in e) { assert.equal(r.corrida_valida, true, `${nome}: e uma saida (b), a corrida fica valida`); assert.equal(r.primaria.n_pares_validos, 2, `${nome}: o par CONTA`); assert.equal(r.primaria.aceites_B, 1, `${nome}: a falha de B conta contra B`); }
+    // CONTROLO DE DIRECCAO (27): o ledger honesto deste desenho (t1 ok, t2 com B a falhar) da A 2 B 1 -> 1 >= 0 -> «cumprido» por vacuidade com n=2; com n=4 abaixo testa-se a direccao a serio
+  }
+  // Direccao com n suficiente: 4 tarefas, A 4/4, B 1 aceite + 3 falhas -> honesto «NAO cumprido» (1 < 2). Cada ataque aplicado as 3 falhas de B NUNCA pode dar «cumprido».
+  {
+    const p4 = preregDe(['t1', 't2', 't3', 't4']);
+    const falha = { aceite: false, exit_code: 1, tests_passados: 9 };
+    const honesto = correr(p4, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B', falha), tentativa('t3', 'A'), tentativa('t3', 'B', falha), tentativa('t4', 'A'), tentativa('t4', 'B', falha)]);
+    assert.equal(honesto.primaria.limiar_descritivo_cumprido, false, 'o ledger honesto da NAO cumprido');
+    const ataquesB = {
+      'sem prova (ii)': { ...falha, exit_code: null, tests_corridos: null, tests_passados: null },
+      'aceite null': { aceite: null },
+      'tipo invalido': { ...falha, duration_ms: '4471' },
+      'arrancou null timeout': { ...falha, arrancou: null, motivo_se_nao: 'timeout', session_id: null, modelUsage: null, usage: null, total_cost_usd: null, duration_ms: null, ts_fim: '2026-09-11T00:15:05Z' },
+      'arrancou false com json': { ...falha, arrancou: false, motivo_se_nao: 'cli_is_error:x' },
+      'sem pre_voo': { ...falha, __semPreVoo: true },
+      'sem opus': { ...falha, modelUsage: { 'claude-sonnet-4-5': SONDA.modelUsage['claude-opus-5'] } },
+    };
+    for (const [nome, over] of Object.entries(ataquesB)) {
+      const semPreVoo = over.__semPreVoo; const o = { ...over }; delete o.__semPreVoo;
+      const ev = [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B', o), tentativa('t3', 'A'), tentativa('t3', 'B', o), tentativa('t4', 'A'), tentativa('t4', 'B', o)];
+      const r = semPreVoo ? analisar(p4, [preVoo('t1'), ...ev]) : correr(p4, ev);
+      assert.notEqual(r.primaria.limiar_descritivo_cumprido, true, `DIRECCAO ${nome}: o ataque as falhas de B deu «cumprido»`);
+      assert.ok(r.corrida_valida === false || r.primaria.limiar_descritivo_cumprido === false, `DIRECCAO ${nome}: ou conta contra B, ou invalida a corrida`);
+    }
   }
   // controlo positivo: o par limpo com a mesma bancada DA veredicto
   const limpo = correr(p, [...parOk('t1', 'T3'), ...parOk('t2', 'T0')]);
   assert.equal(limpo.primaria.limiar_descritivo_cumprido, true);
   assert.equal(limpo.corrida_valida, true);
   assert.equal(limpo.marcas.length, 0, JSON.stringify(limpo.marcas));
+});
+
+// ── 8.o revisor: a escada (interpretacao 27), contra o prereg REAL a n=20 ─────
+
+test('analise · 8.o NO-SHIP (a escada, 27): um par que chegou ao CLI nunca sai do denominador — conta contra B (27b) ou a corrida e INVALIDA (27c)', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;   // 15/20 aceites em B -> honesto «NAO cumprido» (15 < 20-2)
+  const indicesFalha = T.map((_, i) => i).filter((i) => !falhaB(i));
+  assert.equal(indicesFalha.length, 5);
+  const honesto = analisar(PREREG, T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) })));
+  assert.equal(honesto.corrida_valida, true); assert.equal(honesto.marcas.length, 0, JSON.stringify(honesto.marcas));
+  assert.equal(honesto.primaria.n_pares_validos, 20); assert.equal(honesto.primaria.aceites_B, 15);
+  assert.equal(honesto.primaria.limiar_descritivo_cumprido, false, 'o ledger honesto da NAO cumprido');
+
+  // A DIRECCAO: se as 5 falhas de B saissem do denominador pela unica saida legitima (spawn puro + par_invalido),
+  // ficam 15 pares, A 15 B 15 -> «cumprido». E por isto que TODAS as outras saidas tem de ser (b) ou (c).
+  const comoNaoArrancou = (t, over = {}) => [preVoo(t.task_id), tentativa(t.task_id, 'A', { tier_classificado: t.tier_classificado, tests_corridos: t.tests_total_historico, tests_passados: t.tests_total_historico }),
+    ...(t.tier_classificado === 'T0' || t.tier_classificado === 'T1'
+      ? [passoLocal(t.task_id, { tier_classificado: t.tier_classificado }), naoArrancou(t.task_id, 'B', { tentativa: 2, e_escalacao: true, tier_classificado: t.tier_classificado, ...over })]
+      : [naoArrancou(t.task_id, 'B', { tier_classificado: t.tier_classificado, ...over })]),
+    { evento: 'par_invalido', task_id: t.task_id, braco: 'B', motivo: over.motivo_se_nao || 'spawn:ENOENT' }];
+  const legitimo = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : comoNaoArrancou(t))));
+  assert.equal(legitimo.corrida_valida, true, 'spawn puro com par_invalido e a saida (a) — legitima por prereg');
+  assert.equal(legitimo.primaria.n_pares_validos, 15);
+  assert.equal(legitimo.primaria.limiar_descritivo_cumprido, true, 'a direccao: retirar os pares (A ok, B nao) da «cumprido»');
+  assert.equal(legitimo.fiabilidade.pares_invalidos.length, 5);
+
+  // (ii) rejeicao sem prova completa: aceite=false com exit_code/contagens null -> CONTA contra B, marca campo_em_falta, corrida valida
+  const semProva = { exit_code: null, tests_corridos: null, tests_passados: null };
+  const ii = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : parReal(t, { aceiteB: false }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' ? { ...e, ...semProva } : e)))));
+  assert.equal(ii.corrida_valida, true, '27b: aceite=false sem prova completa nao invalida');
+  assert.equal(ii.primaria.n_pares_validos, 20, 'o par CONTA');
+  assert.equal(ii.primaria.aceites_B, 15);
+  assert.equal(ii.primaria.limiar_descritivo_cumprido, false, '27b: NAO cumprido, como o honesto');
+  assert.equal(ii.marcas.filter((m) => m.tipo === 'campo_em_falta' && /provas da aceitacao/.test(m.motivo)).length, 5);
+  assert.equal(ii.fiabilidade.pares_invalidos.length, 0);
+
+  // (i) as 7 T0 sem escalacao (A ok, so o passo local): por construcao o local nunca aceita -> cada par retirado seria (A ok, B nao) -> corrida INVALIDA
+  const i7 = analisar(PREREG, T.flatMap((t) => (t.tier_classificado === 'T0'
+    ? [preVoo(t.task_id), tentativa(t.task_id, 'A', { tier_classificado: 'T0', tests_corridos: t.tests_total_historico, tests_passados: t.tests_total_historico }), passoLocal(t.task_id)]
+    : parReal(t))));
+  assert.equal(i7.corrida_fechou_os_pares, true);
+  assert.equal(i7.corrida_valida, false, '27c');
+  assert.equal(i7.primaria.limiar_descritivo_cumprido, null);
+  assert.ok(i7.corrida_invalida_por.some((x) => /fora do protocolo/.test(x.motivo) && x.valores.length === 7), JSON.stringify(i7.corrida_invalida_por));
+  assert.equal(i7.fiabilidade.pares_invalidos.filter((x) => /escalacao_em_falta/.test(x.motivo)).length, 7);
+
+  // (iii) «spawn:ETIMEDOUT» com ts_fim === ts_inicio e duration_ms = tecto, e par_invalido escrito pelo controlador: durou como o tecto -> chegou -> nao e spawn puro -> INVALIDA
+  const iii = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : comoNaoArrancou(t, { motivo_se_nao: 'spawn:ETIMEDOUT', duration_ms: 900000, ts_inicio: '2026-09-11T00:15:05Z', ts_fim: '2026-09-11T00:15:05Z' }))));
+  assert.equal(iii.corrida_valida, false, '27c: o par_invalido do controlador nao chega — a evidencia contradiz o «nao arrancou»');
+  assert.equal(iii.primaria.limiar_descritivo_cumprido, null);
+  assert.ok(iii.marcas.some((m) => m.tipo === 'nao_arrancou_fora_da_definicao'), tipos(iii).join(','));
+  assert.ok(iii.marcas.some((m) => m.tipo === 'tempo_incoerente'), tipos(iii).join(','));
+  assert.equal(iii.marcas.filter((m) => m.tipo === 'nao_arrancou_fora_da_definicao').length, 5);
+  // e a variante so com ts iguais e duration_ms null (sem duracao medida) tambem nao passa por spawn puro: ETIMEDOUT nao e um spawn puro
+  const iiib = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : comoNaoArrancou(t, { motivo_se_nao: 'spawn:ETIMEDOUT', duration_ms: null }))));
+  assert.equal(iiib.corrida_valida, false, 'ETIMEDOUT e um tecto, nao um spawn que nao arrancou');
+  assert.equal(iiib.primaria.limiar_descritivo_cumprido, null);
+  // e um «spawn:ENOENT» (motivo puro) com ts iguais mas duration_ms = tecto: a duracao medida denuncia — durou como o tecto, logo chegou
+  const iiic = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : comoNaoArrancou(t, { duration_ms: 900000, ts_inicio: '2026-09-11T00:15:05Z', ts_fim: '2026-09-11T00:15:05Z' }))));
+  assert.equal(iiic.corrida_valida, false, 'duration_ms >= tecto conta como durou o tecto mesmo com ts iguais');
+  assert.equal(iiic.marcas.filter((m) => m.tipo === 'nao_arrancou_fora_da_definicao' && /900000|>= tecto/.test(m.motivo)).length, 5, tipos(iiic).join(','));
+  assert.equal(iiic.marcas.filter((m) => m.tipo === 'tecto_aparente').length, 5);
+  // controlo: o mesmo ENOENT com duration_ms 50 e ts iguais e um spawn puro — sai pela (a), corrida valida
+  const iiid = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : comoNaoArrancou(t, { duration_ms: 50, ts_inicio: '2026-09-11T00:15:05Z', ts_fim: '2026-09-11T00:15:05Z' }))));
+  assert.equal(iiid.corrida_valida, true);
+  assert.equal(iiid.marcas.filter((m) => m.tipo === 'nao_arrancou_fora_da_definicao').length, 0);
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {
