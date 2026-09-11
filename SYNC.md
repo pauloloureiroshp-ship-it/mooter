@@ -50,6 +50,32 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-10 · Onboarding v2 · W0 — o `/dashboard` deixa de publicar poupanca
+
+Branch `feat/onboarding-v2-w0` (worktree `../frugal-onboarding-v2`, **por fundir e por empurrar**).
+Decisoes D1–D6 do dono gravadas em `docs/adr/ADR-onboarding-v2.md`, com a refutacao do codex
+(`job-mtvmlw3l-f78e`) anexada na integra e sete `n/d` declarados.
+
+**O que saiu, e porque.** O `/dashboard` tinha **seis** superficies de poupanca, todas derivadas
+da mesma aritmetica modelada (`decisoes x $0,015` ou `x $0,045` — precos de tabela que ninguem
+pagou): a calculadora com tres literais e um slider, o heroi com `$saved` e a percentagem contra
+all-Opus, o cartao de profundidade com quatro cifras, a cifra por device, a cifra por dia no
+historico, e uma coluna «Savings» com adjectivos. **Grep no build: 0 ocorrencias** de `saved vs`
+e de `Savings calculator` em `.next/`.
+
+**O que entrou.** Quatro KPIs em `landing/app/(app)/dashboard/_kpis.ts` (puro, testado):
+tarefas roteadas · cobertura local (fraccao T0 do proprio sync) · janela preservada
+(**estimado** — conta tarefas, nao tokens) · **ESR `n/d`, com a razao a vista**. O ESR exige
+tokens medidos dos dois lados; medido pelo adversario a 2026-09-10: **0 de 156** eventos do
+ledger tem campos de tokens estruturados. W4 e a onda que fecha isso.
+
+**Tres testes que exigiam o numero de volta foram invertidos, nao apagados** (`parity.test.ts`
+Wave 9, `wave12-dashboard.test.ts` D7 x2): um teste que pede a coisa removida nao e guarda, e
+um roquete no sentido errado. Guardam agora a ausencia. Portoes: **232/232** no vitest do
+landing, `tsc --noEmit` limpo. O `next build` completa a compilacao e falha na recolha de
+paginas por faltarem `NEXT_PUBLIC_SUPABASE_*` nesta bancada — credencial que o executor nao tem;
+os chunks compilados existem e foi neles que o grep correu.
+
 ## 2026-09-09 · Pacote de provas v1 — as hipóteses do deck trocadas por medições
 
 `_handoff/provas-v1-2026-09-09/` (branch `claude/pacote-provas-v1-255558`, **por fundir e por empurrar**). Índice em `08-PACOTE.md`; cópia no vault `20-mooter/artifacts/`.

@@ -54,7 +54,9 @@ describe('Wave 24 24.B — stale-data UX honesty', () => {
     const s = read(DASH);
     expect(s).toMatch(/shows data from .* days ago/);
     expect(s).toMatch(/Run your first sync/);
-    // Stale numbers are dimmed.
-    expect(s).toMatch(/syncStale \? \{ opacity: 0\.5 \}/);
+    // Stale numbers are dimmed. 2026-09-10: the three inline `opacity: 0.5`
+    // wrappers went away with the savings hero; the KPI strip that replaced
+    // them takes the same signal as a prop and dims the whole row.
+    expect(s).toMatch(/<KpiStrip[^>]*dimmed=\{syncStale\}/);
   });
 });

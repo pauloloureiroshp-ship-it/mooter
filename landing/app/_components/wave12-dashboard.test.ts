@@ -8,12 +8,19 @@ import { join } from 'node:path';
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 const DASH = 'app/(app)/dashboard/page.tsx';
 
-describe('Wave 12 PR-H — dashboard savings depth (D7)', () => {
-  it('has a Savings depth section with the all-Opus comparison (real, in-scope vars)', () => {
+describe('Wave 12 PR-H — dashboard savings depth (D7), retired by onboarding v2 W0', () => {
+  // 2026-09-10 — this suite used to REQUIRE the "Savings depth" card and its
+  // all-Opus comparison. The card is gone: all four of its figures came from
+  // `decisions x $0.015`, a list price nobody paid, and the owner decision of
+  // 2026-08-24 (ADR-onboarding-v2, R2) bans a savings number without tokens
+  // measured on both sides. A test that demands the removed thing back is not
+  // a guard, it is a ratchet in the wrong direction — so it is inverted here
+  // and the honest successor lives in app/(app)/dashboard/kpis.test.ts.
+  it('the Savings depth card and its all-Opus comparison are gone', () => {
     const s = read(DASH);
-    expect(s).toContain('Savings depth');
-    expect(s).toContain('all-Opus would cost');
-    expect(s).toContain('you actually paid');
+    expect(s).not.toContain('Savings depth');
+    expect(s).not.toContain('all-Opus would cost');
+    expect(s).not.toContain('you actually paid');
   });
 
   // 2026-08-29 — o sufixo `(est.)` saiu, e este teste seguiu-o em vez de o
@@ -25,17 +32,15 @@ describe('Wave 12 PR-H — dashboard savings depth (D7)', () => {
   // recibo` para o medido. Trocar um teste de rotulo por um teste de mecanismo
   // so vale se o mecanismo for verificavel — por isso isto exige as duas
   // cifras marcadas, e nao a mera presenca do import.
-  it('as duas cifras da comparação carregam a proveniência, não um sufixo', () => {
+  // O que este teste sempre protegeu foi «esta cifra nao se apresenta como
+  // facto medido». A forma mais forte disso deixou de ser marcar a cifra: e
+  // nao ter cifra nenhuma. O que fica guardado e que nenhum simbolo de dolar
+  // volta a aparecer como resultado de routing nesta pagina.
+  it('nenhuma cifra de poupanca volta a aparecer na pagina', () => {
     const s = read(DASH);
-    expect(s).toContain("from '../_modelado'");
-    for (const rotulo of ['all-Opus would cost', 'you actually paid']) {
-      const linha = s.split(/\r?\n/).find((l) => l.includes(`'${rotulo}'`));
-      expect(linha, `sem linha para ${rotulo}`).toBeTruthy();
-      expect(linha, `${rotulo} perdeu a proveniência`).toMatch(/modelado:\s*true/);
-    }
-    // E o sufixo velho não pode voltar por cima da marca nova: dois rótulos de
-    // proveniência no mesmo número é o que ensina o leitor a ignorar ambos.
-    expect(s).not.toContain('you actually paid (est.)');
+    expect(s).not.toContain('modelado: true');
+    expect(s).not.toMatch(/savingsUsd\.toFixed/);
+    expect(s).not.toMatch(/naiveCost/);
   });
 
   it('per-task-type + misroute are honest placeholders (no fabricated numbers)', () => {
