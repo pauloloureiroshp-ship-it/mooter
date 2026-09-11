@@ -638,6 +638,31 @@
  *     excluída duas vezes; `tipo_invalido` para um token em STRING em
  *     qualquer chave do `modelUsage` (coagia na reconciliação e escapava ao
  *     `modelo_nao_opus_dominante`).
+ * 60. SEM CONSUMO PLAUSÍVEL NÃO HÁ EVIDÊNCIA — o inverso da 56/58 COM JSON
+ *     (o 22.º revisor: A «rejeitada» nas 5 falhas de B com `usage: {}` e
+ *     `modelUsage: null`, ou com o JSON todo a zero, ou com 510 tokens nos
+ *     dois lados, dava «cumprido · A 15 B 15 · válida» — a 56/58 só via a
+ *     AUSÊNCIA do JSON, e a 20/36 só marcavam; B aceite nas 20 com zeros
+ *     dava «A 20 B 20 · cumprido · válida»). Numa claude-p com JSON
+ *     (`usage` ou `modelUsage` objecto), o JSON só prova que o modelo
+ *     correu se `usage` (as 4 categorias) OU `modelUsage` (total Opus)
+ *     somar ≥ `TRANSCRIPT_MINIMO`; `{}`, zeros, ou abaixo do piso nos DOIS
+ *     lados → `arrancou_sem_evidencia`, INVÁLIDA, (c) — em A (rejeição sem
+ *     prova baixa A) e em B (aceitação sem corrida). Um transcript não
+ *     resgata um JSON de zeros (35: JSON presente é a fonte; o JSON diz que
+ *     nada correu e o transcript diz o contrário — a linha contradiz-se).
+ *     Fica declarado: consumo plausível num SÓ lado é evidência de corrida
+ *     — usage 313 k com `modelUsage: null` é `json_parcial`, válida; usage
+ *     plausível que não reconcilia é `consumo_desconhecido`, válida
+ *     (CUSTO-07) — a classe «mente de forma coerente» (30).
+ * 61. A FLAG NÃO MANDA SOBRE O EXIT (o 22.º: 3 T0 onde B falha excluídas
+ *     «já verde» com pré-voo `falhou: false, exit_code: 1, 29/30`, suplentes
+ *     ambos aceites → «A 20 B 18 · cumprido · válida · tarefa_substituida
+ *     3» — `preVooFalhou` deixava `falhou: false` mandar sobre o exit, e a
+ *     X1 (29) contornava-se com a flag). `preVooFalhou` passa a `falhou ===
+ *     true || exit_code ≠ 0`; `falhou: false` com `exit_code` ≠ 0 é o inverso
+ *     da 25/30 → `pre_voo_incoerente` + INVÁLIDA numa tarefa que correu; na
+ *     excluída cai na X1 (`exclusao_com_pre_voo_falhado`, INVÁLIDA).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -723,6 +748,12 @@ export const SONDA_CACHE_OPUS = 58964;
 export const tsCanonico = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(s) && Number.isFinite(Date.parse(s));
 /** Piso de plausibilidade para um total de tokens vindo do transcript: uma invocacao claude-p que chegou ao Opus carrega milhares de tokens de sistema (31). */
 export const TRANSCRIPT_MINIMO = 1000;
+// 60: com JSON, a evidencia de que o modelo correu e o CONSUMO — usage (4 categorias) OU modelUsage (total Opus) >= piso; `{}`, zeros ou abaixo do piso nos dois lados nao provam nada
+export function consumoNoJson(t) {
+  const u = t && t.usage && typeof t.usage === 'object' ? ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens'].reduce((s, c) => s + (Number.isFinite(t.usage[c]) ? t.usage[c] : 0), 0) : 0;
+  const m = t && t.modelUsage && typeof t.modelUsage === 'object' ? Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((a, c) => a + (Number.isFinite(v && v[c]) ? v[c] : 0), 0), 0) : 0;
+  return { usage: u, opus: m, plausivel: u >= TRANSCRIPT_MINIMO || m >= TRANSCRIPT_MINIMO };
+}
 
 // ── leitura ────────────────────────────────────────────────────────────────
 
@@ -1005,7 +1036,10 @@ function resolverSuplente(id, substituicoes) {
   return actual;
 }
 
-const preVooFalhou = (p) => (typeof p.falhou === 'boolean' ? p.falhou : Number.isFinite(p.exit_code) && p.exit_code !== 0);
+// 61: a flag nao manda sobre o exit — `falhou: false` com exit != 0 e um pre-voo que FALHOU (e uma contradicao, ver preVooContraditorio)
+const preVooFalhou = (p) => p.falhou === true || (Number.isFinite(p.exit_code) && p.exit_code !== 0);
+// 25/30 e 61: os dois sentidos da contradicao entre a flag e o exit
+const preVooContraditorio = (p) => (p.falhou === true && p.exit_code === 0) || (p.falhou === false && Number.isFinite(p.exit_code) && p.exit_code !== 0);
 /** Contrato do pre_voo (30): exit_code numerico, falhou booleano, contagens numericas (skips ja e exigido pela 29). */
 export const problemasDoPreVoo = (p) => [
   Number.isFinite(p.exit_code) ? null : `exit_code ${JSON.stringify(p.exit_code ?? null)} nao e numero`,
@@ -1132,6 +1166,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     }
     // um pre-voo que CORREU e FALHOU refuta as duas saidas do prereg: o worktree existiu (o pre-voo corre nele) e a tarefa nao estava «ja verde» (29)
     const pvsEx = preVoos.filter((p) => p.task_id === e.task_id);
+    if (pvsEx.length && preVooContraditorio(pvsEx[0])) marca({ task_id: e.task_id, tipo: 'pre_voo_incoerente', motivo: `pre_voo com falhou=${pvsEx[0].falhou} e exit_code=${pvsEx[0].exit_code} numa tarefa excluida («${e.motivo}») — a flag nao manda sobre o exit (25, 61)` });
     if (pvsEx.length && preVooFalhou(pvsEx[0])) {
       marca({ task_id: e.task_id, tipo: 'exclusao_com_pre_voo_falhado', motivo: `excluida («${e.motivo}») com pre-voo que correu e FALHOU — o worktree existiu e a tarefa nao estava ja verde; nenhuma das duas saidas do prereg se aplica` });
       invalida('tarefa excluida com pre-voo falhado — fora das duas saidas do prereg para suplentes (interpretacao 15, 29)', e.task_id);
@@ -1323,6 +1358,13 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
             arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'arrancou=true sem JSON nem transcript (interpretacoes 56, 58)';
             invalida('arrancou=true numa claude-p sem JSON nem transcript — afirmacao sem prova (interpretacoes 56, 58)', ref(t));
           }
+          // 60: COM JSON, a evidencia e o consumo — `{}`, zeros ou abaixo do piso nos dois lados nao provam que o modelo correu; um transcript nao resgata um JSON de zeros (35)
+          const consumo60 = temJsonCli56 ? consumoNoJson(t) : null;
+          if (consumo60 && !consumo60.plausivel) {
+            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'arrancou_sem_evidencia', motivo: `usage/modelUsage presentes sem consumo plausivel (usage ${consumo60.usage} · Opus ${consumo60.opus}; piso ${TRANSCRIPT_MINIMO}) — o JSON nao prova que o modelo correu; ${t.aceite === true ? 'uma aceitacao sem corrida' : 'uma rejeicao sem prova baixa o braco'} (60)` });
+            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'JSON sem consumo plausivel (interpretacao 60)';
+            invalida('claude-p com JSON sem consumo plausivel — nem usage nem modelUsage chegam ao piso; afirmacao sem prova (interpretacao 60)', ref(t));
+          }
           // 58: total_cost_usd e um campo do JSON — um custo sem usage/modelUsage e uma linha que se contradiz
           if (!temJsonCli56 && Number.isFinite(t.total_cost_usd) && t.total_cost_usd !== 0) {
             marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_sem_json', motivo: `total_cost_usd ${t.total_cost_usd} sem usage nem modelUsage — o custo vem do JSON que nao chegou (58)` });
@@ -1483,7 +1525,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     // 30: o pre_voo tem contrato; e as contagens dizem se «falhou» foi teste vermelho ou runner morto
     const problemasPv = pv ? problemasDoPreVoo(pv) : [];
     if (pv && problemasPv.length && ts.some((x) => !ehLocal(x))) { marca({ task_id: id, tipo: 'pre_voo_incompleto', motivo: problemasPv.join('; ') }); invalida('pre_voo sem contrato (exit_code/falhou/contagens) numa tarefa que correu em claude-p — o pre-voo nao e verificavel (interpretacao 30)', `${id}: ${problemasPv.join('; ')}`); }
-    if (pv && pv.falhou === true && pv.exit_code === 0 && ts.some((x) => !ehLocal(x))) invalida('pre_voo com falhou=true e exit_code=0 — o controlador contradiz a propria evidencia (interpretacoes 25, 30)', id);
+    if (pv && preVooContraditorio(pv) && ts.length) invalida(`pre_voo com falhou=${pv.falhou} e exit_code=${pv.exit_code} — o controlador contradiz a propria evidencia (interpretacoes 25, 30, 61)`, id);
     if (pv && preVooFalhou(pv) && Number.isFinite(pv.tests_corridos) && (pv.tests_corridos === 0 || (Number.isFinite(pv.tests_passados) && pv.tests_passados === pv.tests_corridos))) marca({ task_id: id, tipo: 'pre_voo_sem_vermelho', motivo: `pre-voo falhou com tests_corridos ${pv.tests_corridos} e tests_passados ${JSON.stringify(pv.tests_passados ?? null)} — runner morto ou nenhum teste vermelho, nao uma tarefa vermelha` });
     if (pv && !Number.isFinite(pv.skips) && ts.some((x) => !ehLocal(x))) { marca({ task_id: id, tipo: 'campo_em_falta', motivo: 'pre_voo.skips — a base da condicao 3 («skip/todo nao aumentou») esta em falta' }); invalida('pre_voo sem skips numa tarefa que correu em claude-p — a condicao 3 da aceitacao nao e verificavel (interpretacao 29)', id); }
     if (pv && Number.isFinite(pv.skips) && Number.isFinite(historico) && pv.skips >= historico) marca({ task_id: id, tipo: 'pre_voo_sem_vermelho', motivo: `pre-voo com skips ${pv.skips} >= historico ${historico} — pode ter falhado por skip, nao por teste vermelho` });
@@ -1536,7 +1578,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     if (pv && Number.isFinite(pv.tests_corridos)) for (const s of ts) if (s.aceite === true && Number.isFinite(s.tests_corridos) && s.tests_corridos < pv.tests_corridos) marca({ task_id: id, braco: s.braco, tentativa: s.tentativa, tipo: 'corridos_abaixo_do_pre_voo', motivo: `aceite com tests_corridos ${s.tests_corridos} < ${pv.tests_corridos} do pre-voo — ${pv.tests_corridos - s.tests_corridos} teste(s) desapareceram (20.o)` });
     // 20.o (3): o espelho do pre_voo_sem_vermelho — um pre-voo que «nao falhou» com 0 testes corridos e um runner morto, nao uma tarefa ja verde (a saida (b) para suplente nao se aplica)
     if (pv && preVooOk === false && Number.isFinite(pv.tests_corridos) && pv.tests_corridos === 0) marca({ task_id: id, tipo: 'pre_voo_verde_sem_testes', motivo: 'pre-voo «nao falhou» com tests_corridos 0 — runner morto ou modulo partido, nao «ja verde»; a exclusao para suplente nao se apoia nisto (20.o)' });
-    if (pv && pv.falhou === true && pv.exit_code === 0) marca({ task_id: id, tipo: 'pre_voo_incoerente', motivo: 'pre_voo com falhou=true e exit_code=0 (interpretacao 25)' });
+    if (pv && preVooContraditorio(pv)) marca({ task_id: id, tipo: 'pre_voo_incoerente', motivo: `pre_voo com falhou=${pv.falhou} e exit_code=${pv.exit_code} — a flag nao manda sobre o exit (interpretacoes 25, 61)` });
     if (correu) {
       if (!pv) { marca({ task_id: id, tipo: 'pre_voo_ausente', motivo: 'tarefa correu sem evento pre_voo' }); if (temTentativas) invalida('pre-voo ausente numa tarefa que correu — retirar o par favorece um braco (interpretacao 7, 27c)', id); }
       else if (!preVooOk) { marca({ task_id: id, tipo: 'pre_voo_nao_falhou', motivo: `pre-voo nao falhou (exit_code=${JSON.stringify(pv.exit_code ?? null)}, falhou=${JSON.stringify(pv.falhou ?? null)}) — tarefa ja verde, aceitacao nao mede nada` }); if (temTentativas) invalida('pre-voo nao falhou numa tarefa que correu — o controlador correu uma tarefa ja verde (interpretacao 7, 27c)', id); }
@@ -1572,6 +1614,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && (A.local_cloud || B.local_cloud)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('passo local num modelo cloud — outro tratamento (interpretacoes 47, 53)'); }
     else if (temTentativas && preVooForaDeOrdem) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre_voo depois de um braco ter comecado (interpretacao 51)'); }
     else if (temTentativas && (A.fora_do_protocolo || B.fora_do_protocolo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`tentativas fora do protocolo: ${A.fora_do_protocolo || B.fora_do_protocolo}`); }
+    else if (temTentativas && pv && preVooContraditorio(pv)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`pre_voo contraditorio: falhou=${pv.falhou} com exit_code=${pv.exit_code} (interpretacoes 25, 61)`); }
     else if (temTentativas && !pv) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo ausente'); }
     else if (temTentativas && !preVooOk) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo nao falhou (tarefa ja verde)'); }
     const parValido = correu && motivoInvalido === null;
