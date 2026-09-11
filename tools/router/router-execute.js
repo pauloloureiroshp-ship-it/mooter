@@ -997,6 +997,22 @@ async function executePinned(input = {}) {
   wrapperOpts.timeoutMs = explicitTimeout > 0
     ? explicitTimeout
     : (envPerAttemptMs > 0 ? envPerAttemptMs : pinDefaultMs);
+
+  // 2026-09-11 — maxTokens never reached the wrapper on the pin path: wrapperOpts
+  // carried timeoutMs and model ONLY, so every pinned local call silently took
+  // providers/ollama-api.js's `num_predict: 256` default (execute() passes 1024
+  // at :730; the pin path passed nothing). Measured in the Demo Conductor of
+  // 2026-09-10: 3 of 4 pinned qwen3:30b answers stopped at exactly 256 tokens,
+  // mid-sentence, and the blind judge scored the truncation, not the model.
+  // Same shape as 265281a (feat/landing-redesign, never merged): explicit
+  // options.maxTokens wins; local pins get real headroom (env-overridable);
+  // cloud pins keep the modest execute() default.
+  const explicitMaxTokens = Number(options.maxTokens) || 0;
+  const localPinMaxTokens = Number(process.env.MOOTER_LOCAL_PIN_MAX_TOKENS) || 4096;
+  wrapperOpts.maxTokens = explicitMaxTokens > 0
+    ? explicitMaxTokens
+    : (providerKey === 'ollama' ? localPinMaxTokens : 1024);
+
   if (model) wrapperOpts.model = model;
 
   // Out-parameter for the wrapper to say WHY it failed. Adapters return a bare

@@ -1,0 +1,156 @@
+{
+ "id": "MKT-2",
+ "chave": {
+  "R1": "A",
+  "R2": "B",
+  "R3": "B2",
+  "R4": "D",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Anuncia a novidade e convida a experimentar, mas inventa detalhes operacionais, deixa campos por preencher e acrescenta comentários desnecessários.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Fica muito aquém das 120 palavras, usa linguagem promocional exagerada e apresenta benefícios não confirmados.",
+     "total": 5,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Apresenta raciocínio extenso e rascunhos inacabados, com contagens erradas e alegações infundadas, sem entregar o email solicitado.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Entrega um email de 120 palavras, directo e pronto a enviar, com convite final, embora repita a ideia de preferência visual.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Não cumpre as 120 palavras, inventa instruções e procura pela funcionalidade, afirma redução da fadiga ocular sem fundamento e termina com um agradecimento.",
+     "total": 6,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Anuncia a novidade e convida a experimentar, mas inventa detalhes operacionais, deixa campos por preencher e acrescenta comentários desnecessários.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Fica muito aquém das 120 palavras, usa linguagem promocional exagerada e apresenta benefícios não confirmados.\"},\"R3\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Apresenta raciocínio extenso e rascunhos inacabados, com contagens erradas e alegações infundadas, sem entregar o email solicitado.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Entrega um email de 120 palavras, directo e pronto a enviar, com convite final, embora repita a ideia de preferência visual.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Não cumpre as 120 palavras, inventa instruções e procura pela funcionalidade, afirma redução da fadiga ocular sem fundamento e termina com um agradecimento.\"}}",
+   "custo_tokens": {
+    "in": 29952,
+    "out": 485,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Email completo e directo, ligeiramente acima das 120 palavras e com placeholders claros a preencher.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Muito curto (menos de metade das 120 palavras pedidas) e com tom mais entusiasta do que 'sem exageros'.",
+     "total": 3,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe todo o raciocínio interno em inglês/rascunho e nunca entrega um email final limpo em portugues.",
+     "total": 0,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Texto correcto e utilizável mas repetitivo, sem assunto de email, alongando-se mais do que precisa para o conteudo que tem.",
+     "total": 7,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Email completo com assunto, tom adequado e frase de fecho pedida, embora ligeiramente mais entusiasta do que 'directo, sem exageros'.",
+     "total": 8,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Email completo e directo, ligeiramente acima das 120 palavras e com placeholders claros a preencher.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Muito curto (menos de metade das 120 palavras pedidas) e com tom mais entusiasta do que 'sem exageros'.\"},\"R3\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe todo o raciocínio interno em inglês/rascunho e nunca entrega um email final limpo em portugues.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Texto correcto e utilizável mas repetitivo, sem assunto de email, alongando-se mais do que precisa para o conteudo que tem.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Email completo com assunto, tom adequado e frase de fecho pedida, embora ligeiramente mais entusiasta do que 'directo, sem exageros'.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 544,
+    "cache_write": 10507,
+    "cache_read": 3298
+   }
+  }
+ }
+}

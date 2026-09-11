@@ -1,0 +1,156 @@
+{
+ "id": "P5",
+ "chave": {
+  "R1": "D",
+  "R2": "B2",
+  "R3": "B",
+  "R4": "A",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Pede o contexto necessário e previne a exposição da chave, mas ainda não indica onde a configurar.",
+     "total": 9,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Aponta opções válidas, mas omite a proteção do segredo e inclui uma longa divagação interna.",
+     "total": 4,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Dá orientação geral concisa e desaconselha colocar a chave no código, mas falta configuração concreta e proteção contra versionamento.",
+     "total": 8,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Fornece passos concretos e cuidados com exposição e revogação, mas alonga-se muito sobre um serviço que o utilizador não identificou.",
+     "total": 9,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta opções e proteções úteis, mas confunde ficheiros .env com variáveis de ambiente e classifica a segurança de forma demasiado genérica.",
+     "total": 8,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Pede o contexto necessário e previne a exposição da chave, mas ainda não indica onde a configurar.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Aponta opções válidas, mas omite a proteção do segredo e inclui uma longa divagação interna.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Dá orientação geral concisa e desaconselha colocar a chave no código, mas falta configuração concreta e proteção contra versionamento.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Fornece passos concretos e cuidados com exposição e revogação, mas alonga-se muito sobre um serviço que o utilizador não identificou.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta opções e proteções úteis, mas confunde ficheiros .env com variáveis de ambiente e classifica a segurança de forma demasiado genérica.\"}}",
+   "custo_tokens": {
+    "in": 28584,
+    "out": 396,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 0,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "So pergunta contexto, nao da nenhuma opcao concreta nem exemplo.",
+     "total": 6,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 2,
+     "porque": "Expoe todo o raciocinio interno em ingles antes da resposta final, o que e um erro grave de formatacao, e nao avisa sobre gitignore/seguranca.",
+     "total": 5,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Resposta generica correta mas curta demais para agir sem mais perguntas, e so avisa de forma leve sobre risco.",
+     "total": 8,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Cobre os dois cenarios plausiveis com comandos concretos para Windows e avisa sobre nunca colar a chave em chat/git e revogar se exposta.",
+     "total": 11,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "Lista muitas opcoes genericas sem escolher nenhuma nem dar comandos concretos, obrigando a nova pergunta.",
+     "total": 6,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":0,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"So pergunta contexto, nao da nenhuma opcao concreta nem exemplo.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":2,\"porque\":\"Expoe todo o raciocinio interno em ingles antes da resposta final, o que e um erro grave de formatacao, e nao avisa sobre gitignore/seguranca.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Resposta generica correta mas curta demais para agir sem mais perguntas, e so avisa de forma leve sobre risco.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Cobre os dois cenarios plausiveis com comandos concretos para Windows e avisa sobre nunca colar a chave em chat/git e revogar se exposta.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"Lista muitas opcoes genericas sem escolher nenhuma nem dar comandos concretos, obrigando a nova pergunta.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 552,
+    "cache_write": 8226,
+    "cache_read": 3298
+   }
+  }
+ }
+}

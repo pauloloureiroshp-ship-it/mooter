@@ -1,0 +1,160 @@
+{
+ "id": "DEV-2",
+ "chave": {
+  "R1": "A",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "C",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Dá diagnóstico e correções úteis, mas alonga-se e inclui causas que produziriam mensagens de erro diferentes.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "A orientação está correta, mas falta um exemplo concreto e sobra uma longa exposição repetitiva do raciocínio.",
+     "total": 6,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explica o erro, apresenta correções aplicáveis e distingue proteção temporária de correção da origem, com concisão.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta soluções práticas, mas o exemplo de fetch não implementa por si só a espera pelo carregamento anunciada.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Identifica o problema, mas chama objeto a undefined e dá orientações genéricas sem mostrar uma correção concreta.",
+     "total": 6,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Dá diagnóstico e correções úteis, mas alonga-se e inclui causas que produziriam mensagens de erro diferentes.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"A orientação está correta, mas falta um exemplo concreto e sobra uma longa exposição repetitiva do raciocínio.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explica o erro, apresenta correções aplicáveis e distingue proteção temporária de correção da origem, com concisão.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta soluções práticas, mas o exemplo de fetch não implementa por si só a espera pelo carregamento anunciada.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Identifica o problema, mas chama objeto a undefined e dá orientações genéricas sem mostrar uma correção concreta.\"}}",
+   "custo_tokens": {
+    "in": 29537,
+    "out": 381,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 19490.0423
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Explicacao completa e correta, causas, correcoes concretas e pede dados para afinar, mas e bastante longa.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expoe raciocinio interno em ingles como se fosse resposta e a conclusao final e vaga demais para agir.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Direta, com exemplo antes/depois, aviso sobre optional chaining mascarar bugs e pedido de mais contexto, tudo conciso.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Boa cobertura de causas e solucoes com exemplos de codigo, ligeiramente mais extensa que o necessario.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 2,
+     "porque": "Explicacao generica sem exemplo de codigo nem passos concretos para agir.",
+     "total": 4,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Explicacao completa e correta, causas, correcoes concretas e pede dados para afinar, mas e bastante longa.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expoe raciocinio interno em ingles como se fosse resposta e a conclusao final e vaga demais para agir.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Direta, com exemplo antes/depois, aviso sobre optional chaining mascarar bugs e pedido de mais contexto, tudo conciso.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Boa cobertura de causas e solucoes com exemplos de codigo, ligeiramente mais extensa que o necessario.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":2,\"porque\":\"Explicacao generica sem exemplo de codigo nem passos concretos para agir.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 520,
+    "cache_write": 9624,
+    "cache_read": 3298
+   },
+   "ms": 8827.2583
+  }
+ }
+}

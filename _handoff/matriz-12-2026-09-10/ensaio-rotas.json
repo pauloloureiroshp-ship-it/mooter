@@ -1,0 +1,138 @@
+{
+ "ficheiro": "prompts.PROPOSTA.json",
+ "corrido_em": "2026-09-10T16:55:56.474Z",
+ "linhas": [
+  {
+   "id": "DATA-1",
+   "esperado": "T0/US$0",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "ambiguous_short",
+   "risco": "minimal",
+   "conf": 0.65,
+   "ms": 90.2,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "LEGAL-1",
+   "esperado": "T0/US$0",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "simple_transform_or_explain",
+   "risco": "low",
+   "conf": 0.85,
+   "ms": 90.3,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "MKT-2",
+   "esperado": "T0/US$0",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "ambiguous_short",
+   "risco": "minimal",
+   "conf": 0.65,
+   "ms": 87.7,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "LEGAL-3",
+   "esperado": "degrau do meio",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "ambiguous_medium",
+   "risco": "low",
+   "conf": 0.6,
+   "ms": 89.1,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "MKT-3",
+   "esperado": "degrau do meio",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "ambiguous_short",
+   "risco": "minimal",
+   "conf": 0.65,
+   "ms": 90.7,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "DEV-2",
+   "esperado": "degrau do meio",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "simple_transform_or_explain",
+   "risco": "low",
+   "conf": 0.85,
+   "ms": 92.8,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "DATA-4",
+   "esperado": "risco",
+   "tier": "T3",
+   "motor": "claude claude-opus-5",
+   "categoria": "architecture_or_critical",
+   "risco": "high",
+   "conf": 0.75,
+   "ms": 93.1,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "OPS-4",
+   "esperado": "risco",
+   "tier": "T3",
+   "motor": "claude claude-opus-5",
+   "categoria": "architecture_or_critical",
+   "risco": "high",
+   "conf": 0.9,
+   "ms": 89.4,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "OPS-3",
+   "esperado": "risco · PAR com P5",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "ambiguous_short",
+   "risco": "minimal",
+   "conf": 0.65,
+   "ms": 89.2,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "P5",
+   "esperado": "risco · PAR com OPS-3",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "trivial_local",
+   "risco": "minimal",
+   "conf": 0.8,
+   "ms": 88.8,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "MKT-4",
+   "esperado": "derrota prevista",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "ambiguous_medium",
+   "risco": "low",
+   "conf": 0.6,
+   "ms": 93.3,
+   "hw_t0": "qwen2.5-coder:14b"
+  },
+  {
+   "id": "DATA-3",
+   "esperado": "derrota prevista",
+   "tier": "T0",
+   "motor": "ollama qwen2.5-coder:14b",
+   "categoria": "ambiguous_short",
+   "risco": "minimal",
+   "conf": 0.65,
+   "ms": 90,
+   "hw_t0": "qwen2.5-coder:14b"
+  }
+ ]
+}

@@ -1,0 +1,160 @@
+{
+ "id": "LEGAL-1",
+ "chave": {
+  "R1": "B2",
+  "R2": "A",
+  "R3": "D",
+  "R4": "B",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Explica a restrição básica, mas assume país, início e validade, e inclui um longo raciocínio desnecessário.",
+     "total": 3,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Explica consequências e verificações úteis, mas alonga-se excessivamente, inventa contexto sobre um email e apresenta algumas conclusões jurídicas demasiado categóricas.",
+     "total": 6,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explica os efeitos práticos com clareza, distingue intenção contratual de validade e identifica as condições e os dados necessários para avaliar o caso.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "É demasiado curta para esclarecer as consequências e alarga a proibição a qualquer interesse comercial sem conhecer o texto nem ressalvar a validade.",
+     "total": 2,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Dá exemplos práticos, mas assume Portugal e o início do prazo, apresenta proibições como certas e atribui genericamente o ónus da prova ao utilizador sem fundamento.",
+     "total": 5,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Explica a restrição básica, mas assume país, início e validade, e inclui um longo raciocínio desnecessário.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Explica consequências e verificações úteis, mas alonga-se excessivamente, inventa contexto sobre um email e apresenta algumas conclusões jurídicas demasiado categóricas.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explica os efeitos práticos com clareza, distingue intenção contratual de validade e identifica as condições e os dados necessários para avaliar o caso.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"É demasiado curta para esclarecer as consequências e alarga a proibição a qualquer interesse comercial sem conhecer o texto nem ressalvar a validade.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Dá exemplos práticos, mas assume Portugal e o início do prazo, apresenta proibições como certas e atribui genericamente o ónus da prova ao utilizador sem fundamento.\"}}",
+   "custo_tokens": {
+    "in": 30124,
+    "out": 413,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 19772.2289
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Resposta correta mas curta e ainda expõe todo o raciocínio interno em inglês antes da frase final.",
+     "total": 4,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Cobre duração, território, âmbito, compensação legal e passos de negociação, mas é bastante extensa para o pedido.",
+     "total": 9,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Correta e sinaliza bem os riscos legais (compensação, validade), mas pede mais informação em vez de dar explicação completa já.",
+     "total": 7,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 2,
+     "porque": "Frase simples e directa mas não menciona nada sobre validade legal, compensação ou negociação, deixando a pessoa sem próximos passos.",
+     "total": 4,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Boa explicação prática com exemplos concretos e sugestão de negociação, mas simplifica demais a questão da validade legal em Portugal.",
+     "total": 7,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Resposta correta mas curta e ainda expõe todo o raciocínio interno em inglês antes da frase final.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Cobre duração, território, âmbito, compensação legal e passos de negociação, mas é bastante extensa para o pedido.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Correta e sinaliza bem os riscos legais (compensação, validade), mas pede mais informação em vez de dar explicação completa já.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":2,\"porque\":\"Frase simples e directa mas não menciona nada sobre validade legal, compensação ou negociação, deixando a pessoa sem próximos passos.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Boa explicação prática com exemplos concretos e sugestão de negociação, mas simplifica demais a questão da validade legal em Portugal.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 542,
+    "cache_write": 10844,
+    "cache_read": 3298
+   },
+   "ms": 9620.7902
+  }
+ }
+}

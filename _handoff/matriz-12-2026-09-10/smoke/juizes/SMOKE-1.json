@@ -1,0 +1,160 @@
+{
+ "id": "SMOKE-1",
+ "chave": {
+  "R1": "B2",
+  "R2": "C",
+  "R3": "B",
+  "R4": "D",
+  "R5": "A"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Inclui uma saudação válida, mas acrescenta extensa análise em inglês e assume incorretamente que mencionar o número é obrigatório.",
+     "total": 5,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Deseja bom dia à equipa numa única frase correta e utilizável, sem necessidade de explicitar os quatro elementos.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "A saudação é compreensível e concisa, mas exige corrigir «Boa dia» para «Bom dia».",
+     "total": 7,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Cumpre o pedido numa única frase correta e concisa, dirigida aos quatro elementos.",
+     "total": 10,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Cumpre o pedido com uma única frase natural e correta, desejando bom dia aos quatro elementos da equipa.",
+     "total": 10,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Inclui uma saudação válida, mas acrescenta extensa análise em inglês e assume incorretamente que mencionar o número é obrigatório.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Deseja bom dia à equipa numa única frase correta e utilizável, sem necessidade de explicitar os quatro elementos.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"A saudação é compreensível e concisa, mas exige corrigir «Boa dia» para «Bom dia».\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Cumpre o pedido numa única frase correta e concisa, dirigida aos quatro elementos.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Cumpre o pedido com uma única frase natural e correta, desejando bom dia aos quatro elementos da equipa.\"}}",
+   "custo_tokens": {
+    "in": 28198,
+    "out": 377,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 19807.627
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Frase final correta mas expõe todo o raciocínio interno em vez de só a frase pedida",
+     "total": 6,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Frase única, natural e pronta a usar, cobre a equipa toda",
+     "total": 10,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Erro gramatical 'Boa dia' em vez de 'Bom dia' estraga a resposta",
+     "total": 6,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Frase única, correta e alude naturalmente aos quatro elementos",
+     "total": 10,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Frase única, correta, menciona explicitamente os quatro membros",
+     "total": 10,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Frase final correta mas expõe todo o raciocínio interno em vez de só a frase pedida\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Frase única, natural e pronta a usar, cobre a equipa toda\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Erro gramatical 'Boa dia' em vez de 'Bom dia' estraga a resposta\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Frase única, correta e alude naturalmente aos quatro elementos\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Frase única, correta, menciona explicitamente os quatro membros\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 2984,
+    "cache_write": 7624,
+    "cache_read": 3298
+   },
+   "ms": 34637.5637
+  }
+ }
+}

@@ -1,0 +1,25 @@
+diff --git a/tools/router/router-execute.js b/tools/router/router-execute.js
+index 49eabe1d..3d1f98c9 100644
+--- a/tools/router/router-execute.js
++++ b/tools/router/router-execute.js
+@@ -999,6 +999,20 @@ async function executePinned(input = {}) {
+     : (envPerAttemptMs > 0 ? envPerAttemptMs : pinDefaultMs);
+   if (model) wrapperOpts.model = model;
+ 
++  // Diagnostico 2026-08-03 (fix escrito em feat/landing-redesign@265281af, nunca
++  // fundido em main): executePinned montava wrapperOpts com timeoutMs e model
++  // APENAS, por isso maxTokens nunca chegava ao wrapper e toda a chamada local
++  // pinada levava em silencio o num_predict de 256 de providers/ollama-api.js.
++  // Medido entao: um bloco CSS de 340 tokens voltou cortado aos 256, a meio do
++  // nome de uma propriedade -- o que se le como "o modelo local e incapaz"
++  // quando e so um tecto. execute() ja reencaminha 1024 (T-07); um pin e uma
++  // escolha explicita de esperar, por isso leva folga a serio.
++  const explicitMaxTokens = Number(options.maxTokens) || 0;
++  const localPinMaxTokens = Number(process.env.MOOTER_LOCAL_PIN_MAX_TOKENS) || 4096;
++  wrapperOpts.maxTokens = explicitMaxTokens > 0
++    ? explicitMaxTokens
++    : (providerKey === 'ollama' ? localPinMaxTokens : 1024);
++
+   // Out-parameter for the wrapper to say WHY it failed. Adapters return a bare
+   // null on failure (a contract every caller already depends on), which cannot
+   // distinguish "killed at the deadline" from "answered nothing" — and those two
