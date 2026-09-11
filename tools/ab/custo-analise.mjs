@@ -61,7 +61,7 @@
  *     FALSE se alguma condição INVALIDANTE se verificar — as do pré-registo
  *     (`estado_vivo_sha` a mudar; digest do modelo local a mudar;
  *     `sentinela_presente === false`) e as que denunciam controlador
- *     partido (8, 14, 15, 18, 19, 20, 21, 22, 23); NULL (n/d) se nenhuma
+ *     partido (8, 14, 15, 18, 19, 20, 21, 22, 23, 26); NULL (n/d) se nenhuma
  *     violação mas a prova não existe — alguma tentativa sem
  *     `sentinela_presente === true`, ou nenhuma com `estado_vivo_sha`, ou
  *     sem tentativas; TRUE só com a prova completa. As órfãs contam. Cada
@@ -172,11 +172,17 @@
  *     true` com evidência → marca `arrancou_contraditorio`, par INVÁLIDO,
  *     corrida INVÁLIDA. `session_id` repetido entre tentativas → marca
  *     `session_id_repetido`, corrida INVÁLIDA (a mesma invocação contada 2×).
- *     `arrancou === false` numa claude-p com `motivo_se_nao` que NÃO começa
- *     por `spawn:` (ex. `cli_is_error:…`, `timeout`) está fora da definição
- *     do pré-registo — um timeout tem transcript, um `is_error` tem JSON —:
- *     marca `nao_arrancou_fora_da_definicao`, par INVÁLIDO, corrida INVÁLIDA
- *     (o controlador classifica falhas como não-arranques: R5-2).
+ *     `arrancou !== true` (false OU null) numa claude-p com `motivo_se_nao`
+ *     que NÃO começa por `spawn:` (ex. `cli_is_error:…`, `timeout`), OU sem
+ *     JSON e com `ts_fim − ts_inicio ≥ tecto_por_tentativa_s` (um spawn
+ *     falhado não demora 900 s), está fora da definição do pré-registo — um
+ *     timeout tem transcript, um `is_error` tem JSON —: marca
+ *     `nao_arrancou_fora_da_definicao`, par INVÁLIDO, corrida INVÁLIDA (o
+ *     controlador classifica falhas como não-arranques: R5-2 do 5.º e B2 do
+ *     7.º — o timeout escrito com `arrancou:null` tirava a falha de B do
+ *     denominador). «Estourar o tecto = não aceite» conta CONTRA o braço;
+ *     nunca é par inválido. `tecto_aparente` marca independentemente de
+ *     `aceite`.
  * 23. Ver 11: `tentativa_repetida` invalida a corrida — «não é retomado» e
  *     «sem terceira tentativa» são do pré-registo.
  * 24. ORDEM DOS BRAÇOS OBSERVADA: para as tarefas do corpus, a ordem vem do
@@ -627,10 +633,13 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         } else {
           if (!arrancouDaTentativa(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tentativa_nao_arrancou', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)}${t.motivo_se_nao ? ' · ' + t.motivo_se_nao : ''}` });
           if (t.arrancou == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'arrancou' });
-          // interpretacao 22: nao-arrancou so e o que o prereg define (spawn:*)
-          if (t.arrancou === false && !(typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.startsWith('spawn:'))) {
+          // interpretacao 22: nao-arrancou so e o que o prereg define (spawn:*, sem JSON, sem 900 s) — null incluido (B2 do 7.o)
+          const segundosT = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
+          const motivoSpawn = typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.startsWith('spawn:');
+          const durouComoTecto = Number.isFinite(segundosT) && Number.isFinite(tectoS) && segundosT >= tectoS;
+          if (t.arrancou !== true && !evidenciaDeArranque(t) && ((typeof t.motivo_se_nao === 'string' && !motivoSpawn) || durouComoTecto)) {
             arrancouContraditorio = true;
-            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'nao_arrancou_fora_da_definicao', motivo: `arrancou=false com motivo_se_nao=${JSON.stringify(t.motivo_se_nao ?? null)} — nao-arrancou e SO spawn:* sem JSON (interpretacao 22)` });
+            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'nao_arrancou_fora_da_definicao', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)} com motivo_se_nao=${JSON.stringify(t.motivo_se_nao ?? null)}${durouComoTecto ? ` e ${segundosT}s >= tecto ${tectoS}s` : ''} — nao-arrancou e SO spawn:* sem JSON e sem tecto; «estourar o tecto = nao aceite» conta contra o braco (interpretacao 22)` });
             invalida('nao-arrancou fora da definicao do pre-registo — o controlador classifica falhas como nao-arranques (interpretacao 22)', ref(t));
           }
           // interpretacao 22: a flag nao pode contradizer a evidencia da propria linha
@@ -646,8 +655,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
             if (faltam.length) { provaEmFalta = provaEmFalta || faltam.join(', '); marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: `provas da aceitacao: ${faltam.join(', ')}` }); }
           }
           if (chegou && ((typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' && t.ts_fim < t.ts_inicio) || t.duration_ms === 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: t.duration_ms === 0 ? 'duration_ms 0 numa invocacao que chegou' : `ts_fim ${t.ts_fim} < ts_inicio ${t.ts_inicio}` });
-          const segundos = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
-          if (t.aceite === true && Number.isFinite(segundos) && Number.isFinite(tectoS) && segundos >= tectoS) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tecto_aparente', motivo: `ts_fim - ts_inicio = ${segundos}s >= tecto ${tectoS}s com aceite=true — so marca, o intervalo pode incluir a aceitacao (interpretacao 19)` });
+          if (durouComoTecto) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tecto_aparente', motivo: `ts_fim - ts_inicio = ${segundosT}s >= tecto ${tectoS}s (aceite=${JSON.stringify(t.aceite ?? null)}) — so marca, o intervalo pode incluir a aceitacao (interpretacao 19)` });
           if (t.arrancou === true && typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.length > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'motivo_com_arrancou', motivo: `arrancou=true com motivo_se_nao=${JSON.stringify(t.motivo_se_nao)} (interpretacao 25)` });
         }
         if (t.aceite == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'aceite' });
