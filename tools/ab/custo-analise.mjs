@@ -61,7 +61,9 @@
  *     tentativa registada»; `par_invalido` sem tentativa é par inválido com o
  *     motivo do evento. Tarefa excluída SEM suplente fica em jogo e não
  *     corrida: o denominador é sempre o do pré-registo.
- *  5. «Corrida válida» (`corrida_valida`: true | false | null):
+ *  5. «Corrida válida» (`corrida_valida`: true | false | null; um `null` em
+ *     `estado_vivo_sha` ou no `modelo_reportado` de um passo local → n/d,
+ *     porque um null não prova que não houve mudança — 30):
  *     FALSE se alguma condição INVALIDANTE se verificar — as do pré-registo
  *     (`estado_vivo_sha` a mudar; digest do modelo local a mudar;
  *     `sentinela_presente === false`) e as que denunciam controlador
@@ -299,6 +301,40 @@
  *     `rasto_do_passo_local` (H1: listagem do worktree mudou no passo local;
  *     em `fiabilidade.rastos_do_passo_local`), `tentativa_sem_inicio` (W1:
  *     num ledger que regista inícios).
+ * 30. O QUE O 11.º REVISOR MOSTROU: (K1b/K2b) a ordem observada comparava
+ *     `ts_inicio` como STRINGS — um offset «-03:00» ou «.500Z» vs «Z»
+ *     trocava a ordem e passava o rótulo trocado por «cumprido · marcas 0».
+ *     Agora tudo por INSTANTE (`Date.parse`), e os braços não se
+ *     intercalam: o intervalo [min `ts_inicio`, max `ts_fim`] de cada braço
+ *     é disjunto do outro, senão `bracos_intercalados`, corrida INVÁLIDA
+ *     (fecha também K3: a escalação de B a correr depois de A). (K4) o
+ *     `pre_voo` tem contrato (`problemasDoPreVoo`: `exit_code` numérico,
+ *     `falhou` booleano, contagens numéricas) → `pre_voo_incompleto`,
+ *     INVÁLIDA numa tarefa que correu em claude-p; `falhou:true` com
+ *     `exit_code:0` deixa de ser só marca (25) — é a classe do
+ *     `aceite_contraditorio`, INVÁLIDA; `pre_voo_sem_vermelho` também
+ *     quando falhou com 0 testes corridos ou passados = corridos (runner
+ *     morto, não teste vermelho). (B4b) um `null` em `estado_vivo_sha` numa
+ *     linha que seja → validade n/d, não true (o teste «um null não é uma
+ *     mudança» era a porta: sha mudado a meio com null em 46/47 linhas dava
+ *     «cumprido»); idem `modelo_reportado` null num passo local (C2). (E1)
+ *     um passo local com evidência de CLI (`pecasDeEvidenciaBruta`:
+ *     session_id, modelUsage, usage, custo > 0) correu em claude-p rotulado
+ *     router-execute → `local_com_evidencia_de_cli`, consumo de Opus
+ *     DESCONHECIDO (null, não zero), corrida INVÁLIDA. (J1) o
+ *     `tecto_do_orcamento` é o mesmo em todas as tentativas claude-p da
+ *     corrida → `tecto_divergente`, INVÁLIDA. (K8) mais do que um
+ *     `par_invalido` por tarefa → `par_invalido_repetido`, INVÁLIDA.
+ *     `PREREG_SHA256_ESPERADO` pina o `custo-prereg.json` congelado: um
+ *     prereg com outro sha → INVÁLIDA (a análise não é a pré-registada).
+ *     `lerLedger` conta linhas JSON válidas que não são objectos; eventos
+ *     fora dos 6 do pré-registo vão para `fiabilidade.eventos_desconhecidos`
+ *     e marcam `evento_desconhecido`; `paragem` com todos os pares fechados
+ *     marca `paragem_contraditoria` (continua «não fechou»: uma paragem é
+ *     uma paragem); `AVISO_N` dispara também com n > n do pré-registo (um
+ *     suplente noutro tier). NÃO fechado (declarado): um A que MENTE de
+ *     forma coerente (rejeitado com prova coerente) é indetectável por
+ *     ledger — só o worktree o refuta.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -368,7 +404,11 @@ export function lerLedger(texto) {
   const linhasInvalidas = [];
   texto.split('\n').forEach((l, i) => {
     if (!l.trim()) return;
-    try { eventos.push(JSON.parse(l)); } catch (e) { linhasInvalidas.push({ linha: i + 1, erro: e.message }); }
+    try {
+      const v = JSON.parse(l);
+      if (v === null || typeof v !== 'object' || Array.isArray(v)) { linhasInvalidas.push({ linha: i + 1, erro: `linha JSON valida mas nao e um objecto (${Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v})` }); return; }
+      eventos.push(v);
+    } catch (e) { linhasInvalidas.push({ linha: i + 1, erro: e.message }); }
   });
   return { eventos, linhasInvalidas };
 }
@@ -397,16 +437,21 @@ export function problemasDoModelUsage(mu) {
 }
 
 /** As peças de evidência de que uma tentativa claude-p CHEGOU ao CLI (interpretação 22): qualquer uma chega. */
-export const pecasDeEvidencia = (t) => (!t || ehLocal(t) ? [] : [
+export const pecasDeEvidenciaBruta = (t) => (!t ? [] : [
   typeof t.session_id === 'string' ? 'session_id' : null,
   !!t.modelUsage && typeof t.modelUsage === 'object' ? 'modelUsage' : null,
   !!t.usage && typeof t.usage === 'object' ? 'usage' : null,
   Number.isFinite(t.total_cost_usd) && t.total_cost_usd > 0 ? 'total_cost_usd>0' : null,
 ].filter(Boolean));
+export const pecasDeEvidencia = (t) => (!t || ehLocal(t) ? [] : pecasDeEvidenciaBruta(t));
 export const evidenciaDeArranque = (t) => pecasDeEvidencia(t).length > 0;
 
 /** Um spawn que falha devolve em milissegundos; 30 s deixa folga a um disco lento. Acima disto não é «não arrancou» (interpretação 28). */
 export const CURTO_S = 30;
+/** sha256 do `custo-prereg.json` congelado (main via #495). A analise so e a pre-registada se ler ESTE ficheiro (30). */
+export const PREREG_SHA256_ESPERADO = '079131b4712049225205a0f25edae2cff619e87e5767b86743fd0c6455b2a906';
+/** Os 6 eventos que o pre-registo define. Qualquer outro e contado, nunca engolido (30). */
+export const EVENTOS_DO_PREREG = ['pre_voo', 'tentativa_inicio', 'tentativa_fim', 'par_invalido', 'tarefa_excluida', 'paragem'];
 /** `spawn:*` sem timeout — a única grafia de não-arrancou que o pré-registo define. */
 export const motivoSpawnPuro = (m) => typeof m === 'string' && m.startsWith('spawn:') && !/timeout|ETIMEDOUT/i.test(m);
 /** A linha foi CURTA nas duas medidas: `duration_ms` presente e < CURTO_S, e os ts (quando os dois existem) coerentes com isso. */
@@ -428,7 +473,7 @@ export const naoArrancouPuro = (t) => !!t && t.arrancou === false && !evidenciaD
  *   null  = consumo DESCONHECIDO (arrancou, sem JSON utilizável, sem transcript)
  */
 export function tokensOpusDaTentativa(t) {
-  if (ehLocal(t)) return ZEROS('local');
+  if (ehLocal(t)) return pecasDeEvidenciaBruta(t).length > 0 ? null : ZEROS('local');   // 30: um «local» com evidencia de CLI nao tem consumo zero
   const mu = t && t.modelUsage;
   const prob = problemasDoModelUsage(mu);
   const jsonUtil = mu && typeof mu === 'object' && !prob.sem_opus && prob.campos.length === 0;
@@ -579,7 +624,7 @@ function primariaDe(validos, criterio, { fechou, valida }, nPrereg) {
       ? 'limiar descritivo, nao inferencia. Ver prereg.metricas.primaria.o_que_o_nome_NAO_e.'
       : 'DESCRITIVO DO QUE CORREU. A corrida nao fechou, e invalida ou a validade e n/d: tabela, Wilson e intervalo descrevem o prefixo; nao ha veredicto.',
     AVISO_VACUO: vacuo ? `aceites_A - 2 = ${aceitesA - MARGEM} <= 0: o criterio e verdadeiro por aritmetica, seja qual for B. Nao diz nada sobre o router.` : null,
-    AVISO_N: Number.isFinite(nPrereg) && n < nPrereg ? `primaria sobre ${n} pares validos, nao sobre os ${nPrereg} do pre-registo` : null,
+    AVISO_N: Number.isFinite(nPrereg) && n !== nPrereg ? `primaria sobre ${n} pares validos, nao sobre os ${nPrereg} do pre-registo` : null,
   };
 }
 
@@ -595,13 +640,22 @@ function resolverSuplente(id, substituicoes) {
 }
 
 const preVooFalhou = (p) => (typeof p.falhou === 'boolean' ? p.falhou : Number.isFinite(p.exit_code) && p.exit_code !== 0);
+/** Contrato do pre_voo (30): exit_code numerico, falhou booleano, contagens numericas (skips ja e exigido pela 29). */
+export const problemasDoPreVoo = (p) => [
+  Number.isFinite(p.exit_code) ? null : `exit_code ${JSON.stringify(p.exit_code ?? null)} nao e numero`,
+  typeof p.falhou === 'boolean' ? null : `falhou ${JSON.stringify(p.falhou ?? null)} nao e booleano`,
+  Number.isFinite(p.tests_corridos) ? null : `tests_corridos ${JSON.stringify(p.tests_corridos ?? null)} nao e numero`,
+  Number.isFinite(p.tests_passados) ? null : `tests_passados ${JSON.stringify(p.tests_passados ?? null)} nao e numero`,
+].filter(Boolean);
 
 export function analisar(prereg, eventos, { agora = null } = {}) {
   const precos = prereg.metricas.yardstick_custo;
   const tarefasPrereg = prereg.corpus.tarefas;
   const ordemIds = tarefasPrereg.map((t) => t.task_id);
   const suplentesPrereg = Array.isArray(prereg.corpus.suplentes) ? prereg.corpus.suplentes : [];
+  eventos = eventos.filter((e) => e && typeof e === 'object' && !Array.isArray(e));   // linhas nao-objecto ja foram contadas por lerLedger; aqui nunca rebentam
   const porTipo = (tipo) => eventos.filter((e) => e.evento === tipo);
+  const eventosDesconhecidos = eventos.filter((e) => !EVENTOS_DO_PREREG.includes(e.evento)).map((e) => ({ evento: e.evento === undefined ? null : e.evento, task_id: e.task_id ?? null }));
   const excluidas = porTipo('tarefa_excluida');
   const invalidos = porTipo('par_invalido');
   const paragens = porTipo('paragem');
@@ -612,9 +666,13 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   const marca = (m) => marcas.push(m);
   const corridaInvalidaPor = [];
   const invalida = (motivo, valor) => {
-    const e = corridaInvalidaPor.find((x) => x.motivo === motivo);
-    if (e) e.valores.push(valor); else corridaInvalidaPor.push({ motivo, valores: [valor] });
+    const j = corridaInvalidaPor.findIndex((x) => x.motivo === motivo);
+    if (j >= 0) { corridaInvalidaPor[j].valores.push(valor); return; }
+    corridaInvalidaPor.push({ motivo, valores: [valor] });
   };
+  for (const e of eventosDesconhecidos) marca({ task_id: e.task_id, tipo: 'evento_desconhecido', motivo: `evento ${JSON.stringify(e.evento)} fora dos 6 do pre-registo — contado, nao engolido (30)` });
+  // 30: a analise so e a pre-registada se leu o prereg congelado
+  if (typeof prereg.__sha256 === 'string' && prereg.__sha256 !== PREREG_SHA256_ESPERADO) invalida('pre-registo lido nao e o congelado (sha256 diferente do esperado) — a analise nao e a pre-registada (interpretacao 30)', `${prereg.__sha256} != ${PREREG_SHA256_ESPERADO}`);
   const ref = (t) => `${t.task_id}/${t.braco}/${t.tentativa ?? 1}`;
 
   // tentativas: duplicadas (mesmo task/braco/tentativa) — replica identica fica uma; diferente e tentativa a mais (11, 23)
@@ -728,12 +786,18 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     }
     let ordemDosBracos = meta ? meta.ordem_dos_bracos : null;
     let ordemObservada = null;
+    let bracosIntercalados = false;
     if (ts.length > 0 && ts.every((t) => typeof t.ts_inicio === 'string')) {
-      // so ha ordem observavel se o primeiro ts_inicio de A e de B forem DISTINTOS; iguais nao carregam ordem
-      const primeiroDe = (bb) => ts.filter((t) => t.braco === bb).map((t) => t.ts_inicio).sort()[0] ?? null;
+      // 30: por INSTANTE (Date.parse), nunca por string — um offset «-03:00» ou «.500Z» vs «Z» trocava a ordem lexica
+      const instante = (s) => (typeof s === 'string' ? Date.parse(s) : NaN);
+      const primeiroDe = (bb) => Math.min(...ts.filter((t) => t.braco === bb).map((t) => instante(t.ts_inicio)));
       const a0 = primeiroDe('A'), b0 = primeiroDe('B');
-      if (a0 && b0 && a0 !== b0) ordemObservada = b0 < a0 ? 'A-depois-B' : 'B-depois-A';
-      else if (a0 && b0) marca({ task_id: id, tipo: 'ts_iguais_entre_bracos', motivo: `ts_inicio ${a0} igual em A e B — dois spawns sequenciais nao partilham o instante (29)` });
+      if (Number.isFinite(a0) && Number.isFinite(b0) && a0 !== b0) ordemObservada = b0 < a0 ? 'A-depois-B' : 'B-depois-A';
+      else if (Number.isFinite(a0) && Number.isFinite(b0)) marca({ task_id: id, tipo: 'ts_iguais_entre_bracos', motivo: `ts_inicio no mesmo instante em A e B — dois spawns sequenciais nao partilham o instante (29)` });
+      // 30: os bracos nao se intercalam — o intervalo [min ts_inicio, max ts_fim] de cada braco e disjunto do outro (K3: a escalacao de B a correr DEPOIS de A)
+      const intervalo = (bb) => { const xs = ts.filter((t) => t.braco === bb); return xs.length ? [Math.min(...xs.map((t) => instante(t.ts_inicio))), Math.max(...xs.map((t) => instante(t.ts_fim)))] : null; };
+      const iA = intervalo('A'), iB = intervalo('B');
+      if (iA && iB && [...iA, ...iB].every(Number.isFinite) && !(iA[1] <= iB[0] || iB[1] <= iA[0])) { bracosIntercalados = true; marca({ task_id: id, tipo: 'bracos_intercalados', motivo: `A [${new Date(iA[0]).toISOString()}, ${new Date(iA[1]).toISOString()}] e B [${new Date(iB[0]).toISOString()}, ${new Date(iB[1]).toISOString()}] sobrepoem-se — os bracos correm um inteiro antes do outro (30)` }); invalida('bracos intercalados na mesma tarefa — o intervalo de um braco sobrepoe-se ao do outro (interpretacao 30)', id); }
     }
     let ordemDivergente = false;
     if (!meta) ordemDosBracos = ordemObservada;
@@ -768,7 +832,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         if (toks[i] === null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'consumo_desconhecido', motivo: prob.sem_opus || prob.campos.length ? 'modelUsage sem Opus utilizavel e sem tokens_transcript > 0' : t.arrancou === false ? `nao arrancou sem ser spawn:* (motivo_se_nao=${JSON.stringify(t.motivo_se_nao ?? null)}) — nao se zera (interpretacao 3)` : 'arrancou, sem modelUsage e sem tokens_transcript > 0 — tecto ou morte sem JSON', transcript: Number.isFinite(t.tokens_transcript) ? t.tokens_transcript : null });
         if (toks[i] && toks[i].fonte === 'transcript') marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'consumo_do_transcript', motivo: 'sem JSON; total do transcript e a unica fonte (prereg secundaria.timeout_sem_json)', transcript: t.tokens_transcript });
         if (ehLocal(t)) {
-          if (t.modelUsage) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_com_modelUsage', motivo: 'passo local trouxe modelUsage — tokens de Opus continuam zero por construcao' });
+          const pecasCli = pecasDeEvidenciaBruta(t);
+          if (pecasCli.length) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_com_evidencia_de_cli', motivo: `passo local com ${pecasCli.join('+')} — correu em claude-p rotulado router-execute; consumo de Opus DESCONHECIDO, nao zero (30)` }); invalida('passo local com evidencia de CLI — executor mal rotulado, o tratamento nao foi aplicado como pre-registado (interpretacoes 16, 30)', ref(t)); }
           const faltam = ['tokens_locais', 'modelo_reportado'].filter((c) => t[c] == null);
           if (faltam.length) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: faltam.join(', ') });
           if (!arrancouDaTentativa(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_nao_arrancou', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)}${t.motivo_se_nao ? ' · ' + t.motivo_se_nao : ''}` });
@@ -892,10 +957,17 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     const pv = pvs.length ? pvs[0] : null;
     const preVooOk = pv ? preVooFalhou(pv) : null;
     if (pvs.length > 1) { marca({ task_id: id, tipo: 'pre_voo_repetido', motivo: `${pvs.length} eventos pre_voo (resultados: ${pvs.map((x) => preVooFalhou(x)).join(', ')}) — fica o primeiro` }); invalida('pre_voo repetido — a tarefa foi preparada mais do que uma vez (interpretacao 7, 29)', id); }
+    // 30: o pre_voo tem contrato; e as contagens dizem se «falhou» foi teste vermelho ou runner morto
+    const problemasPv = pv ? problemasDoPreVoo(pv) : [];
+    if (pv && problemasPv.length && ts.some((x) => !ehLocal(x))) { marca({ task_id: id, tipo: 'pre_voo_incompleto', motivo: problemasPv.join('; ') }); invalida('pre_voo sem contrato (exit_code/falhou/contagens) numa tarefa que correu em claude-p — o pre-voo nao e verificavel (interpretacao 30)', `${id}: ${problemasPv.join('; ')}`); }
+    if (pv && pv.falhou === true && pv.exit_code === 0 && ts.some((x) => !ehLocal(x))) invalida('pre_voo com falhou=true e exit_code=0 — o controlador contradiz a propria evidencia (interpretacoes 25, 30)', id);
+    if (pv && preVooFalhou(pv) && Number.isFinite(pv.tests_corridos) && (pv.tests_corridos === 0 || (Number.isFinite(pv.tests_passados) && pv.tests_passados === pv.tests_corridos))) marca({ task_id: id, tipo: 'pre_voo_sem_vermelho', motivo: `pre-voo falhou com tests_corridos ${pv.tests_corridos} e tests_passados ${JSON.stringify(pv.tests_passados ?? null)} — runner morto ou nenhum teste vermelho, nao uma tarefa vermelha` });
     if (pv && !Number.isFinite(pv.skips) && ts.some((x) => !ehLocal(x))) { marca({ task_id: id, tipo: 'campo_em_falta', motivo: 'pre_voo.skips — a base da condicao 3 («skip/todo nao aumentou») esta em falta' }); invalida('pre_voo sem skips numa tarefa que correu em claude-p — a condicao 3 da aceitacao nao e verificavel (interpretacao 29)', id); }
     if (pv && Number.isFinite(pv.skips) && Number.isFinite(historico) && pv.skips >= historico) marca({ task_id: id, tipo: 'pre_voo_sem_vermelho', motivo: `pre-voo com skips ${pv.skips} >= historico ${historico} — pode ter falhado por skip, nao por teste vermelho` });
     const A = braco('A'), B = braco('B');
-    const invalido = invalidos.find((e) => e.task_id === id) || null;
+    const invalidosDaTarefa = invalidos.filter((e) => e.task_id === id);
+    const invalido = invalidosDaTarefa[0] || null;
+    if (invalidosDaTarefa.length > 1) { marca({ task_id: id, tipo: 'par_invalido_repetido', motivo: `${invalidosDaTarefa.length} eventos par_invalido (${invalidosDaTarefa.map((e) => `${e.braco}:${e.motivo}`).join('; ')}) — so pode haver um, e todos tem de ser verificaveis (30)` }); invalida('par_invalido repetido na mesma tarefa (interpretacao 30)', `${id}: ${invalidosDaTarefa.map((e) => `${e.braco}:${e.motivo}`).join('; ')}`); }
     const temTentativas = A.tentativas + B.tentativas > 0;
     const correu = temTentativas || !!invalido;
     // par_invalido contraditorio (interpretacao 21): os dois bracos chegaram, pela flag ou pela evidencia
@@ -948,6 +1020,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && A.arrancou !== true) { bracoQueNaoArrancou = 'A'; motivoInvalido = A.ultima_puro ? `nao arrancou (spawn puro: ${A.motivo_se_nao}) sem evento par_invalido` : c(`ultima tentativa com arrancou=${valor(A)} que nao e um nao-arrancou puro`); }   // (a) so puro (28)
     else if (temTentativas && B.arrancou !== true) { bracoQueNaoArrancou = 'B'; motivoInvalido = B.ultima_puro ? `nao arrancou (spawn puro: ${B.motivo_se_nao}) sem evento par_invalido` : c(`ultima tentativa com arrancou=${valor(B)} que nao e um nao-arrancou puro`); }   // (a) so puro (28)
     else if (temTentativas && ordemDivergente) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('ordem dos bracos divergente do pre-registo (interpretacao 24)'); }
+    else if (temTentativas && bracosIntercalados) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('bracos intercalados (interpretacao 30)'); }
     else if (temTentativas && shaDivergente) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('test_file_sha_antes divergente entre os bracos (interpretacao 29)'); }
     else if (temTentativas && (A.tipo_invalido || B.tipo_invalido)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tipo invalido em campo obrigatorio (interpretacao 18)'); }
     else if (temTentativas && (A.repetida || B.repetida)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa repetida por cima (interpretacao 23)'); }
@@ -981,19 +1054,27 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   if (shasEstadoVivo.length > 1) corridaInvalidaPor.push({ motivo: 'estado_vivo_sha mudou entre tentativas', valores: shasEstadoVivo });
   const modelosLocais = [...new Set(tentativas.filter(ehLocal).map((t) => t.modelo_reportado).filter((x) => x != null))];
   if (modelosLocais.length > 1) corridaInvalidaPor.push({ motivo: 'modelo local (nome+digest) mudou entre passos locais', valores: modelosLocais });
+  // 30: o tecto de orcamento e o mesmo para toda a corrida — «sem tecto» num braco e tecto no outro e tratamento desigual
+  const tectos = [...new Set(tentativas.filter((t) => !ehLocal(t)).map((t) => JSON.stringify(t.tecto_do_orcamento === undefined ? null : t.tecto_do_orcamento)))];
+  if (tectos.length > 1) {
+    corridaInvalidaPor.push({ motivo: 'tecto_do_orcamento divergente entre tentativas claude-p — tratamento desigual (interpretacao 30)', valores: tectos });
+    for (const t of tentativas) if (!ehLocal(t)) marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'tecto_divergente', motivo: `tecto_do_orcamento ${JSON.stringify(t.tecto_do_orcamento ?? null)} numa corrida com ${tectos.length} tectos distintos (${tectos.join(', ')})` });
+  }
   const semSentinela = tentativas.filter((t) => t.sentinela_presente === false).map(ref);
   if (semSentinela.length > 0) corridaInvalidaPor.push({ motivo: 'sentinela D15 ausente em tentativas', valores: semSentinela });
   const locaisAceites = tentativas.filter((t) => ehLocal(t) && t.aceite === true).map(ref);
   if (locaisAceites.length > 0) corridaInvalidaPor.push({ motivo: 'passo local aceite — a aceitacao do controlador esta partida (interpretacao 14)', valores: locaisAceites });
   const validadeNdPorque = [];
   if (tentativas.length > 0 && tentativas.some((t) => t.sentinela_presente !== true)) validadeNdPorque.push('tentativas sem sentinela_presente === true');
-  if (tentativas.length > 0 && shasEstadoVivo.length === 0) validadeNdPorque.push('nenhuma tentativa traz estado_vivo_sha');
+  if (tentativas.length > 0 && tentativas.some((t) => t.estado_vivo_sha == null)) validadeNdPorque.push('tentativas sem estado_vivo_sha — um null nao prova que o estado vivo nao mudou (30)');
+  if (tentativas.some((t) => ehLocal(t) && t.modelo_reportado == null)) validadeNdPorque.push('passos locais sem modelo_reportado — um null nao prova que o modelo local nao mudou (30)');
   if (tentativas.length === 0) validadeNdPorque.push('sem tentativas');
   const corridaValida = corridaInvalidaPor.length > 0 ? false : validadeNdPorque.length > 0 ? null : true;
 
   // ── paragem / prefixo ────────────────────────────────────────────────────
   const fechou = porTarefa.every((t) => t.par_fechado) && paragens.length === 0;
   const paragem = paragens.length > 0 ? paragens[paragens.length - 1] : null;
+  if (paragem && porTarefa.every((t) => t.par_fechado)) marca({ tipo: 'paragem_contraditoria', motivo: `evento paragem («${paragem.motivo}») com todos os pares fechados — uma paragem e «nao fechou»; num fim normal nao se escreve (30)` });
   const estado = { fechou, valida: corridaValida };
 
   // ── primaria ─────────────────────────────────────────────────────────────
@@ -1095,6 +1176,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     tentativas_duplicadas: duplicadas.map(resumoSolta),
     tarefas_excluidas_antes_de_correr: excluidas.map((e) => ({ task_id: e.task_id, motivo: e.motivo, suplente_usado: e.suplente_usado || null })),
     rastos_do_passo_local: marcas.filter((m) => m.tipo === 'rasto_do_passo_local').map((m) => ({ task_id: m.task_id, motivo: m.motivo })),
+    eventos_desconhecidos: eventosDesconhecidos,
     estado_vivo_shas_vistos: shasEstadoVivo,
     modelos_locais_vistos: modelosLocais,
     AVISO: 'CUSTO-10: o consumo dos pares invalidos NAO e apagado; esta aqui.',

@@ -16,8 +16,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, naoArrancouPuro, foiCurta, motivoSpawnPuro, CURTO_S, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
+import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SONDA = JSON.parse(fs.readFileSync(path.join(HERE, 'custo-fixture-sonda.json'), 'utf8'));
@@ -67,7 +68,7 @@ const naoArrancou = (task_id, braco, over = {}) => tentativa(task_id, braco, { a
 /** Escalacao para Opus depois do passo local. */
 const escalacao = (task_id, over = {}) => tentativa(task_id, 'B', { tentativa: 2, e_escalacao: true, tier_classificado: 'T0', ...over });
 
-const preVoo = (task_id, over = {}) => ({ evento: 'pre_voo', task_id, exit_code: 1, falhou: true, skips: 0, ...over });
+const preVoo = (task_id, over = {}) => ({ evento: 'pre_voo', task_id, exit_code: 1, falhou: true, tests_corridos: 10, tests_passados: 9, skips: 0, ...over });
 
 /** analisar() com pre_voo falhado para todas as tarefas que aparecem — o caminho normal. */
 function correr(p, ev, opts) {
@@ -452,11 +453,23 @@ test('analise · 3.o NO-SHIP (L5): sentinela_presente null/omitido ou estado_viv
   assert.ok(r.marcas.some((m) => m.tipo === 'campo_em_falta' && m.motivo === 'sentinela_presente' && m.braco === 'A'));
   const r2 = correr(p, [tentativa('t1', 'A', { estado_vivo_sha: null }), tentativa('t1', 'B', { estado_vivo_sha: null })]);
   assert.equal(r2.corrida_valida, null);
-  assert.deepEqual(r2.validade_nd_porque, ['nenhuma tentativa traz estado_vivo_sha']);
-  // um so null, com outro presente: marca, mas validade true (um null nao e uma mudanca)
+  assert.deepEqual(r2.validade_nd_porque, ['tentativas sem estado_vivo_sha — um null nao prova que o estado vivo nao mudou (30)']);
+  // 30 (B4b do 11.o): UM null com outro presente tambem e n/d — um null nao e uma mudanca, mas tambem nao prova que nao houve
   const r3 = correr(p, [tentativa('t1', 'A', { estado_vivo_sha: null }), tentativa('t1', 'B')]);
-  assert.equal(r3.corrida_valida, true);
+  assert.equal(r3.corrida_valida, null, 'antes: «um null nao e uma mudanca» — e era por ai que um sha mudado a meio, com null em 46/47 linhas, dava «cumprido»');
   assert.ok(r3.marcas.some((m) => m.tipo === 'campo_em_falta' && m.motivo === 'estado_vivo_sha'));
+  // B4b: o sha muda a meio (INVALIDA) — e com null em todas menos uma, n/d, nunca true
+  const p20 = preregDe(['t1', 't2', 't3']);
+  const b4a = correr(p20, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A', { estado_vivo_sha: 'ev-MUDOU' }), tentativa('t3', 'B', { estado_vivo_sha: 'ev-MUDOU' })]);
+  assert.equal(b4a.corrida_valida, false);
+  const b4b = correr(p20, [tentativa('t1', 'A', { estado_vivo_sha: null }), tentativa('t1', 'B', { estado_vivo_sha: null }), tentativa('t2', 'A', { estado_vivo_sha: null }), tentativa('t2', 'B', { estado_vivo_sha: null }), tentativa('t3', 'A', { estado_vivo_sha: null }), tentativa('t3', 'B', { estado_vivo_sha: 'ev-MUDOU' })]);
+  assert.equal(b4b.corrida_valida, null);
+  assert.equal(b4b.primaria.limiar_descritivo_cumprido, null);
+  // e o modelo local a null num passo local: n/d pelo mesmo motivo (C2 do 11.o)
+  const pL = preregDe(['t1'], { t1: 'T0' });
+  const c2 = correr(pL, [tentativa('t1', 'A', { tier_classificado: 'T0' }), passoLocal('t1', { modelo_reportado: null }), escalacao('t1')]);
+  assert.equal(c2.corrida_valida, null);
+  assert.ok(c2.validade_nd_porque.some((x) => /modelo_reportado/.test(x)));
 });
 
 test('analise · 3.o NO-SHIP (MUT-R2): tentativas orfas contam para a validade da corrida', () => {
@@ -961,9 +974,18 @@ test('analise · passo local sem tokens_locais / modelo_reportado marca campo_em
   const r = correr(p, [A, passoLocal('t1', { tokens_locais: null, modelo_reportado: null }), escalacao('t1')]);
   const m = r.marcas.find((x) => x.tipo === 'campo_em_falta' && x.braco === 'B');
   assert.ok(m); assert.equal(m.motivo, 'tokens_locais, modelo_reportado');
+  // 30 (E1/E2 do 11.o): um passo local com evidencia de CLI (modelUsage, usage, session_id, custo > 0) correu em claude-p rotulado router-execute
   const r2 = correr(p, [A, passoLocal('t1', { modelUsage: SONDA.modelUsage }), escalacao('t1')]);
-  assert.ok(r2.marcas.some((x) => x.tipo === 'local_com_modelUsage'));
-  assert.equal(r2.por_tarefa[0].B.tokens_opus, OPUS_TOTAL, 'so a escalacao; o local continua zero por construcao');
+  assert.ok(r2.marcas.some((x) => x.tipo === 'local_com_evidencia_de_cli' && /modelUsage/.test(x.motivo)));
+  assert.equal(r2.por_tarefa[0].B.tokens_opus, null, 'o consumo do «local» e desconhecido, nao zero — antes somava zero e B ficava com o total honesto');
+  assert.equal(r2.corrida_valida, false, 'executor mal rotulado = tratamento nao aplicado');
+  for (const over of [{ session_id: 'sess-x' }, { usage: SONDA.usage }, { total_cost_usd: 0.5 }]) {
+    const rX = correr(p, [A, passoLocal('t1', over), escalacao('t1')]);
+    assert.equal(rX.corrida_valida, false, JSON.stringify(over));
+    assert.ok(rX.marcas.some((x) => x.tipo === 'local_com_evidencia_de_cli'), JSON.stringify(over));
+  }
+  assert.equal(tokensOpusDaTentativa(passoLocal('t1', { total_cost_usd: 0.5 })), null);
+  assert.equal(tokensOpusDaTentativa(passoLocal('t1')).total, 0);
 });
 
 // ── custo do CLI, tecto, arredondamento, campos obrigatorios ───────────────
@@ -1448,8 +1470,29 @@ test('analise · 6.o NO-SHIP (I2): ordem dos bracos OBSERVADA por ts_inicio; div
   const ts0 = { ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05Z' };
   const igual = correr(p, [tentativa('t1', 'A', ts0), tentativa('t1', 'B', ts0), tentativa('t2', 'A', ts0), tentativa('t2', 'B', ts0)]);
   assert.equal(igual.por_tarefa[0].ordem_observada, null);
-  assert.deepEqual(igual.marcas.map((m) => m.tipo), ['ts_iguais_entre_bracos', 'ts_iguais_entre_bracos']);
-  assert.equal(igual.corrida_valida, true);
+  assert.deepEqual(igual.marcas.map((m) => m.tipo), ['ts_iguais_entre_bracos', 'bracos_intercalados', 'ts_iguais_entre_bracos', 'bracos_intercalados']);
+  assert.equal(igual.corrida_valida, false, '30: intervalos iguais sobrepoem-se — os bracos correm um inteiro antes do outro');
+  // 30 (K1b/K2b do 11.o): a ordem e por INSTANTE — um offset «-03:00» ou «.500Z» vs «Z» nao a troca
+  const pK = preregDe(['t1'], {}, undefined, { t1: 'A-depois-B' });   // B primeiro
+  const k1 = correr(pK, [tentativa('t1', 'A', { ts_inicio: '2026-09-11T08:00:00.000Z', ts_fim: '2026-09-11T08:00:05.000Z' }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T07:00:00.000-03:00', ts_fim: '2026-09-11T07:00:05.000-03:00' })]);
+  assert.equal(k1.por_tarefa[0].ordem_observada, 'B-depois-A', 'B a 07:00-03:00 = 10:00Z, DEPOIS de A as 08:00Z');
+  assert.equal(k1.corrida_valida, false);
+  const k2 = correr(pK, [tentativa('t1', 'A', { ts_inicio: '2026-09-11T08:00:00Z', ts_fim: '2026-09-11T08:00:05Z' }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T08:00:00.500Z', ts_fim: '2026-09-11T08:00:05.500Z' })]);
+  assert.equal(k2.por_tarefa[0].ordem_observada, 'B-depois-A', '.500Z e 500 ms DEPOIS');
+  assert.equal(k2.corrida_valida, false);
+  // K3: a escalacao de B a correr DEPOIS de A numa tarefa em que B vem primeiro — intervalos sobrepostos
+  const pK3 = preregDe(['t1'], { t1: 'T0' }, undefined, { t1: 'A-depois-B' });
+  const k3 = correr(pK3, [passoLocal('t1', { ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:03Z' }), tentativa('t1', 'A', { tier_classificado: 'T0', ts_inicio: '2026-09-11T00:20:00Z', ts_fim: '2026-09-11T00:20:05Z' }), escalacao('t1', { ts_inicio: '2026-09-11T02:00:00Z', ts_fim: '2026-09-11T02:00:05Z' })]);
+  assert.equal(k3.por_tarefa[0].ordem_observada, 'A-depois-B', 'pelo primeiro ts, B vem primeiro — e e por isso que so a ordem nao chega');
+  assert.ok(k3.marcas.some((m) => m.tipo === 'bracos_intercalados'));
+  assert.equal(k3.corrida_valida, false);
+  assert.match(k3.fiabilidade.pares_invalidos[0].motivo, /bracos intercalados.*CORRIDA INVALIDA/);
+  // fronteira: B a comecar EXACTAMENTE quando A acaba e sequencial, nao intercalado
+  const toque = correr(preregDe(['t1']), [tentativa('t1', 'A', { ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05Z' }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T00:00:05Z', ts_fim: '2026-09-11T00:00:10Z' })]);
+  assert.equal(toque.marcas.filter((m) => m.tipo === 'bracos_intercalados').length, 0);
+  assert.equal(toque.corrida_valida, true);
+  const umMs = correr(preregDe(['t1']), [tentativa('t1', 'A', { ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05.001Z' }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T00:00:05Z', ts_fim: '2026-09-11T00:00:10Z' })]);
+  assert.equal(umMs.marcas.filter((m) => m.tipo === 'bracos_intercalados').length, 1, '1 ms de sobreposicao ja e intercalado');
 });
 
 test('analise · 6.o NO-SHIP (I3 e N1): tier null no corpus marca; pre_voo incoerente; e_escalacao incoerente; motivo com arrancou; tentativa 2 sem 1', () => {
@@ -1526,6 +1569,15 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R10s1b: [tentativa('t1', 'B'), tentativa('t1', 'A'), ...parOk('t2', 'T0')],
     R10v1: [preVoo('t1', { exit_code: 0, falhou: false }), preVoo('t1'), ...parOk('t1', 'T3'), ...parOk('t2', 'T0')],
     R10res: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { arrancou: null, motivo_se_nao: null, session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, skips: null, duration_ms: 50 })],
+    // 11.o revisor (30)
+    R11k1b: [tentativa('t1', 'A', { ts_inicio: '2026-09-11T08:00:00.000Z', ts_fim: '2026-09-11T08:00:05.000Z' }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T09:00:00.000+03:00', ts_fim: '2026-09-11T09:00:05.000+03:00' }), ...parOk('t2', 'T0')],   // B «09:00+03:00» = 06:00Z, ANTES de A — lexicamente parece depois
+    R11k4b: [{ evento: 'pre_voo', task_id: 't1', falhou: true, skips: 0 }, ...parOk('t1', 'T3'), ...parOk('t2', 'T0')],
+    R11k4: [preVoo('t1', { exit_code: 0 }), ...parOk('t1', 'T3'), ...parOk('t2', 'T0')],
+    R11b4b: [tentativa('t1', 'A', { estado_vivo_sha: null }), tentativa('t1', 'B', { estado_vivo_sha: null }), tentativa('t2', 'A', { tier_classificado: 'T0', estado_vivo_sha: null }), passoLocal('t2', { estado_vivo_sha: null }), escalacao('t2', { estado_vivo_sha: 'ev-MUDOU' })],
+    R11e1: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2', { modelUsage: SONDA.modelUsage, usage: SONDA.usage, total_cost_usd: SONDA.total_cost_usd, session_id: 'sess-local' }), escalacao('t2')],
+    R11j1: [tentativa('t1', 'A', { tecto_do_orcamento: 0.1, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    R11k8: [naoArrancou('t1', 'A'), tentativa('t1', 'B'), { evento: 'par_invalido', task_id: 't1', braco: 'A', motivo: 'spawn:ENOENT' }, { evento: 'par_invalido', task_id: 't1', braco: 'B', motivo: 'timeout' }, ...parOk('t2', 'T0')],
+    R11k3: [passoLocal('t2', { ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:03Z' }), tentativa('t2', 'A', { tier_classificado: 'T0', ts_inicio: '2026-09-11T00:20:00Z', ts_fim: '2026-09-11T00:20:05Z' }), escalacao('t2', { ts_inicio: '2026-09-11T02:00:00Z', ts_fim: '2026-09-11T02:00:05Z' }), ...parOk('t1', 'T3')],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
   // 'veredicto' = sem veredicto; 'par' = esse par invalido (o par limpo ao lado DA veredicto, e isso e legitimo);
@@ -1538,6 +1590,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     Q7ii: { direccao: true }, Q7i: { corrida: false }, Q7iii: { corrida: false }, Q7tipo: { corrida: false },
     R9nu: { corrida: false }, R9i1: { corrida: false }, R9i6: { corrida: false }, R9semLinha: { corrida: false }, R9delta: { corrida: false }, R9a3: { corrida: false }, R9b1: { corrida: false }, R9g2: { corrida: false }, R9k1: { corrida: false },
     R10x1: { corrida: false }, R10x3: { corrida: false }, R10e4: { corrida: false }, R10e6: { corrida: false }, R10y1: { corrida: false }, R10s1b: { corrida: false }, R10v1: { corrida: false }, R10res: { corrida: false },
+    R11k1b: { corrida: false }, R11k4b: { corrida: false }, R11k4: { corrida: false }, R11b4b: { veredicto: null }, R11e1: { corrida: false }, R11j1: { corrida: false }, R11k8: { corrida: false }, R11k3: { corrida: false },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1570,13 +1623,15 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'aceite com skips null (E6)': { aceite: true, skips: null, tests_corridos: 15 },
       'aceite com sha de outro ficheiro (Y1)': { aceite: true, test_file_sha_antes: 'OUTRO', test_file_sha_depois: 'OUTRO' },
       'residual (arrancou null sem motivo)': { ...falha, arrancou: null, motivo_se_nao: null, session_id: null, modelUsage: null, usage: null, total_cost_usd: null, exit_code: null, tests_corridos: null, tests_passados: null, skips: null, duration_ms: 50 },
+      'aceite com pre_voo sem contrato (K4b)': { aceite: true, __preVoo: { falhou: true, skips: 0 } },
+      'aceite com estado_vivo null (B4b)': { aceite: true, estado_vivo_sha: null },
     };
     for (const [nome, over] of Object.entries(ataquesB)) {
-      const semPreVoo = over.__semPreVoo; const o = { ...over }; delete o.__semPreVoo;
+      const semPreVoo = over.__semPreVoo; const pvAtaque = over.__preVoo; const o = { ...over }; delete o.__semPreVoo; delete o.__preVoo;
       const ev = [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B', o), tentativa('t3', 'A'), tentativa('t3', 'B', o), tentativa('t4', 'A'), tentativa('t4', 'B', o)];
-      const r = semPreVoo ? analisar(p4, [preVoo('t1'), ...ev]) : correr(p4, ev);
+      const r = semPreVoo ? analisar(p4, [preVoo('t1'), ...ev]) : pvAtaque ? analisar(p4, [preVoo('t1'), ...['t2', 't3', 't4'].map((id) => ({ evento: 'pre_voo', task_id: id, ...pvAtaque })), ...ev]) : correr(p4, ev);
       assert.notEqual(r.primaria.limiar_descritivo_cumprido, true, `DIRECCAO ${nome}: o ataque as falhas de B deu «cumprido»`);
-      assert.ok(r.corrida_valida === false || r.primaria.limiar_descritivo_cumprido === false, `DIRECCAO ${nome}: ou conta contra B, ou invalida a corrida`);
+      assert.ok(r.corrida_valida !== true || r.primaria.limiar_descritivo_cumprido === false, `DIRECCAO ${nome}: ou conta contra B, ou a corrida nao e valida (false ou n/d)`);
     }
     // ESPELHO (9.o, δ): os mesmos ataques ao SUCESSO de A em t1 (onde B aceitou). Honesto A 4 B 1 -> NAO; baixar A para 3 -> 1 >= 1 -> «cumprido». Nenhum pode dar «cumprido».
     const ataquesA = {
@@ -1593,6 +1648,8 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'A spawn puro com custo': { arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, modelUsage: null, usage: null, total_cost_usd: 0.5, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null, duration_ms: 50 },
       'A rotulo trocado (S1b)': { __trocar: true },
       'A excluido com pre-voo falhado (X1)': { __excluir: true },
+      'A com tecto 0.1 e rejeitado (J1)': { aceite: false, exit_code: 1, tests_passados: 9, tecto_do_orcamento: 0.1 },
+      'A local rotulado router-execute (E1)': { executor: 'router-execute', modelo_pedido: 'ollama', tokens_locais: 900, texto_local_sha256: 'x', aceite: false, exit_code: 1, tests_passados: 9 },
     };
     const evA = (o, semLinha, evento, trocar = false, excluir = false) => [
       ...(excluir ? [preVoo('t1'), { evento: 'tarefa_excluida', task_id: 't1', motivo: 'worktree', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A'), tentativa('s1', 'B', falha)] : trocar ? [tentativa('t1', 'B'), tentativa('t1', 'A')] : [...(semLinha ? [] : [tentativa('t1', 'A', o)]), tentativa('t1', 'B')]),
@@ -1926,6 +1983,123 @@ test('analise · 10.o (N03/N09/N10): fronteiras do «puro» — ts_fim < ts_inic
     const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), naoArrancou('t2', 'B', over), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }]);
     assert.equal(r.corrida_valida, false, JSON.stringify(over));
   }
+});
+
+// ── 11.o revisor: instantes, contrato do pre_voo, o que a linha nao diz (interpretacao 30) ──
+
+test('analise · 11.o NO-SHIP (K4/K4b/K4c, 30): o pre_voo tem contrato — sem exit_code/contagens invalida; falhou=true com exit 0 invalida; falhou com 0 testes corridos marca', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const semContrato = (e) => (e.evento === 'pre_voo' ? { evento: 'pre_voo', task_id: e.task_id, falhou: true, skips: 0 } : e);
+  // K4b: pre_voo so com falhou:true nas 5 tarefas em que B falharia, B aceite -> antes: «cumprido · A 20 B 20 · marcas 0»
+  const k4b = analisarReal(T.flatMap((t, i) => (falhaB(i) ? parReal(t) : parReal(t).map(semContrato))));
+  assert.equal(k4b.corrida_valida, false);
+  assert.equal(k4b.marcas.filter((m) => m.tipo === 'pre_voo_incompleto').length, 5);
+  assert.deepEqual(problemasDoPreVoo({ falhou: true, skips: 0 }), ['exit_code null nao e numero', 'tests_corridos null nao e numero', 'tests_passados null nao e numero']);
+  assert.deepEqual(problemasDoPreVoo(preVoo('x')), []);
+  // K4: falhou:true com exit_code 0 -> antes so marca (25); e a classe do aceite_contraditorio: invalida
+  const k4 = analisarReal(T.flatMap((t, i) => (falhaB(i) ? parReal(t) : parReal(t).map((e) => (e.evento === 'pre_voo' ? { ...e, exit_code: 0 } : e)))));
+  assert.equal(k4.corrida_valida, false);
+  assert.ok(k4.corrida_invalida_por.some((x) => /falhou=true e exit_code=0/.test(x.motivo) && x.valores.length === 5));
+  assert.equal(k4.marcas.filter((m) => m.tipo === 'pre_voo_incoerente').length, 5, 'a marca da 25 continua');
+  // K4c: exit_code 1 com 0 testes corridos (runner morto) -> marca pre_voo_sem_vermelho; e tests_passados === tests_corridos idem
+  const k4c = analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'pre_voo' ? { ...e, tests_corridos: 0, tests_passados: 0 } : e))));
+  assert.equal(k4c.marcas.filter((m) => m.tipo === 'pre_voo_sem_vermelho').length, 20);
+  assert.equal(k4c.corrida_valida, true, 'so marca — o prereg define a falha pelo exit code');
+  const k4d = correr(preregDe(['t1']), [preVoo('t1', { tests_corridos: 10, tests_passados: 10 }), tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.ok(k4d.marcas.some((m) => m.tipo === 'pre_voo_sem_vermelho' && /tests_passados 10/.test(m.motivo)));
+  // o passo local sozinho (T0 sem escalacao) tambem exige o contrato? so quando a tarefa correu em claude-p — o local nao usa a condicao 3
+  const pL = preregDe(['t1'], { t1: 'T0' });
+  const soLocal = analisar(pL, [{ evento: 'pre_voo', task_id: 't1', falhou: true, skips: 0 }, passoLocal('t1')]);
+  assert.equal(soLocal.marcas.filter((m) => m.tipo === 'pre_voo_incompleto').length, 0);
+});
+
+test('analise · 11.o NO-SHIP (J1/K6, 30): tecto_do_orcamento divergente entre tentativas claude-p invalida — tratamento desigual', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  // J1: tecto 0.1 so em A (custo da sonda 0.59) com A aceite=false coerente nas 5 -> antes: «cumprido · A 15 B 15 · marcas 0»
+  const j1 = analisarReal(T.flatMap((t, i) => (falhaB(i) ? parReal(t) : parReal(t).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' ? { ...e, tecto_do_orcamento: 0.1, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1 } : e)))));
+  assert.equal(j1.corrida_valida, false);
+  assert.ok(j1.corrida_invalida_por.some((x) => /tecto_do_orcamento divergente/.test(x.motivo)));
+  assert.equal(j1.primaria.limiar_descritivo_cumprido, null);
+  // o passo local nao entra (nao tem tecto de Opus); e o mesmo tecto em todas as claude-p e valido
+  const p = preregDe(['t1', 't2'], { t2: 'T0' });
+  const ok = correr(p, [tentativa('t1', 'A', { tecto_do_orcamento: 2 }), tentativa('t1', 'B', { tecto_do_orcamento: 2 }), tentativa('t2', 'A', { tier_classificado: 'T0', tecto_do_orcamento: 2 }), passoLocal('t2', { tecto_do_orcamento: null }), escalacao('t2', { tecto_do_orcamento: 2 })]);
+  assert.equal(ok.corrida_valida, true, JSON.stringify(ok.corrida_invalida_por));
+});
+
+test('analise · 11.o NO-SHIP (K8, 30): dois par_invalido na mesma tarefa — o segundo nao e invisivel; todos verificados', () => {
+  const p = preregDe(['t1', 't2']);
+  // 1.o legitimo (A spawn puro), 2.o ilegitimo (B, timeout) -> antes: so o 1.o era lido, «cumprido · valida»
+  const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), naoArrancou('t2', 'A'), tentativa('t2', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'A', motivo: 'spawn:ENOENT' }, { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'timeout' }]);
+  assert.equal(r.corrida_valida, false);
+  assert.ok(r.marcas.some((m) => m.tipo === 'par_invalido_repetido' && /2 eventos/.test(m.motivo)));
+  assert.ok(r.corrida_invalida_por.some((x) => /par_invalido repetido/.test(x.motivo)));
+});
+
+test('analise · 11.o (h/a/f, 30): eventos desconhecidos e linhas nao-objecto sao contados, nunca engolidos nem rebentam; paragem com tudo fechado marca; AVISO_N tambem com n > prereg', () => {
+  const { eventos, linhasInvalidas } = lerLedger('{"evento":"pre_voo","task_id":"t1","exit_code":1,"falhou":true,"tests_corridos":10,"tests_passados":9,"skips":0}\nnull\n42\n"string"\n[1,2]\n{"evento":"nota","task_id":"t1"}\n{"task_id":"t1"}\n');
+  assert.equal(eventos.length, 3, 'o pre_voo, a nota e o objecto sem evento');
+  assert.equal(linhasInvalidas.length, 4, 'null, 42, "string" e o array');
+  assert.match(linhasInvalidas[0].erro, /nao e um objecto \(null\)/);
+  const p = preregDe(['t1']);
+  const r = analisar(p, [...eventos, tentativa('t1', 'A'), tentativa('t1', 'B'), null, 42]);   // e mesmo que alguem passe nao-objectos a analisar(), nao rebenta
+  assert.equal(r.fiabilidade.eventos_desconhecidos.length, 2);
+  assert.deepEqual(r.fiabilidade.eventos_desconhecidos, [{ evento: 'nota', task_id: 't1' }, { evento: null, task_id: 't1' }]);
+  assert.equal(r.marcas.filter((m) => m.tipo === 'evento_desconhecido').length, 2);
+  assert.equal(r.corrida_valida, true, 'so marca — mas nunca «marcas 0»');
+  assert.deepEqual(EVENTOS_DO_PREREG, ['pre_voo', 'tentativa_inicio', 'tentativa_fim', 'par_invalido', 'tarefa_excluida', 'paragem']);
+  // (a) A1: paragem «corrida terminou» com todos os pares fechados — continua «nao fechou» (conservador), e marca a contradicao
+  const a1 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'paragem', ts: '2026-09-11T02:00:00Z', motivo: 'corrida terminou', ultima_tarefa: 't1' }]);
+  assert.equal(a1.corrida_fechou_os_pares, false);
+  assert.equal(a1.primaria.limiar_descritivo_cumprido, null);
+  assert.ok(a1.marcas.some((m) => m.tipo === 'paragem_contraditoria'));
+  // (f) F2: um suplente T0 no lugar de uma T3 poe o estrato T0 acima do prereg — AVISO_N dispara tambem para n > nPrereg
+  const p2 = preregDe(['t1', 't2'], { t1: 'T3', t2: 'T3' });
+  const f2 = analisar(p2, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), preVoo('t2', { exit_code: 0, falhou: false }), { evento: 'tarefa_excluida', task_id: 't2', motivo: 'ja verde', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A', { tier_classificado: 'T0' }), passoLocal('s1'), escalacao('s1')]);
+  assert.equal(f2.secundaria.por_tier.T0.n, 1);
+  assert.match(f2.secundaria.por_tier.T0.primaria.AVISO_N, /sobre 1 pares validos, nao sobre os 0 do pre-registo/);
+  assert.match(f2.secundaria.por_tier.T3.primaria.AVISO_N, /sobre 1 pares validos, nao sobre os 2/);
+});
+
+test('analise · 11.o (30): o sha do pre-registo esta pinado — a analise so e a pre-registada se leu o ficheiro congelado', () => {
+  const sha = crypto.createHash('sha256').update(fs.readFileSync(path.join(HERE, 'custo-prereg.json'))).digest('hex');
+  assert.equal(sha, PREREG_SHA256_ESPERADO, 'o custo-prereg.json commitado e o esperado; se mudar, esta constante tem de mudar com uma AMENDMENT');
+  const p = { ...preregDe(['t1']), __sha256: 'deadbeef' };
+  const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.equal(r.corrida_valida, false);
+  assert.ok(r.corrida_invalida_por.some((x) => /pre-registo lido nao e o congelado/.test(x.motivo)));
+  assert.equal(r.prereg_sha256, 'deadbeef');
+  const ok = correr({ ...preregDe(['t1']), __sha256: PREREG_SHA256_ESPERADO }, [tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.equal(ok.corrida_valida, true);
+});
+
+test('analise · 11.o (R11-04/05/06/07/09): mutantes sobreviventes do 11.o — AVISO_SUPLENTES so com suplente valido; pre_voo repetido fica o primeiro (nao o vermelho); 27b nunca em A de suplente; skipsBase 0 vs null; (a) nomeia o braco certo', () => {
+  const p = preregDe(['t1', 't2']);
+  // R11-04: suplente em par INVALIDO nao entra no AVISO (a primaria nao o inclui)
+  const r4 = analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'tarefa_excluida', task_id: 't2', motivo: 'worktree', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A'), naoArrancou('s1', 'B'), { evento: 'par_invalido', task_id: 's1', braco: 'B', motivo: 'spawn:ENOENT' }]);
+  assert.equal(r4.primaria.AVISO_SUPLENTES, null);
+  assert.equal(r4.primaria.n_pares_validos, 1);
+  // R11-05: pre_voo repetido — fica o PRIMEIRO (vermelho), nao o verde por cima; corrida invalida na mesma
+  const r5 = analisar(p, [preVoo('t1'), preVoo('t1', { exit_code: 0, falhou: false }), tentativa('t1', 'A'), tentativa('t1', 'B'), preVoo('t2'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(r5.por_tarefa[0].pre_voo_falhou, true);
+  assert.equal(r5.marcas.filter((m) => m.tipo === 'pre_voo_nao_falhou').length, 0);
+  assert.equal(r5.corrida_valida, false);
+  // R11-06: 27b nunca em A, nem num suplente
+  const r6 = analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'tarefa_excluida', task_id: 't2', motivo: 'worktree', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A', { aceite: false, exit_code: 0, tests_corridos: null, tests_passados: null }), tentativa('s1', 'B')]);
+  assert.equal(r6.corrida_valida, false);
+  assert.ok(r6.corrida_invalida_por.some((x) => /aceite=false em A sem prova completa/.test(x.motivo)));
+  // R11-07: skipsBase 0 (presente) vs null (ausente): com 0, aceite=false completo e coerente e contraditorio; com null e prova em falta -> os dois invalidam, por motivos distintos
+  const pH = preregDe(['t1', 't2']); for (const x of pH.corpus.tarefas) x.tests_total_historico = 10;
+  const s0 = correr(pH, [tentativa('t1', 'A'), tentativa('t1', 'B', { aceite: false }), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.ok(s0.corrida_invalida_por.some((x) => /aceite contraditorio/.test(x.motivo)));
+  const sN = analisar(pH, [preVoo('t1', { skips: null }), tentativa('t1', 'A'), tentativa('t1', 'B', { aceite: false }), preVoo('t2'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.ok(sN.corrida_invalida_por.some((x) => /pre_voo sem skips/.test(x.motivo)));
+  assert.ok(!sN.corrida_invalida_por.some((x) => /aceite contraditorio/.test(x.motivo)), 'sem base nao se pode dizer contraditorio');
+  // R11-09: o (a) nomeia o braco que nao arrancou
+  const r9 = correr(p, [naoArrancou('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), naoArrancou('t2', 'B')]);
+  assert.equal(r9.fiabilidade.pares_invalidos.find((x) => x.task_id === 't1').braco_que_nao_arrancou, 'A');
+  assert.equal(r9.fiabilidade.pares_invalidos.find((x) => x.task_id === 't2').braco_que_nao_arrancou, 'B');
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {
