@@ -498,6 +498,34 @@
  *     ordem), conta-as em `fiabilidade.saidas_a_com_resultado_no_outro_braco`
  *     e imprime-as no resumo. Um spawn puro exactamente nas 5 falhas de B
  *     dá «cumprido» sobre 15 pares COM 5 marcas a dizer «favorece B».
+ * 41. O SUMÁRIO DE TESTES TEM ARITMÉTICA (o 17.º revisor: A rejeitada com
+ *     `exit_code 0`, sha intacto e `tests_passados = histórico + 1 >
+ *     tests_corridos` nas 5 tarefas em que B falha dava «cumprido · A 15
+ *     B 15 · marcas 0» — o `aceiteContraditorio` só lia a aritmética no
+ *     ramo `aceite:true`, e a rejeição «legítima» de A favorece B).
+ *     `passados ≤ corridos` e `passados + skips ≤ corridos` valem seja
+ *     qual for `aceite`: um sumário impossível é a mesma testemunha a
+ *     contradizer-se (31) → `aceite_contraditorio`, INVÁLIDA, (c).
+ * 42. CONTAGENS E CÓDIGOS DE SAÍDA SÃO INTEIROS (`exit_code`,
+ *     `tests_corridos`, `tests_passados`, `skips`, `tentativa`,
+ *     `tokens_locais`): `exit_code: 1.5` não é «≠ 0», é impossível →
+ *     `tipo_invalido`, INVÁLIDA, (c). SEM range no `exit_code`: um crash do
+ *     runner em Windows escreve NTSTATUS assinados (−1073741819) e é honesto.
+ * 43. `total_cost_usd` reconcilia com a Σ `costUSD` NOS DOIS SENTIDOS (a
+ *     sonda: iguais a 1e-16): acima de 1 % (com todos os `costUSD`
+ *     presentes) também é `custo_cli_incoerente`, `custo_cli_total_usd`
+ *     null — um total inflado em A favorece B na leitura de custo.
+ * 44. O `costUSD` do CLI coincide com a valorização a preço de lista na
+ *     sonda (0,58975 exactos); mais de 5 % de diferença numa linha `json`
+ *     marca `custo_cli_diverge_da_lista` (só marca: uma tabela de preços
+ *     diferente no CLI é plausível; o número publicado continua, com a
+ *     marca ao lado). Fixtures sintéticas com `costUSD` inventado marcam.
+ * 45. O TRATAMENTO B TEM DE TER SIDO APLICADO: se TODOS os passos locais da
+ *     corrida não arrancaram (Ollama em baixo a corrida inteira), B escalou
+ *     directo para Opus nas 7 T0 e «B ≡ A» — a 2 cobre o transitório
+ *     (marca `local_nao_arrancou`), a totalidade é outra corrida → INVÁLIDA.
+ *     CLI (6 do 17.º): o resumo imprime `marcas por tipo` — «marcas 20» sem
+ *     tipo era indistinguível de «marcas 20 e mais nada».
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -529,13 +557,13 @@ export const TIPOS_OBRIGATORIOS = {
   modelo_pedido: { tipo: 'string', nulo: true }, modelo_reportado: { tipo: 'string', nulo: true },
   arrancou: { tipo: 'boolean', nulo: true }, motivo_se_nao: { tipo: 'string', nulo: true },
   aceite: { tipo: 'boolean', nulo: true },
-  exit_code: { tipo: 'number', nulo: true },
-  tests_corridos: { tipo: 'number', nulo: true, nao_negativo: true }, tests_passados: { tipo: 'number', nulo: true, nao_negativo: true }, skips: { tipo: 'number', nulo: true, nao_negativo: true },
+  exit_code: { tipo: 'number', nulo: true, inteiro: true },   // 42: sem range — o Windows devolve NTSTATUS assinados (-1073741819)
+  tests_corridos: { tipo: 'number', nulo: true, nao_negativo: true, inteiro: true }, tests_passados: { tipo: 'number', nulo: true, nao_negativo: true, inteiro: true }, skips: { tipo: 'number', nulo: true, nao_negativo: true, inteiro: true },
   test_file_sha_antes: { tipo: 'string', nulo: true }, test_file_sha_depois: { tipo: 'string', nulo: true },
   usage: { tipo: 'object', nulo: true }, modelUsage: { tipo: 'object', nulo: true },
   total_cost_usd: { tipo: 'number', nulo: true, nao_negativo: true }, duration_ms: { tipo: 'number', nulo: true, nao_negativo: true },
   session_id: { tipo: 'string', nulo: true },
-  tokens_locais: { tipo: 'number', nulo: true, nao_negativo: true }, texto_local_sha256: { tipo: 'string', nulo: true },
+  tokens_locais: { tipo: 'number', nulo: true, nao_negativo: true, inteiro: true }, texto_local_sha256: { tipo: 'string', nulo: true },
   estado_vivo_sha: { tipo: 'string', nulo: true }, tecto_do_orcamento: { tipo: ['string', 'number'], nulo: true }, sentinela_presente: { tipo: 'boolean', nulo: true },
   worktree_listagem_sha_antes: { tipo: 'string', nulo: true }, worktree_listagem_sha_depois: { tipo: 'string', nulo: true },
 };
@@ -555,6 +583,7 @@ export function violacoesDeTipo(t) {
     if (!tipos.includes(tv) || (tv === 'object' && Array.isArray(v))) { out.push(`${k}: ${Array.isArray(v) ? 'array' : tv} em vez de ${tipos.join('|')}`); continue; }
     if (tv === 'number' && !Number.isFinite(v)) { out.push(`${k}: nao finito`); continue; }
     if (c.nao_negativo && v < 0) out.push(`${k}: negativo (${v})`);
+    if (c.inteiro && !Number.isInteger(v)) out.push(`${k}: ${v} nao e inteiro`);   // 42: um exit_code 1.5 nao e «!= 0», e impossivel
     if (c.valores && !c.valores.includes(v)) out.push(`${k}: ${JSON.stringify(v)} fora de {${c.valores.join(',')}}`);
     // 31: um timestamp so conta se tiver a forma canonica de toISOString() (UTC, Z, com ou sem ms) — sem zona e a hora LOCAL de quem analisa; um espaco ou um «ZZ» da NaN em silencio
     if (c.forma === 'ts' && !tsCanonico(v)) out.push(`${k}: ${JSON.stringify(v)} nao e um timestamp canonico (YYYY-MM-DDTHH:MM:SS[.mmm]Z)`);
@@ -765,6 +794,9 @@ export function aceiteContraditorio(t, historico, skipsBase = null) {
   // condicao 3, segunda metade: «o numero de skip/todo nao aumentou» — a base e o skips do pre-voo da tarefa (29)
   if (Number.isFinite(skipsBase) && Number.isFinite(t.skips)) provas.push({ ok: t.skips <= skipsBase, nome: `skips ${t.skips} > ${skipsBase} do pre-voo` });
   if (Number.isFinite(t.skips) && Number.isFinite(t.tests_passados) && Number.isFinite(t.tests_corridos)) provas.push({ ok: t.tests_passados + t.skips <= t.tests_corridos, nome: `tests_passados ${t.tests_passados} + skips ${t.skips} > tests_corridos ${t.tests_corridos}` });
+  // 41: a aritmetica do sumario vale seja qual for `aceite` — uma rejeicao de A com passados > corridos baixa A e favorece B; e a mesma testemunha a contradizer-se (31)
+  const impossiveis = provas.filter((p) => !p.ok && /^tests_passados .* > tests_corridos/.test(p.nome)).map((p) => p.nome);
+  if (impossiveis.length) return `sumario de testes impossivel: ${impossiveis.join(', ')} (41)`;
   if (provas.length === 0) return null;
   const falhas = provas.filter((p) => !p.ok).map((p) => p.nome);
   if (t.aceite === true && falhas.length > 0) return `aceite=true com ${falhas.join(', ')}`;
@@ -1092,7 +1124,14 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         if (!ehLocal(t) && chegou && t.modelUsage && typeof t.modelUsage === 'object') {
           for (const [k, v] of Object.entries(t.modelUsage)) if (ehOpus(k) && v && typeof v === 'object' && !Number.isFinite(v.costUSD)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: `${k}.costUSD — custo_cli_opus_usd desconhecido, nunca 0 (39)` });
           const somaCost = Object.values(t.modelUsage).reduce((s, v) => s + (v && Number.isFinite(v.costUSD) ? v.costUSD : 0), 0);
-          if (t.total_cost_usd == null || t.total_cost_usd === 0 || t.total_cost_usd < somaCost - 1e-6) { custoTotalIncoerenteDe.add(t); marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_cli_incoerente', motivo: `total_cost_usd ${JSON.stringify(t.total_cost_usd ?? null)} com a soma dos costUSD a ${somaCost} — custo_cli_total_usd desconhecido, nunca 0 (39)` }); }
+          const todosCustos = Object.values(t.modelUsage).every((v) => v && Number.isFinite(v.costUSD));
+          // 43: e no outro sentido — um total acima da soma (com todos os costUSD presentes) infla o custo do CLI de um braco (a sonda: iguais a 1e-16)
+          if (t.total_cost_usd == null || t.total_cost_usd === 0 || t.total_cost_usd < somaCost - 1e-6 || (todosCustos && t.total_cost_usd > somaCost * 1.01 + 1e-6)) { custoTotalIncoerenteDe.add(t); marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_cli_incoerente', motivo: `total_cost_usd ${JSON.stringify(t.total_cost_usd ?? null)} com a soma dos costUSD a ${somaCost} — custo_cli_total_usd desconhecido, nunca 0 (39)` }); }
+        }
+        // 44: o costUSD do CLI e a valorizacao a preco de lista coincidem na sonda (0.58975 exactos); mais de 5 % de diferenca marca (so marca — uma tabela de precos diferente no CLI e plausivel)
+        if (toks[i] && toks[i].fonte === 'json' && Number.isFinite(toks[i].custo_cli_usd)) {
+          const lista = valorizar(toks[i], precos);
+          if (lista !== null && lista > 0 && Math.abs(toks[i].custo_cli_usd - lista) > 0.05 * lista) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_cli_diverge_da_lista', motivo: `costUSD ${toks[i].custo_cli_usd} vs ${arred.usd(lista)} a preco de lista (${((toks[i].custo_cli_usd / lista - 1) * 100).toFixed(1)} %) — o custo do CLI nao bate com os tokens (44)` });
         }
         // 40: session_id null numa claude-p cujo JSON CHEGOU (usage ou modelUsage) — o JSON do CLI traz sempre um; sem ele a 22 (session_id repetido) fica cega. Um tecto sem JSON nao tem session_id por definicao.
         if (!ehLocal(t) && t.session_id == null && ((t.usage && typeof t.usage === 'object') || (t.modelUsage && typeof t.modelUsage === 'object'))) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'session_id — o JSON do CLI traz sempre um; a 22 fica cega (40)' });
@@ -1384,6 +1423,9 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   if (tentativas.length > 0 && tentativas.some((t) => t.estado_vivo_sha == null)) validadeNdPorque.push('tentativas sem estado_vivo_sha — um null nao prova que o estado vivo nao mudou (30)');
   if (tentativas.some((t) => ehLocal(t) && t.modelo_reportado == null)) validadeNdPorque.push('passos locais sem modelo_reportado — um null nao prova que o modelo local nao mudou (30)');
   if (tentativas.length === 0) validadeNdPorque.push('sem tentativas');
+  // 45: o tratamento B nunca aplicado — TODOS os passos locais da corrida sem arrancar (um transitorio e marca, 2; a totalidade e outra corrida: Opus contra Opus)
+  const locaisDaCorrida = tentativas.filter((t) => ehLocal(t) && t.braco === 'B' && idsEmJogo.includes(t.task_id));
+  if (locaisDaCorrida.length >= 1 && locaisDaCorrida.every((t) => !arrancouDaTentativa(t))) invalida('nenhum passo local arrancou em toda a corrida — o tratamento B (router-execute) nunca foi aplicado; B comparou Opus com Opus (interpretacao 45)', `${locaisDaCorrida.length} passo(s) local(is), 0 arrancaram`);
   const corridaValida = corridaInvalidaPor.length > 0 ? false : validadeNdPorque.length > 0 ? null : true;
 
   // ── paragem / prefixo ────────────────────────────────────────────────────
@@ -1572,5 +1614,8 @@ if (invocadoDirectamente) {
   const veredicto = p.limiar_descritivo_cumprido === null ? `n/d (${p.veredicto_ausente_porque})` : (p.limiar_descritivo_cumprido ? 'cumprido' : 'NAO cumprido') + (p.veredicto_vacuo ? ' (VACUO: ' + p.AVISO_VACUO + ')' : '') + (p.AVISO_N ? ' · ' + p.AVISO_N : '') + (p.AVISO_SUPLENTES ? ' · ' + p.AVISO_SUPLENTES : '');
   console.log(`  pares validos ${p.n_pares_validos} · aceites A ${p.aceites_A} B ${p.aceites_B} · limiar descritivo ${veredicto}`);
   console.log(`  tokens Opus total A ${r.secundaria.global.A.tokens_opus_total ?? 'n/d'} B ${r.secundaria.global.B.tokens_opus_total ?? 'n/d'} · marcas ${r.marcas.length} · invalidos ${f.pares_invalidos.length} (saidas (a) com resultado no outro braco: favorece A ${f.saidas_a_com_resultado_no_outro_braco.favorece_A}, favorece B ${f.saidas_a_com_resultado_no_outro_braco.favorece_B}) · orfas ${f.tentativas_orfas.length} · duplicadas ${f.tentativas_duplicadas.length} · linhas de ledger invalidas ${linhasInvalidas.length} · eventos desconhecidos ${f.eventos_desconhecidos.length}`);
+  // 17.o (6): «marcas 20» sem tipo e indistinguivel de «marcas 20 e mais nada» — a contagem por tipo sai na consola
+  const porTipo = Object.entries(r.marcas.reduce((acc, m) => ({ ...acc, [m.tipo]: (acc[m.tipo] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  console.log(`  marcas por tipo: ${porTipo.length ? porTipo.map(([k, n]) => `${k} ${n}`).join(' · ') : 'nenhuma'}`);
   console.log(`  escrito: ${outPath}`);
 }
