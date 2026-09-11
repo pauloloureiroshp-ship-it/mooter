@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, naoArrancouPuro, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
+import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, naoArrancouPuro, foiCurta, motivoSpawnPuro, CURTO_S, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SONDA = JSON.parse(fs.readFileSync(path.join(HERE, 'custo-fixture-sonda.json'), 'utf8'));
@@ -132,6 +132,15 @@ test('tokens · arrancou sem modelUsage e consumo DESCONHECIDO (null); nao arran
   assert.ok(!naoArrancouPuro(naoArrancou('t1', 'A', { motivo_se_nao: 'spawn:ETIMEDOUT' })));
   assert.equal(tokensOpusDaTentativa(naoArrancou('t1', 'A', { motivo_se_nao: 'spawn:ETIMEDOUT' })), null);
   assert.ok(!naoArrancouPuro(naoArrancou('t1', 'A', { motivo_se_nao: 'spawn:timeout' })));
+  // M202: um spawn:* LONGO nao e puro — consumo desconhecido, nao zero (28)
+  assert.ok(!naoArrancouPuro(naoArrancou('t1', 'A', { duration_ms: 600000 })));
+  assert.equal(tokensOpusDaTentativa(naoArrancou('t1', 'A', { duration_ms: 600000 })), null);
+  assert.ok(!naoArrancouPuro(naoArrancou('t1', 'A', { duration_ms: null })));
+  // e na analise, um ETIMEDOUT CURTO (50 ms, sem evidencia) e fora da definicao na mesma — o motivo decide, nao a duracao
+  const pE = preregDe(['t1', 't2']);
+  const rE = correr(pE, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), naoArrancou('t2', 'B', { motivo_se_nao: 'spawn:ETIMEDOUT', duration_ms: 50 })]);
+  assert.equal(rE.corrida_valida, false);
+  assert.ok(rE.marcas.some((m) => m.tipo === 'nao_arrancou_fora_da_definicao' && /spawn:ETIMEDOUT/.test(m.motivo)));
 });
 
 test('tokens · arrancou sem JSON mas com tokens_transcript > 0: o transcript e a fonte, categorias null; 0 e "nao encontrado"', () => {
@@ -500,15 +509,22 @@ test('analise · tier no ledger diferente do prereg marca tier_divergente (mesmo
   assert.equal(r.primaria.limiar_descritivo_cumprido, null);
 });
 
-test('analise · tarefa com tentativa so no braco A (morreu entre A e B): par invalido com consumo, corrida nao fechou', () => {
+test('analise · tarefa com tentativa so no braco A (morreu entre A e B): com paragem e par invalido com consumo, corrida nao fechou; SEM paragem e omissao do controlador (28)', () => {
   const p = preregDe(['t1', 't2']);
-  const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A')]);
+  const paragem = { evento: 'paragem', ts: '2026-09-11T02:00:00Z', motivo: 'morreu entre A e B', ultima_tarefa: 't2' };
+  const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), paragem]);
   assert.equal(r.corrida_fechou_os_pares, false);
+  assert.equal(r.corrida_valida, true);
   assert.equal(r.primaria.n_pares_validos, 1);
   const inv = r.fiabilidade.pares_invalidos;
   assert.equal(inv.length, 1);
   assert.equal(inv[0].braco_que_nao_arrancou, 'B');
-  assert.equal(inv[0].motivo, 'sem tentativa registada no braco B');
+  assert.equal(inv[0].motivo, 'sem tentativa registada no braco B (corrida parada)');
+  // sem evento paragem, um braco sem linha numa tarefa que correu e uma omissao: a linha e obrigatoria mesmo quando o spawn falha
+  const rSem = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A')]);
+  assert.equal(rSem.corrida_valida, false, '28: retirar o par sem prova favorece um braco');
+  assert.ok(rSem.marcas.some((m) => m.tipo === 'braco_sem_linha' && m.task_id === 't2' && m.braco === 'B'));
+  assert.match(rSem.fiabilidade.pares_invalidos[0].motivo, /sem tentativa registada no braco B numa corrida sem paragem.*CORRIDA INVALIDA/);
   assert.equal(inv[0].consumo_A_tokens, OPUS_TOTAL, 'o gasto de A em t2 fica visivel');
   assert.equal(inv[0].consumo_B_tokens, null);
   perto(inv[0].valorizacao_A_usd, 0.58975, 1e-4, 'valorizacao do invalido');
@@ -519,24 +535,36 @@ test('analise · tarefa com tentativa so no braco A (morreu entre A e B): par in
   assert.equal(r.secundaria.global.B.tokens_opus_total_incluindo_pares_invalidos, OPUS_TOTAL);
 });
 
-test('analise · par_invalido SEM nenhuma tentativa (spawn falhou no 1.o braco): e par invalido com o motivo do evento, nao "nao corrida"', () => {
+test('analise · par_invalido SEM a linha do braco nomeado e ilegitimo (28): o evento fecha o par, mas nao e "nao corrida" nem uma saida (a)', () => {
   const p = preregDe(['t1', 't2']);
   const ev = [tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }];
   const r = correr(p, ev);
   assert.equal(r.corrida_fechou_os_pares, true, 'o evento fecha o par');
   assert.deepEqual(r.fiabilidade.nao_corridas, []);
   assert.equal(r.fiabilidade.pares_invalidos.length, 1);
-  assert.equal(r.fiabilidade.pares_invalidos[0].motivo, 'spawn:ENOENT');
+  assert.match(r.fiabilidade.pares_invalidos[0].motivo, /par_invalido ilegitimo: sem linha tentativa_fim do braco B.*CORRIDA INVALIDA/);
   assert.equal(r.fiabilidade.pares_invalidos[0].braco_que_nao_arrancou, 'B');
   assert.equal(r.fiabilidade.pares_invalidos[0].consumo_A_tokens, null);
   assert.equal(r.prefixo_executado.tarefas_com_alguma_tentativa, 1);
+  assert.equal(r.corrida_valida, false);
+  assert.ok(r.marcas.some((m) => m.tipo === 'par_invalido_ilegitimo' && m.task_id === 't2'));
+  // a forma legitima: A correu, a linha de B e um nao-arrancou PURO e curto, e o evento copia o motivo
+  const rOk = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), naoArrancou('t2', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }]);
+  assert.equal(rOk.corrida_valida, true);
+  assert.equal(rOk.fiabilidade.pares_invalidos[0].motivo, 'spawn:ENOENT');
+  assert.equal(rOk.marcas.filter((m) => m.tipo === 'par_invalido_ilegitimo').length, 0);
+  // com a linha pura de B mas SEM a linha de A (o 1.o braco pela ordem): o outro braco sem linha e omissao (28)
+  const rSemA = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), naoArrancou('t2', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }]);
+  assert.equal(rSemA.corrida_valida, false);
+  assert.ok(rSemA.marcas.some((m) => m.tipo === 'braco_sem_linha' && m.braco === 'A'));
 });
 
 test('analise · 3.o NO-SHIP (MUT-R1): pre_voo ausente E par_invalido na mesma tarefa — a marca de pre-voo e emitida na mesma', () => {
   const p = preregDe(['t1', 't2']);
-  const r = analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }]);
+  const r = analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), naoArrancou('t2', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }]);
   assert.ok(r.marcas.some((m) => m.tipo === 'pre_voo_ausente' && m.task_id === 't2'));
   assert.equal(r.fiabilidade.pares_invalidos[0].motivo, 'spawn:ENOENT', 'o motivo do evento tem precedencia no par');
+  assert.equal(r.corrida_valida, false, 'e a corrida e invalida na mesma pelo pre-voo ausente (27c)');
   // e a tarefa que SO tem par_invalido (spawn falhou no 1.o braco) tambem devia ter tido pre-voo
   const r2 = analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }]);
   assert.ok(r2.marcas.some((m) => m.tipo === 'pre_voo_ausente' && m.task_id === 't2'), 'pre-voo antes de qualquer braco, mesmo do que falhou no spawn');
@@ -544,10 +572,11 @@ test('analise · 3.o NO-SHIP (MUT-R1): pre_voo ausente E par_invalido na mesma t
 
 test('analise · par_invalido com evento e tentativa em A: fecha o par, motivo do evento, veredicto sobre os validos', () => {
   const p = preregDe(['t1', 't2']);
-  const ev = [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }];
+  const ev = [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), naoArrancou('t2', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }];
   const r = correr(p, ev);
   assert.equal(r.corrida_fechou_os_pares, true);
   assert.equal(r.fiabilidade.pares_invalidos[0].motivo, 'spawn:ENOENT');
+  assert.equal(r.corrida_valida, true);
   assert.equal(r.primaria.limiar_descritivo_cumprido, true);
 });
 
@@ -1085,7 +1114,7 @@ test('analise · 4.o NO-SHIP (MUT-A): corrida fechada e valida com 0 pares valid
 test('analise · 4.o NO-SHIP (MUT-B): claude-p com arrancou null, sem JSON, sem motivo, curta — consumo DESCONHECIDO (null), nao zero; marca campo_em_falta; par invalido (residual declarado)', () => {
   assert.equal(tokensOpusDaTentativa(tentativa('t1', 'A', { arrancou: null, modelUsage: null, usage: null, session_id: null })), null);
   const p = preregDe(['t1']);
-  const r = correr(p, [tentativa('t1', 'A', { arrancou: null, motivo_se_nao: null, modelUsage: null, usage: null, session_id: null, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 50 }), tentativa('t1', 'B')]);
+  const r = correr(p, [tentativa('t1', 'A', { arrancou: null, motivo_se_nao: null, modelUsage: null, usage: null, total_cost_usd: null, session_id: null, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 50 }), tentativa('t1', 'B')]);
   assert.equal(r.por_tarefa[0].A.tokens_opus, null);
   assert.ok(r.marcas.some((m) => m.tipo === 'campo_em_falta' && m.motivo === 'arrancou'));
   assert.ok(r.marcas.some((m) => m.tipo === 'tentativa_nao_arrancou'));
@@ -1125,9 +1154,18 @@ test('analise · 7.o NO-SHIP (B2): timeout escrito com arrancou:null — fora da
   assert.ok(rT.marcas.some((m) => m.tipo === 'consumo_desconhecido'));
   assert.ok(rT.marcas.some((m) => m.tipo === 'tecto_aparente'));
   // e um spawn:* verdadeiro (50 ms, sem JSON) com arrancou null continua a ser par invalido sem invalidar a corrida
-  const rS = correr(p, [...base, timeout({ arrancou: null, motivo_se_nao: 'spawn:ENOENT', ts_fim: '2026-09-11T00:00:01Z', exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null })]);
+  const rS = correr(p, [...base, timeout({ arrancou: null, motivo_se_nao: 'spawn:ENOENT', ts_fim: '2026-09-11T00:00:01Z', duration_ms: 50, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null })]);
   assert.equal(rS.corrida_valida, true);
   assert.equal(rS.primaria.n_pares_validos, 3);
+  // 9.o revisor (α/β): «curto» tem limite — o mesmo spawn:ENOENT com 600 s de ts, ou com duration_ms 899000, ou sem duration_ms, nao e um nao-arrancou (28)
+  for (const over of [{ ts_fim: '2026-09-11T00:10:00Z', duration_ms: 50 }, { ts_fim: '2026-09-11T00:00:01Z', duration_ms: 899000 }, { ts_fim: '2026-09-11T00:00:01Z', duration_ms: null }, { ts_fim: '2026-09-11T00:00:01Z', duration_ms: 50, total_cost_usd: 0.9 }, { ts_fim: '2026-09-11T00:00:01Z', duration_ms: 50, usage: { input_tokens: 5, output_tokens: 7 } }]) {
+    const rL = correr(p, [...base, timeout({ arrancou: false, motivo_se_nao: 'spawn:ENOENT', exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null, ...over })]);
+    assert.equal(rL.corrida_valida, false, JSON.stringify(over));
+    assert.equal(rL.primaria.limiar_descritivo_cumprido, null, JSON.stringify(over));
+  }
+  // e o residual declarado (arrancou null, sem motivo) tambem so e (a) se for curto
+  const rR = correr(p, [...base, timeout({ arrancou: null, motivo_se_nao: null, ts_fim: '2026-09-11T00:10:00Z', duration_ms: 600000, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null })]);
+  assert.equal(rR.corrida_valida, false, 'a3 do 9.o: 600 s nao e curto');
 });
 
 // ── 5.o NO-SHIP: arrancou por evidencia, prova obrigatoria, repetida, session_id, tokens zero, vacuo ──
@@ -1148,13 +1186,27 @@ test('analise · 5.o NO-SHIP (R5-1): arrancou:false com session_id/modelUsage na
   assert.ok(evidenciaDeArranque(falhaB('x')));
   assert.ok(evidenciaDeArranque(tentativa('x', 'A', { session_id: null })), 'so modelUsage chega');
   assert.ok(evidenciaDeArranque(tentativa('x', 'A', { modelUsage: null })), 'so session_id chega');
-  assert.ok(!evidenciaDeArranque(tentativa('x', 'A', { session_id: null, modelUsage: null })));
+  assert.ok(!evidenciaDeArranque(tentativa('x', 'A', { session_id: null, modelUsage: null, usage: null, total_cost_usd: null })));
+  assert.ok(evidenciaDeArranque(tentativa('x', 'A', { session_id: null, modelUsage: null, total_cost_usd: null })), 'so usage chega (9.o, γ2)');
+  assert.ok(evidenciaDeArranque(tentativa('x', 'A', { session_id: null, modelUsage: null, usage: null })), 'so total_cost_usd > 0 chega (9.o, a5)');
+  assert.ok(!evidenciaDeArranque(tentativa('x', 'A', { session_id: null, modelUsage: null, usage: null, total_cost_usd: 0 })), 'custo 0 nao e evidencia');
+  assert.deepEqual(pecasDeEvidencia(tentativa('x', 'A')), ['session_id', 'modelUsage', 'usage', 'total_cost_usd>0']);
+  const semNada = { session_id: null, modelUsage: null, usage: null, total_cost_usd: null };
+  assert.ok(evidenciaDeArranque(tentativa('x', 'A', { ...semNada, modelUsage: SONDA.modelUsage })), 'so modelUsage chega');
+  assert.ok(evidenciaDeArranque(tentativa('x', 'A', { ...semNada, session_id: 'abc' })), 'so session_id chega');
+  assert.ok(evidenciaDeArranque(tentativa('x', 'A', { ...semNada, usage: SONDA.usage })), 'so usage chega');
+  assert.ok(evidenciaDeArranque(tentativa('x', 'A', { ...semNada, total_cost_usd: 0.01 })), 'so custo chega');
   assert.ok(!evidenciaDeArranque(passoLocal('x')), 'o passo local nao entra aqui');
   // e cada sinal sozinho e apanhado na analise
   const r3 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A'), falhaB('t3', { session_id: null })]);
-  assert.ok(r3.marcas.some((x) => x.tipo === 'arrancou_contraditorio' && /tem modelUsage:/.test(x.motivo)));
+  assert.ok(r3.marcas.some((x) => x.tipo === 'arrancou_contraditorio' && /tem modelUsage\+usage\+total_cost_usd>0:/.test(x.motivo)));
+  // «chegou» e por evidencia: as provas sao exigidas e o aceite null invalida por si, mesmo com arrancou:false
+  const r5 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A'), falhaB('t3', { tests_corridos: null })]);
+  assert.ok(r5.marcas.some((x) => x.tipo === 'campo_em_falta' && /provas da aceitacao: tests_corridos/.test(x.motivo)), 'a prova e exigida numa linha que chegou por evidencia');
+  const r6 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A'), falhaB('t3', { aceite: null })]);
+  assert.ok(r6.corrida_invalida_por.some((x) => /aceite null numa claude-p que chegou/.test(x.motivo)), 'aceite null invalida por si numa linha que chegou por evidencia');
   const r4 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A'), falhaB('t3', { modelUsage: null, usage: null })]);
-  assert.ok(r4.marcas.some((x) => x.tipo === 'arrancou_contraditorio' && /tem session_id:/.test(x.motivo)));
+  assert.ok(r4.marcas.some((x) => x.tipo === 'arrancou_contraditorio' && /tem session_id\+total_cost_usd>0:/.test(x.motivo)));
   // e com evento par_invalido por cima: contraditorio na mesma (21 por evidencia)
   const r2 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A'), falhaB('t3'), { evento: 'par_invalido', task_id: 't3', braco: 'B', motivo: 'cli_is_error' }]);
   assert.equal(r2.corrida_valida, false);
@@ -1384,6 +1436,16 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     Q7i: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2')],
     Q7iii: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), naoArrancou('t2', 'B', { tentativa: 2, e_escalacao: true, tier_classificado: 'T0', motivo_se_nao: 'spawn:ETIMEDOUT', duration_ms: 900000, ts_inicio: '2026-09-11T00:15:05Z', ts_fim: '2026-09-11T00:15:05Z' })],
     Q7tipo: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { aceite: false, exit_code: 1, tests_passados: 9, duration_ms: '4471' })],
+    // 9.o revisor: a saida (a) verificavel (28); 27b so para B; «curto»; evidencia alargada; aceite=true sem arranque
+    R9nu: [tentativa('t1', 'B'), { evento: 'par_invalido', task_id: 't1', braco: 'A', motivo: null }, ...parOk('t2', 'T0')],
+    R9i1: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'timeout apos 900 s' }],
+    R9i6: [tentativa('t1', 'A'), { evento: 'par_invalido', task_id: 't1', braco: 'A', motivo: 'spawn:ENOENT' }, ...parOk('t2', 'T0')],
+    R9semLinha: [tentativa('t1', 'A'), ...parOk('t2', 'T0')],
+    R9delta: [tentativa('t1', 'A', { aceite: false, exit_code: 0, tests_corridos: null, tests_passados: null }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    R9a3: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { arrancou: null, motivo_se_nao: null, session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, duration_ms: 600000, ts_fim: '2026-09-11T00:10:00Z' })],
+    R9b1: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), naoArrancou('t2', 'B', { tentativa: 2, e_escalacao: true, tier_classificado: 'T0', duration_ms: 50, ts_fim: '2026-09-11T00:14:59Z' })],
+    R9g2: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), naoArrancou('t2', 'B', { tentativa: 2, e_escalacao: true, tier_classificado: 'T0', usage: { input_tokens: 5, output_tokens: 7 } }), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }],
+    R9k1: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: true, duration_ms: 50 })],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
   // 'veredicto' = sem veredicto; 'par' = esse par invalido (o par limpo ao lado DA veredicto, e isso e legitimo);
@@ -1394,6 +1456,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     P7H: { corrida: false }, P7I: { tokens: null }, P7J: { corrida: false }, P7K: { corrida: false }, L1: { corrida: false },
     R51: { corrida: false }, R52: { corrida: false }, R53: { corrida: false }, R54: { corrida: false }, R54b: { corrida: false }, R56: { corrida: false }, R57: { tokens: null }, R58: { corrida: false },
     Q7ii: { direccao: true }, Q7i: { corrida: false }, Q7iii: { corrida: false }, Q7tipo: { corrida: false },
+    R9nu: { corrida: false }, R9i1: { corrida: false }, R9i6: { corrida: false }, R9semLinha: { corrida: false }, R9delta: { corrida: false }, R9a3: { corrida: false }, R9b1: { corrida: false }, R9g2: { corrida: false }, R9k1: { corrida: false },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1430,6 +1493,31 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       assert.notEqual(r.primaria.limiar_descritivo_cumprido, true, `DIRECCAO ${nome}: o ataque as falhas de B deu «cumprido»`);
       assert.ok(r.corrida_valida === false || r.primaria.limiar_descritivo_cumprido === false, `DIRECCAO ${nome}: ou conta contra B, ou invalida a corrida`);
     }
+    // ESPELHO (9.o, δ): os mesmos ataques ao SUCESSO de A em t1 (onde B aceitou). Honesto A 4 B 1 -> NAO; baixar A para 3 -> 1 >= 1 -> «cumprido». Nenhum pode dar «cumprido».
+    const ataquesA = {
+      'A aceite=false sem prova (δ)': { aceite: false, exit_code: null, tests_corridos: null, tests_passados: null },
+      'A aceite=false exit 0 sem contagens': { aceite: false, exit_code: 0, tests_corridos: null, tests_passados: null },
+      'A aceite=false sentinela -1': { aceite: false, exit_code: -1, tests_corridos: null, tests_passados: null },
+      'A aceite null': { aceite: null },
+      'A tipo invalido': { duration_ms: '4471' },
+      'A arrancou null timeout': { aceite: false, exit_code: 1, tests_passados: 9, arrancou: null, motivo_se_nao: 'timeout', session_id: null, modelUsage: null, usage: null, total_cost_usd: null, duration_ms: null, ts_fim: '2026-09-11T00:15:05Z' },
+      'A sem linha': { __semLinha: true },
+      'A par_invalido motivo null sem linha (ν)': { __semLinha: true, __evento: { evento: 'par_invalido', task_id: 't1', braco: 'A', motivo: null } },
+      'A par_invalido spawn sem linha': { __semLinha: true, __evento: { evento: 'par_invalido', task_id: 't1', braco: 'A', motivo: 'spawn:ENOENT' } },
+      'A spawn puro mas longo': { arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null, duration_ms: 600000 },
+      'A spawn puro com custo': { arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, modelUsage: null, usage: null, total_cost_usd: 0.5, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null, duration_ms: 50 },
+    };
+    const evA = (o, semLinha, evento) => [...(semLinha ? [] : [tentativa('t1', 'A', o)]), tentativa('t1', 'B'), ...(evento ? [evento] : []), tentativa('t2', 'A'), tentativa('t2', 'B', falha), tentativa('t3', 'A'), tentativa('t3', 'B', falha), tentativa('t4', 'A'), tentativa('t4', 'B', falha)];
+    for (const [nome, over] of Object.entries(ataquesA)) {
+      const o = { ...over }; const semLinha = o.__semLinha; const evento = o.__evento; delete o.__semLinha; delete o.__evento;
+      const r = correr(p4, evA(o, semLinha, evento));
+      assert.notEqual(r.primaria.limiar_descritivo_cumprido, true, `ESPELHO ${nome}: o ataque ao sucesso de A deu «cumprido»`);
+      assert.equal(r.corrida_valida, false, `ESPELHO ${nome}: em A nao ha 27b — so 27c`);
+    }
+    // A UNICA saida (a) em A: nao-arrancou puro, curto, sem evidencia. O par (A?, B✓) sai — e com ele o unico aceite de B: 3 pares, A 3 B 0 -> «NAO».
+    // Retirar um par em que B aceitou e CONTRA B; a direccao favoravel a B e retirar (A?, B✗) — o que o 8.o NO-SHIP mostra a n=20 e so a saida (a) verificavel permite.
+    const rPuroA = correr(p4, evA({ arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null, duration_ms: 50 }, false, null));
+    assert.equal(rPuroA.corrida_valida, true); assert.equal(rPuroA.primaria.n_pares_validos, 3); assert.equal(rPuroA.primaria.aceites_B, 0); assert.equal(rPuroA.primaria.limiar_descritivo_cumprido, false); assert.ok(rPuroA.primaria.AVISO_N, 'e diz que a primaria e sobre 3 dos 4');
   }
   // controlo positivo: o par limpo com a mesma bancada DA veredicto
   const limpo = correr(p, [...parOk('t1', 'T3'), ...parOk('t2', 'T0')]);
@@ -1503,6 +1591,136 @@ test('analise · 8.o NO-SHIP (a escada, 27): um par que chegou ao CLI nunca sai 
   const iiid = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : comoNaoArrancou(t, { duration_ms: 50, ts_inicio: '2026-09-11T00:15:05Z', ts_fim: '2026-09-11T00:15:05Z' }))));
   assert.equal(iiid.corrida_valida, true);
   assert.equal(iiid.marcas.filter((m) => m.tipo === 'nao_arrancou_fora_da_definicao').length, 0);
+});
+
+// ── 9.o revisor: a saida (a) tem de ser VERIFICAVEL (interpretacao 28), a 27b so para B, «curto», evidencia alargada ──
+
+test('analise · 9.o NO-SHIP (ν/ι, 28): par_invalido com motivo null, motivo fora da definicao, braco fora de {A,B}, sem linha, com evidencia no braco nomeado, ou com tentativa_inicio orfao — ilegitimo, corrida INVALIDA', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const honesto = analisar(PREREG, T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) })));
+  assert.equal(honesto.primaria.limiar_descritivo_cumprido, false); assert.equal(honesto.marcas.length, 0);
+  const idsB = T.filter((t, i) => falhaB(i)).slice(0, 3).map((t) => t.task_id);   // 3 tarefas em que B aceitou
+  // ν: evento com motivo null em A, SEM linha de A -> antes: par VALIDO com A a contar como ✗ (A 17 B 15 -> cumprido)
+  const nu = analisar(PREREG, T.flatMap((t, i) => (idsB.includes(t.task_id)
+    ? [preVoo(t.task_id), ...parReal(t).filter((e) => !(e.evento === 'tentativa_fim' && e.braco === 'A')).filter((e) => e.evento !== 'pre_voo'), { evento: 'par_invalido', task_id: t.task_id, braco: 'A', motivo: null }]
+    : parReal(t, { aceiteB: falhaB(i) }))));
+  assert.equal(nu.corrida_valida, false, 'ν: motivo null nao e o sentinela de par valido');
+  assert.equal(nu.primaria.limiar_descritivo_cumprido, null);
+  assert.equal(nu.marcas.filter((m) => m.tipo === 'par_invalido_ilegitimo').length, 3);
+  assert.ok(nu.marcas.some((m) => m.tipo === 'par_invalido_ilegitimo' && /motivo null nao e uma string/.test(m.motivo) && /sem linha tentativa_fim do braco A/.test(m.motivo)));
+  for (const id of idsB) assert.equal(nu.por_tarefa.find((x) => x.task_id === id).par_valido, false, `${id}: o par nao pode ser valido com A sem linha`);
+  // ι1-ι3: evento em B com motivo fora da definicao e sem linha de B, nas 5 falhas -> antes: cumprido sobre 15 com marcas 0
+  for (const motivo of ['timeout apos 900 s', 'cli_is_error:Reached max turns', 'aceitacao falhou']) {
+    const iota = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : [preVoo(t.task_id), tentativa(t.task_id, 'A', { tier_classificado: t.tier_classificado, tests_corridos: t.tests_total_historico, tests_passados: t.tests_total_historico }), ...(t.tier_classificado === 'T0' ? [passoLocal(t.task_id)] : []), { evento: 'par_invalido', task_id: t.task_id, braco: 'B', motivo }])));
+    assert.equal(iota.corrida_valida, false, motivo);
+    assert.equal(iota.primaria.limiar_descritivo_cumprido, null, motivo);
+    assert.ok(iota.marcas.some((m) => m.tipo === 'par_invalido_ilegitimo' && /fora da definicao/.test(m.motivo) && /sem linha tentativa_fim do braco B/.test(m.motivo)), motivo);
+  }
+  // ι6: evento nomeia A, A tem session_id+modelUsage, B sem linha -> a 21 exigia B.tentativas > 0; agora a evidencia do braco nomeado chega
+  const p2 = preregDe(['t1', 't2']);
+  const i6 = correr(p2, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), { evento: 'par_invalido', task_id: 't2', braco: 'A', motivo: 'spawn:ENOENT' }]);
+  assert.equal(i6.corrida_valida, false);
+  assert.ok(i6.marcas.some((m) => m.tipo === 'par_invalido_ilegitimo' && /nao e um nao-arrancou puro/.test(m.motivo) && /evidencia=true/.test(m.motivo)));
+  // ι4: tentativa_inicio de B sem tentativa_fim + evento (o braco ARRANCOU a tentar) — mesmo com a linha pura de B por baixo, o inicio orfao e de outra tentativa
+  const i4 = correr(p2, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), { evento: 'tentativa_inicio', task_id: 't2', braco: 'B', tentativa: 2 }, naoArrancou('t2', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' }]);
+  assert.equal(i4.corrida_valida, false);
+  assert.ok(i4.marcas.some((m) => m.tipo === 'par_invalido_ilegitimo' && /tentativa_inicio do braco B sem tentativa_fim/.test(m.motivo)));
+  // braco fora de {A,B}
+  const iX = correr(p2, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), naoArrancou('t2', 'B'), { evento: 'par_invalido', task_id: 't2', braco: 'C', motivo: 'spawn:ENOENT' }]);
+  assert.equal(iX.corrida_valida, false);
+  assert.ok(iX.marcas.some((m) => m.tipo === 'par_invalido_ilegitimo' && /braco "C" fora de/.test(m.motivo)));
+  // o controlo: a forma legitima nas 5 falhas — corrida valida, «cumprido» sobre 15 COM AVISO_N (a unica saida (a), e verificavel)
+  const legit = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : [preVoo(t.task_id), tentativa(t.task_id, 'A', { tier_classificado: t.tier_classificado, tests_corridos: t.tests_total_historico, tests_passados: t.tests_total_historico }), ...(t.tier_classificado === 'T0' ? [passoLocal(t.task_id), naoArrancou(t.task_id, 'B', { tentativa: 2, e_escalacao: true, tier_classificado: 'T0' })] : [naoArrancou(t.task_id, 'B', { tier_classificado: t.tier_classificado })]), { evento: 'par_invalido', task_id: t.task_id, braco: 'B', motivo: 'spawn:ENOENT' }])));
+  assert.equal(legit.corrida_valida, true); assert.equal(legit.primaria.n_pares_validos, 15); assert.ok(legit.primaria.AVISO_N);
+  assert.equal(legit.marcas.filter((m) => m.tipo === 'par_invalido_ilegitimo').length, 0);
+});
+
+test('analise · 9.o NO-SHIP (δ): 27b e so para B — aceite=false em A sem prova completa baixa A e favorece B; e 27c', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const idsB = T.filter((t, i) => falhaB(i)).slice(0, 3).map((t) => t.task_id);
+  const formas = {
+    d1: { aceite: false, exit_code: null, test_file_sha_antes: null, test_file_sha_depois: null, tests_corridos: null, tests_passados: null },
+    d2: { aceite: false, exit_code: -1, tests_corridos: null, tests_passados: null },
+    d3: { aceite: false, exit_code: 0, tests_corridos: null, tests_passados: null },
+    d4: { aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, skips: null, test_file_sha_antes: null, test_file_sha_depois: null },
+  };
+  for (const [nome, over] of Object.entries(formas)) {
+    const r = analisar(PREREG, T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' && idsB.includes(e.task_id) ? { ...e, ...over } : e))));
+    assert.equal(r.corrida_valida, false, `${nome}: antes dava A 17 B 15 -> cumprido`);
+    assert.equal(r.primaria.limiar_descritivo_cumprido, null, nome);
+    assert.equal(r.marcas.filter((m) => m.tipo === 'campo_em_falta' && /aceite=false em A sem prova/.test(m.motivo)).length, 3, nome);
+    assert.ok(r.corrida_invalida_por.some((x) => /aceite=false em A sem prova completa/.test(x.motivo)), nome);
+  }
+  // e a mesma forma em B continua a contar (27b): 20 pares, NAO cumprido, corrida valida
+  const rB = analisar(PREREG, T.flatMap((t, i) => (falhaB(i) ? parReal(t) : parReal(t, { aceiteB: false }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' ? { ...e, ...formas.d3 } : e)))));
+  assert.equal(rB.corrida_valida, true); assert.equal(rB.primaria.n_pares_validos, 20); assert.equal(rB.primaria.limiar_descritivo_cumprido, false);
+  assert.equal(rB.marcas.filter((m) => m.tipo === 'campo_em_falta' && /aceite=false em B conta como registado \(27b\)/.test(m.motivo)).length, 5);
+});
+
+test('analise · 9.o NO-SHIP (κ, 19): aceite=true numa linha que nao arrancou e sem evidencia e contraditorio — com pre-voo falhado e impossivel', () => {
+  const p = preregDe(['t1', 't2']);
+  for (const over of [{ arrancou: false, motivo_se_nao: 'spawn:ENOENT' }, { arrancou: null, motivo_se_nao: null }, { arrancou: false, motivo_se_nao: 'timeout' }]) {
+    const k = tentativa('t1', 'B', { ...over, session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: true, duration_ms: 50 });
+    assert.match(aceiteContraditorio(k, 10), /aceite=true numa tentativa que nao arrancou/);
+    const r = correr(p, [tentativa('t1', 'A'), k, tentativa('t2', 'A'), tentativa('t2', 'B')]);
+    assert.equal(r.corrida_valida, false, JSON.stringify(over));
+    assert.ok(r.marcas.some((m) => m.tipo === 'aceite_contraditorio' && /nao arrancou/.test(m.motivo)));
+  }
+});
+
+test('analise · 9.o (ε/η): skips acima do pre-voo marca; suplente fora da ordem da lista e fora do protocolo', () => {
+  const p = preregDe(['t1', 't2']);
+  const r = analisar(p, [preVoo('t1', { skips: 0 }), tentativa('t1', 'A', { skips: 1 }), tentativa('t1', 'B'), preVoo('t2', { skips: 2 }), tentativa('t2', 'A', { skips: 2 }), tentativa('t2', 'B', { skips: 1 })]);
+  assert.equal(r.marcas.filter((m) => m.tipo === 'skips_acima_do_pre_voo').length, 1);
+  assert.ok(r.marcas.some((m) => m.tipo === 'skips_acima_do_pre_voo' && m.task_id === 't1' && m.braco === 'A' && /skips 1 > 0/.test(m.motivo)));
+  assert.equal(r.corrida_valida, true, 'so marca — a analise nao sabe se o skip e do sujeito ou do ambiente');
+  // η: s3 usado com s1 e s2 livres
+  const h3 = analisar(p, [{ evento: 'tarefa_excluida', task_id: 't2', motivo: 'worktree nao reconstruiu', suplente_usado: 's3' }, preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), preVoo('s3'), tentativa('s3', 'A'), tentativa('s3', 'B')]);
+  assert.equal(h3.corrida_valida, false);
+  assert.ok(h3.marcas.some((m) => m.tipo === 'suplente_fora_do_protocolo' && /fora de ordem: o primeiro disponivel era s1/.test(m.motivo)));
+  // um salto registado (s1 excluido) torna s2 o primeiro disponivel
+  const hOk = analisar(p, [{ evento: 'tarefa_excluida', task_id: 's1', motivo: 'worktree do suplente nao reconstruiu' }, { evento: 'tarefa_excluida', task_id: 't2', motivo: 'worktree nao reconstruiu', suplente_usado: 's2' }, preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), preVoo('s2'), tentativa('s2', 'A'), tentativa('s2', 'B')]);
+  assert.equal(hOk.marcas.filter((m) => m.tipo === 'suplente_fora_do_protocolo').length, 0);
+  assert.equal(hOk.corrida_valida, true);
+});
+
+test('analise · 9.o (N12): a fronteira do tecto e >= — 900 s exactos nos ts, ou 900000 ms exactos, contam como tecto', () => {
+  const p = preregDe(['t1']);
+  const base = { arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null };
+  const r1 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...base, duration_ms: 50, ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:15:00Z' })]);
+  assert.ok(r1.marcas.some((m) => m.tipo === 'tecto_aparente'), 'ts a 900 s exactos');
+  assert.ok(r1.marcas.some((m) => m.tipo === 'nao_arrancou_fora_da_definicao' && />= tecto 900s/.test(m.motivo)));
+  const r2 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...base, duration_ms: 900000, ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:00Z' })]);
+  assert.ok(r2.marcas.some((m) => m.tipo === 'tecto_aparente'), 'duration_ms a 900000 exactos');
+  const r3 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...base, duration_ms: 899999, ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:14:59Z' })]);
+  assert.equal(r3.marcas.filter((m) => m.tipo === 'tecto_aparente').length, 0, 'abaixo do tecto nao e tecto — mas nao e curto (28)');
+  assert.ok(r3.marcas.some((m) => m.tipo === 'nao_arrancou_fora_da_definicao' && /nao foi curta/.test(m.motivo)));
+  // «curto»: a fronteira e CURTO_S nas duas medidas
+  assert.equal(CURTO_S, 30);
+  assert.ok(foiCurta(tentativa('x', 'B', { duration_ms: 29999, ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:29Z' })));
+  assert.ok(!foiCurta(tentativa('x', 'B', { duration_ms: 30000, ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:29Z' })));
+  assert.ok(!foiCurta(tentativa('x', 'B', { duration_ms: 50, ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:30Z' })));
+  assert.ok(!foiCurta(tentativa('x', 'B', { duration_ms: null })));
+  assert.ok(foiCurta(tentativa('x', 'B', { duration_ms: 50, ts_inicio: null, ts_fim: null })), 'sem ts, a duracao decide');
+  assert.ok(motivoSpawnPuro('spawn:ENOENT') && !motivoSpawnPuro('spawn:ETIMEDOUT') && !motivoSpawnPuro('timeout') && !motivoSpawnPuro(null));
+});
+
+test('analise · 9.o (N06/N10/N11): os rotulos das saidas — (a) nunca leva o rotulo 27c; 27b esta no motivo da marca; fora-da-definicao liga o contraditorio do par', () => {
+  const p = preregDe(['t1', 't2']);
+  // (a) residual em B sem evento: motivo do par sem «CORRIDA INVALIDA»
+  const rA = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B', { arrancou: null, motivo_se_nao: null, session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: false, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null, duration_ms: 50 })]);
+  assert.equal(rA.corrida_valida, true);
+  assert.match(rA.fiabilidade.pares_invalidos[0].motivo, /^ultima tentativa com arrancou=null sem evento par_invalido$/);
+  assert.doesNotMatch(rA.fiabilidade.pares_invalidos[0].motivo, /CORRIDA INVALIDA/);
+  // 27b: o rotulo esta na marca
+  const rB = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B', { aceite: false, exit_code: null, tests_corridos: null, tests_passados: null })]);
+  assert.ok(rB.marcas.some((m) => m.tipo === 'campo_em_falta' && /\(27b\)$/.test(m.motivo)));
+  // fora da definicao: o motivo do PAR e o contraditorio (c), nao o (a)
+  const rC = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B', { arrancou: false, motivo_se_nao: 'timeout', session_id: null, modelUsage: null, usage: null, total_cost_usd: null, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 50 })]);
+  assert.match(rC.fiabilidade.pares_invalidos[0].motivo, /^nao-arrancou fora da definicao.*CORRIDA INVALIDA por isto \(27c\)$/);
+  assert.equal(rC.por_tarefa[1].B.arrancou_contraditorio, undefined, 'campo interno nao exposto');
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {
