@@ -1,0 +1,168 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Onde e que eu guardo a chave da API no meu projecto Next.js para nao ficar exposta no browser?
+---
+
+Este pedido ESTA marcado como de risco: RISCO conta a dobrar.
+
+CANDIDATAS:
+
+<resposta id="R1">
+## Regra base
+
+Guarda a chave em `.env.local` **sem** o prefixo `NEXT_PUBLIC_`, e usa-a apenas em código que corre no servidor.
+
+```bash
+# .env.local  (nunca commitar)
+STRIPE_SECRET_KEY=sk_live_...
+```
+
+```bash
+# .gitignore
+.env*.local
+```
+
+Em Next.js, qualquer variável com `NEXT_PUBLIC_` é substituída literalmente no bundle no momento do build — fica visível a quem abrir o DevTools. Sem esse prefixo, `process.env.STRIPE_SECRET_KEY` só tem valor no processo do servidor; num Client Component vem `undefined`.
+
+## Onde a podes ler em segurança
+
+- Server Components (o default no App Router, sem `"use client"`)
+- Route Handlers (`app/api/.../route.ts`)
+- Server Actions
+- No Pages Router: `getServerSideProps`, `getStaticProps` e `pages/api/*`
+
+## O padrão normal: proxy
+
+O browser nunca fala com a API terceira — fala com uma rota tua, que acrescenta a chave:
+
+```ts
+// app/api/cotacao/route.ts
+export async function GET(request: Request) {
+  const res = await fetch("https://api.exemplo.com/v1/cotacao", {
+    headers: { Authorization: `Bearer ${process.env.API_KEY}` },
+  });
+  return Response.json(await res.json());
+}
+```
+
+O `fetch` do cliente passa a apontar para `/api/cotacao`.
+
+## Fugas menos óbvias
+
+Estas são as que passam despercebidas mesmo com a variável bem nomeada:
+
+- **Passar o segredo como prop a um Client Component.** Um Server Component pode ler a chave, mas se a entregar a um componente cliente ela é serializada no payload RSC e acaba no HTML. Passa o *resultado* da chamada, não a chave.
+- **Importar num módulo partilhado.** Se um ficheiro que lê `process.env.API_KEY` for importado (mesmo indirectamente) por um Client Component, o valor entra no bundle. Instala `server-only` e põe `import "server-only";` no topo desses módulos — o build falha se algum caminho do cliente lhe tocar.
+- **A chave `env` no `next.config.js`** e o `publicRuntimeConfig` (Pages Router) expõem valores ao cliente. Não os uses para segredos.
+- **Logs e mensagens de erro** devolvidos ao browser a partir do handler.
+
+## Em produção
+
+O `.env.local` não vai para o deploy. Define a variável no painel do teu host (Vercel: Settings → Environment Variables; Docker: `--env-file` ou secrets do orquestrador; etc.), separando valores por ambiente. Se a chave chegou a ser commitada ou a aparecer num bundle, rodá-la é obrigatório — remover do histórico do git não basta, porque já pode ter sido copiada.
+</resposta>
+
+<resposta id="R2">
+Vou confirmar na documentação do Next.js como manter a chave apenas no servidor.
+Guarda-a em **`.env.local`, na raiz do projeto** (ao lado de `package.json`):
+
+```dotenv
+MY_API_KEY=a_tua_chave
+```
+
+Usa-a **apenas no servidor**, através de `process.env.MY_API_KEY`, num Route Handler, API Route ou Server Action. **Nunca uses o prefixo `NEXT_PUBLIC_`** numa chave secreta: esse prefixo permite incluí-la no JavaScript enviado ao browser. [Documentação Next.js](https://nextjs.org/docs/pages/guides/environment-variables)
+
+O fluxo deve ser: **browser → endpoint do teu Next.js → API externa**. O servidor acrescenta a chave ao pedido e devolve apenas os dados necessários; nunca devolve a chave em JSON, HTML ou props.
+
+- Confirma que `.env.local` está no `.gitignore`.
+- Em produção, configura a chave nas variáveis de ambiente da plataforma de alojamento.
+- Não a coloques na opção `env` de `next.config.js`: esses valores são incluídos no JavaScript. [Referência oficial](https://nextjs.org/docs/pages/api-reference/config/next-config-js/env)
+</resposta>
+
+<resposta id="R3">
+Okay, the user is asking where to store their Next.js API key so it's not exposed in the browser. Let me think.
+
+First, I remember that in Next.js, environment variables are handled differently depending on whether they're for the client or server. If they put it in a .env file, they need to prefix it with NEXT_PUBLIC_ to make it available on the client side. But wait, that's exactly what they don't want because it would be exposed.
+
+So the correct approach is to keep the API key in a .env file without the NEXT_PUBLIC prefix. That way, it's only accessible on the server side, not in the browser. Then, when making requests from the server, like in API routes or server components, they can access the environment variable.
+
+Wait, but the user might not know about Next.js's environment variable handling. Let me confirm: variables without NEXT_PUBLIC are server-only. So they should store the key in .env.local (or .env) without the prefix, and use it in server-side code only.
+
+Also, they should make sure to add .env.local to their .gitignore to prevent it from being committed to version control. That's important for security.
+
+So the answer should be: Store the key in .env.local (without NEXT_PUBLIC), use it in server components or API routes, and ensure .env.local is in .gitignore.
+
+Wait, the user asked "onde e que eu guardo" so where and how. The key points are the file location, the prefix, and the .gitignore. But the answer needs to be concise, max three sentences.
+
+Let me check if there's any other method. Maybe using a secrets manager, but for a standard Next.js project, the environment variables are the way to go. So the answer is to use .env.local without NEXT_PUBLIC, and access via process.env.API_KEY in server code.
+
+Yes, that's the standard practice. So the response should be: Guarda a chave em .env.local (sem NEXT_PUBLIC) e usa-a em rotas API ou componentes do servidor. Certifica-te de que .env.local está no .gitignore.
+</think>
+
+Guarda a chave em `.env.local` (sem `NEXT_PUBLIC_`) e usa-a em rotas API ou componentes do servidor. Certifica-te de que `.env.local` está no `.gitignore`.
+</resposta>
+
+<resposta id="R4">
+Guarde a chave da API em um ficheiro `.env.local` na raiz do seu projeto Next.js. Acesse-a usando `process.env.YOUR_API_KEY`. Certifique-se de adicionar `.env.local` ao `.gitignore` para evitar commits acidentais.
+</resposta>
+
+<resposta id="R5">
+# Variáveis de ambiente no Next.js
+
+A forma correta é usar **variáveis de ambiente** e as convenções do Next.js:
+
+## Para dados privados (nunca expostos ao browser)
+
+Guarda no ficheiro `.env.local`:
+```
+API_SECRET_KEY=sua_chave_aqui
+DATABASE_URL=...
+```
+
+E acede apenas no servidor:
+- **Route handlers** (`/app/api/...`)
+- **Server actions** (com `'use server'`)
+- **Server components**
+
+```javascript
+// app/api/endpoint/route.js
+export async function GET() {
+  const apiKey = process.env.API_SECRET_KEY; // ✅ Seguro
+  // ...
+}
+```
+
+## Para dados públicos (podem ir ao browser)
+
+Prefixo `NEXT_PUBLIC_`:
+```
+NEXT_PUBLIC_API_URL=https://api.example.com
+```
+
+Isto fica exposto no bundle, mas é seguro para dados públicos:
+```javascript
+// Funciona no cliente e servidor
+const url = process.env.NEXT_PUBLIC_API_URL;
+```
+
+## O importante
+
+1. **Nunca coloque secretos em `NEXT_PUBLIC_`** — ficarão no JavaScript do browser
+2. **`.env.local` nunca vai para git** (add ao `.gitignore`)
+3. **Em produção**, guarda as chaves nas variáveis de ambiente da plataforma (Vercel, Netlify, etc.)
+4. **Chamas a API sempre do servidor**, nunca exponhas a chave diretamente ao cliente
+
+Se o cliente precisa chamar a API, cria um **route handler** intermediário que usa a chave privada no servidor.
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

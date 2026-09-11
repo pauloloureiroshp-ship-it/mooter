@@ -1,0 +1,156 @@
+{
+ "id": "DEV-2",
+ "chave": {
+  "R1": "A",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "C",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Dá passos úteis para diagnosticar e corrigir, mas inclui causas que produziriam mensagens de erro diferentes e alonga-se demasiado.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "A orientação está correta, mas faltam exemplos concretos e sobra um longo raciocínio repetitivo em inglês.",
+     "total": 6,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explica a causa, apresenta correções aplicáveis e distingue proteger o carregamento de esconder dados incorretos, com concisão.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta soluções úteis, mas o exemplo de useEffect não impede por si só a renderização antes de os dados chegarem.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Explica o essencial, mas a verificação por valor verdadeiro não garante um array e a correção do carregamento fica vaga.",
+     "total": 6,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Dá passos úteis para diagnosticar e corrigir, mas inclui causas que produziriam mensagens de erro diferentes e alonga-se demasiado.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"A orientação está correta, mas faltam exemplos concretos e sobra um longo raciocínio repetitivo em inglês.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explica a causa, apresenta correções aplicáveis e distingue proteger o carregamento de esconder dados incorretos, com concisão.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta soluções úteis, mas o exemplo de useEffect não impede por si só a renderização antes de os dados chegarem.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Explica o essencial, mas a verificação por valor verdadeiro não garante um array e a correção do carregamento fica vaga.\"}}",
+   "custo_tokens": {
+    "in": 29701,
+    "out": 390,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "cobre causas, diagnostico e correcoes concretas, com aviso sobre optional chaining mascarar bugs",
+     "total": 8,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "expoe todo o raciocinio interno em ingles antes de dar uma resposta final vaga e sem exemplos de codigo",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "explicacao clara com exemplos praticos e aviso sobre a causa real dos dados, de forma concisa",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "boa cobertura de causas e solucoes com exemplos, ligeiramente mais longa mas util",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "generico, nao aborda causa tipica de dados assincronos nem da exemplos de inicializacao de estado",
+     "total": 4,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"cobre causas, diagnostico e correcoes concretas, com aviso sobre optional chaining mascarar bugs\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"expoe todo o raciocinio interno em ingles antes de dar uma resposta final vaga e sem exemplos de codigo\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"explicacao clara com exemplos praticos e aviso sobre a causa real dos dados, de forma concisa\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"boa cobertura de causas e solucoes com exemplos, ligeiramente mais longa mas util\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"generico, nao aborda causa tipica de dados assincronos nem da exemplos de inicializacao de estado\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 510,
+    "cache_write": 9903,
+    "cache_read": 3298
+   }
+  }
+ }
+}

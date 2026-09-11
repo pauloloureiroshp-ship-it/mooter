@@ -1,0 +1,169 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Estou a definir o pricing do meu SaaS B2B. Tenho 40 clientes a pagar 90 euros por mes num plano unico e o custo de servir cada um e cerca de 12 euros. Quero passar para tres planos. Como e que estruturo isso sem perder os clientes actuais?
+---
+
+Este pedido nao esta marcado como de risco.
+
+CANDIDATAS:
+
+<resposta id="R1">
+Para estruturar os três planos sem perder clientes atuais, considere:
+
+1. **Plano Básico**: Mantenha o preço atual de 90 euros/mês, com funcionalidades essenciais.
+2. **Plano Intermediário**: Adicione algumas funcionalidades extras por um preço ligeiramente superior (ex: 110 euros/mês).
+3. **Plano Avançado**: Inclua todas as funcionalidades com suporte premium por um preço mais elevado (ex: 150 euros/mês).
+
+Comunique claramente as vantagens de cada plano e ofereça um período de transição suave para os clientes atuais.
+</resposta>
+
+<resposta id="R2">
+Vou usar os teus números para propor três planos e consultar referências sobre a transição dos clientes atuais.
+**Lançaria os três planos para novos clientes e manteria os 40 atuais num plano reservado de 90 €/mês, com migração opcional.** Isto reduz o risco da mudança, embora não garanta zero cancelamentos.
+
+Os teus números dão-te alguma margem para testar:
+
+- **Receita recorrente:** 3.600 €/mês.
+- **Custo de serviço indicado:** 480 €/mês.
+- **Restante:** 3.120 €/mês, ou 86,7%, antes de salários, aquisição, desenvolvimento e outros custos não incluídos nos 12 €.
+
+O custo ajuda a definir o mínimo sustentável; o preço deve refletir o valor para cada segmento. A [Stripe descreve esta abordagem](https://stripe.com/resources/more/pricing-models-for-growth-what-businesses-need-to-know).
+
+**Como hipótese inicial a validar**, testaria:
+
+| Plano | Preço mensal | Para quem | Diferenciação |
+|---|---:|---|---|
+| Essencial | 59 € | Operações pequenas | Resultado principal completo, com menor volume incluído |
+| Profissional | 119 € | Cliente típico atual | Utilização habitual confortável, colaboração e automações |
+| Empresa | 229 € | Operações maiores | Maior volume, permissões, integrações e apoio prioritário |
+
+Estes valores são pontos de partida, não preços já demonstrados pelo mercado. As funcionalidades também dependem do teu produto.
+
+Escolhe **uma métrica principal que cresça com o valor entregue**: utilizadores ativos, projetos, locais ou operações processadas, por exemplo. O Essencial deve resolver um caso pequeno por inteiro; o Profissional deve justificar a diferença com necessidades reais. Evita “ilimitado” ou apoio intensivo sem conheceres o custo dos clientes maiores.
+
+Para proteger os atuais:
+
+1. **Mantém preço, funcionalidades e limites contratados durante pelo menos 12 meses.** Não retires funcionalidades para os obrigar a subir. Preservar condições antigas é uma estratégia de transição também descrita pela [Stripe](https://stripe.com/resources/more/software-pricing-models-and-strategies-for-saas-businesses).
+2. **Oferece upgrades por valor adicional.** Mostra o que ganham e permite experimentar antes de aceitarem uma nova mensalidade.
+3. **Define já o que acontece depois dos 12 meses.** Eu faria uma revisão nessa altura, sem aumento automático, e comunicaria qualquer alteração com 90 dias de antecedência. Evita prometer preço vitalício.
+4. **Permite a mudança voluntária para o Essencial**, explicando os limites. Se muitos clientes couberem nele sem perder valor, a separação dos planos precisa de trabalho.
+
+A comunicação pode ser simples:
+
+> “Vamos lançar três planos para diferentes necessidades. Como já és cliente, manténs os teus 90 €/mês e as condições atuais durante os próximos 12 meses. Não precisas de fazer nada. Só mudas de plano se escolheres.”
+
+Antes do lançamento, conversa com **8–10 clientes de diferentes dimensões**: que resultado obtêm, o que limita a utilização e qual dos planos escolheriam — e porquê. Depois acompanha conversão de novos clientes, upgrades, downgrades, cancelamentos e custo de serviço por plano.
+
+**Que problema resolve o teu SaaS e o que distingue hoje os clientes que o usam pouco dos que o usam muito?** Essa diferença vai ajudar a desenhar os limites dos três planos.
+</resposta>
+
+<resposta id="R3">
+Okay, the user is moving from a single plan to three plans for their B2B SaaS. They have 40 clients paying €90/month, with a cost of €12 per client. They don't want to lose current clients.
+
+First, I need to figure out how to structure three plans without increasing the price for existing customers. Maybe they can keep the current plan as a base, then add higher tiers with more features. But they need to make sure existing clients stay on the same price.
+
+Wait, the current plan is €90, cost €12. So profit is €78 per client. If they introduce new plans, they need to ensure that the existing clients aren't charged more. So the current plan should remain at €90. Then, maybe create two new tiers: one cheaper for basic features, and one more expensive for advanced. But wait, they have 40 clients on the current plan. If they add a cheaper plan, some might downgrade, but they don't want to lose them. So maybe the existing plan stays, and they add a higher tier for those who need more, and maybe a mid-tier. But the user wants to avoid losing current clients, so the existing plan should stay as is. So the three plans would be: Basic (maybe lower price, but existing clients stay on current), Standard (current price), Premium (higher price). Wait, but the current plan is the only one. So maybe split into three: Basic, Standard, Premium. But existing clients are on Standard, so they stay on that. Then, new customers can choose Basic, Standard, or Premium. But the user's current clients are paying €90, so Standard would be €90. Then Basic could be, say, €60, and Premium €120. But they need to make sure that the cost per client is still covered. Wait, the cost is €12 per client, so even if they lower the price for Basic, as long as it's above €12, it's okay. But the user might want to keep the current price for existing clients. So the existing clients stay on the current plan (€90), and new customers can choose from three tiers. But the user might want to offer the existing clients an upgrade to a higher tier without increasing their cost. Wait, but they don't want to lose them, so maybe the current plan remains, and they add two new tiers. So the three plans would be:
+
+- Basic: €60 (for new customers, maybe with fewer features)
+- Standard: €90 (current plan, existing clients stay here)
+- Premium: €120 (more features)
+
+But they need to make sure that the existing clients aren't charged more. So the Standard plan stays at €90. Then, when they introduce the new plans, existing clients are automatically on Standard, and new customers can choose. That way, they don't lose current clients. Also, they should communicate the new tiers clearly, maybe offer a discount for existing clients to move to Premium if they want, but the main point is to keep them on the current plan. Wait, but the user says "without losing current clients," so the key is to not increase their price. So the existing plan remains at €90, and the new plans are for new customers. So the three plans are Basic, Standard (current), Premium. Existing clients stay on Standard. New customers can choose Basic or Premium. But the user might want to have three plans where some existing clients might move to a different tier, but they don't want to lose them. So maybe the existing plan is kept as a middle tier, and they create a lower and higher tier. But the main point is to not change the price for existing clients. So the answer should be to keep the current plan as the middle tier, add a lower-priced plan for new customers, and a higher-priced premium plan. Existing clients remain on the current price. So structure the three plans with the existing price as one tier, and new tiers above and below. But the user's current price is €90, so maybe Basic at €70, Standard at €90, Premium at €120. But they need to make sure that the cost is covered. Since cost is €12, even Basic at €70 is fine. So the answer would be: Keep current plan at €90, add Basic (€60-70) and Premium (€110-120), offer existing clients to stay on current plan without changes. That way, no one loses their current plan, and new customers can choose different tiers.
+</think>
+
+Mantenha o plano atual a €90 (sem alterações). Crie um plano básico (€60-70) e um premium (€110-120) para novos clientes. Comunique claramente que os atuais clientes permanecem no plano atual sem custos adicionais.
+</resposta>
+
+<resposta id="R4">
+A estratégia mais comum e segura é usar **grandfather clause** + incentivos:
+
+## Estrutura recomendada
+
+**Para clientes atuais:**
+- Mantem-os no plano atual (€90/mês) indefinidamente ou por 12-24 meses
+- Sem surpresas = sem churn
+- Comunica isto claramente logo
+
+**Novos clientes:**
+- Entram nos 3 planos novos (ex: Starter €40, Professional €90, Enterprise €200)
+- O teu plano atual fica como referência para o tier médio
+
+**Incentivos opcionais:**
+- Desconto de 10-15% se migrarem voluntariamente para um dos novos planos (aproveita para subir alguns)
+- Comunicar benefícios reais de cada tier (features, limits, suporte)
+
+## Estrutura dos 3 planos
+
+Com margem de €78/cliente, tens espaço. Exemplo:
+
+| Plano | Preço | Custo | Margem | Target |
+|-------|-------|-------|--------|--------|
+| Starter | €40 | €8 | €32 | SMBs, testers |
+| Pro | €99 | €15 | €84 | Clientes atuais + mid-market |
+| Enterprise | €300+ | €30+ | €270+ | Grandes volumes |
+
+## Risco
+
+Se 30% dos clientes saem com a mudança = €1.080/mês perdidos. Se 70% migrarem para Pro, ganha-se mais nos novos. **Comunica early, oferece grandfathering.**
+
+Qual é o perfil dos teus 40 clientes? Estão todos a usar bem os €90, ou há desperdício?
+</resposta>
+
+<resposta id="R5">
+## O enquadramento primeiro
+
+MRR actual: €3.600. Margem bruta ~87% (€78 por cliente). Isso é saudável — o teu problema não é margem, é **ARPU e capacidade de capturar o topo**.
+
+Com 40 clientes, a matemática da migração é assimétrica: mesmo que conseguisses subir todos 30%, ganhavas ~€1.100/mês. Perder 4 clientes numa migração mal feita custa-te €360/mês *e* referências numa base onde cada logo pesa 2,5%. **Não vale a pena tocar nos 40.** O novo pricing é para os clientes que ainda não tens.
+
+## A regra que resolve o teu receio
+
+Grandfathering explícito e permanente, comunicado como benefício:
+
+- Os 40 ficam num plano *Legacy* a €90, com tudo o que já usam hoje.
+- **Nada do que eles já usam pode ir para um plano superior.** Esta é a única forma de perder clientes numa reestruturação: alguém abrir a app e descobrir que uma funcionalidade que usava passou a ser "Enterprise". O conjunto de features actual define o **mínimo do plano do meio**.
+- O caminho de upgrade é *pull*, não *push*: funcionalidades novas entram nos planos novos. Quem quiser, migra. Não há data-limite nem pressão.
+
+## Escolher o eixo antes dos preços
+
+Três planos só funcionam se houver uma métrica de valor que cresce com o cliente — utilizadores, volume processado, lojas/entidades, integrações. Sem saber o teu produto, o teste é: **qual a variável que faz o teu custo de €12 variar entre clientes?** Se um cliente te custa €4 e outro €30, essa diferença é a tua métrica de valor, já revelada pelos dados. Se o custo é uniforme, o eixo tem de ser organizacional (seats, permissões, entidades).
+
+Só depois é que os preços fazem sentido.
+
+## Estrutura sugerida
+
+Ancora o €90 actual **abaixo** do plano do meio — senão o Legacy fica a parecer melhor negócio que o catálogo.
+
+| | Entrada | Core | Avançado |
+|---|---|---|---|
+| Preço | €49–59 | €129–149 | €299–390 |
+| Objectivo | capturar quem hoje diz "caro demais" | plano default, ~70% dos novos | capturar willingness-to-pay |
+
+O topo constrói-se com coisas de custo marginal quase nulo e valor alto em B2B: SSO/SAML, gestão de papéis e permissões, acesso a API, logs de auditoria, SLA contratual, suporte prioritário, onboarding assistido, exportações/relatórios.
+
+**Cuidado com o plano de entrada:** o custo de infra desce, o custo de suporte não. A €49 com €12 de infra ainda tens margem, mas um cliente de entrada que abre 5 tickets/mês destrói-a. Limita-o a sério (menos seats, sem integrações, suporte só por email) — a função dele é ser a porta e fazer o Core parecer óbvio.
+
+## Execução
+
+1. **Fala com os 40 antes de publicar.** São 40 — é uma semana de chamadas, não um email em massa. Pergunta o que pagariam mais para ter. Isso escreve-te o plano Avançado com dados reais em vez de suposições.
+2. Anuncia o novo pricing com a mensagem principal a ser *"o teu preço não muda"*, não *"temos planos novos"*.
+3. Novo pricing só para novos clientes, a partir de uma data.
+4. **Métrica de controlo:** se mais de ~30% dos novos clientes escolherem o plano de topo, subvalorizaste-o — sobe. Se ninguém o escolher em 3 meses, o problema é o conteúdo do plano, não o preço.
+
+## O que fica em aberto
+
+Não te consigo fechar os preços sem saber a métrica de valor e o perfil de quem te diz "não" hoje. Os intervalos acima assumem que €90 é o teu ponto médio actual de mercado e que tens features não-lançadas suficientes para encher um plano de topo. Se ainda não tens nada para pôr no Avançado, lança dois planos agora (Core a €129 + Legacy) e o terceiro quando tiveres substância — um plano de topo vazio deprecia a tabela toda.
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

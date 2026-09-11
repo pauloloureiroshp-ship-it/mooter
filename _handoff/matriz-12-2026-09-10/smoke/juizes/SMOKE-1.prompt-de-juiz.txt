@@ -1,0 +1,64 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Escreve uma unica frase, em portugues, a desejar bom dia a uma equipa de quatro pessoas.
+---
+
+Este pedido nao esta marcado como de risco.
+
+CANDIDATAS:
+
+<resposta id="R1">
+Okay, the user wants a single sentence in Portuguese to wish a good morning to a team of four people. Let me make sure it's concise and in PT-PT.
+
+First, "Bom dia" is the standard greeting. Need to address the team of four. In Portuguese, "equipa" is used, but sometimes "equipe" is also acceptable, though "equipa" is more common in Portugal.
+
+So, "Bom dia à equipa de quatro pessoas!" Wait, but "equipa" is feminine, so "à equipa" is correct. But maybe it's better to say "à equipa de quatro pessoas" or just "à equipa" since the number is specified. Wait, the user said "equipa de quatro pessoas", so including that.
+
+Wait, the user wants a single sentence. Let me check if "Bom dia à equipa de quatro pessoas!" is correct. But maybe it's more natural to say "Bom dia à equipa!" since the four people are part of the team. But the user specified to mention four people. Hmm.
+
+Wait, the instruction says "desejar bom dia a uma equipa de quatro pessoas". So the team consists of four people. So the correct phrasing would be "Bom dia à equipa de quatro pessoas!" But in Portuguese, when referring to a team, you might just say "Bom dia à equipa!" without specifying the number, but the user wants it included.
+
+Wait, the user says "uma equipa de quatro pessoas", so the team is made up of four people. So the correct phrase would be "Bom dia à equipa de quatro pessoas!" But maybe in Portuguese, it's more common to say "Bom dia à equipa de quatro elementos!" but "pessoas" is correct.
+
+Wait, "equipa de quatro pessoas" is correct. So the sentence should be "Bom dia à equipa de quatro pessoas!" But let me check if "equipa" is the right word. In Portugal, "equipa" is used, not "equipe". So yes.
+
+Wait, but maybe the user wants it to be a natural greeting. Sometimes people just say "Bom dia à equipa!" without specifying the number. But the user specifically asked to mention four people. So I should include it.
+
+So the correct sentence is "Bom dia à equipa de quatro pessoas!" Let me check the grammar. "À" is "a + a", so "à equipa" is correct. "de quatro pessoas" is correct. So the sentence is grammatically right.
+
+Wait, but maybe "equipa" is feminine, so "à equipa" is correct. Yes. So the sentence is correct. Let me confirm with an example. If I say "Bom dia à equipa!", that's correct. Adding "de quatro pessoas" makes it "Bom dia à equipa de quatro pessoas!".
+
+Yes, that's the correct structure. So the answer should be that sentence.
+</think>
+
+Bom dia à equipa de quatro pessoas!
+</resposta>
+
+<resposta id="R2">
+Bom dia a toda a equipa, desejo um excelente dia cheio de energia e sucesso para vocês!
+</resposta>
+
+<resposta id="R3">
+Boa dia à equipa!
+</resposta>
+
+<resposta id="R4">
+Bom dia aos quatro, que tenham um excelente dia de trabalho em equipa!
+</resposta>
+
+<resposta id="R5">
+Bom dia a toda a equipa — que os quatro tenham um excelente dia de trabalho!
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

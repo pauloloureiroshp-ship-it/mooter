@@ -1,0 +1,160 @@
+{
+ "id": "DATA-3",
+ "chave": {
+  "R1": "D",
+  "R2": "B2",
+  "R3": "C",
+  "R4": "A",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Define um processo aplicável com afectações, saldos, revisão de ambiguidades, prevenção de duplicados e validação histórica.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Sugere operações básicas, mas não resolve tolerâncias nem agrupamentos com segurança e inclui extensa divagação.",
+     "total": 3,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Apresenta caminhos iniciais, mas não explica a correspondência com tolerância, deixa agrupamentos por resolver e promete poupanças sem fundamento.",
+     "total": 4,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Descreve regras e controlos úteis, mas impõe Python sem necessidade demonstrada e apresenta estimativas de desempenho e cobertura sem fundamento.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Sugere ferramentas genericamente, sem definir o processo nem tratar diferenças de valores, pagamentos agrupados ou correspondências erradas.",
+     "total": 3,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Define um processo aplicável com afectações, saldos, revisão de ambiguidades, prevenção de duplicados e validação histórica.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Sugere operações básicas, mas não resolve tolerâncias nem agrupamentos com segurança e inclui extensa divagação.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Apresenta caminhos iniciais, mas não explica a correspondência com tolerância, deixa agrupamentos por resolver e promete poupanças sem fundamento.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Descreve regras e controlos úteis, mas impõe Python sem necessidade demonstrada e apresenta estimativas de desempenho e cobertura sem fundamento.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Sugere ferramentas genericamente, sem definir o processo nem tratar diferenças de valores, pagamentos agrupados ou correspondências erradas.\"}}",
+   "custo_tokens": {
+    "in": 30791,
+    "out": 458,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 18684.7663
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Processo completo e bem estruturado com regras em cascata, tabela de afectacoes e pergunta final relevante para avancar.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expoe raciocinio interno em ingles por engano e a resposta final e generica e superficial, nao trata pagamentos agrupados a serio.",
+     "total": 0,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Da duas vias genericas mas nao aprofunda o problema dos pagamentos agrupados nem da tolerancia de centimos, delega tudo a perguntas finais.",
+     "total": 4,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Resposta muito rica e tecnicamente solida (cascata, subset-sum, retencoes) mas extensa e assume que o utilizador quer/sabe programar em Python.",
+     "total": 7,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 0,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Resposta generica de tres frases que nao aborda pagamentos agrupados nem diferencas de centimos, nao da para agir.",
+     "total": 1,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Processo completo e bem estruturado com regras em cascata, tabela de afectacoes e pergunta final relevante para avancar.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expoe raciocinio interno em ingles por engano e a resposta final e generica e superficial, nao trata pagamentos agrupados a serio.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Da duas vias genericas mas nao aprofunda o problema dos pagamentos agrupados nem da tolerancia de centimos, delega tudo a perguntas finais.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Resposta muito rica e tecnicamente solida (cascata, subset-sum, retencoes) mas extensa e assume que o utilizador quer/sabe programar em Python.\"},\"R5\":{\"RESOLVE\":0,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Resposta generica de tres frases que nao aborda pagamentos agrupados nem diferencas de centimos, nao da para agir.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 572,
+    "cache_write": 11921,
+    "cache_read": 3298
+   },
+   "ms": 11025.8877
+  }
+ }
+}

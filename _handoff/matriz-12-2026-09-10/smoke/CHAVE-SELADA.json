@@ -1,0 +1,21 @@
+{
+ "aviso": "NAO ABRIR antes de o J3 entregar a folha preenchida.",
+ "semente_do_sorteio": "a5317bb3eed9fdfc92bdf3c031c3f8730f30c76e5cf304e1f5bace17057aa5c2",
+ "pacote_cego_sha256": "66534cf31e4960c9ae257eebacbefa9150893fb4395fdccb181eb5621bef5eb9",
+ "selada_em": "2026-09-10T18:08:25.981Z",
+ "chave": {
+  "SMOKE-1": {
+   "R1": "B2",
+   "R2": "C",
+   "R3": "B",
+   "R4": "D",
+   "R5": "A"
+  },
+  "SMOKE-2": {
+   "R1": "C",
+   "R2": "B",
+   "R3": "A",
+   "R4": "D"
+  }
+ }
+}
