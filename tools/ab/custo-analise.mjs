@@ -559,6 +559,32 @@
  *     `pre_voo_fora_de_ordem`, INVÁLIDA, (c); `ts` ilegível numa tarefa que
  *     correu idem; sem `ts` marca `pre_voo_sem_ts` (o contrato do prereg não
  *     o exige; o brief 63 pede-o).
+ * 52. SAÍDA PROVADA, NÃO DECLARADA (o 19.º revisor: `arrancou: true` com
+ *     `texto_local_sha256: null` e/ou `tokens_locais: null` nos 7 locais
+ *     contava como «arrancou com saída» e «B ≡ A» dava «cumprido · marcas
+ *     0»). «Com saída» = sha string ≠ sha("") E `tokens_locais > 0`,
+ *     independentemente da flag (30: um null não prova); `texto_local_sha256`
+ *     null num local é `campo_em_falta`; a 45 conta só a saída provada.
+ * 53. CLOUD É CLOUD: a 47 lia `/^claude-/`; `gpt-5`, `gemini-2.5-pro`,
+ *     `anthropic/claude-opus-5`, `opus` no passo local passavam com consumo
+ *     zero (R7!). Agora `/claude|opus|sonnet|haiku|gpt|gemini|anthropic|
+ *     openai|google/i` em `modelo_pedido`/`modelo_reportado` do local →
+ *     `local_em_modelo_cloud`, INVÁLIDA, (c). E `modelo_reportado` sem
+ *     `@sha256:` deixa a validade em n/d (o prereg define a forma
+ *     «nome+digest ollama»; sem digest o modelo local não é verificável).
+ * 54. `duration_ms` NULL COM JSON É CAMPO EM FALTA (o JSON do CLI traz
+ *     sempre um — a mesma classe do `session_id` na 40): a 48 não se
+ *     contorna apagando o campo; com `aceite: true` a prova do tecto está em
+ *     falta → `aceite_contraditorio`, INVÁLIDA, (c).
+ * 55. O INVERSO DA 49: `exit_code` inteiro ≠ 0 com `corridos > 0` e
+ *     `passados + skips === corridos` — nada falhou e o runner saiu ≠ 0 —
+ *     é sumário impossível (verificado no Node 24: after-hook a falhar,
+ *     rejeição fora dos testes e `process.exitCode` dão sempre `fail ≥ 1`);
+ *     INVÁLIDA, (c). `corridos === 0` fica fora (Z16, crash sem sumário).
+ *     Baratos do 19.º: `ehOpus` é case-insensitive (uma chave
+ *     `Claude-Opus-5` é Opus e cai na 33); `tempo_incoerente` e
+ *     `motivo_com_arrancou` também no passo local (só marca); o JSON de
+ *     saída traz `marcas_por_tipo`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -657,7 +683,7 @@ export function lerLedger(texto) {
 
 // ── tokens ─────────────────────────────────────────────────────────────────
 
-const ehOpus = (chave) => typeof chave === 'string' && chave.startsWith('claude-opus');
+const ehOpus = (chave) => typeof chave === 'string' && chave.toLowerCase().startsWith('claude-opus');   // 96 do 19.o: `Claude-Opus-5` e Opus (e cai na 33 por nao ser o literal pre-registado)
 const ehLocal = (t) => !!t && t.executor === 'router-execute';
 const ehTierLocal = (tier) => tier === 'T0' || tier === 'T1';
 const CAMPOS_TOKENS = ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'];
@@ -797,14 +823,18 @@ export function reconciliar(t) {
 /** ARRANCOU de uma tentativa pela flag (interpretacao 1 para o passo local). */
 export function arrancouDaTentativa(t) {
   if (!t) return false;
-  // 46: `arrancou: null` num local so vale como arrancou com SAIDA — sha do texto que nao e o de "" e tokens_locais > 0
-  if (ehLocal(t)) return t.arrancou === true || (t.arrancou == null && typeof t.texto_local_sha256 === 'string' && t.texto_local_sha256 !== SHA256_VAZIO && Number.isFinite(t.tokens_locais) && t.tokens_locais > 0);
+  // 46: `arrancou: null` num local so vale como arrancou com SAIDA provada
+  if (ehLocal(t)) return t.arrancou === true || (t.arrancou == null && localComSaida(t));
   return t.arrancou === true;
 }
 /** sha256 de "" — um `texto_local_sha256` igual a isto e um passo local que nao produziu nada (46). */
 export const SHA256_VAZIO = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-/** Passo local SEM SAIDA (46): tokens_locais 0 ou o sha do texto vazio — «arrancou» sem produzir nada nao e o tratamento B. */
-export const localSemSaida = (t) => !!t && ehLocal(t) && (t.tokens_locais === 0 || t.texto_local_sha256 === SHA256_VAZIO);
+/** Passo local COM SAIDA PROVADA (52): sha do texto string e != sha("") E tokens_locais > 0 — independentemente da flag `arrancou` (30: um null nao prova). */
+export const localComSaida = (t) => !!t && ehLocal(t) && typeof t.texto_local_sha256 === 'string' && t.texto_local_sha256 !== SHA256_VAZIO && Number.isFinite(t.tokens_locais) && t.tokens_locais > 0;
+/** Passo local SEM SAIDA (46/52): «arrancou» (pela flag ou pela evidencia) mas sem saida provada — nao e o tratamento B. */
+export const localSemSaida = (t) => !!t && ehLocal(t) && arrancouDaTentativa(t) && !localComSaida(t);
+/** Modelo CLOUD no passo local (53): claude/opus/sonnet/haiku/gpt/gemini/anthropic/openai/google — pago e rotulado local, com consumo zero por construcao. */
+export const ehModeloCloud = (m) => typeof m === 'string' && /claude|opus|sonnet|haiku|gpt|gemini|anthropic|openai|google/i.test(m);
 
 /** ARRANCOU pela flag OU pela evidencia (interpretacao 22). */
 export const arrancouOuEvidencia = (t) => arrancouDaTentativa(t) || evidenciaDeArranque(t);
@@ -836,6 +866,8 @@ export function aceiteContraditorio(t, historico, skipsBase = null) {
   const impossiveis = provas.filter((p) => !p.ok && /^tests_passados .* > tests_corridos/.test(p.nome)).map((p) => p.nome);
   // 49: no node --test, exit 0 <=> fail 0 e cancelled 0 => pass + skipped + todo = tests; com `skips` = skipped + todo, exit 0 com passados + skips != corridos e impossivel
   if (t.exit_code === 0 && Number.isFinite(t.tests_passados) && Number.isFinite(t.skips) && Number.isFinite(t.tests_corridos) && t.tests_passados + t.skips !== t.tests_corridos) impossiveis.push(`exit_code 0 com tests_passados ${t.tests_passados} + skips ${t.skips} != tests_corridos ${t.tests_corridos} (49)`);
+  // 55: o inverso — exit != 0 => fail + cancelled > 0 => pass + skipped + todo < tests; com corridos > 0 (o crash sem sumario, corridos 0, e o Z16)
+  if (Number.isInteger(t.exit_code) && t.exit_code !== 0 && Number.isFinite(t.tests_corridos) && t.tests_corridos > 0 && Number.isFinite(t.tests_passados) && Number.isFinite(t.skips) && t.tests_passados + t.skips === t.tests_corridos) impossiveis.push(`exit_code ${t.exit_code} com tests_passados ${t.tests_passados} + skips ${t.skips} == tests_corridos ${t.tests_corridos} — nada falhou e o runner saiu != 0 (55)`);
   if (impossiveis.length) return `sumario de testes impossivel: ${impossiveis.join(', ')} (41)`;
   if (provas.length === 0) return null;
   const falhas = provas.filter((p) => !p.ok).map((p) => p.nome);
@@ -940,6 +972,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   // 33: o modelo pre-registado vem do executor do braco A («--model claude-opus-5»); a escalacao usa «o executor do braco A»
   const modeloPrereg = (() => { const m = /--model\s+(\S+)/.exec((prereg.bracos && prereg.bracos.A && prereg.bracos.A.executor) || ''); return m ? m[1] : null; })();
   const marcas = [];   // pares/tentativas marcados, com motivo — nunca escondidos
+  const semDigestDe = new Set();   // 53: passos locais sem digest -> validade n/d
   const marca = (m) => marcas.push(m);
   const corridaInvalidaPor = [];
   const invalida = (motivo, valor) => {
@@ -1190,16 +1223,20 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         if (ehLocal(t)) {
           const pecasCli = pecasDeEvidenciaBruta(t);
           if (pecasCli.length) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_com_evidencia_de_cli', motivo: `passo local com ${pecasCli.join('+')} — correu em claude-p rotulado router-execute; consumo de Opus DESCONHECIDO, nao zero (30)` }); invalida('passo local com evidencia de CLI — executor mal rotulado, o tratamento nao foi aplicado como pre-registado (interpretacoes 16, 30)', ref(t)); }
-          const faltam = ['tokens_locais', 'modelo_reportado'].filter((c) => t[c] == null);
+          const faltam = ['tokens_locais', 'modelo_reportado', 'texto_local_sha256'].filter((c) => t[c] == null);   // 52: o sha do texto e obrigatorio no router-execute
           if (faltam.length) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: faltam.join(', ') });
           if (!arrancouDaTentativa(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_nao_arrancou', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)}${t.motivo_se_nao ? ' · ' + t.motivo_se_nao : ''}` });
           // 46: um local que «arrancou» sem produzir nada (tokens 0 ou sha de "") nao e o tratamento B — marca; a totalidade e a 45
-          if (localSemSaida(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_sem_saida', motivo: `passo local sem saida (tokens_locais=${JSON.stringify(t.tokens_locais ?? null)}, texto_local_sha256=${t.texto_local_sha256 === SHA256_VAZIO ? 'sha256("")' : JSON.stringify(t.texto_local_sha256 ?? null)}) — «arrancou» sem produzir nada; escalar daqui nao e o protocolo (46)` });
+          if (localSemSaida(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_sem_saida', motivo: `passo local sem saida provada (tokens_locais=${JSON.stringify(t.tokens_locais ?? null)}, texto_local_sha256=${t.texto_local_sha256 === SHA256_VAZIO ? 'sha256("")' : JSON.stringify(t.texto_local_sha256 ?? null)}) — «arrancou» sem produzir nada, ou sem o provar; escalar daqui nao e o protocolo (46, 52)` });
           // 47: o modelo do passo local e tratamento — um router-execute em `claude-*` e Opus (ou outro cloud) rotulado local, com consumo ZERO por construcao (33 estendida ao local)
           const modelosDoLocal = [t.modelo_pedido, t.modelo_reportado].filter((m) => typeof m === 'string');
-          if (modelosDoLocal.some((m) => /^claude-/.test(m))) { localCloud = true; marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_em_modelo_cloud', motivo: `router-execute com modelo ${modelosDoLocal.filter((m) => /^claude-/.test(m)).join('/')} — o passo local correu num modelo cloud; consumo de Opus zero por construcao numa linha que declara Opus (47)` }); invalida('passo local num modelo claude-* — o tratamento B nao foi aplicado; outro tratamento (interpretacao 47)', ref(t)); }
-          else if (typeof t.modelo_reportado === 'string' && !/@sha256:/.test(t.modelo_reportado)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_local_sem_digest', motivo: `modelo_reportado ${JSON.stringify(t.modelo_reportado)} sem «@sha256:» — o prereg pede nome+digest do ollama (47)` });
+          if (modelosDoLocal.some(ehModeloCloud)) { localCloud = true; marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_em_modelo_cloud', motivo: `router-execute com modelo ${modelosDoLocal.filter(ehModeloCloud).join('/')} — o passo local correu num modelo cloud (o dono decidiu «so local (ollama)»); consumo zero por construcao numa linha que nao e local (47, 53)` }); invalida('passo local num modelo cloud — o tratamento B nao foi aplicado; outro tratamento (interpretacoes 47, 53)', ref(t)); }
+          else if (typeof t.modelo_reportado === 'string' && !/@sha256:/.test(t.modelo_reportado)) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_local_sem_digest', motivo: `modelo_reportado ${JSON.stringify(t.modelo_reportado)} sem «@sha256:» — o prereg pede nome+digest do ollama; sem digest o modelo local nao e verificavel (47, 53)` }); semDigestDe.add(t); }
           if (t.aceite === true) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_aceite', motivo: 'passo local ACEITE — impossivel por construcao (DECLARACAO_DE_DEGENERESCENCIA); a aceitacao do controlador esta partida' });
+          // 97 do 19.o: o tempo do passo local tambem tem de fazer sentido (so marca — nao e direccional)
+          const segundosL = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
+          if (Number.isFinite(segundosL) && segundosL < 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: `ts_fim ${t.ts_fim} antes de ts_inicio ${t.ts_inicio} (passo local)` });
+          if (t.arrancou === true && typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.length > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'motivo_com_arrancou', motivo: `arrancou=true com motivo_se_nao=${JSON.stringify(t.motivo_se_nao)} (passo local; interpretacao 25)` });
         } else {
           if (!arrancouDaTentativa(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tentativa_nao_arrancou', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)}${t.motivo_se_nao ? ' · ' + t.motivo_se_nao : ''}` });
           if (t.arrancou == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'arrancou' });
@@ -1248,6 +1285,12 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         let contra = aceiteContraditorio(t, historico, pv && Number.isFinite(pv.skips) ? pv.skips : null);
         // 48: o duration_ms de uma claude-p e o do JSON do CLI (nao inclui a aceitacao): >= tecto com aceite=true e «estourou o tecto e foi aceite» — o tecto e criterio (19)
         if (!contra && !ehLocal(t) && t.aceite === true && Number.isFinite(tectoS) && Number.isFinite(t.duration_ms) && t.duration_ms >= tectoS * 1000) contra = `aceite=true com duration_ms ${t.duration_ms} >= tecto ${tectoS}s — o tecto e criterio, «estourar o tecto = nao aceite» (48)`;
+        // 54: o JSON do CLI traz sempre duration_ms — null com JSON e campo em falta; com aceite=true a prova do tecto esta em falta (a 48 nao se contorna apagando o campo)
+        const temJsonCli = !ehLocal(t) && ((t.usage && typeof t.usage === 'object') || (t.modelUsage && typeof t.modelUsage === 'object'));
+        if (temJsonCli && t.duration_ms == null) {
+          marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'duration_ms — o JSON do CLI traz sempre um; sem ele o tecto nao e verificavel (54)' });
+          if (!contra && t.aceite === true) contra = 'aceite=true sem duration_ms numa claude-p com JSON — a prova do tecto esta em falta (54)';
+        }
         // 50: uma rejeicao com ZERO testes corridos (runner morto, modulo partido) nao e um teste vermelho — so marca, com o sentido
         if (!ehLocal(t) && t.aceite === false && t.tests_corridos === 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'rejeicao_sem_testes', motivo: `aceite=false com tests_corridos 0 (exit_code=${JSON.stringify(t.exit_code ?? null)}) — runner morto ou modulo partido, nao um teste vermelho; a rejeicao baixa o braco ${b} (50)` });
         if (contra) {
@@ -1427,7 +1470,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && (A.sem_opus || B.sem_opus)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa claude-p sem Opus no modelUsage (interpretacao 20)'); }
     else if (temTentativas && (A.modelo_divergente || B.modelo_divergente)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('modelo pedido ou Opus diferente do pre-registado (interpretacao 33)'); }
     else if (temTentativas && (A.outro_modelo || B.outro_modelo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('o Opus ficou abaixo do piso e outro modelo fez o trabalho (interpretacao 36)'); }
-    else if (temTentativas && (A.local_cloud || B.local_cloud)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('passo local num modelo claude-* — outro tratamento (interpretacao 47)'); }
+    else if (temTentativas && (A.local_cloud || B.local_cloud)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('passo local num modelo cloud — outro tratamento (interpretacoes 47, 53)'); }
     else if (temTentativas && preVooForaDeOrdem) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre_voo depois de um braco ter comecado (interpretacao 51)'); }
     else if (temTentativas && (A.fora_do_protocolo || B.fora_do_protocolo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`tentativas fora do protocolo: ${A.fora_do_protocolo || B.fora_do_protocolo}`); }
     else if (temTentativas && !pv) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo ausente'); }
@@ -1484,6 +1527,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   if (tentativas.length > 0 && tentativas.some((t) => t.sentinela_presente !== true)) validadeNdPorque.push('tentativas sem sentinela_presente === true');
   if (tentativas.length > 0 && tentativas.some((t) => t.estado_vivo_sha == null)) validadeNdPorque.push('tentativas sem estado_vivo_sha — um null nao prova que o estado vivo nao mudou (30)');
   if (tentativas.some((t) => ehLocal(t) && t.modelo_reportado == null)) validadeNdPorque.push('passos locais sem modelo_reportado — um null nao prova que o modelo local nao mudou (30)');
+  if (semDigestDe.size) validadeNdPorque.push(`passos locais com modelo_reportado sem «@sha256:» (${semDigestDe.size}) — sem digest o modelo local nao e verificavel; o prereg pede nome+digest (53)`);
   if (tentativas.length === 0) validadeNdPorque.push('sem tentativas');
   // 45: o tratamento B nunca aplicado — TODOS os passos locais da corrida sem arrancar (um transitorio e marca, 2; a totalidade e outra corrida: Opus contra Opus)
   const locaisDaCorrida = tentativas.filter((t) => ehLocal(t) && t.braco === 'B' && idsEmJogo.includes(t.task_id));
@@ -1625,6 +1669,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       B: { tentativas: t.B.tentativas, aceite: t.B.aceite, arrancou: t.B.arrancou, tokens_opus: t.B.tokens ? t.B.tokens.total : null, custo_cli_usd: arred.usd(t.B.custo_cli_usd), custo_cli_total_usd: arred.usd(t.B.custo_cli_total_usd), fontes: t.B.fontes, duration_ms: t.B.duration_ms, tecto_do_orcamento: t.B.tecto, escalou: t.B.escalou, tokens_locais: t.B.tokens_locais, modelo_local: t.B.modelo_local, modelos_opus: t.B.modelos_opus },
     })),
     marcas,
+    marcas_por_tipo: Object.fromEntries(Object.entries(marcas.reduce((acc, m) => ({ ...acc, [m.tipo]: (acc[m.tipo] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))),   // 95 do 19.o
     linhas_de_ledger_invalidas: null,   // preenchido pelo main
     O_QUE_ISTO_NAO_CONCLUI: prereg.o_que_este_protocolo_NAO_promete,
   };
@@ -1677,7 +1722,7 @@ if (invocadoDirectamente) {
   console.log(`  pares validos ${p.n_pares_validos} · aceites A ${p.aceites_A} B ${p.aceites_B} · limiar descritivo ${veredicto}`);
   console.log(`  tokens Opus total A ${r.secundaria.global.A.tokens_opus_total ?? 'n/d'} B ${r.secundaria.global.B.tokens_opus_total ?? 'n/d'} · marcas ${r.marcas.length} · invalidos ${f.pares_invalidos.length} (saidas (a) com resultado no outro braco: favorece A ${f.saidas_a_com_resultado_no_outro_braco.favorece_A}, favorece B ${f.saidas_a_com_resultado_no_outro_braco.favorece_B}) · orfas ${f.tentativas_orfas.length} · duplicadas ${f.tentativas_duplicadas.length} · linhas de ledger invalidas ${linhasInvalidas.length} · eventos desconhecidos ${f.eventos_desconhecidos.length}`);
   // 17.o (6): «marcas 20» sem tipo e indistinguivel de «marcas 20 e mais nada» — a contagem por tipo sai na consola
-  const porTipo = Object.entries(r.marcas.reduce((acc, m) => ({ ...acc, [m.tipo]: (acc[m.tipo] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const porTipo = Object.entries(r.marcas_por_tipo);
   console.log(`  marcas por tipo: ${porTipo.length ? porTipo.map(([k, n]) => `${k} ${n}`).join(' · ') : 'nenhuma'}`);
   console.log(`  escrito: ${outPath}`);
 }
