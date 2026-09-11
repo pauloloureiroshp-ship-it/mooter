@@ -3,10 +3,10 @@
   "experiment_id": "custo-2026-09-10",
   "titulo": "Teste de custo: Opus sempre (A) contra o router como esta (B), em 20 tarefas com teste externo congelado",
   "estado": "CONGELADO",
-  "congelado_em": "2026-09-11T00:32:58.628Z",
+  "congelado_em": "2026-09-11T10:10:12.986Z",
   "congelado_por": "Claude Code (Opus 5), sessao e8d2b6d9, a pedido do dono",
-  "anterioridade": "este ficheiro e commitado ANTES de qualquer corrida; a prova de anterioridade e o commit, nao o campo congelado_em",
-  "pergunta": "Rotear com o Mooter tal como esta em producao reduz os tokens de Opus por tarefa aceite, sem perder aceitacao, em trabalho real de reparar testes?",
+  "anterioridade_resumo": "commitado e fundido em main ANTES de qualquer corrida. O commit identifica o CONTEUDO; a anterioridade e ancorada pelo merge no remoto (ver seccao anterioridade). O campo congelado_em e informativo.",
+  "pergunta": "Rotear com o Mooter tal como esta em producao muda os tokens de Opus por tarefa aceite, e a aceitacao, em trabalho real de reparar testes? (Formulacao neutra de proposito: nao se pergunta se \"reduz\" nem se \"nao perde\" — CUSTO-03.)",
   "DECLARACAO_DE_DEGENERESCENCIA": {
     "facto": "O produto NAO tem hoje nenhum caminho em que um modelo local edite um repositorio. `router-execute --pin-provider=ollama` devolve texto; `moo-runner` nao aplica edicoes; o executor do R-24 e sempre `claude -p`.",
     "consequencia": "Nas tarefas classificadas T0/T1, o passo local do braco B nao consegue fazer passar o teste de aceitacao POR CONSTRUCAO. Vai falhar e escalar para Opus. O braco B fica igual ao A mais uma chamada local por tarefa T0/T1.",
@@ -34,7 +34,10 @@
         "parent": "8c39d3b7cc29ab16ec74fe214788171102cb4105",
         "test_file": "design/tools/moo-design-check.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T0",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 55,
         "ordem_dos_bracos": "A-depois-B"
       },
       {
@@ -44,7 +47,10 @@
         "parent": "224f6ce3478a5e309745d4e7396d5409759c7632",
         "test_file": "design/tools/moo-design-check.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T0",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 26,
         "ordem_dos_bracos": "B-depois-A"
       },
       {
@@ -54,7 +60,10 @@
         "parent": "46e599e8bad4a7dbacb01d4dae966cb426673797",
         "test_file": "packages/vscode-extension/src/data.test.js",
         "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/data.test.js",
+        "acceptance_cwd": "packages/vscode-extension",
         "tier_classificado": "T3",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 15,
         "ordem_dos_bracos": "A-depois-B"
       },
       {
@@ -64,7 +73,10 @@
         "parent": "481ae5afce77869611a87f32991a29079cfe211c",
         "test_file": "packages/mooter-bridge/server.test.js",
         "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test server.test.js",
+        "acceptance_cwd": "packages/mooter-bridge",
         "tier_classificado": "T3",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 10,
         "ordem_dos_bracos": "B-depois-A"
       },
       {
@@ -74,7 +86,10 @@
         "parent": "1cb7db8e917108737146bd5b24d978a57596b9cc",
         "test_file": "tools/cockpit/runner/runner-core.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T0",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 30,
         "ordem_dos_bracos": "A-depois-B"
       },
       {
@@ -84,8 +99,11 @@
         "parent": "c1e5a009cfe4d9763fde98db5b2f5ad466c728c4",
         "test_file": "tools/router/router-execute.mocks.test.js",
         "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.mocks.test.js",
+        "acceptance_cwd": "tools/router",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "B-depois-A"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 17,
+        "ordem_dos_bracos": "A-depois-B"
       },
       {
         "ordem": 7,
@@ -94,8 +112,11 @@
         "parent": "cb2bf46c523bc8416e23cce0d50ff8be91cd2fab",
         "test_file": "packages/slack-spike/despacho.test.js",
         "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test despacho.test.js",
+        "acceptance_cwd": "packages/slack-spike",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "A-depois-B"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 19,
+        "ordem_dos_bracos": "B-depois-A"
       },
       {
         "ordem": 8,
@@ -104,8 +125,11 @@
         "parent": "5b8580bc6a6b6ed7c6ca2373e53cff5fa4702c94",
         "test_file": "tools/router/statusline-multi.test.js",
         "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js",
+        "acceptance_cwd": "tools/router",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "B-depois-A"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 21,
+        "ordem_dos_bracos": "A-depois-B"
       },
       {
         "ordem": 9,
@@ -114,8 +138,11 @@
         "parent": "cc706fa2551571f7617163be5f1dc17b55146d93",
         "test_file": "packages/vscode-extension/src/webview-syntax.test.js",
         "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/webview-syntax.test.js",
+        "acceptance_cwd": "packages/vscode-extension",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "A-depois-B"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 1,
+        "ordem_dos_bracos": "B-depois-A"
       },
       {
         "ordem": 10,
@@ -124,8 +151,11 @@
         "parent": "fd4f425ce1c3e8c8fc3b201bc138db87f9c26058",
         "test_file": "packages/mooter-bridge/quota.test.js",
         "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test quota.test.js",
+        "acceptance_cwd": "packages/mooter-bridge",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "B-depois-A"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 19,
+        "ordem_dos_bracos": "A-depois-B"
       },
       {
         "ordem": 11,
@@ -134,8 +164,11 @@
         "parent": "d9db061389991669f6a20c9e29ead44fadde7ab3",
         "test_file": "tools/router/statusline-multi.test.js",
         "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js",
+        "acceptance_cwd": "tools/router",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "A-depois-B"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 18,
+        "ordem_dos_bracos": "B-depois-A"
       },
       {
         "ordem": 12,
@@ -144,8 +177,11 @@
         "parent": "4db43d9796bb00d37d5aa3fe41073fdf7effaf16",
         "test_file": "packages/slack-spike/ensaio.test.js",
         "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test ensaio.test.js",
+        "acceptance_cwd": "packages/slack-spike",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "B-depois-A"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 34,
+        "ordem_dos_bracos": "A-depois-B"
       },
       {
         "ordem": 13,
@@ -154,8 +190,11 @@
         "parent": "ee209921ed7adf6e8dd261cd1ee23f677ee1e8e6",
         "test_file": "tools/cockpit/runner/runner-core.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T0",
-        "ordem_dos_bracos": "A-depois-B"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 38,
+        "ordem_dos_bracos": "B-depois-A"
       },
       {
         "ordem": 14,
@@ -164,7 +203,10 @@
         "parent": "eae75143f8bf0e7bb9e64173154adf6d5d4ded7b",
         "test_file": "packages/slack-spike/cartao.test.js",
         "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test cartao.test.js",
+        "acceptance_cwd": "packages/slack-spike",
         "tier_classificado": "T3",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 40,
         "ordem_dos_bracos": "B-depois-A"
       },
       {
@@ -174,7 +216,10 @@
         "parent": "c629f54377342eac47b8a5ae19e7add62bddbccd",
         "test_file": "tools/cockpit/runner/runner-core.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T0",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 34,
         "ordem_dos_bracos": "A-depois-B"
       },
       {
@@ -184,7 +229,10 @@
         "parent": "fff9edb0ac55e32aa03a9d45f2ec20ac12cf0e28",
         "test_file": "design/tools/moo-design-check.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T0",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 44,
         "ordem_dos_bracos": "B-depois-A"
       },
       {
@@ -194,7 +242,10 @@
         "parent": "0c8f3e484bc26933a2b130a6516de0624680a20f",
         "test_file": "design/tools/moo-visual-audit.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test design/tools/moo-visual-audit.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T3",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 19,
         "ordem_dos_bracos": "A-depois-B"
       },
       {
@@ -204,7 +255,10 @@
         "parent": "50c2c94a8e8f79c6747338262ab7886398989073",
         "test_file": "packages/vscode-extension/src/data.test.js",
         "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/data.test.js",
+        "acceptance_cwd": "packages/vscode-extension",
         "tier_classificado": "T3",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 27,
         "ordem_dos_bracos": "B-depois-A"
       },
       {
@@ -214,7 +268,10 @@
         "parent": "18e8c128ac137b83fa1066c1029dc9716feb02cc",
         "test_file": "tools/ab/mooter-vs-sem.test.mjs",
         "acceptance_cmd": "cd <repo> && node --test tools/ab/mooter-vs-sem.test.mjs",
+        "acceptance_cwd": ".",
         "tier_classificado": "T0",
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 26,
         "ordem_dos_bracos": "A-depois-B"
       },
       {
@@ -224,8 +281,11 @@
         "parent": "530ac4bb54c97093820552b24123d73630aae5bb",
         "test_file": "packages/mooter-bridge/seamless.test.js",
         "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test seamless.test.js",
+        "acceptance_cwd": "packages/mooter-bridge",
         "tier_classificado": "T3",
-        "ordem_dos_bracos": "B-depois-A"
+        "comeca_vermelha_no_manifesto": true,
+        "tests_total_historico": 22,
+        "ordem_dos_bracos": "A-depois-B"
       }
     ],
     "suplentes": [
@@ -251,45 +311,77 @@
       "escalacao": "se T0/T1 falhar a aceitacao: UMA tentativa com o executor do braco A, com o mesmo prompt, no mesmo worktree, SEM passar o texto do passo local (o produto nao o passa). Sem terceira tentativa.",
       "assimetria_declarada": "nas tarefas T0/T1 o braco B tem 2 tentativas (local + Opus) contra 1 do A. Favorece B em aceitacao e desfavorece B em custo. Fica no recibo de cada par."
     },
-    "ordem": "contrabalancada por tarefa (A-depois-B nas impares, B-depois-A nas pares), cada braco num worktree fresco proprio — nao ha estado partilhado entre bracos"
+    "ordem": "contrabalancada DENTRO de cada tier (alternando na ordem de seleccao dentro do estrato), porque o estrato T0 e onde B tem o passo a mais e a primeira versao deixava-o 5:2 (CUSTO-12)",
+    "contrabalanco_por_tier": {
+      "T0": {
+        "A-depois-B": 4,
+        "B-depois-A": 3
+      },
+      "T3": {
+        "A-depois-B": 7,
+        "B-depois-A": 6
+      }
+    },
+    "isolamento": "directorios de trabalho SEPARADOS por braco (git archive do parent). Isto isola os ficheiros versionados e NADA MAIS: ~/.claude, credenciais, o servico Ollama, caches de modelo, rede e o estado do fornecedor sao PARTILHADOS entre bracos e entre tarefas. O estado_vivo_sha vigia quatro ficheiros de ~/.claude/tools/router e mais nenhum. Uma afirmacao de \"sem estado partilhado\" seria falsa e nao se faz (CUSTO-13).",
+    "o_passo_local_pode_deixar_rasto": "a chamada local do braco B em T0/T1 nao edita ficheiros, mas corre o acceptance_cmd depois — o que pode criar artefactos de teste (node_modules/.cache, ficheiros temporarios) antes da escalacao. Isso e registado (listagem do worktree antes e depois do passo local) e reportado; nao se afirma que a escalacao parte do mesmo estado que o braco A (CUSTO-02).",
+    "oportunidades_de_reparacao": "sob a degenerescencia declarada, B tem DUAS chamadas mas UMA oportunidade efectiva de reparacao (a local nao edita). Nao se afirma que B e favorecido em aceitacao; afirma-se que B tem uma chamada a mais, e que duas execucoes estocasticas de Opus gastam tokens diferentes — a degenerescencia nao garante igualdade numerica entre A e a escalacao de B (CUSTO-02)."
   },
   "aceitacao": {
-    "definicao": "o `acceptance_cmd` da tarefa sai 0 no worktree do braco, com o `test_file` byte-identico ao congelado no manifesto",
-    "verificacao_do_test_file": "sha256 do test_file antes e depois; se mudar, a tarefa conta como NAO ACEITE nesse braco (o agente tocou no criterio)",
+    "pre_voo_por_tarefa": "ANTES de qualquer braco, no worktree fresco: o acceptance_cmd tem de FALHAR (exit != 0). Se passar, a tarefa esta \"ja verde\" e e EXCLUIDA antes de correr braco algum, registada com esse motivo, e substituida pelo proximo suplente. O manifesto do R-24 ja traz fails_at_parent (3 corridas) por tarefa; o pre-voo confirma-o neste ambiente.",
+    "definicao": "TRES condicoes, todas: (1) o acceptance_cmd sai 0 no worktree do braco; (2) o test_file e byte-identico ao congelado; (3) o numero de testes CORRIDOS e PASSADOS reportado pelo node --test e >= tests_total_historico da tarefa, e o numero de skip/todo nao aumentou face ao historico.",
+    "porque_tres": "CUSTO-14: congelar o ficheiro de teste nao congela a aceitacao — fixtures, helpers e configuracao podem ser esvaziados sem tocar no ficheiro vigiado, e um runner que termina cedo pode sair 0. A contagem de testes fecha isso na medida em que o node --test a reporta; nao e prova de reparacao correcta, e prova de que as asserçoes historicas correram.",
+    "verificacao_do_test_file": "sha256 antes e depois; se mudar, NAO ACEITE nesse braco",
     "tecto_por_tentativa_s": 900,
-    "tecto_e_criterio": "estourar o tecto = nao aceite. Nao e retomado."
+    "tecto_e_criterio": "estourar o tecto = nao aceite, e o consumo ate ai CONTA. Nao e retomado."
   },
   "metricas": {
     "primaria": {
       "nome": "aceites por braco, em 20",
-      "criterio": "NAO-INFERIORIDADE: aceites_B >= aceites_A - 2",
-      "justificacao_da_margem": "margem de 2 em 20 (10 pontos) fixada pelo dono; e larga, e e declarada como tal",
-      "estatistica_reportada": "diferenca A-B com pares discordantes (McNemar exacto, bilateral), Wilson 95% por braco; nenhum destes e o criterio — o criterio e o ponto"
+      "criterio": "LIMIAR DESCRITIVO: aceites_B >= aceites_A - 2",
+      "o_que_o_nome_NAO_e": "Isto NAO e nao-inferioridade no sentido estatistico e o resultado NAO pode ser descrito como \"sem perder aceitacao\". CUSTO-03: A=20/B=18 passa com 10 pontos de perda; A=2/B=0 passa com B a nao aceitar nada. E um limiar de decisao fixado pelo dono, e diz-se assim.",
+      "obrigatorio_reportar": "a tabela 2x2 emparelhada (aceite em ambos / so A / so B / nenhum) COM os task_id de cada celula. CUSTO-04: os totais deixam trocar tarefas resolvidas por falhadas; a tabela nao.",
+      "estatistica_reportada": "diferenca emparelhada A-B com IC 95% pelo metodo de Newcombe-Tango para proporcoes correlacionadas. E DESCRITIVA. Nenhum teste de hipotese e invocado como prova de coisa nenhuma (CUSTO-05: McNemar bilateral testa outra coisa).",
+      "zero_aceites": "se um braco tiver 0 aceites, qualquer razao \"por aceite\" desse braco fica INDEFINIDA, nunca zero nem infinito."
     },
     "secundaria": {
-      "nome": "tokens de Opus por tarefa aceite, por braco",
-      "definicao": "soma de input + output + cache_creation + cache_read de TODAS as chamadas a claude-opus-5 do braco (incluindo escalacoes), a dividir por aceites do braco",
-      "fonte_primaria": "campo `usage` e `modelUsage` do JSON de `claude -p --output-format json`, por invocacao — uma invocacao = uma tentativa, sem ambiguidade de atribuicao",
-      "cruzamento": "transcript ~/.claude/projects/**/<session_id>.jsonl da mesma invocacao, atribuido por cadeia parentUuid ate ao turno humano, NUNCA por session_id agregado. Se divergir do JSON em mais de 1%, o par e marcado e a divergencia e reportada.",
-      "nota": "tokens de modelos locais sao contados e reportados a parte, e NAO entram nesta metrica — a pergunta e sobre Opus"
+      "nome": "tokens de Opus, por braco",
+      "vistas_OBRIGATORIAS_todas": [
+        "total de tokens de Opus do braco (todas as tentativas, aceites ou nao)",
+        "tokens de Opus por tarefa atribuida (total / 20)",
+        "tokens de Opus por tarefa aceite (total / aceites) — INDEFINIDO se aceites = 0",
+        "tokens de Opus so nas tarefas aceites por AMBOS os bracos (secundaria, condiciona no resultado e diz-se)",
+        "por categoria e por tentativa: input, output, cache_creation (1h e 5m separados), cache_read"
+      ],
+      "porque_todas": "CUSTO-06: \"por aceite\" sozinho recompensa desistir barato das tarefas dificeis. As quatro vistas juntas nao deixam.",
+      "fonte": "`modelUsage[\"claude-opus-5\"]` do JSON de `claude -p --output-format json`, por invocacao. O campo `usage` e o TOTAL da invocacao (todos os modelos, subagentes incluidos) e serve de reconciliacao: se usage.output_tokens < soma de modelUsage.*.output_tokens, ha erro de extraccao e o par e marcado.",
+      "aliases": "qualquer chave de modelUsage que comece por \"claude-opus\" conta como Opus e e listada; nenhuma outra conta.",
+      "timeout_sem_json": "uma tentativa que estoura o tecto ou morre sem devolver JSON tem consumo DESCONHECIDO: o par e marcado, o consumo NAO e zero, e o transcript jsonl (por session_id da invocacao, se houver) e a unica fonte — se nao houver, fica n/d e diz-se.",
+      "cruzamento": "transcript ~/.claude/projects/**/<session_id>.jsonl da mesma invocacao. A cadeia parentUuid serve para garantir que se conta SO essa invocacao. Divergencia > 1% face ao JSON: par marcado, ambas as fontes publicadas, a do JSON prevalece para a metrica e diz-se porque (e o que o CLI facturou).",
+      "nota": "tokens de modelos locais sao contados e reportados a parte; NAO entram nesta metrica"
     },
     "yardstick_custo": {
-      "nome": "custo a preco de lista, datado",
+      "nome": "VALORIZACAO TEORICA aos precos de lista declarados — nao despesa efectiva, nao custo total",
       "fonte": "tools/router/pricing.js @ 8c39d3b7 2026-08-29T13:43:00-03:00",
       "pricing_sha256": "7f9cf11a8713db4446c43ab55439efdcd074a4587ad13dc9669f924ec90a687f",
       "opus_usd_por_Mtok": {
         "input": 5,
         "output": 25
       },
-      "cache": "pricing.js nao tem precos de cache; usam-se os multiplicadores de lista da Anthropic (criacao 1.25x input, leitura 0.1x input) e diz-se que sao esses",
+      "cache_multiplicadores": {
+        "cache_creation_1h": 2,
+        "cache_creation_5m": 1.25,
+        "cache_read": 0.1,
+        "fonte": "lista publica da Anthropic para cache de prompts; o 2.0x para 1h e CONFIRMADO pela sonda: 57 957 tokens ephemeral_1h x 5 USD/M x 2.0 = 0.5796, que e exactamente o total_cost_usd que o CLI devolveu. A primeira versao deste protocolo dizia 1.25x e estava errada (CUSTO-08)."
+      },
       "local_usd_por_Mtok": {
         "input": 0,
         "output": 0,
-        "nota": "preco de lista 0; o custo de GPU/electricidade NAO e medido e fica n/d"
+        "nota": "preco de LISTA 0. GPU, electricidade e hardware NAO sao medidos: n/d. Isto e uma valorizacao, nao um custo."
       },
-      "segunda_coluna": "total_cost_usd tal como o proprio CLI o reporta, por invocacao — e o numero da Anthropic, nao o nosso",
-      "O_QUE_NAO_E": "isto NAO e uma afirmacao de poupanca. O deck nao pode escrever \"$ poupados\" a partir daqui (regra §4). E um yardstick para comparar bracos.",
-      "facto_da_sonda": "uma invocacao `claude -p \"Responde apenas: OK\"` custou US$0.58 por 57 957 tokens de criacao de cache (contexto do sistema). O custo fixo por invocacao domina em tarefas curtas; por isso o numero e por ACEITE e nao por token."
+      "segunda_coluna": "total_cost_usd: ESTIMATIVA REPORTADA PELO CLI, por invocacao. Nao e facturacao.",
+      "rotulo_obrigatorio_em_qualquer_visualizacao": "Valorizacao teorica aos precos de lista de 2026-08-29; nao e despesa efectiva nem custo total. Setas, percentagens de \"custo\" ou graficos A/B em dolares sem este rotulo sao proibidos (CUSTO-09).",
+      "O_QUE_NAO_E": "NAO e uma afirmacao de poupanca, nem de retorno, nem de custo total. O deck nao pode escrever \"$ poupados\" nem \"-X% de custo\" a partir daqui (regra §4).",
+      "facto_da_sonda": "uma invocacao `claude -p \"Responde apenas: OK\"` custou US$0.5796 por 57 957 tokens de criacao de cache 1h (contexto do sistema) + 2 input + 4 output. O custo fixo por invocacao domina em tarefas curtas."
     },
     "reportada_fora_do_criterio": {
       "velocidade": "duration_ms do JSON por tentativa, e tempo-ate-verde por tarefa (soma das tentativas). Reportada. NAO e criterio de nada."
@@ -298,7 +390,13 @@
   "regra_de_paragem": {
     "corridas": 1,
     "texto": "UMA corrida. Se nao fechar os 20 pares — por limite de sessao, por falha de executor, por qualquer motivo — o resultado sai n/d nas metricas nao fechadas e NAO ha segunda corrida. Esta regra foi quebrada no P7 e o P7 perdeu o estatuto confirmatorio; aqui e escrita antes e nao se emenda depois de ver numeros.",
-    "invalido": "um par em que alguma tentativa nao ARRANCOU (spawn:*, worktree nao reconstruido) e INVALIDO e nao conta para nenhum braco; e reportado. Um par em que arrancou e falhou conta como nao aceite."
+    "prefixo_executado": "TUDO o que correu e publicado — cada tentativa, o seu consumo, o motivo de paragem e a hora. Um prefixo parcial NUNCA vira alegacao favoravel; e n/d com o que se viu ao lado (CUSTO-11).",
+    "ordem_obrigatoria": "as tarefas correm pela coluna `ordem` deste ficheiro, sem saltos. Suplentes entram SO por (a) worktree que nao se reconstroi ou (b) pre-voo que nao falha — pela ordem da lista de suplentes, o primeiro disponivel.",
+    "invalido": {
+      "definicao_de_arrancou": "uma tentativa ARRANCOU se o CLI devolveu um JSON com session_id (qualquer subtype) OU existe um transcript jsonl com esse session_id. spawn:* sem nenhum dos dois = NAO arrancou.",
+      "par_invalido": "um par em que uma tentativa nao arrancou sai da metrica PRIMARIA e das vistas \"por aceite\".",
+      "mas_o_consumo_fica": "CUSTO-10: o consumo do OUTRO braco desse par NAO e apagado. Entra numa tabela de fiabilidade obrigatoria: pares invalidos, qual braco falhou a arrancar, motivo tecnico, e tokens gastos por cada braco ate ai. Uma falha de arranque no braco B e um custo de fiabilidade do router e fica visivel como tal."
+    }
   },
   "pre_condicoes": {
     "D15": "FECHADO em main (#494, f66813e9) e no runtime desta maquina. O sentinela ~/.claude/tools/router/.budget-freeze e posto ANTES da primeira tentativa e retirado DEPOIS da ultima; o conteudo e \"custo-2026-09-10\". Enquanto estiver posto, nenhum dos dois escritores toca no cache.",
@@ -313,11 +411,10 @@
         ".mooter-mode.json": "00b48be4c28e7bf28c2e8a666cf9a7b9924337bc20b427ab4cde244109d0c429",
         ".pin-next.json": "AUSENTE",
         "subscription-profile.json": "92ad3c40114167d2af03a143e4574bd5accde6d18e025229ea6bc1e827de45ae",
-        ".budget-cache.json": "6f1047cfd909e087aa714b340153216b230935581c361beb8a137fd0cfd87a25"
+        ".budget-cache.json": "24c7c2bd77214a6ee6f629386ccec71e2ab14b709b94a5518589ea5bcdff451d"
       },
       "regra": "se algum destes mudar entre a primeira e a ultima tentativa, a corrida e INVALIDA (mesma guarda do R-24). Com o D15 fechado, o unico que podia mudar sozinho ja nao muda.",
-      "tecto_de_orcamento": "o getBudget congelado devolve o cache fixo, ou null se o cache estiver em erro. Qual dos dois aconteceu FICA NO RECIBO de cada tentativa: \"sem tecto\" e um facto, nao pode ser invisivel.",
-      "nota_sobre_o_snapshot": "Os shas acima sao os do MOMENTO DO CONGELAMENTO e sao informativos. Entre a revisao adversarial do D15 e este congelamento o .budget-cache.json mudou (64be5d9e -> 6f1047cf) pelo hook da propria sessao que escreveu isto — o D15 em accao. O snapshot VINCULATIVO e tirado no arranque da corrida, DEPOIS de o sentinela .budget-freeze estar posto, e e esse que tem de ficar constante ate a ultima tentativa."
+      "tecto_de_orcamento": "o getBudget congelado devolve o cache fixo, ou null se o cache estiver em erro. Qual dos dois aconteceu FICA NO RECIBO de cada tentativa: \"sem tecto\" e um facto, nao pode ser invisivel."
     },
     "congelados": {
       "classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
@@ -326,9 +423,41 @@
       "esperado_patterns": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5"
     },
     "main_no_congelamento": "f66813e9ee7b42c43596283efd106dc0c3f7b717",
-    "claude_cli": "n/d",
-    "modelo_local": "resolvido em tempo de corrida por router-execute (OLLAMA_OPTION_A_MODEL, senao qwen2.5:3b) e registado no ledger de cada tentativa; NAO e escolhido para a experiencia",
+    "claude_cli": "2.1.224 (Claude Code)",
+    "router_execute_sha256": "54d51c337c45e0bdbf480342e0676449431d6f9c131ab123df8662676f7a1817",
+    "inject_context_sha256": "c11e0e0806755623ebd28207697ae1a8ec236904f6fe58ec4a324b35b35f5231",
+    "modelo_local": "resolvido em tempo de corrida por router-execute (OLLAMA_OPTION_A_MODEL, senao qwen2.5:3b) e registado no ledger de cada tentativa com o nome E o digest do modelo que o Ollama reporta. Se o digest mudar a meio da corrida, a corrida e INVALIDA.",
+    "manifesto_de_execucao": "ANTES da primeira tentativa, o controlador escreve custo-manifesto-de-execucao.json com: versao do CLI, sha do router-execute e do inject_context no RUNTIME (~/.claude/tools/router, nao no repo), nome+digest do modelo local, o snapshot vinculativo do estado vivo com o sentinela posto, e a hora. Esse ficheiro e o tratamento; este pre-registo e a intencao (CUSTO-15).",
     "ambiente": "fora de qualquer sessao Claude Code (a guarda ambienteApto() do R-24 e reutilizada); marcadores CLAUDE_CODE_* removidos do env"
+  },
+  "anterioridade": {
+    "o_que_o_commit_prova": "o conteudo. Nao prova sozinho que precedeu todas as execucoes (CUSTO-16).",
+    "ancora_externa": "este ficheiro e empurrado para o remoto e fundido em main ANTES da corrida; o hash do commit de merge e a hora do GitHub sao a ancora independente. O controlador recusa-se a arrancar se o sha deste ficheiro em disco nao for o que esta em origin/main.",
+    "exposicao_ao_corpus": "as 25 tarefas do R-24 ja foram corridas por este autor (46 bracos no P7) e a sua dificuldade e conhecida. Isto NAO e um corpus novo. A seleccao por seed limita a escolha das 20, nao a escolha das 25 nem da seed. Limitacao declarada: as conclusoes aplicam-se a este corpus e a mais nenhum.",
+    "seed_porque": "20260910 e a data do congelamento em ISO sem separadores. Nao ha outra razao, e uma seed sem razao e melhor do que uma com uma razao inventada depois."
+  },
+  "analise_congelada": {
+    "script": "tools/ab/custo-analise.mjs — escrito e commitado ANTES da corrida, le so o ledger, e produz custo-analysis.json com TODOS os campos abaixo, sempre, independentemente da direccao do resultado (CUSTO-17)",
+    "campos_obrigatorios_do_resultado": [
+      "aceites_A, aceites_B, tabela_2x2_com_task_ids, diferenca_emparelhada, ic95_newcombe_tango",
+      "por braco: tokens_opus_total, por_tarefa_atribuida, por_aceite (ou INDEFINIDO), so_aceites_por_ambos, por_categoria (input/output/cache_1h/cache_5m/cache_read)",
+      "por tier: tudo o de cima, estratificado",
+      "por tarefa: tier, ordem_dos_bracos, tentativas, aceite_A, aceite_B, tokens_A, tokens_B, duration_A, duration_B, tecto_do_orcamento_registado",
+      "pares_invalidos: task_id, braco que nao arrancou, motivo, consumo de cada braco ate ai",
+      "valorizacao_teorica_usd por braco com o rotulo obrigatorio, e total_cost_usd do CLI ao lado",
+      "velocidade: duration por tentativa e tempo-ate-verde por tarefa",
+      "divergencias JSON vs transcript, se houver",
+      "tokens locais, a parte",
+      "motivo_de_paragem e prefixo_executado, se a corrida nao fechou"
+    ],
+    "arredondamento": "tokens inteiros; USD com 4 casas; proporcoes com 3 casas; nada e arredondado antes de dividir",
+    "dados_ausentes": "nunca imputados. Ausente e n/d e propaga-se: uma razao com n/d no numerador e n/d."
+  },
+  "revisao_adversarial_antes_do_congelamento": {
+    "motor": "Codex CLI (gpt-6-astra), read-only, cwd vazio — motor diferente do autor",
+    "quando": "sobre a v1 deste ficheiro, ANTES do merge, enquanto ainda era edicao e nao emenda",
+    "resultado": "17 ataques, 5 fatais. Aceites e corrigidos nesta versao: 01, 02, 03, 04, 05, 06, 08, 09, 10, 11, 12, 13, 14, 15, 16, 17. O 07 (contagem de tokens) e fechado pela seccao secundaria. Nenhum rejeitado.",
+    "registo": "a resposta integral do adversario e publicada ao lado do resultado, em custo-adversario-prereg-round1.md"
   },
   "o_que_este_protocolo_NAO_promete": [
     "que o router poupe Opus — a declaracao de degenerescencia diz que nao pode, nas tarefas T0/T1, por falta de executor local",
@@ -336,5 +465,26 @@
     "que o custo em GPU do passo local seja zero — e n/d",
     "que os precos de lista de 2026-08-29 sejam os de hoje — sao os do pricing.js nessa data, e e isso que se diz"
   ],
-  "ledger": "tools/ab/custo-ledger.jsonl — uma linha por tentativa: task_id, braco, tentativa, tier, modelo, aceite, test_file_sha_antes/depois, usage, total_cost_usd, duration_ms, estado_vivo_sha, tecto_do_orcamento (valor|null), session_id"
+  "ledger": {
+    "ficheiro": "tools/ab/custo-ledger.jsonl — append-only, uma linha por EVENTO, nao so por tentativa",
+    "eventos": [
+      "pre_voo",
+      "tentativa_inicio",
+      "tentativa_fim",
+      "par_invalido",
+      "tarefa_excluida",
+      "paragem"
+    ],
+    "campos_obrigatorios_por_tentativa": [
+      "ts_inicio, ts_fim (ISO), task_id, braco, tentativa (1|2), e_escalacao (bool)",
+      "tier_classificado, executor (claude-p|router-execute), modelo_pedido, modelo_reportado (modelUsage keys | nome+digest ollama)",
+      "arrancou (bool, pela definicao acima), motivo_se_nao",
+      "aceite (bool), exit_code, tests_corridos, tests_passados, skips, test_file_sha_antes, test_file_sha_depois",
+      "usage (integral do JSON), modelUsage (integral), total_cost_usd, duration_ms, session_id",
+      "tokens_locais (se executor = router-execute), texto_local_sha256 (nunca o texto: pode conter conteudo do repo)",
+      "estado_vivo_sha, tecto_do_orcamento (numero | \"null=sem tecto\"), sentinela_presente (bool)",
+      "worktree_listagem_sha_antes, worktree_listagem_sha_depois (para o rasto do passo local)"
+    ],
+    "regra": "um campo em falta e escrito como null e o par e marcado; nunca se omite a chave."
+  }
 }
