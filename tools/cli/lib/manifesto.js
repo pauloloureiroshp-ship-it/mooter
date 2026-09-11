@@ -25,11 +25,12 @@
  * ────────────────────────────────────────────────────────────────────────────
  * E FALHA FECHADA, DE PROPOSITO
  * ────────────────────────────────────────────────────────────────────────────
- * Essa chave AINDA NAO EXISTE — gera-la exige um segredo que so o dono pode
- * criar e guardar. Por isso este modulo NAO traz chave nenhuma inventada. Sem
- * `release-pubkey.json` presente e valido, `verificarManifesto()` devolve
- * `ok:false` com codigo `sem-ancora`, e o `update` recusa-se a trocar o
- * payload. Nunca "avisa e continua".
+ * A chave existe desde 2026-09-11 (`./release-pubkey.js`, kid `4be1bf1d6017e10f`,
+ * gerada no Mac do dono; a privada vive no Keychain e no secret
+ * `MOOTER_RELEASE_KEY`, nunca aqui). Ate la, este modulo recusava tudo — e essa
+ * recusa CONTINUA a ser o comportamento se a ancora desaparecer ou ficar
+ * ilegivel: `verificarManifesto()` devolve `ok:false` com codigo `sem-ancora` e
+ * o `update` nao troca o payload. Nunca "avisa e continua".
  *
  * A alternativa — deixar passar enquanto nao ha chave — e o defeito que o
  * adversario ja mediu no bridge: «o updater verifica presenca/sintaxe, nao
@@ -63,7 +64,7 @@ const { canonico } = require('../../router/assinatura.js');
 const ALG_RELEASE = 'Ed25519-release-v1';
 
 /** Onde vive a publica pregada no cliente. Ausente = sem ancora = recusa. */
-const FICHEIRO_ANCORA = path.join(__dirname, '..', 'release-pubkey.json');
+const FICHEIRO_ANCORA = path.join(__dirname, 'release-pubkey.js');
 
 /** Os campos que um manifesto TEM de trazer, todos cobertos pela assinatura. */
 const CAMPOS = Object.freeze(['version', 'url', 'sha256', 'channel', 'released']);
@@ -76,30 +77,28 @@ const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)$/;
  * `{ ok:false, porque }` quando nao ha — nunca uma chave por omissao.
  */
 function ancora(o = {}) {
-  const {
-    caminho = FICHEIRO_ANCORA,
-    readImpl = fs.readFileSync,
-    existsImpl = fs.existsSync,
-  } = o;
-  if (o.pubB64) return { ok: true, pubB64: o.pubB64, fonte: 'injectada' };
-  if (!existsImpl(caminho)) {
+  if (o.pubB64) return { ok: true, pubB64: [o.pubB64], fonte: 'injectada' };
+  let mod;
+  try {
+    mod = o.chavesImpl || require('./release-pubkey.js');
+  } catch (e) {
+    return { ok: false, porque: 'ancora ilegivel: ' + String(e.message).slice(0, 80) };
+  }
+  const pubs = typeof mod.publicas === 'function' ? mod.publicas() : [];
+  if (!pubs.length) {
     return {
       ok: false,
       porque:
-        'nao ha chave publica de release neste cliente (' +
-        path.basename(caminho) +
-        ' ausente) — nenhuma actualizacao pode ser verificada, logo nenhuma e aplicada',
+        'este cliente nao traz chave publica de release — nenhuma actualizacao ' +
+        'pode ser verificada, logo nenhuma e aplicada',
     };
   }
-  try {
-    const j = JSON.parse(readImpl(caminho, 'utf8'));
-    if (!j || typeof j.pub !== 'string' || !j.pub) {
-      return { ok: false, porque: 'ancora sem campo `pub`' };
-    }
-    return { ok: true, pubB64: j.pub, fonte: caminho };
-  } catch (e) {
-    return { ok: false, porque: 'ancora ilegivel: ' + e.message.slice(0, 80) };
-  }
+  // DURANTE UMA ROTACAO ha duas publicas validas ao mesmo tempo, e o cliente
+  // tem de aceitar as duas: publica-se a nova PRIMEIRO, assina-se com ela
+  // DEPOIS. Pela ordem inversa, os clientes com a publica antiga recusavam a
+  // release que traz a nova — e ficavam presos, porque a unica saida seria uma
+  // release que eles ja nao aceitam.
+  return { ok: true, pubB64: pubs, fonte: 'release-pubkey.js', kids: Object.keys(mod.CHAVES || {}) };
 }
 
 /** Compara semver. >0 se `a` for mais recente. Nao-semver ordena como menor. */
@@ -179,23 +178,32 @@ function verificarManifesto(manifesto, o = {}) {
   const anc = ancora(o);
   if (!anc.ok) return { ok: false, codigo: 'sem-ancora', porque: anc.porque };
 
-  let chave;
-  try {
-    chave = crypto.createPublicKey({
-      key: Buffer.from(anc.pubB64, 'base64'),
-      format: 'der',
-      type: 'spki',
-    });
-  } catch (e) {
-    return { ok: false, codigo: 'ancora-invalida', porque: 'chave publica ilegivel: ' + e.message.slice(0, 80) };
+  const corpo = canonico(manifesto);
+  const assinatura = Buffer.from(sig.mac, 'hex');
+  let valida = false;
+  let erroDeChave = null;
+
+  // Tenta TODAS as publicas aceites. Durante uma rotacao sao duas.
+  for (const pub of anc.pubB64) {
+    let chave;
+    try {
+      chave = crypto.createPublicKey({ key: Buffer.from(pub, 'base64'), format: 'der', type: 'spki' });
+    } catch (e) {
+      erroDeChave = e;
+      continue;
+    }
+    try {
+      if (crypto.verify(null, Buffer.from(corpo, 'utf8'), chave, assinatura)) {
+        valida = true;
+        break;
+      }
+    } catch (e) {
+      erroDeChave = e;
+    }
   }
 
-  const corpo = canonico(manifesto);
-  let valida = false;
-  try {
-    valida = crypto.verify(null, Buffer.from(corpo, 'utf8'), chave, Buffer.from(sig.mac, 'hex'));
-  } catch (e) {
-    return { ok: false, codigo: 'assinatura-invalida', porque: 'verificacao falhou: ' + e.message.slice(0, 80) };
+  if (!valida && erroDeChave && anc.pubB64.length === 1) {
+    return { ok: false, codigo: 'ancora-invalida', porque: 'chave publica ilegivel: ' + String(erroDeChave.message).slice(0, 80) };
   }
   if (!valida) {
     return {
