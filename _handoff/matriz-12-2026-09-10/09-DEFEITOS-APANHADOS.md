@@ -1,8 +1,8 @@
 # MATRIZ 12 · defeitos apanhados
 
-Onze. Nove antes da corrida (D1–D9: preflight e ensaio de fumo), dois durante
-(D10 nos dados, D11 nos juizes). Sete teriam feito a tabela mentir sem ninguem
-dar por isso.
+Doze. Nove antes da corrida (D1–D9: preflight e ensaio de fumo), dois durante
+(D10 nos dados, D11 nos juizes), um apanhado por outra sessao depois (D12, a
+sonda de hardware). Sete teriam feito a tabela mentir sem ninguem dar por isso.
 
 Data: 2026-09-10 · worktree `claude/matriz-12-mooter-comparison-3c2b8e` · HEAD `f66813e9`
 
@@ -186,3 +186,29 @@ quem nao cabe, e os 22 julgamentos feitos por argv nao foram repetidos. Guardado
 por dois testes: um ve os argumentos construidos com um `spawn` espiao, o outro
 fixa o limiar abaixo do tecto. O LEGAL-3 foi julgado depois da correccao — e
 esta declarado como o unico prompt cujo transporte difere dos restantes.
+
+## D12 · a sonda de hardware «disponibiliza» modelos que nao estao instalados
+
+Apanhado pela sessao Demo Conductor (mensagem entre sessoes, 2026-09-11) e
+confirmado aqui contra `/api/tags`. O `hw-capability.json` que o pre-requisito 2
+mandou refrescar declara **13** modelos com `can_run: true`; **6 nao estao
+instalados** no Ollama desta maquina (`granite4.2:3b`, `granite4.2:8b`,
+`gemma4:12b`, `gpt-oss:20b`, `qwen2.5-coder:14b-q4`, `qwen2.5:32b-q4`) e **2 que
+estao** nao aparecem (`qwen3.6:35b-a3b`, `qwen3.6:27b`).
+
+A causa esta em `tools/router/gpu-probe.js`: `can_run` e `vram >= req` — «cabe
+na VRAM», nao «esta instalado» — e o `recommended_t0` e o primeiro da
+`PREFER_ORDER` que *cabe*. Nesta maquina calhou ser `qwen2.5-coder:14b`, que
+esta instalado; se o dono o desinstalasse, a sonda continuaria a recomenda-lo e
+o hook injectaria um modelo inexistente no `classify`.
+
+**Efeito colateral que esta corrida causou:** refrescar esse ficheiro (mandado
+pelo MP) trocou o `recommended_t0` de `qwen3:30b` para `qwen2.5-coder:14b`
+**debaixo do ensaio Demo Conductor v1→v2**, que corria na mesma maquina e le o
+mesmo ficheiro. A copia anterior esta intacta em `preflight/hw-capability.ANTES.json`.
+O ficheiro e estado partilhado da maquina: qualquer corrida que dependa dele
+devia congelar-lhe o sha no pre-registo e parar se mudar a meio — esta nao o
+fez; verificado a posteriori que **nao mudou** entre o probe (16:46:10Z) e o fim
+(mtime = probed_at). Fica como regra para M12-c/M12-d.
+
+Defeito do produto, fora do ambito desta corrida; nao corrigido aqui.
