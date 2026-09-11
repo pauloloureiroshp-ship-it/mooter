@@ -17,8 +17,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, tsCanonico, TRANSCRIPT_MINIMO, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
+import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, tsCanonico, TRANSCRIPT_MINIMO, SUPLENTES_ESPERADOS, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SONDA = JSON.parse(fs.readFileSync(path.join(HERE, 'custo-fixture-sonda.json'), 'utf8'));
@@ -46,7 +48,7 @@ function tentativa(task_id, braco, over = {}) {
     tier_classificado: 'T3', executor: 'claude-p', modelo_pedido: 'claude-opus-5', modelo_reportado: 'claude-opus-5',
     arrancou: true, motivo_se_nao: null,
     aceite: true, exit_code: 0, tests_corridos: 10, tests_passados: 10, skips: 0, test_file_sha_antes: 'tf', test_file_sha_depois: 'tf',
-    usage: SONDA.usage, modelUsage: SONDA.modelUsage, total_cost_usd: SONDA.total_cost_usd, duration_ms: SONDA.duration_ms, session_id: `sess-${n}`,
+    usage: SONDA.usage, modelUsage: SONDA.modelUsage, total_cost_usd: SONDA.total_cost_usd, duration_ms: SONDA.duration_ms + n, session_id: `sess-${n}`,   // duration varia por linha (32: envelope clonado)
     tokens_locais: null, texto_local_sha256: null,
     estado_vivo_sha: 'ev-1', tecto_do_orcamento: 'null=sem tecto', sentinela_presente: true,
     worktree_listagem_sha_antes: 'wl', worktree_listagem_sha_depois: 'wl',
@@ -109,6 +111,17 @@ function ordenar(ev, prereg = PREREG) {
   return ev;
 }
 const analisarReal = (ev) => analisar(PREREG, ordenar(ev));
+
+/** Um par completo para um SUPLENTE do PREREG REAL, com a meta pinada (32): tier do classify congelado, historico do manifesto. */
+function parSuplente(id, { aceiteB = true } = {}) {
+  const m = SUPLENTES_ESPERADOS[id];
+  const h = m.tests_total_historico;
+  const prova = (aceite) => (aceite ? { tests_corridos: h, tests_passados: h, exit_code: 0 } : { tests_corridos: h, tests_passados: h - 1, exit_code: 1 });
+  const ev = [preVoo(id), tentativa(id, 'A', { tier_classificado: m.tier_classificado, ...prova(true) })];
+  if (m.tier_classificado === 'T0' || m.tier_classificado === 'T1') ev.push(passoLocal(id, { tier_classificado: m.tier_classificado, tests_corridos: h, tests_passados: h - 1 }), escalacao(id, { tier_classificado: m.tier_classificado, aceite: aceiteB, ...prova(aceiteB) }));
+  else ev.push(tentativa(id, 'B', { tier_classificado: m.tier_classificado, aceite: aceiteB, ...prova(aceiteB) }));
+  return ev;
+}
 
 const OPUS_TOTAL = 2 + 4 + 58964 + 0;   // input + output + cache_creation + cache_read, da sonda
 const USD_SONDA = SONDA.modelUsage['claude-opus-5'].costUSD;   // 0.58975
@@ -281,6 +294,8 @@ test('analise · caso limpo: 3 pares fechados e validos — tudo afirmado, nada 
     passoLocal('t3'),
     escalacao('t3'),
   ];
+  const dB = (i) => ev[i].duration_ms;   // as duracoes das linhas de B (variam por linha)
+
   const r = correr(p, ev, { agora: '2026-09-11T00:00:00Z' });
   assert.equal(r.corrida_fechou_os_pares, true);
   assert.equal(r.corrida_valida, true);
@@ -327,11 +342,11 @@ test('analise · caso limpo: 3 pares fechados e validos — tudo afirmado, nada 
   assert.deepEqual(r.valorizacao.precos_de_lista.cache_multiplicadores, PRECOS.cache_multiplicadores);
   assert.equal(r.valorizacao.ROTULO_OBRIGATORIO, PRECOS.rotulo_obrigatorio_em_qualquer_visualizacao);
   // velocidade: duration por tentativa e tempo-ate-verde
-  assert.equal(r.velocidade.B.tempo_total_ms, 3 * SONDA.duration_ms + 3000);
+  assert.equal(r.velocidade.B.tempo_total_ms, dB(1) + dB(3) + 3000 + dB(6));
   const v3 = r.velocidade.por_tarefa[2];
-  assert.deepEqual(v3.B_duracoes_ms, [3000, SONDA.duration_ms]);
-  assert.equal(v3.B_ate_verde_ms, 3000 + SONDA.duration_ms, 'ate verde inclui o passo local que falhou');
-  assert.equal(v3.A_ate_verde_ms, SONDA.duration_ms);
+  assert.deepEqual(v3.B_duracoes_ms, [3000, dB(6)]);
+  assert.equal(v3.B_ate_verde_ms, 3000 + dB(6), 'ate verde inclui o passo local que falhou');
+  assert.equal(v3.A_ate_verde_ms, ev[4].duration_ms);
   assert.equal(r.velocidade.por_tarefa[1].B_ate_verde_ms, null, 't2 B nunca ficou verde');
   // por tarefa
   assert.deepEqual(r.por_tarefa[2].B.modelo_local, ['qwen2.5:3b@sha256:abc']);
@@ -535,7 +550,7 @@ test('analise · 3.o NO-SHIP (protocolo de tentativas): A com 2, B com 3, B em T
   assert.equal(r.primaria.n_pares_validos, 0);
   const motivos = r.fiabilidade.pares_invalidos.map((x) => x.motivo);
   assert.match(motivos[0], /A com 2 tentativas/);
-  assert.match(motivos[1], /B em T3 com 2 tentativas/);
+  assert.match(motivos[1], /B com 2 tentativas claude-p/);
   assert.match(motivos[2], /B em T0 sem passo local/);
   assert.match(motivos[3], /B em T3 com 2 tentativas e 1 passo/);
   assert.equal(r.marcas.filter((m) => m.tipo === 'tentativas_fora_do_protocolo').length, 4);
@@ -967,7 +982,8 @@ test('analise · tentativa_fim duplicada: replica byte-identica fica uma e marca
 
 test('analise · tentativas fora de ordem no ledger sao ordenadas por `tentativa` (MUT-1 do 2.o revisor)', () => {
   const p = preregDe(['t1'], { t1: 'T0' });
-  const ev = [tentativa('t1', 'A', { tier_classificado: 'T0' }), escalacao('t1', { duration_ms: 4000 }), passoLocal('t1', { duration_ms: 3000 })];
+  // a ORDEM NO LEDGER e outra (escalacao escrita antes do local), mas os ts dizem a verdade: local primeiro, escalacao depois (32)
+  const ev = [tentativa('t1', 'A', { tier_classificado: 'T0', ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05Z' }), escalacao('t1', { duration_ms: 4000, ts_inicio: '2026-09-11T00:10:00Z', ts_fim: '2026-09-11T00:10:04Z' }), passoLocal('t1', { duration_ms: 3000, ts_inicio: '2026-09-11T00:05:00Z', ts_fim: '2026-09-11T00:05:03Z' })];
   const r = correr(p, ev);
   const v = r.velocidade.por_tarefa[0];
   assert.deepEqual(v.B_duracoes_ms, [3000, 4000]);
@@ -1617,6 +1633,10 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R12c2: (() => { const a = tentativa('t1', 'A'); delete a.ts_inicio; return [tentativa('t1', 'B'), a, ...parOk('t2', 'T0')]; })(),
     R12b1: [tentativa('t1', 'A'), tentativa('t1', 'B', { ts_inicio: '2026-09-11T08:00:00Z', ts_fim: '2026-09-11T07:59:00Z' }), ...parOk('t2', 'T0')],
     R12g1: [...parOk('t1', 'T3', { usage: { ...SONDA.usage, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } } }), ...parOk('t2', 'T0')],
+    // 13.o revisor (32)
+    R13s1: [tentativa('t1', 'A'), tentativa('t1', 'B', { aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B', { tentativa: 2, e_escalacao: true }), ...parOk('t2', 'T0')],
+    R13s3: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0', ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05Z' }), passoLocal('t2', { ts_inicio: '2026-09-11T00:10:00Z', ts_fim: '2026-09-11T00:10:30Z' }), escalacao('t2', { ts_inicio: '2026-09-11T00:10:10Z', ts_fim: '2026-09-11T00:10:20Z' })],
+    R13a08: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { e_escalacao: false })],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
   // 'veredicto' = sem veredicto; 'par' = esse par invalido (o par limpo ao lado DA veredicto, e isso e legitimo);
@@ -1631,6 +1651,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R10x1: { corrida: false }, R10x3: { corrida: false }, R10e4: { corrida: false }, R10e6: { corrida: false }, R10y1: { corrida: false }, R10s1b: { corrida: false }, R10v1: { corrida: false }, R10res: { corrida: false },
     R11k1b: { corrida: false }, R11k4b: { corrida: false }, R11k4: { corrida: false }, R11b4b: { veredicto: null }, R11e1: { corrida: false }, R11j1: { corrida: false }, R11k8: { corrida: false }, R11k3: { corrida: false },
     R12a1: { corrida: false }, R12a3: { corrida: false }, R12l1: { corrida: false }, R12c2: { corrida: false }, R12b1: { corrida: false }, R12g1: { valorizacao: null },
+    R13s1: { corrida: false }, R13s3: { corrida: false }, R13a08: { corrida: false },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1921,7 +1942,7 @@ test('analise · 10.o NO-SHIP (X1/X3/X2, 29): tarefa_excluida com pre-voo falhad
   const falhaB = (i) => i % 4 !== 0;
   const idsFalha = T.filter((t, i) => !falhaB(i)).map((t) => t.task_id);   // as 5 em que B falharia
   const S = PREREG.corpus.suplentes;
-  const sup = (s) => [preVoo(s), tentativa(s, 'A', { tier_classificado: 'T3' }), tentativa(s, 'B', { tier_classificado: 'T3' })];
+  const sup = (s) => parSuplente(s);
   // X1: as 5 excluidas COM pre_voo falhado, substituidas por s1..s5 onde B aceita -> antes: «cumprido · A 20 B 20 · marcas 5»
   const x1 = analisarReal(T.flatMap((t, i) => (falhaB(i) ? parReal(t) : [preVoo(t.task_id), { evento: 'tarefa_excluida', task_id: t.task_id, motivo: 'worktree nao reconstruiu', suplente_usado: S[idsFalha.indexOf(t.task_id)] }, ...sup(S[idsFalha.indexOf(t.task_id)])])));
   assert.equal(x1.corrida_valida, false, 'X1: o pre-voo correu no worktree e falhou — nenhuma das duas saidas do prereg se aplica');
@@ -2197,7 +2218,7 @@ test('analise · 12.o NO-SHIP (L1/c2/s1, 31): passo local com aceite null tirava
   // so ts iguais, sem mais nada: A spawn puro em [t,t] (nao chegou, curto) e B a comecar em t — nem intercalados (tocam-se) nem tempo incoerente (nao chegou); invalida na mesma
   const p2 = preregDe(['t1', 't2']);
   const soIguais = correr(p2, [naoArrancou('t1', 'A', { ts_inicio: '2026-09-11T08:00:00.000Z', ts_fim: '2026-09-11T08:00:00.000Z', duration_ms: 50 }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T08:00:00.000Z', ts_fim: '2026-09-11T08:00:05.000Z' }), tentativa('t2', 'A'), tentativa('t2', 'B')]);
-  assert.deepEqual(soIguais.marcas.map((m) => m.tipo).sort(), ['tempo_incoerente', 'tentativa_nao_arrancou', 'ts_iguais_entre_bracos'], 'o tempo_incoerente (ts iguais com duration 50) e so marca porque a linha nao chegou');
+  assert.deepEqual(soIguais.marcas.map((m) => m.tipo).sort(), ['ordem_das_tarefas_divergente', 'tempo_incoerente', 'tentativa_nao_arrancou', 'ts_iguais_entre_bracos'], 'o tempo_incoerente (ts iguais com duration 50) e so marca porque a linha nao chegou; t1 com ts explicitos de 09-11 comeca depois de t2 (09-10) — a ordem das tarefas marca (32)');
   assert.ok(!soIguais.corrida_invalida_por.some((x) => /tempo incoerente/.test(x.motivo)));
   assert.equal(soIguais.corrida_valida, false, 'M277: numa tarefa do corpus a ordem nao e verificavel');
   assert.ok(soIguais.corrida_invalida_por.some((x) => /mesmo instante em A e B numa tarefa do corpus/.test(x.motivo)));
@@ -2230,6 +2251,143 @@ test('analise · 12.o (e3/j1/N07/N10/N14, 31): transcript abaixo do piso e desco
   // f1: usage muito acima do modelUsage e reconciliacao falhada nos dois sentidos
   assert.equal(reconciliar(tentativa('x', 'A', { usage: { ...SONDA.usage, input_tokens: 5000000 } })).ok, false);
   assert.equal(reconciliar(tentativa('x', 'A')).ok, true);
+});
+
+// ── 13.o revisor: o protocolo de B independente do tier, os suplentes pinados, o que so marca (interpretacao 32) ──
+
+test('analise · 13.o NO-SHIP (S1/S1d, 32): com tier null (suplente sem tier, ou tier inconsistente) B com 2 tentativas claude-p passava — o protocolo de B nao depende do tier', () => {
+  const T = PREREG.corpus.tarefas;
+  const S = PREREG.corpus.suplentes;
+  const falhaB = (i) => i % 4 !== 0;
+  const idsF = T.filter((t, i) => !falhaB(i)).map((t) => t.task_id);
+  const t3sF = T.filter((t, i) => !falhaB(i) && t.tier_classificado === 'T3').slice(0, 3).map((t) => t.task_id);
+  const sups = S.slice(0, 3);
+  // S1: 3 T3 onde B falharia excluidas antes do pre-voo (X2), 3 suplentes com tier null em TODAS as linhas, B = 2 claude-p (t1 falha, t2 e_escalacao aceite)
+  const s1 = analisarReal(T.flatMap((t, i) => (t3sF.includes(t.task_id)
+    ? (() => { const s = sups[t3sF.indexOf(t.task_id)]; const h = SUPLENTES_ESPERADOS[s].tests_total_historico; return [{ evento: 'tarefa_excluida', task_id: t.task_id, motivo: 'worktree', suplente_usado: s }, preVoo(s), tentativa(s, 'A', { tier_classificado: null, tests_corridos: h, tests_passados: h }), tentativa(s, 'B', { tier_classificado: null, aceite: false, exit_code: 1, tests_corridos: h, tests_passados: h - 1 }), tentativa(s, 'B', { tentativa: 2, e_escalacao: true, tier_classificado: null, tests_corridos: h, tests_passados: h })]; })()
+    : parReal(t, { aceiteB: falhaB(i) }))));
+  assert.equal(s1.corrida_valida, false, 'S1: antes «cumprido · n=20 · A=20 · B=18 · valida»');
+  assert.equal(s1.primaria.limiar_descritivo_cumprido, null);
+  assert.ok(s1.marcas.some((m) => m.tipo === 'tentativas_fora_do_protocolo' && /2 tentativas claude-p/.test(m.motivo)));
+  // com a meta pinada, o tier null nas linhas e campo_em_falta e o protocolo aplica-se na mesma (T3: 1 tentativa, sem local)
+  assert.ok(s1.marcas.some((m) => m.tipo === 'campo_em_falta' && /tier_classificado/.test(m.motivo)));
+  // S1d: tier inconsistente (local T0, escalacao T3) num suplente -> invalida
+  const p2 = preregDe(['t1', 't2'], {}, ['s1', 's2', 's3']);
+  const s1d = analisar(p2, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'tarefa_excluida', task_id: 't2', motivo: 'worktree', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A', { tier_classificado: 'T0' }), passoLocal('s1', { tier_classificado: 'T0' }), escalacao('s1', { tier_classificado: 'T3' })]);
+  assert.equal(s1d.corrida_valida, false);
+  assert.ok(s1d.corrida_invalida_por.some((x) => /tier inconsistente/.test(x.motivo)));
+  // e um suplente FORA da tabela pinada (s1 do preregDe) sem tier em nenhuma linha: invalida (o protocolo de B nao e verificavel)
+  const sNull = analisar(p2, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), { evento: 'tarefa_excluida', task_id: 't2', motivo: 'worktree', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A', { tier_classificado: null }), tentativa('s1', 'B', { tier_classificado: null })]);
+  assert.equal(sNull.corrida_valida, false);
+  assert.ok(sNull.corrida_invalida_por.some((x) => /sem tier_classificado em nenhuma linha/.test(x.motivo)));
+  // independente do tier, no corpus: T3 com 2 claude-p em B (t2 e_escalacao sem local) -> fora do protocolo
+  const p3 = preregDe(['t1']);
+  const r3 = correr(p3, [tentativa('t1', 'A'), tentativa('t1', 'B', { aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B', { tentativa: 2, e_escalacao: true })]);
+  assert.ok(r3.marcas.some((m) => m.tipo === 'tentativas_fora_do_protocolo' && /2 tentativas claude-p/.test(m.motivo)));
+  assert.equal(r3.corrida_valida, false);
+});
+
+test('analise · 13.o (S1e/S1g, 32): os 5 suplentes estao pinados — tier do classify congelado e historico do manifesto; escrito com outro tier ou aceite com 1 teste invalida', () => {
+  assert.deepEqual(Object.keys(SUPLENTES_ESPERADOS).sort(), [...PREREG.corpus.suplentes].sort(), 'os 5 ids do prereg');
+  assert.deepEqual(SUPLENTES_ESPERADOS['t13-ddb0cf50e1'], { tier_classificado: 'T0', tests_total_historico: 15 });
+  // a tabela bate com o manifesto do R-24 (historico) — a fonte esta no repo
+  const manifesto = JSON.parse(fs.readFileSync(path.join(HERE, 'r24-manifest.json'), 'utf8'));
+  const tarefas = Object.values(manifesto).find(Array.isArray);
+  for (const [id, m] of Object.entries(SUPLENTES_ESPERADOS)) assert.equal(tarefas.find((x) => x.task_id === id).proof.passes_at_child.tests_total, m.tests_total_historico, id);
+  for (const t of PREREG.corpus.tarefas) assert.equal(tarefas.find((x) => x.task_id === t.task_id).proof.passes_at_child.tests_total, t.tests_total_historico, `corpus ${t.task_id}`);
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const t3sF = T.filter((t, i) => !falhaB(i) && t.tier_classificado === 'T3').slice(0, 3).map((t) => t.task_id);
+  const sups = ['t02-7bb45751d8', 't09-07bdf37783', 't16-057bfc121a'];   // os 3 T3 pinados
+  // S1e: suplente T3 escrito como T0 com local + escalacao -> tier_divergente, INVALIDA (antes: cumprido · marcas 3)
+  const s1e = analisarReal(T.flatMap((t, i) => (t3sF.includes(t.task_id)
+    ? (() => { const s = sups[t3sF.indexOf(t.task_id)]; const h = SUPLENTES_ESPERADOS[s].tests_total_historico; return [{ evento: 'tarefa_excluida', task_id: t.task_id, motivo: 'worktree', suplente_usado: s }, preVoo(s), tentativa(s, 'A', { tier_classificado: 'T0', tests_corridos: h, tests_passados: h }), passoLocal(s, { tests_corridos: h, tests_passados: h - 1 }), escalacao(s, { tests_corridos: h, tests_passados: h })]; })()
+    : parReal(t, { aceiteB: falhaB(i) }))));
+  assert.equal(s1e.corrida_valida, false);
+  assert.equal(t3sF.length, 2, 'ha 2 T3 entre as 5 falhas de B (t06, t23)');
+  assert.equal(s1e.marcas.filter((m) => m.tipo === 'tier_divergente').length, t3sF.length);
+  // S1g: suplente T3 correcto, B aceite com tests_corridos 1 -> aceite_contraditorio (antes: cumprido · marcas 3)
+  const s1g = analisarReal(T.flatMap((t, i) => (t3sF.includes(t.task_id)
+    ? [{ evento: 'tarefa_excluida', task_id: t.task_id, motivo: 'worktree', suplente_usado: sups[t3sF.indexOf(t.task_id)] }, ...parSuplente(sups[t3sF.indexOf(t.task_id)]).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' ? { ...e, tests_corridos: 1, tests_passados: 1 } : e))]
+    : parReal(t, { aceiteB: falhaB(i) }))));
+  assert.equal(s1g.corrida_valida, false);
+  assert.equal(s1g.marcas.filter((m) => m.tipo === 'aceite_contraditorio').length, t3sF.length);
+  // e a forma honesta com os 3 suplentes pinados: valida, «cumprido» sobre 20 com AVISO_SUPLENTES (X2), marcas so tarefa_substituida
+  const ok = analisarReal(T.flatMap((t, i) => (t3sF.includes(t.task_id)
+    ? [{ evento: 'tarefa_excluida', task_id: t.task_id, motivo: 'worktree', suplente_usado: sups[t3sF.indexOf(t.task_id)] }, ...parSuplente(sups[t3sF.indexOf(t.task_id)])]
+    : parReal(t, { aceiteB: falhaB(i) }))));
+  assert.equal(ok.corrida_valida, true, JSON.stringify(ok.corrida_invalida_por));
+  assert.deepEqual([...new Set(ok.marcas.map((m) => m.tipo))], ['tarefa_substituida']);
+  assert.equal(ok.por_tarefa.find((x) => x.task_id === 't02-7bb45751d8').suplente, true);
+  assert.equal(ok.por_tarefa.find((x) => x.task_id === 't02-7bb45751d8').tier, 'T3');
+  // e o t13 (T0 pinado) com local + escalacao e o seu historico
+  const S = PREREG.corpus.suplentes;   // pela ordem da lista: t02, t09, t16, t13 — o t13 (T0) so entra em 4.o
+  const p13 = analisarReal([...parReal(T[0]), ...[1, 2, 3, 4].flatMap((k) => [{ evento: 'tarefa_excluida', task_id: T[k].task_id, motivo: 'worktree', suplente_usado: S[k - 1] }, ...parSuplente(S[k - 1])])]);
+  assert.equal(p13.marcas.filter((m) => m.tipo !== 'tarefa_substituida').length, 0, JSON.stringify(p13.marcas));
+  assert.equal(p13.por_tarefa.find((x) => x.task_id === 't13-ddb0cf50e1').tier, 'T0');
+  assert.equal(p13.por_tarefa.find((x) => x.task_id === 't13-ddb0cf50e1').B.escalou, true);
+});
+
+test('analise · 13.o (S3/S2/S4/S9, 32): escalacao antes de o local acabar invalida; ordem das tarefas marca; envelope clonado entre bracos marca; modelo nao-opus dominante marca', () => {
+  const p = preregDe(['t1', 't2'], { t2: 'T0' });
+  // S3: a escalacao (t2) comeca antes de o passo local (t1) acabar
+  const s3 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0', ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05Z' }), passoLocal('t2', { ts_inicio: '2026-09-11T00:10:00Z', ts_fim: '2026-09-11T00:10:30Z' }), escalacao('t2', { ts_inicio: '2026-09-11T00:10:10Z', ts_fim: '2026-09-11T00:10:20Z' })]);
+  assert.equal(s3.corrida_valida, false);
+  assert.ok(s3.marcas.some((m) => m.tipo === 'tentativas_fora_do_protocolo' && /escalacao a comecar/.test(m.motivo)));
+  // fronteira: a escalacao a comecar EXACTAMENTE quando o local acaba e sequencial
+  const s3b = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0', ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:00:05Z' }), passoLocal('t2', { ts_inicio: '2026-09-11T00:10:00Z', ts_fim: '2026-09-11T00:10:30Z' }), escalacao('t2', { ts_inicio: '2026-09-11T00:10:30Z', ts_fim: '2026-09-11T00:10:40Z' })]);
+  assert.equal(s3b.marcas.filter((m) => m.tipo === 'tentativas_fora_do_protocolo').length, 0);
+  assert.equal(s3b.corrida_valida, true);
+  // S2: t2 (ordem 2) a comecar antes de t1 (ordem 1) — so marca
+  const s2 = correr(preregDe(['t1', 't2']), [tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.ok(s2.marcas.some((m) => m.tipo === 'ordem_das_tarefas_divergente' && m.task_id === 't2'));
+  assert.equal(s2.corrida_valida, true);
+  // S4: B com o envelope de A (usage, modelUsage e duration_ms iguais ao ms) e session_id novo — marca; a bancada honesta varia o duration_ms por linha
+  const a = tentativa('t1', 'A');
+  const s4 = correr(preregDe(['t1', 't2']), [a, tentativa('t1', 'B', { duration_ms: a.duration_ms }), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(s4.marcas.filter((m) => m.tipo === 'envelope_clonado_entre_bracos').length, 1);
+  assert.equal(s4.corrida_valida, true, 'so marca — a fabricacao coerente so o worktree a refuta (17)');
+  assert.equal(correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B')]).marcas.length, 0, 'sem clone, sem marca');
+  // S9: modelUsage com Opus 2 tokens e Sonnet 25000 -> marca
+  const s9 = correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { inputTokens: 1, outputTokens: 1, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.001 }, 'claude-sonnet-4-5': { inputTokens: 25000, outputTokens: 100, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.1 } }, usage: { ...SONDA.usage, input_tokens: 25001, output_tokens: 101 } })]);
+  assert.ok(s9.marcas.some((m) => m.tipo === 'modelo_nao_opus_dominante' && m.braco === 'B'));
+});
+
+test('analise · 13.o (R13-A01/A02/A05/A08): fronteiras — tsCanonico com 4+ digitos de ms ou sem segundos; a folga da reconciliacao; e_escalacao:false na tentativa 2', () => {
+  assert.ok(!tsCanonico('2026-09-11T08:00:00.1234Z'), 'A01: 4 digitos de ms nao e toISOString()');
+  assert.ok(!tsCanonico('2026-09-11T08:00Z'), 'A02: sem segundos');
+  assert.ok(tsCanonico('2026-09-11T08:00:00.123Z'));
+  // A05: a folga e 1% + 10
+  assert.equal(reconciliar(tentativa('x', 'A', { usage: { ...SONDA.usage, output_tokens: 14 } })).ok, true, '4 + 10 = 14 dentro');
+  assert.equal(reconciliar(tentativa('x', 'A', { usage: { ...SONDA.usage, output_tokens: 16 } })).ok, false, '16 > 4*1.01 + 10 fora');
+  // A08: e_escalacao:false na tentativa 2 invalida
+  const p = preregDe(['t1'], { t1: 'T0' });
+  const r = correr(p, [tentativa('t1', 'A', { tier_classificado: 'T0' }), passoLocal('t1'), escalacao('t1', { e_escalacao: false })]);
+  assert.equal(r.corrida_valida, false);
+  assert.ok(r.corrida_invalida_por.some((x) => /e_escalacao incoerente/.test(x.motivo)));
+});
+
+test('analise · 13.o (e4/e5/e6): o main — exit 2 sem ledger, --out sem valor e erro, linhas invalidas no resumo, --out escreve o resultado', () => {
+  const cli = path.join(HERE, 'custo-analise.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'custo-cli-'));
+  const semLedger = spawnSync(process.execPath, [cli, '--ledger', path.join(dir, 'nao-existe.jsonl'), '--out', path.join(dir, 'o.json')], { encoding: 'utf8' });
+  assert.equal(semLedger.status, 2);
+  assert.match(semLedger.stderr, /falta o ledger/);
+  assert.ok(!fs.existsSync(path.join(dir, 'o.json')), 'sem ledger nao ha resultado');
+  const ledger = path.join(dir, 'l.jsonl');
+  fs.writeFileSync(ledger, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B')].map((e) => JSON.stringify(e)).join('\n') + '\n{lixo\nnull\n');
+  const semValor = spawnSync(process.execPath, [cli, '--ledger', ledger, '--out'], { encoding: 'utf8' });
+  assert.equal(semValor.status, 2, 'e6: --out sem valor nunca cai no default em silencio');
+  assert.match(semValor.stderr, /--out sem valor/);
+  const out = path.join(dir, 'r.json');
+  const ok = spawnSync(process.execPath, [cli, '--ledger', ledger, '--out', out], { encoding: 'utf8' });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /linhas de ledger invalidas 2/, 'e4: as linhas invalidas aparecem no resumo');
+  const r = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.equal(r.linhas_de_ledger_invalidas.length, 2);
+  assert.equal(r.prereg_sha256, PREREG_SHA256_ESPERADO);
+  assert.equal(r.corrida_fechou_os_pares, false, 't1 e uma das 20 do prereg real? nao — e orfa; o prefixo e 0/20');
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {

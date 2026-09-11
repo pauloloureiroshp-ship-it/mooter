@@ -87,7 +87,9 @@
  *     INVÁLIDO. As marcas de pré-voo são emitidas SEMPRE. Tarefa excluída
  *     cujo pré-voo FALHOU (era executável) marca `exclusao_com_pre_voo_falhado`
  *     — a única razão que resta é o worktree, que este ficheiro não verifica.
- *  8. Suplentes: cadeia transitiva com guarda de ciclo. Tier de suplente vem
+ *  8. Suplentes: cadeia transitiva com guarda de ciclo. Os 5 do pré-registo
+ *     têm meta PINADA (`SUPLENTES_ESPERADOS`, 32); um suplente fora da
+ *     tabela: tier
  *     do `tier_classificado` das suas tentativas, se unânime (senão
  *     `tier_inconsistente`; sem nenhum, `tier_desconhecido`; estrato `n/d`).
  *     Ordem dos braços por `ts_inicio`. `tier_classificado` no ledger
@@ -361,6 +363,35 @@
  *     abaixo é desconhecido, não consumo. `reconciliar` falha nos dois
  *     sentidos (`usage` > 1 % + 10 acima do `modelUsage` é consumo que o
  *     `modelUsage` não explica).
+ * 32. O PROTOCOLO DE B NÃO DEPENDE DO TIER (o 13.º revisor: com `tier`
+ *     null — suplente sem tier, ou `tier_inconsistente` — todos os ramos do
+ *     protocolo de B ficavam desligados e B com DUAS tentativas claude-p
+ *     passava: «cumprido · A 20 B 18 · válida» onde o honesto dá «NÃO»).
+ *     Regras independentes do tier: B nunca tem mais de 1 claude-p; a
+ *     tentativa 2 só existe depois de um passo local na 1; a escalação
+ *     começa DEPOIS de o passo local acabar (S3). `tier_inconsistente` numa
+ *     tarefa que correu invalida (o classify é determinístico); uma tarefa
+ *     sem tier em nenhuma linha e sem meta invalida (o protocolo não é
+ *     verificável). Os 5 SUPLENTES estão pinados em `SUPLENTES_ESPERADOS`
+ *     — tier do `classify.js` congelado sobre o prompt do
+ *     `r24-manifest.json` (sem `ANTHROPIC_API_KEY`, como as 20 do corpus,
+ *     que batem 20/20) e histórico = `proof.passes_at_child.tests_total`
+ *     (o teste afirma-o contra o manifesto): `tier_divergente` e a condição
+ *     3 aplicam-se aos suplentes como ao corpus (S1e/S1g fechados; a
+ *     lacuna da 17 deixa de existir). Marcas baratas, só marca:
+ *     `ordem_das_tarefas_divergente` (S2: a coluna `ordem` do pré-registo —
+ *     não é alavanca da primária), `envelope_clonado_entre_bracos` (S4:
+ *     `usage` + `modelUsage` + `duration_ms` byte-iguais entre linhas
+ *     claude-p de A e B da mesma tarefa — duas invocações reais não
+ *     coincidem ao ms; só o worktree o refuta), `modelo_nao_opus_dominante`
+ *     (S9: mais tokens fora de `claude-opus*` do que de Opus — o trabalho
+ *     correu noutro modelo). CLI: um flag sem valor é erro (exit 2), nunca o
+ *     default em silêncio; o resumo imprime as linhas de ledger inválidas e
+ *     os eventos desconhecidos. AMBIENTE (declarado, não é da análise): as
+ *     7 «T0» do corpus e o t13 são T1 rebaixadas a T0 por
+ *     `haiku_unavailable_no_provider_degraded_to_local` — o controlador
+ *     corre SEM `ANTHROPIC_API_KEY` (R7), senão o tier muda e a corrida é
+ *     INVÁLIDA por `tier_divergente`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -484,6 +515,19 @@ export const evidenciaDeArranque = (t) => pecasDeEvidencia(t).length > 0;
 export const CURTO_S = 30;
 /** sha256 do `custo-prereg.json` congelado (main via #495). A analise so e a pre-registada se ler ESTE ficheiro (30). */
 export const PREREG_SHA256_ESPERADO = '079131b4712049225205a0f25edae2cff619e87e5767b86743fd0c6455b2a906';
+/**
+ * Os 5 suplentes do pre-registo, com o tier do `classify.js` congelado sobre o prompt do `r24-manifest.json`
+ * (sha d79957ccbfa51ced…, sem ANTHROPIC_API_KEY no ambiente — como as 20 do corpus, que batem 20/20) e o
+ * `tests_total_historico` = `proof.passes_at_child.tests_total` do mesmo manifesto (32). O prereg so traz os ids;
+ * sem isto um suplente escrito com outro tier, ou aceite com 1 teste, passava («cumprido · valida»).
+ */
+export const SUPLENTES_ESPERADOS = {
+  't02-7bb45751d8': { tier_classificado: 'T3', tests_total_historico: 9 },
+  't09-07bdf37783': { tier_classificado: 'T3', tests_total_historico: 16 },
+  't16-057bfc121a': { tier_classificado: 'T3', tests_total_historico: 22 },
+  't13-ddb0cf50e1': { tier_classificado: 'T0', tests_total_historico: 15 },
+  't08-1f5a793294': { tier_classificado: 'T3', tests_total_historico: 24 },
+};
 /** Os 6 eventos que o pre-registo define. Qualquer outro e contado, nunca engolido (30). */
 export const EVENTOS_DO_PREREG = ['pre_voo', 'tentativa_inicio', 'tentativa_fim', 'par_invalido', 'tarefa_excluida', 'paragem'];
 /** `spawn:*` sem timeout — a única grafia de não-arrancou que o pré-registo define. */
@@ -810,7 +854,10 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
 
   const porTarefa = [];
   for (const id of idsEmJogo) {
-    const meta = tarefasPrereg.find((t) => t.task_id === id) || null;
+    const metaCorpus = tarefasPrereg.find((t) => t.task_id === id) || null;
+    // 32: um suplente tem meta pinada (tier do classify congelado + historico do manifesto); `suplente` continua true para a contabilidade
+    const metaSuplente = !metaCorpus && suplentesPrereg.includes(id) && SUPLENTES_ESPERADOS[id] ? { task_id: id, ...SUPLENTES_ESPERADOS[id], ordem_dos_bracos: null } : null;
+    const meta = metaCorpus || metaSuplente;
     const historico = meta && Number.isFinite(meta.tests_total_historico) ? meta.tests_total_historico : null;
     const ts = tentativas.filter((t) => t.task_id === id && (t.braco === 'A' || t.braco === 'B'));
     // tier: do prereg; para suplentes, do ledger se unanime (interpretacao 8)
@@ -822,9 +869,10 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     }
     if (!meta && ts.length > 0) {
       if (tiersLedger.length === 1) tier = tiersLedger[0];
-      else if (tiersLedger.length > 1) marca({ task_id: id, tipo: 'tier_inconsistente', motivo: `tiers no ledger: ${tiersLedger.join(', ')}` });
-      else marca({ task_id: id, tipo: 'tier_desconhecido', motivo: 'suplente sem tier_classificado em nenhuma tentativa' });
+      else if (tiersLedger.length > 1) { marca({ task_id: id, tipo: 'tier_inconsistente', motivo: `tiers no ledger: ${tiersLedger.join(', ')}` }); invalida('tier inconsistente entre as linhas da mesma tarefa — o classify.js e deterministico, duas respostas e um controlador partido (interpretacoes 8, 32)', `${id}: ${tiersLedger.join(', ')}`); }
+      else { marca({ task_id: id, tipo: 'tier_desconhecido', motivo: 'suplente sem tier_classificado em nenhuma tentativa' }); invalida('tarefa sem tier_classificado em nenhuma linha e sem meta pinada — o protocolo de B nao e verificavel (interpretacao 32)', id); }
     }
+    if (metaCorpus && ts.length > 0 && tiersLedger.length > 1) { marca({ task_id: id, tipo: 'tier_inconsistente', motivo: `tiers no ledger: ${tiersLedger.join(', ')}` }); }
     let ordemDosBracos = meta ? meta.ordem_dos_bracos : null;
     let ordemObservada = null;
     let bracosIntercalados = false;
@@ -844,7 +892,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       if (iA && iB && [...iA, ...iB].every(Number.isFinite) && !(iA[1] <= iB[0] || iB[1] <= iA[0])) { bracosIntercalados = true; marca({ task_id: id, tipo: 'bracos_intercalados', motivo: `A [${new Date(iA[0]).toISOString()}, ${new Date(iA[1]).toISOString()}] e B [${new Date(iB[0]).toISOString()}, ${new Date(iB[1]).toISOString()}] sobrepoem-se — os bracos correm um inteiro antes do outro (30)` }); invalida('bracos intercalados na mesma tarefa — o intervalo de um braco sobrepoe-se ao do outro (interpretacao 30)', id); }
     }
     let ordemDivergente = false;
-    if (!meta) ordemDosBracos = ordemObservada;
+    if (!metaCorpus) ordemDosBracos = ordemObservada;
     else if (ordemObservada && meta.ordem_dos_bracos && ordemObservada !== meta.ordem_dos_bracos) { ordemDivergente = true; marca({ task_id: id, tipo: 'ordem_divergente', motivo: `prereg ${meta.ordem_dos_bracos}, observado ${ordemObservada} (interpretacao 24)` }); invalida('ordem dos bracos divergente do pre-registo — o contrabalanco e protocolo (CUSTO-12; interpretacoes 24, 27c)', `${id}: prereg ${meta.ordem_dos_bracos}, observado ${ordemObservada}`); }
     // test_file_sha_antes unanime na tarefa: os dois bracos (e todas as tentativas) viram o mesmo ficheiro congelado (29)
     const shasAntes = [...new Set(ts.map((x) => x.test_file_sha_antes).filter((x) => typeof x === 'string'))];
@@ -870,6 +918,12 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           invalida('tentativa claude-p sem Opus no modelUsage — executor mal configurado (interpretacao 20)', ref(t));
         }
         if (prob.campos.length > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: prob.campos.join(', ') });
+        if (!ehLocal(t) && t.modelUsage && typeof t.modelUsage === 'object') {
+          const tok = (v) => ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((s, c) => s + (Number.isFinite(v && v[c]) ? v[c] : 0), 0);
+          const opus = Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + tok(v), 0);
+          const outros = Object.entries(t.modelUsage).filter(([k]) => !ehOpus(k)).reduce((s, [, v]) => s + tok(v), 0);
+          if (outros > opus && opus > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_nao_opus_dominante', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus — o trabalho correu noutro modelo; tokens_opus subestima o consumo (S9 do 13.o)` });
+        }
         if (!ehLocal(t) && t.modelUsage && typeof t.modelUsage === 'object') for (const [k, v] of Object.entries(t.modelUsage)) if (k.startsWith('claude-opus') && v && v.costUSD === 0 && ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].some((c) => Number.isFinite(v[c]) && v[c] > 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_zero_com_tokens', motivo: `${k} com costUSD 0 e tokens > 0 — o custo_cli_opus_usd fica subestimado (29)` });
         if (ehLocal(t) && typeof t.worktree_listagem_sha_antes === 'string' && typeof t.worktree_listagem_sha_depois === 'string' && t.worktree_listagem_sha_antes !== t.worktree_listagem_sha_depois) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'rasto_do_passo_local', motivo: `listagem do worktree mudou no passo local (${t.worktree_listagem_sha_antes} -> ${t.worktree_listagem_sha_depois}) — a escalacao nao parte do mesmo estado que A (CUSTO-02; so reportado)` });
         if (!ehLocal(t) && toks[i] === null && t.modelUsage && typeof t.modelUsage === 'object' && !prob.sem_opus && prob.campos.length === 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tokens_zero_com_arrancou', motivo: 'modelUsage Opus com todos os tokens a zero numa claude-p que chegou ao CLI — impossivel; consumo desconhecido (interpretacao 20)' });
@@ -950,7 +1004,11 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       if (xs.length > 0 && !xs.some((t) => (t.tentativa ?? 1) === 1)) foraDoProtocolo = `${b} com tentativa 2 sem tentativa 1`;
       if (b === 'B' && !foraDoProtocolo) {
         const locais = xs.filter(ehLocal).length;
+        const clis = xs.length - locais;
         if (xs.length > 2) foraDoProtocolo = `B com ${xs.length} tentativas (prereg: <= 2)`;
+        else if (clis > 1) foraDoProtocolo = `B com ${clis} tentativas claude-p (prereg: no maximo 1, e so depois de um passo local) — independente do tier`;   // 32: S1 do 13.o
+        else if (xs.length === 2 && !ehLocal(xs[0])) foraDoProtocolo = 'B com tentativa 2 sem passo local na tentativa 1 — a escalacao so existe depois do local';
+        else if (xs.length === 2 && ehLocal(xs[0]) && !ehLocal(xs[1]) && tsCanonico(xs[0].ts_fim) && tsCanonico(xs[1].ts_inicio) && Date.parse(xs[1].ts_inicio) < Date.parse(xs[0].ts_fim)) foraDoProtocolo = `escalacao a comecar (${xs[1].ts_inicio}) antes de o passo local acabar (${xs[0].ts_fim}) — no mesmo worktree, depois do local (S3 do 13.o)`;
         else if (ehTierLocal(tier) && !ehLocal(xs[0])) foraDoProtocolo = `B em ${tier} sem passo local na 1.a tentativa`;
         else if (ehTierLocal(tier) && xs.length === 1 && xs[0].aceite !== true) foraDoProtocolo = `B em ${tier} com passo local nao aceite e sem escalacao (escalacao_em_falta)`;
         else if (tier != null && !ehTierLocal(tier) && (xs.length > 1 || locais > 0)) foraDoProtocolo = `B em ${tier} com ${xs.length} tentativas e ${locais} passo(s) local(is) (prereg: 1, sem local)`;
@@ -1044,6 +1102,13 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         eventoLegitimo = false;
       } else eventoLegitimo = true;
     }
+    // 32 (S4 do 13.o): o envelope de A copiado para B — usage + modelUsage + duration_ms byte-iguais entre linhas claude-p de bracos diferentes (duas invocacoes reais nao coincidem ao ms)
+    {
+      const env = (x) => JSON.stringify([x.usage ?? null, x.modelUsage ?? null, x.duration_ms ?? null]);
+      const clisA = ts.filter((x) => x.braco === 'A' && !ehLocal(x) && x.modelUsage && typeof x.modelUsage === 'object');
+      const clisB = ts.filter((x) => x.braco === 'B' && !ehLocal(x) && x.modelUsage && typeof x.modelUsage === 'object');
+      for (const xa of clisA) for (const xb of clisB) if (env(xa) === env(xb)) marca({ task_id: id, tipo: 'envelope_clonado_entre_bracos', motivo: `usage, modelUsage e duration_ms byte-iguais em ${ref(xa)} e ${ref(xb)} — duas invocacoes reais nao coincidem ao ms; so o worktree o refuta (17)` });
+    }
     // interpretacao 28: numa corrida sem paragem, um braco sem linha numa tarefa que correu e uma omissao do controlador, nao uma saida (a)
     const bracoSemLinha = temTentativas ? (A.tentativas === 0 ? 'A' : B.tentativas === 0 ? 'B' : null) : null;
     if (bracoSemLinha && !(invalido && invalido.braco === bracoSemLinha) && paragens.length === 0) {   // o braco nomeado sem linha ja e problema do evento
@@ -1089,7 +1154,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     const parFechado = !!invalido || (A.tentativas > 0 && B.tentativas > 0);
     porTarefa.push({
       task_id: id, tier, ordem_dos_bracos: ordemDosBracos, ordem_observada: ordemObservada,
-      suplente: !meta,
+      suplente: !metaCorpus,
       pre_voo_falhou: preVooOk,
       correu, par_valido: parValido, par_fechado: parFechado,
       invalido: !parValido && correu ? { braco_que_nao_arrancou: bracoQueNaoArrancou, motivo: motivoInvalido } : null,
@@ -1101,6 +1166,12 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   const invalidosComConsumo = porTarefa.filter((t) => !t.par_valido && t.correu);
   const naoCorridas = porTarefa.filter((t) => !t.correu);
 
+  // 32 (S2 do 13.o): a ordem das TAREFAS vs a coluna `ordem` do prereg — so marca (nao e alavanca da primaria; a cache do CLI aquece dentro da tarefa, nao entre tarefas)
+  {
+    const inicioDe = (id) => { const xs = tentativas.filter((x) => x.task_id === id && tsCanonico(x.ts_inicio)).map((x) => Date.parse(x.ts_inicio)); return xs.length ? Math.min(...xs) : null; };
+    const seq = tarefasPrereg.map((x) => ({ id: resolverSuplente(x.task_id, substituicoes), ordem: x.ordem })).map((x) => ({ ...x, t: inicioDe(x.id) })).filter((x) => x.t !== null).sort((p, q) => p.ordem - q.ordem);
+    for (let i = 1; i < seq.length; i++) if (seq[i].t < seq[i - 1].t) marca({ task_id: seq[i].id, tipo: 'ordem_das_tarefas_divergente', motivo: `ordem ${seq[i].ordem} comecou antes da ordem ${seq[i - 1].ordem} (${seq[i - 1].id}) — regra_de_paragem.ordem_obrigatoria; so marca` });
+  }
   // ── validade da corrida (interpretacao 5) — sobre TODAS as tentativas, orfas incluidas ──
   const shasEstadoVivo = [...new Set(tentativas.map((t) => t.estado_vivo_sha).filter((x) => x != null))];
   if (shasEstadoVivo.length > 1) corridaInvalidaPor.push({ motivo: 'estado_vivo_sha mudou entre tentativas', valores: shasEstadoVivo });
@@ -1266,7 +1337,10 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
 
 function arg(nome, defeito) {
   const i = process.argv.indexOf(nome);
-  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : defeito;
+  if (i < 0) return defeito;
+  const v = process.argv[i + 1];
+  if (!v || v.startsWith('--')) { console.error(`${nome} sem valor`); process.exit(2); }   // 32: nunca cair no default em silencio
+  return v;
 }
 
 const invocadoDirectamente = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
@@ -1289,6 +1363,6 @@ if (invocadoDirectamente) {
   console.log(`custo-analise: ${estado}${validade} · nao corridas ${f.nao_corridas.length}`);
   const veredicto = p.limiar_descritivo_cumprido === null ? `n/d (${p.veredicto_ausente_porque})` : (p.limiar_descritivo_cumprido ? 'cumprido' : 'NAO cumprido') + (p.veredicto_vacuo ? ' (VACUO: ' + p.AVISO_VACUO + ')' : '') + (p.AVISO_N ? ' · ' + p.AVISO_N : '') + (p.AVISO_SUPLENTES ? ' · ' + p.AVISO_SUPLENTES : '');
   console.log(`  pares validos ${p.n_pares_validos} · aceites A ${p.aceites_A} B ${p.aceites_B} · limiar descritivo ${veredicto}`);
-  console.log(`  tokens Opus total A ${r.secundaria.global.A.tokens_opus_total ?? 'n/d'} B ${r.secundaria.global.B.tokens_opus_total ?? 'n/d'} · marcas ${r.marcas.length} · invalidos ${f.pares_invalidos.length} · orfas ${f.tentativas_orfas.length} · duplicadas ${f.tentativas_duplicadas.length}`);
+  console.log(`  tokens Opus total A ${r.secundaria.global.A.tokens_opus_total ?? 'n/d'} B ${r.secundaria.global.B.tokens_opus_total ?? 'n/d'} · marcas ${r.marcas.length} · invalidos ${f.pares_invalidos.length} · orfas ${f.tentativas_orfas.length} · duplicadas ${f.tentativas_duplicadas.length} · linhas de ledger invalidas ${linhasInvalidas.length} · eventos desconhecidos ${f.eventos_desconhecidos.length}`);
   console.log(`  escrito: ${outPath}`);
 }
