@@ -67,6 +67,13 @@ test('tokens · sem modelUsage e consumo DESCONHECIDO (null), nunca zero', () =>
   assert.equal(tokensOpusDaTentativa({ arrancou: false }), null);
 });
 
+test('reconciliar · passo local NUNCA se reconcilia, mesmo que traga usage/modelUsage (interpretacao 1)', () => {
+  // se o controlador um dia escrever usage num passo local, isso nao pode virar marca de reconciliacao
+  const r = reconciliar({ executor: 'router-execute', modelUsage: { 'x': { outputTokens: 5 } }, usage: { output_tokens: 0 } });
+  assert.equal(r.ok, null);
+  assert.match(r.motivo, /passo local/);
+});
+
 test('reconciliar · usage < soma de modelUsage e erro de extraccao', () => {
   assert.equal(reconciliar(tentativa('t1', 'A')).ok, true);
   const mau = tentativa('t1', 'A', { usage: { ...SONDA.usage, output_tokens: 1 } });
@@ -110,7 +117,8 @@ test('analise · caso limpo: 3 pares, tabela 2x2 com task_ids, limiar, tokens', 
     tentativa('t2', 'A'), tentativa('t2', 'B', { aceite: false }),
     // t3 e T0: B faz passo local (router-execute) que falha, depois escala
     tentativa('t3', 'A'),
-    tentativa('t3', 'B', { tentativa: 1, executor: 'router-execute', aceite: false, modelUsage: {}, usage: { input_tokens: 0, output_tokens: 0, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } }, tokens_locais: 900, modelo_reportado: 'qwen2.5:3b@sha256:abc', duration_ms: 3000, tier_classificado: 'T0' }),
+    // o ledger escreve null nos campos que nao existem no passo local — e isso NAO marca (interpretacao 1 do cabecalho)
+    tentativa('t3', 'B', { tentativa: 1, executor: 'router-execute', aceite: false, modelUsage: null, usage: null, total_cost_usd: null, tokens_locais: 900, modelo_reportado: 'qwen2.5:3b@sha256:abc', duration_ms: 3000, tier_classificado: 'T0' }),
     tentativa('t3', 'B', { tentativa: 2, e_escalacao: true, tier_classificado: 'T0' }),
   ];
   const r = analisar(p, ev, { agora: '2026-09-11T00:00:00Z' });
@@ -144,8 +152,156 @@ test('analise · caso limpo: 3 pares, tabela 2x2 com task_ids, limiar, tokens', 
   assert.equal(r.secundaria.global.A.por_tarefa_atribuida, OPUS_TOTAL);
   assert.ok(Math.abs(r.valorizacao.A.valorizacao_teorica_usd - 3 * 0.58975) < 1e-9);
   assert.ok(Math.abs(r.valorizacao.B.valorizacao_teorica_usd - 3 * 0.58975) < 1e-9);
-  assert.ok(Math.abs(r.valorizacao.A.estimativa_cli_usd - 3 * SONDA.modelUsage['claude-opus-5'].costUSD) < 1e-9);
+  assert.ok(Math.abs(r.valorizacao.A.custo_cli_opus_usd - 3 * SONDA.modelUsage['claude-opus-5'].costUSD) < 1e-9);
   assert.deepEqual(r.valorizacao.precos_de_lista.cache_multiplicadores, PREREG.metricas.yardstick_custo.cache_multiplicadores);
+  // por tier: a PRIMARIA estratificada existe e e a do estrato, nao a global
+  assert.deepEqual(r.secundaria.por_tier.T0.primaria.tabela_2x2, { ambos: ['t3'], so_A: [], so_B: [], nenhum: [] });
+  assert.equal(r.secundaria.por_tier.T0.primaria.n_pares_validos, 1);
+  assert.deepEqual(r.secundaria.por_tier.T3.primaria.tabela_2x2, { ambos: ['t1'], so_A: ['t2'], so_B: [], nenhum: [] });
+  assert.equal(r.secundaria.por_tier.T3.primaria.diferenca_emparelhada_A_menos_B, 0.5);
+  assert.ok(r.secundaria.por_tier.T3.primaria.ic95_tango.lo < 0.5 && r.secundaria.por_tier.T3.primaria.ic95_tango.hi >= 0.5);
+  // aliases Opus vistos, listados (prereg: "e listada")
+  assert.deepEqual(r.secundaria.global.A.modelos_opus_vistos, ['claude-opus-5']);
+  assert.deepEqual(r.por_tarefa[2].B.modelos_opus, ['claude-opus-5']);
+  // velocidade: duration por tentativa e tempo-ate-verde
+  const v3 = r.velocidade.por_tarefa[2];
+  assert.deepEqual(v3.B_duracoes_ms, [3000, SONDA.duration_ms]);
+  assert.equal(v3.B_ate_verde_ms, 3000 + SONDA.duration_ms, 'ate verde inclui o passo local que falhou');
+  assert.equal(v3.A_ate_verde_ms, SONDA.duration_ms);
+  assert.equal(r.velocidade.por_tarefa[1].B_ate_verde_ms, null, 't2 B nunca ficou verde');
+  // custo do CLI: opus e total da invocacao, os dois
+  assert.ok(Math.abs(r.valorizacao.A.custo_cli_total_usd - 3 * SONDA.total_cost_usd) < 1e-9);
+  assert.ok(Math.abs(r.valorizacao.B.custo_cli_total_usd - 3 * SONDA.total_cost_usd) < 1e-9, 'o passo local entra a 0');
+  // o passo local com modelUsage null NAO marca consumo desconhecido
+  assert.equal(r.marcas.filter((m) => m.tipo === 'consumo_desconhecido').length, 0);
+  assert.equal(r.fiabilidade.nao_corridas.length, 0);
+  assert.equal(r.fiabilidade.tentativas_orfas.length, 0);
+});
+
+test('analise · BLOQUEANTE do revisor: 1 tarefa em 20 sem paragem NAO e corrida fechada', () => {
+  // Um controlador morto a meio nao escreve o proprio `paragem`. Antes desta
+  // correccao, validos+invalidos era uma identidade e o CLI imprimia
+  // «corrida FECHADA · invalidos 19».
+  const ev = [tentativa(PREREG.corpus.tarefas[0].task_id, 'A'), tentativa(PREREG.corpus.tarefas[0].task_id, 'B')];
+  const r = analisar(PREREG, ev);
+  assert.equal(r.corrida_fechou_os_pares, false);
+  assert.equal(r.fiabilidade.nao_corridas.length, 19, 'as 19 nao corridas nao sao pares invalidos');
+  assert.equal(r.fiabilidade.pares_invalidos.length, 0);
+  assert.deepEqual(r.prefixo_executado, { tarefas_com_alguma_tentativa: 1, de: 20 });
+  assert.equal(r.primaria.n_pares_validos, 1);
+  assert.equal(r.secundaria.global.A.tokens_opus_total, OPUS_TOTAL);
+});
+
+test('analise · tarefa com tentativa so no braco A (morreu entre A e B): par invalido com consumo, corrida nao fechou', () => {
+  const p = preregDe(['t1', 't2']);
+  const ev = [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A')];
+  const r = analisar(p, ev);
+  assert.equal(r.corrida_fechou_os_pares, false);
+  assert.equal(r.primaria.n_pares_validos, 1);
+  const inv = r.fiabilidade.pares_invalidos;
+  assert.equal(inv.length, 1);
+  assert.equal(inv[0].braco_que_nao_arrancou, 'B');
+  assert.equal(inv[0].motivo, 'sem tentativa registada no braco B');
+  assert.equal(inv[0].consumo_A_tokens, OPUS_TOTAL, 'o gasto de A em t2 fica visivel');
+  assert.equal(inv[0].consumo_B_tokens, null);
+  assert.deepEqual(r.fiabilidade.nao_corridas, []);
+  // interpretacao 3: as duas leituras do total
+  assert.equal(r.secundaria.global.A.tokens_opus_total, OPUS_TOTAL);
+  assert.equal(r.secundaria.global.A.tokens_opus_total_incluindo_pares_invalidos, 2 * OPUS_TOTAL);
+  assert.equal(r.secundaria.global.B.tokens_opus_total_incluindo_pares_invalidos, OPUS_TOTAL);
+});
+
+test('analise · par_invalido com evento fecha o par: 2 tarefas, uma invalida por evento, sem paragem = corrida fechada', () => {
+  const p = preregDe(['t1', 't2']);
+  const ev = [
+    tentativa('t1', 'A'), tentativa('t1', 'B'),
+    tentativa('t2', 'A'),
+    { evento: 'par_invalido', task_id: 't2', braco: 'B', motivo: 'spawn:ENOENT' },
+  ];
+  const r = analisar(p, ev);
+  assert.equal(r.corrida_fechou_os_pares, true, 'o evento par_invalido e o fecho legitimo desse par');
+  assert.equal(r.fiabilidade.pares_invalidos[0].motivo, 'spawn:ENOENT');
+});
+
+test('analise · suplente em cadeia (t2 -> s1 -> s2): a tarefa em jogo e s2, e o consumo de s2 conta', () => {
+  const p = preregDe(['t1', 't2']);
+  const ev = [
+    { evento: 'tarefa_excluida', task_id: 't2', motivo: 'pre-voo passou', suplente_usado: 's1' },
+    { evento: 'tarefa_excluida', task_id: 's1', motivo: 'worktree nao reconstruiu', suplente_usado: 's2' },
+    tentativa('t1', 'A'), tentativa('t1', 'B'),
+    tentativa('s2', 'A'), tentativa('s2', 'B'),
+  ];
+  const r = analisar(p, ev);
+  assert.deepEqual(r.por_tarefa.map((t) => t.task_id), ['t1', 's2']);
+  assert.equal(r.primaria.n_pares_validos, 2);
+  assert.equal(r.secundaria.global.A.tokens_opus_total, 2 * OPUS_TOTAL);
+  assert.equal(r.fiabilidade.tentativas_orfas.length, 0);
+});
+
+test('analise · suplente em ciclo (a -> b -> a) nao pendura a analise', () => {
+  const p = preregDe(['a']);
+  const ev = [
+    { evento: 'tarefa_excluida', task_id: 'a', motivo: 'x', suplente_usado: 'b' },
+    { evento: 'tarefa_excluida', task_id: 'b', motivo: 'y', suplente_usado: 'a' },
+  ];
+  const r = analisar(p, ev);
+  assert.ok(Array.isArray(r.por_tarefa));
+});
+
+test('analise · tentativa orfa (task_id fora do jogo) nao e descartada: consumo visivel e marca', () => {
+  const p = preregDe(['t1']);
+  const ev = [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t1-typo', 'A')];
+  const r = analisar(p, ev);
+  assert.equal(r.primaria.n_pares_validos, 1);
+  assert.equal(r.fiabilidade.tentativas_orfas.length, 1);
+  assert.equal(r.fiabilidade.tentativas_orfas[0].task_id, 't1-typo');
+  assert.equal(r.fiabilidade.tentativas_orfas[0].tokens_opus, OPUS_TOTAL);
+  assert.ok(Math.abs(r.fiabilidade.tentativas_orfas[0].custo_cli_usd - SONDA.modelUsage['claude-opus-5'].costUSD) < 1e-9);
+  assert.ok(r.marcas.some((m) => m.tipo === 'tentativa_orfa' && m.task_id === 't1-typo'));
+});
+
+test('analise · so_aceites_por_ambos com n=0 e null, nao zero (mutacao M3 do revisor)', () => {
+  const p = preregDe(['t1']);
+  const ev = [tentativa('t1', 'A'), tentativa('t1', 'B', { aceite: false })];
+  const r = analisar(p, ev);
+  assert.deepEqual(r.secundaria.global.A.so_aceites_por_ambos, { n: 0, tokens_total: null, por_tarefa: null });
+  assert.deepEqual(r.secundaria.global.B.so_aceites_por_ambos, { n: 0, tokens_total: null, por_tarefa: null });
+});
+
+test('tokens · reparticao proporcional com 1h e 5m ambos > 0 (mutacao M2 do revisor)', () => {
+  // 7000 em 1h e 3000 em 5m ao nivel da invocacao -> f = 0.7 do cache_creation do Opus.
+  // 58964 * 0.7 = 41274.8: round e floor DIFEREM aqui (com 0.75 dava inteiro e a
+  // mutacao do revisor sobrevivia — o numero do teste tem de distinguir).
+  const usage = { ...SONDA.usage, cache_creation: { ephemeral_1h_input_tokens: 7000, ephemeral_5m_input_tokens: 3000 } };
+  const t = tokensOpusDaTentativa(tentativa('t1', 'A', { usage }));
+  assert.equal(t.reparticao_cache, 'proporcional');
+  assert.equal(t.cache_creation_1h, 41275);
+  assert.equal(t.cache_creation_5m, 58964 - 41275);   // 17689
+  assert.equal(t.cache_creation_1h + t.cache_creation_5m, 58964, 'nada se perde na reparticao');
+  // e a valorizacao usa os dois multiplicadores
+  const usd = valorizar(t, PREREG.metricas.yardstick_custo);
+  const esperado = (2 * 5 + 4 * 25 + 41275 * 5 * 2.0 + 17689 * 5 * 1.25) / 1e6;
+  assert.ok(Math.abs(usd - esperado) < 1e-12, `usd=${usd} esperado=${esperado}`);
+});
+
+test('tokens · campo de tokens em falta numa entrada Opus conta 0 MAS marca o par (interpretacao 6)', () => {
+  const mu = { 'claude-opus-5': { inputTokens: 2, outputTokens: 4, costUSD: 0.1 } };   // sem cacheCreation/cacheRead
+  const t = tokensOpusDaTentativa(tentativa('t1', 'A', { modelUsage: mu }));
+  assert.deepEqual(t.campos_em_falta, ['claude-opus-5.cacheCreationInputTokens', 'claude-opus-5.cacheReadInputTokens']);
+  const p = preregDe(['t1']);
+  const r = analisar(p, [tentativa('t1', 'A', { modelUsage: mu, usage: { ...SONDA.usage } }), tentativa('t1', 'B')]);
+  const m = r.marcas.find((x) => x.tipo === 'campo_em_falta');
+  assert.ok(m && m.task_id === 't1' && m.braco === 'A');
+  assert.match(m.motivo, /cacheCreationInputTokens/);
+});
+
+test('analise · custo_cli_opus_usd e custo_cli_total_usd divergem quando ha subagente (interpretacao 4)', () => {
+  const mu = { ...SONDA.modelUsage, 'claude-haiku-4-5': { inputTokens: 1000, outputTokens: 500, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 0.01 } };
+  const usage = { ...SONDA.usage, input_tokens: 1002, output_tokens: 504 };
+  const p = preregDe(['t1']);
+  const r = analisar(p, [tentativa('t1', 'A', { modelUsage: mu, usage, total_cost_usd: 0.59975 }), tentativa('t1', 'B')]);
+  assert.ok(Math.abs(r.valorizacao.A.custo_cli_opus_usd - 0.58975) < 1e-9, 'so o Opus');
+  assert.ok(Math.abs(r.valorizacao.A.custo_cli_total_usd - 0.59975) < 1e-9, 'a invocacao inteira');
 });
 
 test('analise · a fronteira do limiar e EXACTAMENTE -2: A-B=2 passa, A-B=3 nao', () => {
@@ -199,7 +355,7 @@ test('analise · CUSTO-07 — consumo desconhecido propaga null e marca, nao zer
   assert.equal(r.por_tarefa[1].A.tokens_opus, null);
   // e a valorizacao do braco A tambem e desconhecida — nao "o que se sabe"
   assert.equal(r.valorizacao.A.valorizacao_teorica_usd, null);
-  assert.equal(r.valorizacao.A.estimativa_cli_usd, null);
+  assert.equal(r.valorizacao.A.custo_cli_opus_usd, null);
   assert.ok(Math.abs(r.valorizacao.B.valorizacao_teorica_usd - 2 * 0.58975) < 1e-9);
 });
 
