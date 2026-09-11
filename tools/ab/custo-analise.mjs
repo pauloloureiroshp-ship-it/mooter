@@ -125,10 +125,17 @@
  *     B em T0/T1 com passo local não aceite e SEM escalação
  *     (`escalacao_em_falta`); B em T2/T3 com > 1 ou com passo local. Marca
  *     `tentativas_fora_do_protocolo`, par INVÁLIDO.
- * 17. NÃO verificado (declarado): ordem de execução das tarefas; tecto de
- *     900 s; «skips/todo não aumentaram face ao histórico» (o pré-registo não
- *     tem baseline de skips por tarefa); coerências por tentativa (19, 20,
- *     22) em tentativas órfãs — só as verificações globais as apanham.
+ * 17. NÃO verificado (declarado): ordem de execução das TAREFAS; «skips/todo
+ *     não aumentaram face ao histórico» (o pré-registo não tem baseline de
+ *     skips por tarefa); coerências por tentativa (19, 20, 22) em tentativas
+ *     órfãs — só as verificações globais as apanham; `modelo_reportado` vs
+ *     chave de `modelUsage`; `worktree_listagem_sha` (semântica desconhecida:
+ *     editar um ficheiro existente não a muda); `usage`/`modelUsage`
+ *     byte-iguais entre `session_id` distintos (duas invocações curtas podem
+ *     coincidir); `tentativa_inicio` quando o ledger não traz nenhum (26);
+ *     `test_file_sha_antes` contra o blob do commit (o pré-registo não traz
+ *     o sha por tarefa — é do controlador). Ver também a lista «só no
+ *     controlador» no brief do controlador.
  * 18. CONTRATO DE TIPO (`TIPOS_OBRIGATORIOS`): cada chave tem um tipo, e
  *     null só onde declarado. Violação → marca `tipo_invalido` e par
  *     INVÁLIDO; em `aceite` ou `arrancou` → corrida INVÁLIDA. `tier` ∈
@@ -139,10 +146,15 @@
  *     `aceite: true` exige `exit_code === 0`, `test_file_sha_antes ===
  *     depois`, `tests_corridos > 0`, `tests_passados ≤ tests_corridos`, e —
  *     para tarefas do corpus — `tests_corridos` e `tests_passados` ≥
- *     `tests_total_historico`. `aceite: false` com TODAS essas condições
+ *     `tests_total_historico`; e exige JSON: uma claude-p que chegou SEM
+ *     `modelUsage` nenhum estourou o tecto ou morreu, e «estourar o tecto
+ *     = não aceite» (`aceitacao.tecto_e_criterio`) — `aceite: true` aí é
+ *     contraditório (B1 do 6.º revisor: o `correr-r24.mjs` corre a
+ *     aceitação DEPOIS do timeout). `aceite: false` com TODAS as provas
  *     satisfeitas é o inverso. Qualquer dos dois → marca
  *     `aceite_contraditorio`, par INVÁLIDO, corrida INVÁLIDA. Prova em falta
- *     → 12.
+ *     → 12. `ts_fim − ts_inicio ≥ tecto_por_tentativa_s` com `aceite: true`
+ *     marca `tecto_aparente` (só marca: o intervalo pode incluir a aceitação).
  * 20. Tentativa `claude-p` que chegou ao CLI com `modelUsage` sem NENHUMA
  *     chave `claude-opus` (inclui `{}`) → marca `sem_opus_no_modelUsage`,
  *     consumo DESCONHECIDO, par INVÁLIDO, corrida INVÁLIDA. Sub-campo de
@@ -167,6 +179,23 @@
  *     (o controlador classifica falhas como não-arranques: R5-2).
  * 23. Ver 11: `tentativa_repetida` invalida a corrida — «não é retomado» e
  *     «sem terceira tentativa» são do pré-registo.
+ * 24. ORDEM DOS BRAÇOS OBSERVADA: para as tarefas do corpus, a ordem vem do
+ *     `ts_inicio` das tentativas (`ordem_observada`); se diferir da
+ *     pré-registada marca `ordem_divergente` (o contrabalanço é do
+ *     pré-registo; o loop «A; B» ingénuo enviesa cache e custo). Publicam-se
+ *     as duas. `tier_classificado: null` numa tarefa do corpus marca
+ *     `campo_em_falta` (o runtime não confirmou o tier).
+ * 25. Coerências baratas, só marca: `pre_voo` com `falhou: true` e
+ *     `exit_code: 0` (`pre_voo_incoerente`); `e_escalacao` ≠ (`tentativa ===
+ *     2`) (`escalacao_incoerente`); `arrancou: true` com `motivo_se_nao`
+ *     preenchido (`motivo_com_arrancou`); braço com `tentativa: 2` sem
+ *     `tentativa: 1` (`tentativas_fora_do_protocolo`). `fontes` por braço na
+ *     secundária (`{json, transcript, local, nao_arrancou, desconhecido}`)
+ *     para o título não misturar fontes em silêncio.
+ * 26. `tentativa_inicio`: se o ledger trouxer algum, cada (task, braço,
+ *     tentativa) com mais de um `inicio` é `tentativa_reiniciada` → corrida
+ *     INVÁLIDA (retoma com outra pegada); `inicio` sem `fim` marca
+ *     `tentativa_sem_fim`. Sem nenhum `inicio` no ledger, não se verifica.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -349,6 +378,11 @@ export const arrancouOuEvidencia = (t) => arrancouDaTentativa(t) || evidenciaDeA
  */
 export function aceiteContraditorio(t, historico) {
   if (ehLocal(t) || typeof t.aceite !== 'boolean') return null;
+  // interpretacao 19 (B1): uma claude-p que chegou SEM JSON nenhum estourou o tecto ou morreu — nao aceite.
+  // (JSON presente mas sem Opus e a interpretacao 20, nao esta.)
+  const mu = t.modelUsage;
+  const temJson = !!mu && typeof mu === 'object';
+  if (t.aceite === true && !temJson && (t.arrancou === true || typeof t.session_id === 'string')) return 'aceite=true sem JSON — tecto ou morte sem resultado; «estourar o tecto = nao aceite»';
   const provas = [];
   if (Number.isFinite(t.exit_code)) provas.push({ ok: t.exit_code === 0, nome: `exit_code=${t.exit_code}` });
   if (typeof t.test_file_sha_antes === 'string' && typeof t.test_file_sha_depois === 'string') provas.push({ ok: t.test_file_sha_antes === t.test_file_sha_depois, nome: 'test_file_sha antes!=depois' });
@@ -446,6 +480,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   const paragens = porTipo('paragem');
   const preVoos = porTipo('pre_voo');
 
+  const tectoS = prereg.aceitacao && Number.isFinite(prereg.aceitacao.tecto_por_tentativa_s) ? prereg.aceitacao.tecto_por_tentativa_s : NaN;
   const marcas = [];   // pares/tentativas marcados, com motivo — nunca escondidos
   const marca = (m) => marcas.push(m);
   const corridaInvalidaPor = [];
@@ -482,6 +517,19 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       tipoInvalidoDe.set(t, viol);
       marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'tipo_invalido', motivo: viol.join('; ') });
       if (viol.some((v) => v.startsWith('aceite:') || v.startsWith('arrancou:'))) invalida('tipo invalido em aceite/arrancou — a aceitacao do controlador esta partida (interpretacao 18)', `${ref(t)}: ${viol.filter((v) => /^(aceite|arrancou):/.test(v)).join('; ')}`);
+    }
+  }
+  // tentativa_inicio (26): reinicio da mesma tentativa = retoma com outra pegada
+  const inicios = porTipo('tentativa_inicio');
+  if (inicios.length > 0) {
+    const chave = (t) => `${t.task_id}|${t.braco}|${t.tentativa ?? 1}`;
+    const contagem = new Map();
+    for (const i of inicios) contagem.set(chave(i), (contagem.get(chave(i)) || 0) + 1);
+    const fins = new Set(tentativas.map(chave));
+    for (const [k, n] of contagem) {
+      const [task_id, braco, tentativa] = k.split('|');
+      if (n > 1) { marca({ task_id, braco, tentativa: Number(tentativa), tipo: 'tentativa_reiniciada', motivo: `${n} eventos tentativa_inicio para a mesma tentativa (interpretacao 26)` }); invalida('tentativa reiniciada — retoma com outra pegada (interpretacao 26)', k.replace(/\|/g, '/')); }
+      if (!fins.has(k)) marca({ task_id, braco, tentativa: Number(tentativa), tipo: 'tentativa_sem_fim', motivo: 'tentativa_inicio sem tentativa_fim' });
     }
   }
   // session_id repetido (22) — a mesma invocacao contada 2x
@@ -539,10 +587,15 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       else marca({ task_id: id, tipo: 'tier_desconhecido', motivo: 'suplente sem tier_classificado em nenhuma tentativa' });
     }
     let ordemDosBracos = meta ? meta.ordem_dos_bracos : null;
-    if (!meta && ts.length > 0) {
-      const primeira = [...ts].sort((p, q) => String(p.ts_inicio || '').localeCompare(String(q.ts_inicio || '')))[0];
-      ordemDosBracos = primeira.braco === 'B' ? 'A-depois-B' : primeira.braco === 'A' ? 'B-depois-A' : null;
+    let ordemObservada = null;
+    if (ts.length > 0 && ts.every((t) => typeof t.ts_inicio === 'string')) {
+      // so ha ordem observavel se o primeiro ts_inicio de A e de B forem DISTINTOS; iguais nao carregam ordem
+      const primeiroDe = (bb) => ts.filter((t) => t.braco === bb).map((t) => t.ts_inicio).sort()[0] ?? null;
+      const a0 = primeiroDe('A'), b0 = primeiroDe('B');
+      if (a0 && b0 && a0 !== b0) ordemObservada = b0 < a0 ? 'A-depois-B' : 'B-depois-A';
     }
+    if (!meta) ordemDosBracos = ordemObservada;
+    else if (ordemObservada && meta.ordem_dos_bracos && ordemObservada !== meta.ordem_dos_bracos) marca({ task_id: id, tipo: 'ordem_divergente', motivo: `prereg ${meta.ordem_dos_bracos}, observado ${ordemObservada} (interpretacao 24)` });
     const braco = (b) => {
       const xs = ts.filter((t) => t.braco === b).sort((p, q) => (p.tentativa ?? 0) - (q.tentativa ?? 0));
       if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, sem_opus: false, repetida: false };
@@ -593,8 +646,13 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
             if (faltam.length) { provaEmFalta = provaEmFalta || faltam.join(', '); marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: `provas da aceitacao: ${faltam.join(', ')}` }); }
           }
           if (chegou && ((typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' && t.ts_fim < t.ts_inicio) || t.duration_ms === 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: t.duration_ms === 0 ? 'duration_ms 0 numa invocacao que chegou' : `ts_fim ${t.ts_fim} < ts_inicio ${t.ts_inicio}` });
+          const segundos = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
+          if (t.aceite === true && Number.isFinite(segundos) && Number.isFinite(tectoS) && segundos >= tectoS) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tecto_aparente', motivo: `ts_fim - ts_inicio = ${segundos}s >= tecto ${tectoS}s com aceite=true — so marca, o intervalo pode incluir a aceitacao (interpretacao 19)` });
+          if (t.arrancou === true && typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.length > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'motivo_com_arrancou', motivo: `arrancou=true com motivo_se_nao=${JSON.stringify(t.motivo_se_nao)} (interpretacao 25)` });
         }
         if (t.aceite == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'aceite' });
+        if (meta && t.tier_classificado == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'tier_classificado (o runtime nao confirmou o tier pre-registado)' });
+        if (typeof t.e_escalacao === 'boolean' && Number.isFinite(t.tentativa) && t.e_escalacao !== (t.tentativa === 2)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'escalacao_incoerente', motivo: `e_escalacao=${t.e_escalacao} com tentativa=${t.tentativa} (interpretacao 25)` });
         const contra = aceiteContraditorio(t, historico);
         if (contra) {
           contraditorio = contraditorio || contra;
@@ -614,7 +672,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         if (xs.length > 1) foraDoProtocolo = `A com ${xs.length} tentativas (prereg: 1)`;
         else if (xs.some((t) => t.executor !== 'claude-p')) foraDoProtocolo = `A com executor ${JSON.stringify(xs[0].executor)} (prereg: claude-p)`;
       }
-      if (b === 'B') {
+      if (xs.length > 0 && !xs.some((t) => (t.tentativa ?? 1) === 1)) foraDoProtocolo = `${b} com tentativa 2 sem tentativa 1`;
+      if (b === 'B' && !foraDoProtocolo) {
         const locais = xs.filter(ehLocal).length;
         if (xs.length > 2) foraDoProtocolo = `B com ${xs.length} tentativas (prereg: <= 2)`;
         else if (ehTierLocal(tier) && !ehLocal(xs[0])) foraDoProtocolo = `B em ${tier} sem passo local na 1.a tentativa`;
@@ -678,6 +737,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     const pvs = preVoos.filter((e) => e.task_id === id);
     const pv = pvs.length ? pvs[pvs.length - 1] : null;
     const preVooOk = pv ? preVooFalhou(pv) : null;
+    if (pv && pv.falhou === true && pv.exit_code === 0) marca({ task_id: id, tipo: 'pre_voo_incoerente', motivo: 'pre_voo com falhou=true e exit_code=0 (interpretacao 25)' });
     if (correu) {
       if (!pv) marca({ task_id: id, tipo: 'pre_voo_ausente', motivo: 'tarefa correu sem evento pre_voo' });
       else if (!preVooOk) marca({ task_id: id, tipo: 'pre_voo_nao_falhou', motivo: `pre-voo nao falhou (exit_code=${JSON.stringify(pv.exit_code ?? null)}, falhou=${JSON.stringify(pv.falhou ?? null)}) — tarefa ja verde, aceitacao nao mede nada` });
@@ -705,7 +765,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     // par fechado: os dois bracos tem tentativa, ou um evento par_invalido fechou-o (interpretacao 4)
     const parFechado = !!invalido || (A.tentativas > 0 && B.tentativas > 0);
     porTarefa.push({
-      task_id: id, tier, ordem_dos_bracos: ordemDosBracos,
+      task_id: id, tier, ordem_dos_bracos: ordemDosBracos, ordem_observada: ordemObservada,
       suplente: !meta,
       pre_voo_falhou: preVooOk,
       correu, par_valido: parValido, par_fechado: parFechado,
@@ -774,6 +834,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         escalacoes: lista.filter((t) => t[b].escalou).length,
         tokens_locais_a_parte: lista.length === 0 ? null : somaOuNull(lista.map((t) => t[b].tokens_locais)),
         modelos_opus_vistos: [...new Set(lista.flatMap((t) => t[b].modelos_opus))].sort(),
+        fontes: lista.flatMap((t) => t[b].fontes).reduce((acc, f) => ({ ...acc, [f === 'nao arrancou' ? 'nao_arrancou' : f]: (acc[f === 'nao arrancou' ? 'nao_arrancou' : f] || 0) + 1 }), { json: 0, transcript: 0, local: 0, nao_arrancou: 0, desconhecido: 0 }),
       };
     };
     return { estrato: label, n: lista.length, A: porBraco('A'), B: porBraco('B') };
@@ -855,7 +916,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     velocidade,
     fiabilidade,
     por_tarefa: porTarefa.map((t) => ({
-      task_id: t.task_id, tier: t.tier, suplente: t.suplente, ordem_dos_bracos: t.ordem_dos_bracos, pre_voo_falhou: t.pre_voo_falhou, par_valido: t.par_valido, par_fechado: t.par_fechado,
+      task_id: t.task_id, tier: t.tier, suplente: t.suplente, ordem_dos_bracos: t.ordem_dos_bracos, ordem_observada: t.ordem_observada, pre_voo_falhou: t.pre_voo_falhou, par_valido: t.par_valido, par_fechado: t.par_fechado,
       A: { tentativas: t.A.tentativas, aceite: t.A.aceite, arrancou: t.A.arrancou, tokens_opus: t.A.tokens ? t.A.tokens.total : null, fontes: t.A.fontes, duration_ms: t.A.duration_ms, tecto_do_orcamento: t.A.tecto, escalou: t.A.escalou, modelos_opus: t.A.modelos_opus },
       B: { tentativas: t.B.tentativas, aceite: t.B.aceite, arrancou: t.B.arrancou, tokens_opus: t.B.tokens ? t.B.tokens.total : null, fontes: t.B.fontes, duration_ms: t.B.duration_ms, tecto_do_orcamento: t.B.tecto, escalou: t.B.escalou, tokens_locais: t.B.tokens_locais, modelo_local: t.B.modelo_local, modelos_opus: t.B.modelos_opus },
     })),

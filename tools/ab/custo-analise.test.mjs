@@ -892,16 +892,18 @@ test('analise · arredondamento SO a saida (interpretacao 13): USD 4 casas, razo
   const r = correr(p, [
     tentativa('t1', 'A'), tentativa('t1', 'B'),
     tentativa('t2', 'A'), tentativa('t2', 'B'),
-    tentativa('t3', 'A', { modelUsage: null, usage: null, tokens_transcript: 1 }), tentativa('t3', 'B'),   // total A = 2*58970 + 1, 3 aceites -> 39313.67
+    tentativa('t3', 'A', { modelUsage: null, usage: null, tokens_transcript: 1, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t3', 'B'),   // tecto sem JSON, nao aceite: total A = 2*58970 + 1 = 117941; 2 aceites -> 58970.5
   ]);
+  assert.equal(r.primaria.n_pares_validos, 3, JSON.stringify(r.marcas));
   const quatroCasas = (x) => Math.round(x * 1e4) / 1e4 === x;
   assert.ok(quatroCasas(r.valorizacao.B.valorizacao_teorica_usd), `${r.valorizacao.B.valorizacao_teorica_usd} nao tem 4 casas`);
   assert.ok(quatroCasas(r.valorizacao.B.custo_cli_opus_usd));
   assert.ok(quatroCasas(r.valorizacao.B.custo_cli_total_usd));
   assert.equal(r.secundaria.global.A.tokens_opus_total, 2 * OPUS_TOTAL + 1);
-  assert.equal(r.secundaria.global.A.por_aceite, 39314, 'razao de tokens inteira');
-  assert.equal(r.secundaria.global.A.por_tarefa_atribuida, 39314);
-  assert.equal(r.secundaria.global.A.so_aceites_por_ambos.por_tarefa, 39314);
+  assert.equal(r.secundaria.global.A.por_aceite, 58971, 'razao de tokens inteira: 117941/2 = 58970.5 -> 58971');
+  assert.equal(r.secundaria.global.A.por_tarefa_atribuida, 39314, '117941/3 = 39313.67 -> 39314');
+  assert.equal(r.secundaria.global.A.so_aceites_por_ambos.por_tarefa, 58970);
+  assert.deepEqual(r.secundaria.global.A.fontes, { json: 2, transcript: 1, local: 0, nao_arrancou: 0, desconhecido: 0 }, 'o titulo diz de onde vem');
   assert.equal(r.primaria.wilson_A.lo, Math.round(r.primaria.wilson_A.lo * 1000) / 1000);
 });
 
@@ -983,6 +985,11 @@ test('analise · 4.o NO-SHIP (P7D/P7J): claude-p com modelUsage sem Opus (outro 
   assert.equal(r.por_tarefa[0].B.tokens_opus, null, 'desconhecido, nao zero');
   assert.equal(r.primaria.n_pares_validos, 1);
   assert.equal(r.primaria.limiar_descritivo_cumprido, null);
+  assert.match(r.fiabilidade.pares_invalidos[0].motivo, /sem Opus no modelUsage/, 'o motivo do par e a 20');
+  // com aceite:false o par tambem e invalido pela 20 (nao ha 19 a apanhar antes)
+  const rF = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: semOpus, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(rF.primaria.n_pares_validos, 1);
+  assert.match(rF.fiabilidade.pares_invalidos[0].motivo, /sem Opus no modelUsage/);
   // P7J: modelUsage {} com arrancou true
   const rJ = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: {} }), tentativa('t2', 'A'), tentativa('t2', 'B')]);
   assert.equal(rJ.corrida_valida, false);
@@ -1198,6 +1205,87 @@ test('analise · 5.o NO-SHIP (R5-10/R5-11): tempo incoerente marca; exclusao com
   assert.equal(r3.marcas.filter((m) => m.tipo === 'exclusao_com_pre_voo_falhado').length, 0, 'pre-voo que passou justifica a exclusao');
 });
 
+// ── 6.o NO-SHIP: tecto com aceite:true, tentativa_inicio, ordem observada, tier null, coerencias baratas ──
+
+test('analise · 6.o NO-SHIP (B1): claude-p que chegou SEM JSON com aceite:true — «estourar o tecto = nao aceite»; contraditorio, corrida INVALIDA', () => {
+  // E1b: timeout, sem session_id, sem JSON, ts_fim = ts_inicio + 905 s, aceite:true com prova coerente — o correr-r24 corre a aceitacao DEPOIS do timeout
+  const tecto = (id, b, over = {}) => tentativa(id, b, { arrancou: true, motivo_se_nao: null, session_id: null, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null,
+    ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:15:05Z', aceite: true, ...over });
+  assert.match(aceiteContraditorio(tecto('x', 'B'), null), /sem JSON/);
+  assert.match(aceiteContraditorio(tecto('x', 'B', { session_id: 'sess-z', tokens_transcript: 41000 }), null), /sem JSON/, 'E1a: com transcript continua sem resultado');
+  assert.match(aceiteContraditorio(tecto('x', 'B', { arrancou: null, session_id: 'sess-z' }), null), /sem JSON/, 'chegou por session_id, sem flag');
+  assert.equal(aceiteContraditorio(tecto('x', 'B', { modelUsage: { 'claude-sonnet-4-5': SONDA.modelUsage['claude-opus-5'] } }), null), null, 'JSON sem Opus e a interpretacao 20, nao esta');
+  assert.equal(aceiteContraditorio(tecto('x', 'B', { aceite: false, exit_code: 1, tests_passados: 9 }), null), null, 'tecto com aceite:false e o esperado');
+  const p = preregDe(['t1', 't2', 't3']);
+  const r = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A'), tecto('t3', 'B')]);
+  assert.equal(r.corrida_valida, false);
+  assert.ok(r.corrida_invalida_por.some((x) => /aceite contraditorio/.test(x.motivo)));
+  assert.ok(r.marcas.some((m) => m.tipo === 'aceite_contraditorio' && /estourar o tecto/.test(m.motivo)));
+  assert.ok(r.marcas.some((m) => m.tipo === 'tecto_aparente' && m.task_id === 't3'), 'ts_fim - ts_inicio >= 900 s com aceite:true marca');
+  assert.equal(r.primaria.limiar_descritivo_cumprido, null, 'antes: A 3 B 3, cumprido');
+  // o mesmo tecto com aceite:false: par valido (B nao aceite), corrida valida, sem tecto_aparente
+  const r2 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B'), tentativa('t3', 'A'), tecto('t3', 'B', { aceite: false, exit_code: 1, tests_passados: 9 })]);
+  assert.equal(r2.corrida_valida, true);
+  assert.equal(r2.primaria.n_pares_validos, 3);
+  assert.equal(r2.por_tarefa[2].B.aceite, false);
+  assert.equal(r2.marcas.filter((m) => m.tipo === 'tecto_aparente').length, 0);
+  assert.ok(r2.marcas.some((m) => m.tipo === 'consumo_desconhecido'));
+});
+
+test('analise · 6.o NO-SHIP (I1): tentativa_inicio — reinicio da mesma tentativa invalida a corrida; inicio sem fim marca; sem inicios nao se verifica', () => {
+  const p = preregDe(['t1']);
+  const ini = (id, b, tentativa = 1) => ({ evento: 'tentativa_inicio', task_id: id, braco: b, tentativa, ts: 'x' });
+  const r = correr(p, [ini('t1', 'A'), tentativa('t1', 'A'), ini('t1', 'B'), ini('t1', 'B'), tentativa('t1', 'B')]);
+  assert.equal(r.corrida_valida, false);
+  assert.ok(r.corrida_invalida_por.some((x) => /tentativa reiniciada/.test(x.motivo)));
+  assert.ok(r.marcas.some((m) => m.tipo === 'tentativa_reiniciada' && m.braco === 'B'));
+  const r2 = correr(p, [ini('t1', 'A'), tentativa('t1', 'A'), ini('t1', 'B'), tentativa('t1', 'B'), ini('t1', 'B', 2)]);
+  assert.equal(r2.corrida_valida, true);
+  assert.ok(r2.marcas.some((m) => m.tipo === 'tentativa_sem_fim' && m.braco === 'B' && m.tentativa === 2));
+  const r3 = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.equal(r3.marcas.length, 0, 'sem inicios, nada a verificar');
+});
+
+test('analise · 6.o NO-SHIP (I2): ordem dos bracos OBSERVADA por ts_inicio; divergente do prereg marca; timestamps iguais nao carregam ordem', () => {
+  const p = preregDe(['t1', 't2']);   // t1: A-depois-B (B primeiro); t2: B-depois-A (A primeiro)
+  const ok = correr(p, [
+    tentativa('t1', 'A', { ts_inicio: '2026-09-11T00:00:10Z', ts_fim: '2026-09-11T00:00:15Z' }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T00:00:00Z' }),
+    tentativa('t2', 'A', { ts_inicio: '2026-09-11T00:00:00Z' }), tentativa('t2', 'B', { ts_inicio: '2026-09-11T00:00:10Z', ts_fim: '2026-09-11T00:00:15Z' }),
+  ]);
+  assert.equal(ok.marcas.length, 0, JSON.stringify(ok.marcas));
+  assert.equal(ok.por_tarefa[0].ordem_observada, 'A-depois-B');
+  assert.equal(ok.por_tarefa[1].ordem_observada, 'B-depois-A');
+  // o loop ingenuo «A; B» em tudo
+  const mau = correr(p, [
+    tentativa('t1', 'A', { ts_inicio: '2026-09-11T00:00:00Z' }), tentativa('t1', 'B', { ts_inicio: '2026-09-11T00:00:10Z', ts_fim: '2026-09-11T00:00:15Z' }),
+    tentativa('t2', 'A', { ts_inicio: '2026-09-11T00:00:00Z' }), tentativa('t2', 'B', { ts_inicio: '2026-09-11T00:00:10Z', ts_fim: '2026-09-11T00:00:15Z' }),
+  ]);
+  const m = mau.marcas.filter((x) => x.tipo === 'ordem_divergente');
+  assert.equal(m.length, 1); assert.equal(m[0].task_id, 't1');
+  assert.equal(mau.por_tarefa[0].ordem_dos_bracos, 'A-depois-B', 'o prereg continua publicado');
+  assert.equal(mau.por_tarefa[0].ordem_observada, 'B-depois-A', 'e o observado ao lado');
+  assert.equal(mau.corrida_valida, true, 'so marca');
+  // timestamps iguais: n/d, sem marca
+  const igual = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(igual.por_tarefa[0].ordem_observada, null);
+  assert.equal(igual.marcas.length, 0);
+});
+
+test('analise · 6.o NO-SHIP (I3 e N1): tier null no corpus marca; pre_voo incoerente; e_escalacao incoerente; motivo com arrancou; tentativa 2 sem 1', () => {
+  const p = preregDe(['t1']);
+  const r = correr(p, [tentativa('t1', 'A', { tier_classificado: null }), tentativa('t1', 'B')]);
+  assert.ok(r.marcas.some((m) => m.tipo === 'campo_em_falta' && /tier_classificado/.test(m.motivo)));
+  assert.equal(r.primaria.n_pares_validos, 1, 'so marca');
+  const r2 = analisar(p, [preVoo('t1', { falhou: true, exit_code: 0 }), tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.ok(r2.marcas.some((m) => m.tipo === 'pre_voo_incoerente'));
+  const r3 = correr(p, [tentativa('t1', 'A', { e_escalacao: true }), tentativa('t1', 'B')]);
+  assert.ok(r3.marcas.some((m) => m.tipo === 'escalacao_incoerente' && m.braco === 'A'));
+  const r4 = correr(p, [tentativa('t1', 'A', { motivo_se_nao: 'timeout' }), tentativa('t1', 'B')]);
+  assert.ok(r4.marcas.some((m) => m.tipo === 'motivo_com_arrancou' && m.braco === 'A'));
+  const r5 = correr(preregDe(['t1'], { t1: 'T0' }), [tentativa('t1', 'A', { tier_classificado: 'T0' }), escalacao('t1')]);   // tentativa 2 sem tentativa 1
+  assert.match(r5.fiabilidade.pares_invalidos[0].motivo, /B com tentativa 2 sem tentativa 1/);
+});
+
 test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com veredicto favoravel nem corrida valida indevida', () => {
   // Cada um contra um prereg de 2 tarefas (t1 T3, t2 T0): a forma dos ataques e a mesma; se um dia um passar, este teste e o alarme.
   const p = preregDe(['t1', 't2'], { t2: 'T0' });
@@ -1226,6 +1314,10 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R56: (() => { const a = tentativa('t1', 'A'); return [a, tentativa('t1', 'B', { session_id: a.session_id, usage: a.usage, modelUsage: a.modelUsage }), ...parOk('t2', 'T0')]; })(),
     R57: [...parOk('t1', 'T3', { modelUsage: { 'claude-opus-5': { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0 } } }), ...parOk('t2', 'T0')],
     R58: [...parOk('t1', 'T3', { tests_corridos: 0, tests_passados: 0 }), ...parOk('t2', 'T0')],
+    // 6.o revisor
+    E1b: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { session_id: null, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null, ts_fim: '2026-09-11T00:15:05Z' })],
+    E1a: [...parOk('t1', 'T3'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2', { usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null, tokens_transcript: 41000, ts_fim: '2026-09-11T00:15:05Z' })],
+    E4: [...parOk('t1', 'T3'), { evento: 'tentativa_inicio', task_id: 't2', braco: 'B', tentativa: 2 }, { evento: 'tentativa_inicio', task_id: 't2', braco: 'B', tentativa: 2 }, tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2')],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
   // 'veredicto' = sem veredicto; 'par' = esse par invalido (o par limpo ao lado DA veredicto, e isso e legitimo);
@@ -1235,6 +1327,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     P7D: { corrida: false }, P7E: { veredicto: null }, P7F: { corrida: false }, P7G: { corrida: false },
     P7H: { corrida: false }, P7I: { tokens: null }, P7J: { corrida: false }, P7K: { par: 't2' }, L1: { corrida: false },
     R51: { corrida: false }, R52: { corrida: false }, R53: { corrida: false }, R54: { par: 't1' }, R54b: { par: 't1' }, R56: { corrida: false }, R57: { tokens: null }, R58: { corrida: false },
+    E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
     const r = correr(p, ev);
