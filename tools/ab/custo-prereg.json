@@ -1,0 +1,340 @@
+{
+  "schema": "mooter/custo-prereg/1",
+  "experiment_id": "custo-2026-09-10",
+  "titulo": "Teste de custo: Opus sempre (A) contra o router como esta (B), em 20 tarefas com teste externo congelado",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-11T00:32:58.628Z",
+  "congelado_por": "Claude Code (Opus 5), sessao e8d2b6d9, a pedido do dono",
+  "anterioridade": "este ficheiro e commitado ANTES de qualquer corrida; a prova de anterioridade e o commit, nao o campo congelado_em",
+  "pergunta": "Rotear com o Mooter tal como esta em producao reduz os tokens de Opus por tarefa aceite, sem perder aceitacao, em trabalho real de reparar testes?",
+  "DECLARACAO_DE_DEGENERESCENCIA": {
+    "facto": "O produto NAO tem hoje nenhum caminho em que um modelo local edite um repositorio. `router-execute --pin-provider=ollama` devolve texto; `moo-runner` nao aplica edicoes; o executor do R-24 e sempre `claude -p`.",
+    "consequencia": "Nas tarefas classificadas T0/T1, o passo local do braco B nao consegue fazer passar o teste de aceitacao POR CONSTRUCAO. Vai falhar e escalar para Opus. O braco B fica igual ao A mais uma chamada local por tarefa T0/T1.",
+    "o_que_isto_mede_entao": "O custo real, em tokens de Opus e em tempo, de rotear com o produto COMO ESTA. E coerente com o P3 (obediencia 0/20): converte uma observacao num numero.",
+    "o_que_NAO_mede": "Se um router com delegacao local funcional pouparia Opus. Essa experiencia exige um executor local que edite ficheiros, e ele nao existe.",
+    "decidido_por": "o dono, 2026-09-10, depois de lhe ser apresentada a alternativa de trocar de corpus. Escolheu medir o produto como esta."
+  },
+  "corpus": {
+    "origem": "tools/ab/r24-manifest.json (as 25 tarefas do R-24, derivadas de commits reais com teste externo)",
+    "manifesto_sha256": "d79957ccbfa51ced56e9e6c6d056ceab470a9c1fb2d4195ced2a2d9f310284ab",
+    "prompt_template_sha256": "63f3f3ce12ea4708b2dc578500e336e80364af8cffd6c6a57595a4253b4b99fc",
+    "seleccao": "20 de 25 por baralhamento determinístico (mulberry32, seed 20260910); as 5 restantes sao suplentes SO para o caso de o worktree de uma tarefa nao se conseguir reconstruir (git archive falhar) — nunca por resultado",
+    "seed": 20260910,
+    "n": 20,
+    "tiers_classificados": {
+      "T0": 7,
+      "T3": 13
+    },
+    "nota_tiers": "O classificador congelado classifica ~2/3 como T3. No braco B esses vao para Opus por regra, portanto o tecto do efeito e baixo A PARTIDA. Resultado reportado tambem estratificado por tier.",
+    "tarefas": [
+      {
+        "ordem": 1,
+        "task_id": "t22-11f81c79b7",
+        "commit": "11f81c79b7356b7798b386541fffffb611dbdca0",
+        "parent": "8c39d3b7cc29ab16ec74fe214788171102cb4105",
+        "test_file": "design/tools/moo-design-check.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+        "tier_classificado": "T0",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 2,
+        "task_id": "t21-96171ef138",
+        "commit": "96171ef1385fa47b8a604c0375c876761aa5f031",
+        "parent": "224f6ce3478a5e309745d4e7396d5409759c7632",
+        "test_file": "design/tools/moo-design-check.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+        "tier_classificado": "T0",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 3,
+        "task_id": "t05-cc706fa255",
+        "commit": "cc706fa2551571f7617163be5f1dc17b55146d93",
+        "parent": "46e599e8bad4a7dbacb01d4dae966cb426673797",
+        "test_file": "packages/vscode-extension/src/data.test.js",
+        "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/data.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 4,
+        "task_id": "t10-a6bf1a20b0",
+        "commit": "a6bf1a20b08705ff0514fd6dc1dac1374a71e8a0",
+        "parent": "481ae5afce77869611a87f32991a29079cfe211c",
+        "test_file": "packages/mooter-bridge/server.test.js",
+        "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test server.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 5,
+        "task_id": "t19-99f47261be",
+        "commit": "99f47261be117a071cd73a7a55e153eb4d77a771",
+        "parent": "1cb7db8e917108737146bd5b24d978a57596b9cc",
+        "test_file": "tools/cockpit/runner/runner-core.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+        "tier_classificado": "T0",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 6,
+        "task_id": "t03-8014c12435",
+        "commit": "8014c12435a6dc54e3ff4538a39b6acdd88ef476",
+        "parent": "c1e5a009cfe4d9763fde98db5b2f5ad466c728c4",
+        "test_file": "tools/router/router-execute.mocks.test.js",
+        "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.mocks.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 7,
+        "task_id": "t18-5d72b4c9e3",
+        "commit": "5d72b4c9e3ee9d4b7c5041ba981d812bbf4350d1",
+        "parent": "cb2bf46c523bc8416e23cce0d50ff8be91cd2fab",
+        "test_file": "packages/slack-spike/despacho.test.js",
+        "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test despacho.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 8,
+        "task_id": "t04-8617d5fc95",
+        "commit": "8617d5fc9576ffa5bb9ae79d1f188c83b0557510",
+        "parent": "5b8580bc6a6b6ed7c6ca2373e53cff5fa4702c94",
+        "test_file": "tools/router/statusline-multi.test.js",
+        "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 9,
+        "task_id": "t06-e408ea0afe",
+        "commit": "e408ea0afec6917631bc90c170c5c143a554eb60",
+        "parent": "cc706fa2551571f7617163be5f1dc17b55146d93",
+        "test_file": "packages/vscode-extension/src/webview-syntax.test.js",
+        "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/webview-syntax.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 10,
+        "task_id": "t11-4bf34eb7c6",
+        "commit": "4bf34eb7c64a3ccef5ab4ca79e2b5f15b34bd077",
+        "parent": "fd4f425ce1c3e8c8fc3b201bc138db87f9c26058",
+        "test_file": "packages/mooter-bridge/quota.test.js",
+        "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test quota.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 11,
+        "task_id": "t01-2e7599e021",
+        "commit": "2e7599e021eb8054506140ed826bfa7e8612ef9c",
+        "parent": "d9db061389991669f6a20c9e29ead44fadde7ab3",
+        "test_file": "tools/router/statusline-multi.test.js",
+        "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 12,
+        "task_id": "t17-4b8090599c",
+        "commit": "4b8090599ca3d7aa36acf1c0b2e79eb45dfc0fa0",
+        "parent": "4db43d9796bb00d37d5aa3fe41073fdf7effaf16",
+        "test_file": "packages/slack-spike/ensaio.test.js",
+        "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test ensaio.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 13,
+        "task_id": "t15-03039e0b33",
+        "commit": "03039e0b33f56ad26b8c64ae7b5acfaa9edd372c",
+        "parent": "ee209921ed7adf6e8dd261cd1ee23f677ee1e8e6",
+        "test_file": "tools/cockpit/runner/runner-core.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+        "tier_classificado": "T0",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 14,
+        "task_id": "t14-01cebb9409",
+        "commit": "01cebb940905e72eaa9e5486c1ef9b1be527682a",
+        "parent": "eae75143f8bf0e7bb9e64173154adf6d5d4ded7b",
+        "test_file": "packages/slack-spike/cartao.test.js",
+        "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test cartao.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 15,
+        "task_id": "t20-e96defd8e0",
+        "commit": "e96defd8e07b66338556b8f44bdd4467c00fcf1d",
+        "parent": "c629f54377342eac47b8a5ae19e7add62bddbccd",
+        "test_file": "tools/cockpit/runner/runner-core.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+        "tier_classificado": "T0",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 16,
+        "task_id": "t24-318a3f63d7",
+        "commit": "318a3f63d7aead39fc479c89cff2812216fc7fe1",
+        "parent": "fff9edb0ac55e32aa03a9d45f2ec20ac12cf0e28",
+        "test_file": "design/tools/moo-design-check.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+        "tier_classificado": "T0",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 17,
+        "task_id": "t23-1b929f35f1",
+        "commit": "1b929f35f1eae5745549cf305ddbfacbedade281",
+        "parent": "0c8f3e484bc26933a2b130a6516de0624680a20f",
+        "test_file": "design/tools/moo-visual-audit.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test design/tools/moo-visual-audit.test.mjs",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 18,
+        "task_id": "t07-030073bef4",
+        "commit": "030073bef4a8c6ebdadde7c523dfb904ca89d01c",
+        "parent": "50c2c94a8e8f79c6747338262ab7886398989073",
+        "test_file": "packages/vscode-extension/src/data.test.js",
+        "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/data.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      },
+      {
+        "ordem": 19,
+        "task_id": "t25-125b9a27b7",
+        "commit": "125b9a27b7e873905b001bad98299ff037db05a7",
+        "parent": "18e8c128ac137b83fa1066c1029dc9716feb02cc",
+        "test_file": "tools/ab/mooter-vs-sem.test.mjs",
+        "acceptance_cmd": "cd <repo> && node --test tools/ab/mooter-vs-sem.test.mjs",
+        "tier_classificado": "T0",
+        "ordem_dos_bracos": "A-depois-B"
+      },
+      {
+        "ordem": 20,
+        "task_id": "t12-bf358e765c",
+        "commit": "bf358e765cc2786d001a73daf49b282818f87948",
+        "parent": "530ac4bb54c97093820552b24123d73630aae5bb",
+        "test_file": "packages/mooter-bridge/seamless.test.js",
+        "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test seamless.test.js",
+        "tier_classificado": "T3",
+        "ordem_dos_bracos": "B-depois-A"
+      }
+    ],
+    "suplentes": [
+      "t02-7bb45751d8",
+      "t09-07bdf37783",
+      "t16-057bfc121a",
+      "t13-ddb0cf50e1",
+      "t08-1f5a793294"
+    ]
+  },
+  "bracos": {
+    "A": {
+      "nome": "Opus sempre",
+      "executor": "claude -p <prompt> --output-format json --model claude-opus-5 --permission-mode bypassPermissions --allow-dangerously-skip-permissions",
+      "tentativas": 1,
+      "cwd": "worktree fresco por tarefa, reconstruido com `git archive <parent>` (mesmo metodo do R-24)"
+    },
+    "B": {
+      "nome": "Router como esta",
+      "passo_1": "tier = classify(prompt) com o classify.js congelado",
+      "passo_2_T0_T1": "router-execute --pin-provider=ollama (modelo resolvido nesta maquina em tempo de corrida, registado no ledger); a resposta e TEXTO e e guardada; corre-se o acceptance_cmd — por construcao vai falhar (ver DECLARACAO)",
+      "passo_2_T2_T3": "igual ao braco A",
+      "escalacao": "se T0/T1 falhar a aceitacao: UMA tentativa com o executor do braco A, com o mesmo prompt, no mesmo worktree, SEM passar o texto do passo local (o produto nao o passa). Sem terceira tentativa.",
+      "assimetria_declarada": "nas tarefas T0/T1 o braco B tem 2 tentativas (local + Opus) contra 1 do A. Favorece B em aceitacao e desfavorece B em custo. Fica no recibo de cada par."
+    },
+    "ordem": "contrabalancada por tarefa (A-depois-B nas impares, B-depois-A nas pares), cada braco num worktree fresco proprio — nao ha estado partilhado entre bracos"
+  },
+  "aceitacao": {
+    "definicao": "o `acceptance_cmd` da tarefa sai 0 no worktree do braco, com o `test_file` byte-identico ao congelado no manifesto",
+    "verificacao_do_test_file": "sha256 do test_file antes e depois; se mudar, a tarefa conta como NAO ACEITE nesse braco (o agente tocou no criterio)",
+    "tecto_por_tentativa_s": 900,
+    "tecto_e_criterio": "estourar o tecto = nao aceite. Nao e retomado."
+  },
+  "metricas": {
+    "primaria": {
+      "nome": "aceites por braco, em 20",
+      "criterio": "NAO-INFERIORIDADE: aceites_B >= aceites_A - 2",
+      "justificacao_da_margem": "margem de 2 em 20 (10 pontos) fixada pelo dono; e larga, e e declarada como tal",
+      "estatistica_reportada": "diferenca A-B com pares discordantes (McNemar exacto, bilateral), Wilson 95% por braco; nenhum destes e o criterio — o criterio e o ponto"
+    },
+    "secundaria": {
+      "nome": "tokens de Opus por tarefa aceite, por braco",
+      "definicao": "soma de input + output + cache_creation + cache_read de TODAS as chamadas a claude-opus-5 do braco (incluindo escalacoes), a dividir por aceites do braco",
+      "fonte_primaria": "campo `usage` e `modelUsage` do JSON de `claude -p --output-format json`, por invocacao — uma invocacao = uma tentativa, sem ambiguidade de atribuicao",
+      "cruzamento": "transcript ~/.claude/projects/**/<session_id>.jsonl da mesma invocacao, atribuido por cadeia parentUuid ate ao turno humano, NUNCA por session_id agregado. Se divergir do JSON em mais de 1%, o par e marcado e a divergencia e reportada.",
+      "nota": "tokens de modelos locais sao contados e reportados a parte, e NAO entram nesta metrica — a pergunta e sobre Opus"
+    },
+    "yardstick_custo": {
+      "nome": "custo a preco de lista, datado",
+      "fonte": "tools/router/pricing.js @ 8c39d3b7 2026-08-29T13:43:00-03:00",
+      "pricing_sha256": "7f9cf11a8713db4446c43ab55439efdcd074a4587ad13dc9669f924ec90a687f",
+      "opus_usd_por_Mtok": {
+        "input": 5,
+        "output": 25
+      },
+      "cache": "pricing.js nao tem precos de cache; usam-se os multiplicadores de lista da Anthropic (criacao 1.25x input, leitura 0.1x input) e diz-se que sao esses",
+      "local_usd_por_Mtok": {
+        "input": 0,
+        "output": 0,
+        "nota": "preco de lista 0; o custo de GPU/electricidade NAO e medido e fica n/d"
+      },
+      "segunda_coluna": "total_cost_usd tal como o proprio CLI o reporta, por invocacao — e o numero da Anthropic, nao o nosso",
+      "O_QUE_NAO_E": "isto NAO e uma afirmacao de poupanca. O deck nao pode escrever \"$ poupados\" a partir daqui (regra §4). E um yardstick para comparar bracos.",
+      "facto_da_sonda": "uma invocacao `claude -p \"Responde apenas: OK\"` custou US$0.58 por 57 957 tokens de criacao de cache (contexto do sistema). O custo fixo por invocacao domina em tarefas curtas; por isso o numero e por ACEITE e nao por token."
+    },
+    "reportada_fora_do_criterio": {
+      "velocidade": "duration_ms do JSON por tentativa, e tempo-ate-verde por tarefa (soma das tentativas). Reportada. NAO e criterio de nada."
+    }
+  },
+  "regra_de_paragem": {
+    "corridas": 1,
+    "texto": "UMA corrida. Se nao fechar os 20 pares — por limite de sessao, por falha de executor, por qualquer motivo — o resultado sai n/d nas metricas nao fechadas e NAO ha segunda corrida. Esta regra foi quebrada no P7 e o P7 perdeu o estatuto confirmatorio; aqui e escrita antes e nao se emenda depois de ver numeros.",
+    "invalido": "um par em que alguma tentativa nao ARRANCOU (spawn:*, worktree nao reconstruido) e INVALIDO e nao conta para nenhum braco; e reportado. Um par em que arrancou e falhou conta como nao aceite."
+  },
+  "pre_condicoes": {
+    "D15": "FECHADO em main (#494, f66813e9) e no runtime desta maquina. O sentinela ~/.claude/tools/router/.budget-freeze e posto ANTES da primeira tentativa e retirado DEPOIS da ultima; o conteudo e \"custo-2026-09-10\". Enquanto estiver posto, nenhum dos dois escritores toca no cache.",
+    "estado_vivo": {
+      "ficheiros": [
+        ".mooter-mode.json",
+        ".pin-next.json",
+        "subscription-profile.json",
+        ".budget-cache.json"
+      ],
+      "sha256_no_congelamento": {
+        ".mooter-mode.json": "00b48be4c28e7bf28c2e8a666cf9a7b9924337bc20b427ab4cde244109d0c429",
+        ".pin-next.json": "AUSENTE",
+        "subscription-profile.json": "92ad3c40114167d2af03a143e4574bd5accde6d18e025229ea6bc1e827de45ae",
+        ".budget-cache.json": "6f1047cfd909e087aa714b340153216b230935581c361beb8a137fd0cfd87a25"
+      },
+      "regra": "se algum destes mudar entre a primeira e a ultima tentativa, a corrida e INVALIDA (mesma guarda do R-24). Com o D15 fechado, o unico que podia mudar sozinho ja nao muda.",
+      "tecto_de_orcamento": "o getBudget congelado devolve o cache fixo, ou null se o cache estiver em erro. Qual dos dois aconteceu FICA NO RECIBO de cada tentativa: \"sem tecto\" e um facto, nao pode ser invisivel.",
+      "nota_sobre_o_snapshot": "Os shas acima sao os do MOMENTO DO CONGELAMENTO e sao informativos. Entre a revisao adversarial do D15 e este congelamento o .budget-cache.json mudou (64be5d9e -> 6f1047cf) pelo hook da propria sessao que escreveu isto — o D15 em accao. O snapshot VINCULATIVO e tirado no arranque da corrida, DEPOIS de o sentinela .budget-freeze estar posto, e e esse que tem de ficar constante ate a ultima tentativa."
+    },
+    "congelados": {
+      "classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+      "patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5",
+      "esperado_classify": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+      "esperado_patterns": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5"
+    },
+    "main_no_congelamento": "f66813e9ee7b42c43596283efd106dc0c3f7b717",
+    "claude_cli": "n/d",
+    "modelo_local": "resolvido em tempo de corrida por router-execute (OLLAMA_OPTION_A_MODEL, senao qwen2.5:3b) e registado no ledger de cada tentativa; NAO e escolhido para a experiencia",
+    "ambiente": "fora de qualquer sessao Claude Code (a guarda ambienteApto() do R-24 e reutilizada); marcadores CLAUDE_CODE_* removidos do env"
+  },
+  "o_que_este_protocolo_NAO_promete": [
+    "que o router poupe Opus — a declaracao de degenerescencia diz que nao pode, nas tarefas T0/T1, por falta de executor local",
+    "estatuto confirmatorio de coisa nenhuma: n=20, margem de 2, uma corrida",
+    "que o custo em GPU do passo local seja zero — e n/d",
+    "que os precos de lista de 2026-08-29 sejam os de hoje — sao os do pricing.js nessa data, e e isso que se diz"
+  ],
+  "ledger": "tools/ab/custo-ledger.jsonl — uma linha por tentativa: task_id, braco, tentativa, tier, modelo, aceite, test_file_sha_antes/depois, usage, total_cost_usd, duration_ms, estado_vivo_sha, tecto_do_orcamento (valor|null), session_id"
+}
