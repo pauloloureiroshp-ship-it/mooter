@@ -50,10 +50,15 @@
  *     e CURTA (28) — a definição do pré-registo («spawn:* sem JSON nem
  *     transcript»). Qualquer outro
  *     não-arrancou sem JSON tem consumo
- *     DESCONHECIDO. Uma tentativa que arrancou e ficou sem JSON: se o ledger
- *     trouxer `tokens_transcript` > 0, é essa a fonte (categorias null,
- *     valorização null, marca `consumo_do_transcript`); senão null e marca
- *     `consumo_desconhecido`. `tokens_transcript: 0` é «não encontrado».
+ *     DESCONHECIDO. Uma tentativa que arrancou e ficou SEM JSON NENHUM
+ *     (nem `usage` nem `modelUsage`): se o ledger trouxer `tokens_transcript`
+ *     ≥ `TRANSCRIPT_MINIMO`, é essa a fonte (categorias null, valorização
+ *     null, marca `consumo_do_transcript`); senão null e marca
+ *     `consumo_desconhecido`. `tokens_transcript: 0` é «não encontrado». Um
+ *     JSON que chegou parcial nunca cai no transcript (35). Um passo local com
+ *     evidência de CLI: consumo null e corrida INVÁLIDA (30 —
+ *     `local_com_evidencia_de_cli`; o texto antigo desta interpretação dizia
+ *     «tokens continuam zero» e estava desactualizado).
  *  4. «Corrida fechou» = TODAS as tarefas em jogo têm tentativa nos DOIS
  *     braços (ou um evento `par_invalido` que feche o par) E não há evento
  *     `paragem`. Tarefa sem tentativa nem evento vai para `nao_corridas`;
@@ -415,6 +420,42 @@
  *     exit 2. O teste afirma a coluna `tier_classificado` de
  *     `SUPLENTES_ESPERADOS` (e das 20 do corpus) correndo o `classify.js`
  *     congelado sobre os prompts do manifesto, sem `ANTHROPIC_API_KEY`.
+ * 34. FORA DO PROTOCOLO É RETOMA (o 15.º revisor: a tentativa falhada de B
+ *     escrita com `braco:"X"` — ou como evento `tentativa_fim_descartada` —
+ *     e a 2.ª corrida como B «oficial» dava «cumprido · A 20 B 20 · válida»
+ *     com 5 órfãs/5 eventos desconhecidos só em marca; em espelho, A
+ *     retomada 3× baixava A). Uma `tentativa_fim` com `braco` ∉ {A,B} ou
+ *     `task_id` fora das tarefas em jogo, um `tentativa_inicio` órfão, e um
+ *     evento fora dos 6 do pré-registo invalidam a corrida (a órfã continua
+ *     visível em `fiabilidade`, o consumo continua contado); quando o
+ *     `task_id` é de uma tarefa em jogo, o par leva (c). A 30 dizia
+ *     «contado, não engolido» e chegava para a visibilidade, não para a
+ *     direcção. CLI: `--out` igual ao `--prereg` ou ao `--ledger` é exit 2
+ *     (sobrescrever o ledger destruía a única prova da corrida); pré-registo
+ *     que não é JSON ou sem `metricas.yardstick_custo`/`corpus.tarefas` é
+ *     exit 2 com mensagem, não stack trace.
+ * 35. A CACHE TAMBÉM SE RECONCILIA. `reconciliar` compara as QUATRO
+ *     categorias (`input`, `output`, `cache_creation`, `cache_read`) nos dois
+ *     sentidos, com a mesma folga (1 % + 10): a cache é ~98 % dos tokens de
+ *     uma claude-p (a sonda: 58 964 de 58 970), e só input/output deixava B
+ *     declarar cache zero no `modelUsage` com o `usage` a dizer 309 k —
+ *     «B 92 000 tokens · marcas 0». Uma tentativa que não reconcilia tem
+ *     consumo DESCONHECIDO (null; a marca `reconciliacao` diz «não se
+ *     imputa») — nunca se escolhe uma das duas fontes. `usage` presente com
+ *     `modelUsage` ausente (ou o inverso) numa claude-p que chegou é JSON
+ *     PARCIAL (marca `json_parcial`, consumo null): o transcript só é fonte
+ *     quando não chegou JSON nenhum (`secundaria.timeout_sem_json`), nunca
+ *     por baixo de um `usage` de 300 k.
+ * 36. PISO DE PLAUSIBILIDADE NO JSON. Total de Opus do `modelUsage` abaixo
+ *     de `TRANSCRIPT_MINIMO` numa claude-p que chegou → `tokens_implausiveis`,
+ *     consumo DESCONHECIDO (a mesma classe do `tokens_zero_com_arrancou`: a
+ *     sonda custa 58 970 tokens só para responder «OK»; «B 120 tokens ·
+ *     8 por aceite · 0,0022 USD» não é medida). Com outro modelo a consumir
+ *     MAIS e o Opus abaixo do piso, o Opus não fez o trabalho —
+ *     `outro_modelo_fez_o_trabalho`, corrida INVÁLIDA, (c) no par (é outro
+ *     tratamento, 33). Acima do piso, `modelo_nao_opus_dominante` continua só
+ *     marca: subagentes noutro modelo são plausíveis num run honesto e o
+ *     ledger não os distingue de um trabalho desviado.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -580,12 +621,16 @@ export function tokensOpusDaTentativa(t) {
   const jsonUtil = mu && typeof mu === 'object' && !prob.sem_opus && prob.campos.length === 0;
   if (!jsonUtil) {
     if (naoArrancouPuro(t)) return ZEROS('nao arrancou');
+    // 35: o transcript so e fonte quando NAO chegou JSON nenhum (prereg: timeout_sem_json); um `usage` objecto e um JSON que chegou PARCIAL — desconhecido, nunca o transcript por baixo
+    if (t && t.usage && typeof t.usage === 'object') return null;
     if (t && Number.isFinite(t.tokens_transcript) && t.tokens_transcript >= TRANSCRIPT_MINIMO) {
       return { input: null, output: null, cache_creation: null, cache_read: null, cache_creation_1h: null, cache_creation_5m: null,
         reparticao_cache: 'n/d', total: t.tokens_transcript, modelos: [], custo_cli_usd: null, fonte: 'transcript' };
     }
     return null;
   }
+  if (!(t.usage && typeof t.usage === 'object')) return null;   // 35: modelUsage sem usage e o mesmo JSON parcial — nao se reconcilia, nao se imputa
+  if (reconciliar(t).ok === false) return null;                 // 35: usage e modelUsage em desacordo — consumo contestado, nao se imputa
   const cats = { input: 0, output: 0, cache_creation: 0, cache_read: 0 };
   const modelos = [];
   let custoCli = 0;
@@ -600,6 +645,7 @@ export function tokensOpusDaTentativa(t) {
   }
   const total = cats.input + cats.output + cats.cache_creation + cats.cache_read;
   if (total === 0) return null;   // interpretacao 20: uma claude-p que chegou ao Opus consome; zero e desconhecido
+  if (total < TRANSCRIPT_MINIMO) return null;   // 36: abaixo do piso de plausibilidade (a sonda custa 58 970 so para «OK») e desconhecido, nao consumo
   // A divisao 1h/5m da criacao de cache so existe ao nivel da invocacao
   // (`usage.cache_creation`), nao por modelo. Reparte-se PROPORCIONALMENTE e
   // diz-se que foi assim; se `usage` nao trouxer a divisao, fica null.
@@ -625,14 +671,13 @@ export function reconciliar(t) {
   if (ehLocal(t)) return { ok: null, motivo: 'passo local — nao se aplica' };
   const mu = t && t.modelUsage, u = t && t.usage;
   if (!mu || !u) return { ok: null, motivo: 'sem usage ou modelUsage' };
-  const somaOut = Object.values(mu).reduce((s, v) => s + (Number(v && v.outputTokens) || 0), 0);
-  const somaIn = Object.values(mu).reduce((s, v) => s + (Number(v && v.inputTokens) || 0), 0);
-  if ((Number(u.output_tokens) || 0) < somaOut) return { ok: false, motivo: `usage.output ${u.output_tokens} < soma modelUsage ${somaOut}` };
-  if ((Number(u.input_tokens) || 0) < somaIn) return { ok: false, motivo: `usage.input ${u.input_tokens} < soma modelUsage ${somaIn}` };
+  // 35: as QUATRO categorias — a criacao e a leitura de cache sao ~98 % dos tokens de uma claude-p (a sonda: 58 964 de 58 970); so input/output deixava a cache fabricavel
+  const soma = (c) => Object.values(mu).reduce((s, v) => s + (Number(v && v[c]) || 0), 0);
+  const cats = [['output_tokens', 'outputTokens', 'output'], ['input_tokens', 'inputTokens', 'input'], ['cache_creation_input_tokens', 'cacheCreationInputTokens', 'cache_creation'], ['cache_read_input_tokens', 'cacheReadInputTokens', 'cache_read']];
+  for (const [ku, km, nome] of cats) { const s = soma(km); if ((Number(u[ku]) || 0) < s) return { ok: false, motivo: `usage.${nome} ${u[ku]} < soma modelUsage ${s}` }; }
   // 31: e no outro sentido — um usage muito acima do modelUsage e consumo que o modelUsage nao explica (f1 do 12.o)
   const acima = (a, s) => a > s * 1.01 + 10;
-  if (acima(Number(u.output_tokens) || 0, somaOut)) return { ok: false, motivo: `usage.output ${u.output_tokens} > soma modelUsage ${somaOut} — consumo que o modelUsage nao explica` };
-  if (acima(Number(u.input_tokens) || 0, somaIn)) return { ok: false, motivo: `usage.input ${u.input_tokens} > soma modelUsage ${somaIn} — consumo que o modelUsage nao explica` };
+  for (const [ku, km, nome] of cats) { const s = soma(km); if (acima(Number(u[ku]) || 0, s)) return { ok: false, motivo: `usage.${nome} ${u[ku]} > soma modelUsage ${s} — consumo que o modelUsage nao explica` }; }
   return { ok: true, motivo: null };
 }
 
@@ -779,7 +824,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     if (j >= 0) { corridaInvalidaPor[j].valores.push(valor); return; }
     corridaInvalidaPor.push({ motivo, valores: [valor] });
   };
-  for (const e of eventosDesconhecidos) marca({ task_id: e.task_id, tipo: 'evento_desconhecido', motivo: `evento ${JSON.stringify(e.evento)} fora dos 6 do pre-registo — contado, nao engolido (30)` });
+  for (const e of eventosDesconhecidos) { marca({ task_id: e.task_id, tipo: 'evento_desconhecido', motivo: `evento ${JSON.stringify(e.evento)} fora dos 6 do pre-registo — contado, nao engolido (30); uma retoma pode esconder-se num evento que a analise nao le (34)` }); invalida('evento fora dos 6 do pre-registo — o ledger nao e o do protocolo; uma tentativa a mais pode esconder-se num evento que a analise nao le (interpretacao 34)', `${JSON.stringify(e.evento)}${e.task_id ? ' @ ' + e.task_id : ''}`); }
   // 30: a analise so e a pre-registada se leu o prereg congelado
   if (typeof prereg.__sha256 === 'string' && prereg.__sha256 !== PREREG_SHA256_ESPERADO) invalida('pre-registo lido nao e o congelado (sha256 diferente do esperado) — a analise nao e a pre-registada (interpretacao 30)', `${prereg.__sha256} != ${PREREG_SHA256_ESPERADO}`);
   const ref = (t) => `${t.task_id}/${t.braco}/${t.tentativa ?? 1}`;
@@ -877,7 +922,11 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
 
   // tentativas orfas: task_id fora do jogo ou braco fora de {A,B} — nao se descartam (interpretacao 11)
   const orfas = tentativas.filter((t) => !idsEmJogo.includes(t.task_id) || (t.braco !== 'A' && t.braco !== 'B'));
-  for (const t of orfas) marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'tentativa_orfa', motivo: !idsEmJogo.includes(t.task_id) ? 'task_id fora das tarefas em jogo' : `braco ${JSON.stringify(t.braco)} fora de {A,B}` });
+  for (const t of orfas) { marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'tentativa_orfa', motivo: !idsEmJogo.includes(t.task_id) ? 'task_id fora das tarefas em jogo' : `braco ${JSON.stringify(t.braco)} fora de {A,B}` }); invalida('tentativa orfa — uma tentativa a mais fora de {A,B} ou fora das tarefas em jogo e uma retoma escondida; «sem terceira tentativa» (interpretacao 34)', ref(t)); }
+  // 34: um tentativa_inicio orfao e um braco LANCADO fora do protocolo (a retoma morta antes do fim)
+  const iniciosOrfaos = inicios.filter((i) => !idsEmJogo.includes(i.task_id) || (i.braco !== 'A' && i.braco !== 'B'));
+  for (const i of iniciosOrfaos) { marca({ task_id: i.task_id, braco: i.braco, tentativa: i.tentativa, tipo: 'inicio_orfao', motivo: !idsEmJogo.includes(i.task_id) ? 'tentativa_inicio com task_id fora das tarefas em jogo' : `tentativa_inicio com braco ${JSON.stringify(i.braco)} fora de {A,B}` }); invalida('tentativa_inicio orfao — um braco lancado fora do protocolo (interpretacao 34)', `${i.task_id}/${i.braco}/${i.tentativa ?? 1}`); }
+  const retomaEscondidaEm = (id) => orfas.some((t) => t.task_id === id) || iniciosOrfaos.some((i) => i.task_id === id) || eventosDesconhecidos.some((e) => e.task_id === id);
 
   const porTarefa = [];
   for (const id of idsEmJogo) {
@@ -927,18 +976,23 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     if (shaDivergente) { marca({ task_id: id, tipo: 'test_file_sha_divergente', motivo: `test_file_sha_antes ${shasAntes.join(' vs ')} — os bracos nao viram o mesmo ficheiro congelado; o par nao e um par` }); invalida('test_file_sha_antes divergente entre os bracos da mesma tarefa (interpretacao 29)', `${id}: ${shasAntes.join(' vs ')}`); }
     const braco = (b) => {
       const xs = ts.filter((t) => t.braco === b).sort((p, q) => (p.tentativa ?? 0) - (q.tentativa ?? 0));
-      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, arrancou_motivo_c: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, chave_omitida: false, modelo_divergente: false, sem_opus: false, repetida: false, ultima_puro: false, ultima_curta: false };
+      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, arrancou_motivo_c: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, chave_omitida: false, modelo_divergente: false, outro_modelo: false, sem_opus: false, repetida: false, ultima_puro: false, ultima_curta: false };
       const toks = xs.map(tokensOpusDaTentativa);
       let contraditorio = null;
       let semOpus = false;
+      let outroModelo = false;   // 36
       let arrancouContraditorio = false;
       let arrancouMotivoC = null;
       let provaEmFalta = null;
       for (const [i, t] of xs.entries()) {
         const rec = reconciliar(t);
-        if (rec.ok === false) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'reconciliacao', motivo: rec.motivo });
+        const naoReconcilia = rec.ok === false;
+        if (naoReconcilia) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'reconciliacao', motivo: `${rec.motivo} — consumo contestado, nao se imputa (35)` });
         const prob = ehLocal(t) ? { sem_opus: false, campos: [] } : problemasDoModelUsage(t.modelUsage);
         const chegou = arrancouOuEvidencia(t);
+        // 35: usage sem modelUsage (ou o inverso) numa claude-p que chegou e um JSON parcial — nem JSON nem transcript
+        const jsonParcial = !ehLocal(t) && chegou && (!!(t.usage && typeof t.usage === 'object') !== !!(t.modelUsage && typeof t.modelUsage === 'object'));
+        if (jsonParcial) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'json_parcial', motivo: t.usage && typeof t.usage === 'object' ? 'usage presente e modelUsage ausente — JSON parcial; o transcript nao substitui um JSON que chegou (35)' : 'modelUsage presente e usage ausente — JSON parcial; nao se reconcilia (35)' });
         if (!ehLocal(t) && t.modelUsage && typeof t.modelUsage === 'object' && prob.sem_opus) {
           semOpus = true;
           marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'sem_opus_no_modelUsage', motivo: `modelUsage sem chave claude-opus*: {${Object.keys(t.modelUsage).join(', ')}} — a flag --model perdeu-se (interpretacao 20)` });
@@ -960,12 +1014,18 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           const tok = (v) => ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((s, c) => s + (Number.isFinite(v && v[c]) ? v[c] : 0), 0);
           const opus = Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + tok(v), 0);
           const outros = Object.entries(t.modelUsage).filter(([k]) => !ehOpus(k)).reduce((s, [, v]) => s + tok(v), 0);
-          if (outros > opus && opus > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_nao_opus_dominante', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus — o trabalho correu noutro modelo; tokens_opus subestima o consumo (S9 do 13.o)` });
+          // 36: com o Opus abaixo do piso e outro modelo a consumir mais, o Opus nao fez o trabalho — outro tratamento (33), (c) no par
+          if (outros > opus && opus < TRANSCRIPT_MINIMO) { outroModelo = true; marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'outro_modelo_fez_o_trabalho', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus (abaixo do piso ${TRANSCRIPT_MINIMO}) — o Opus nao fez o trabalho; outro tratamento (36)` }); invalida('claude-p em que o Opus ficou abaixo do piso e outro modelo consumiu mais — o trabalho correu noutro modelo (interpretacao 36)', `${ref(t)}: opus ${opus}, outros ${outros}`); }
+          else if (outros > opus) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_nao_opus_dominante', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus — o trabalho correu noutro modelo; tokens_opus subestima o consumo (S9 do 13.o)` });
         }
         if (!ehLocal(t) && t.modelUsage && typeof t.modelUsage === 'object') for (const [k, v] of Object.entries(t.modelUsage)) if (k.startsWith('claude-opus') && v && v.costUSD === 0 && ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].some((c) => Number.isFinite(v[c]) && v[c] > 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_zero_com_tokens', motivo: `${k} com costUSD 0 e tokens > 0 — o custo_cli_opus_usd fica subestimado (29)` });
         if (ehLocal(t) && typeof t.worktree_listagem_sha_antes === 'string' && typeof t.worktree_listagem_sha_depois === 'string' && t.worktree_listagem_sha_antes !== t.worktree_listagem_sha_depois) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'rasto_do_passo_local', motivo: `listagem do worktree mudou no passo local (${t.worktree_listagem_sha_antes} -> ${t.worktree_listagem_sha_depois}) — a escalacao nao parte do mesmo estado que A (CUSTO-02; so reportado)` });
-        if (!ehLocal(t) && toks[i] === null && t.modelUsage && typeof t.modelUsage === 'object' && !prob.sem_opus && prob.campos.length === 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tokens_zero_com_arrancou', motivo: 'modelUsage Opus com todos os tokens a zero numa claude-p que chegou ao CLI — impossivel; consumo desconhecido (interpretacao 20)' });
-        if (toks[i] === null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'consumo_desconhecido', motivo: prob.sem_opus || prob.campos.length ? 'modelUsage sem Opus utilizavel e sem tokens_transcript > 0' : t.arrancou === false ? `nao arrancou sem ser spawn:* (motivo_se_nao=${JSON.stringify(t.motivo_se_nao ?? null)}) — nao se zera (interpretacao 3)` : 'arrancou, sem modelUsage e sem tokens_transcript > 0 — tecto ou morte sem JSON', transcript: Number.isFinite(t.tokens_transcript) ? t.tokens_transcript : null });
+        if (!ehLocal(t) && toks[i] === null && !naoReconcilia && !jsonParcial && t.modelUsage && typeof t.modelUsage === 'object' && !prob.sem_opus && prob.campos.length === 0) {
+          const opusTot = Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((a, c) => a + (Number.isFinite(v && v[c]) ? v[c] : 0), 0), 0);
+          if (opusTot === 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tokens_zero_com_arrancou', motivo: 'modelUsage Opus com todos os tokens a zero numa claude-p que chegou ao CLI — impossivel; consumo desconhecido (interpretacao 20)' });
+          else marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tokens_implausiveis', motivo: `Opus com ${opusTot} tokens numa claude-p que chegou — abaixo do piso ${TRANSCRIPT_MINIMO} (a sonda custa 58 970 so para «OK»); consumo desconhecido (36)` });
+        }
+        if (toks[i] === null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'consumo_desconhecido', motivo: naoReconcilia ? 'usage e modelUsage nao reconciliam — consumo contestado, nao se imputa (35)' : jsonParcial ? 'JSON parcial (usage sem modelUsage ou o inverso) — nem JSON nem transcript (35)' : prob.sem_opus || prob.campos.length ? 'modelUsage sem Opus utilizavel e sem tokens_transcript > 0' : t.arrancou === false ? `nao arrancou sem ser spawn:* (motivo_se_nao=${JSON.stringify(t.motivo_se_nao ?? null)}) — nao se zera (interpretacao 3)` : 'arrancou, sem modelUsage e sem tokens_transcript > 0 — tecto ou morte sem JSON', transcript: Number.isFinite(t.tokens_transcript) ? t.tokens_transcript : null });
         if (toks[i] && toks[i].fonte === 'json' && typeof toks[i].reparticao_cache === 'string' && toks[i].reparticao_cache.startsWith('n/d') && toks[i].cache_creation > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'reparticao_cache_nd', motivo: `cache_creation ${toks[i].cache_creation} sem divisao 1h/5m utilizavel (${toks[i].reparticao_cache}) — valorizacao null, nunca zero (31)` });
         if (toks[i] && toks[i].fonte === 'transcript') marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'consumo_do_transcript', motivo: 'sem JSON; total do transcript e a unica fonte (prereg secundaria.timeout_sem_json)', transcript: t.tokens_transcript });
         if (ehLocal(t)) {
@@ -1077,6 +1137,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         tipo_invalido: xs.some((t) => tipoInvalidoDe.has(t)),
         chave_omitida: xs.some((t) => omitidasDe.has(t)),
         modelo_divergente: xs.some((t) => !ehLocal(t) && modeloPrereg && ((typeof t.modelo_pedido === 'string' && t.modelo_pedido !== modeloPrereg) || (t.modelUsage && typeof t.modelUsage === 'object' && Object.keys(t.modelUsage).some((k) => ehOpus(k) && k !== modeloPrereg)))),
+        outro_modelo: outroModelo,
         sem_opus: semOpus,
         repetida: xs.some((t) => repetidas.has(t)),
         arrancou: arrancouDaTentativa(ultima),                         // interpretacao 2: a ultima tentativa, pela flag
@@ -1172,6 +1233,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && A.tentativas === 0) { bracoQueNaoArrancou = 'A'; motivoInvalido = semLinha('A'); }          // (a) so com paragem; senao (c)
     else if (temTentativas && B.tentativas === 0) { bracoQueNaoArrancou = 'B'; motivoInvalido = semLinha('B'); }          // (a) so com paragem; senao (c)
     else if (temTentativas && (A.arrancou_contraditorio || B.arrancou_contraditorio)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c((A.arrancou_contraditorio ? A : B).arrancou_motivo_c); }   // (c)
+    else if (temTentativas && retomaEscondidaEm(id)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa ou evento fora do protocolo nesta tarefa — retoma escondida (interpretacao 34)'); }   // (c)
     else if (temTentativas && A.arrancou !== true) { bracoQueNaoArrancou = 'A'; motivoInvalido = A.ultima_puro ? `nao arrancou (spawn puro: ${A.motivo_se_nao}) sem evento par_invalido` : c(`ultima tentativa com arrancou=${valor(A)} que nao e um nao-arrancou puro`); }   // (a) so puro (28)
     else if (temTentativas && B.arrancou !== true) { bracoQueNaoArrancou = 'B'; motivoInvalido = B.ultima_puro ? `nao arrancou (spawn puro: ${B.motivo_se_nao}) sem evento par_invalido` : c(`ultima tentativa com arrancou=${valor(B)} que nao e um nao-arrancou puro`); }   // (a) so puro (28)
     else if (temTentativas && ordemDivergente) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('ordem dos bracos divergente do pre-registo (interpretacao 24)'); }
@@ -1186,6 +1248,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && (A.contraditorio || B.contraditorio)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`aceite contraditorio: ${A.contraditorio || B.contraditorio} (interpretacao 19)`); }
     else if (temTentativas && (A.sem_opus || B.sem_opus)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa claude-p sem Opus no modelUsage (interpretacao 20)'); }
     else if (temTentativas && (A.modelo_divergente || B.modelo_divergente)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('modelo pedido ou Opus diferente do pre-registado (interpretacao 33)'); }
+    else if (temTentativas && (A.outro_modelo || B.outro_modelo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('o Opus ficou abaixo do piso e outro modelo fez o trabalho (interpretacao 36)'); }
     else if (temTentativas && (A.fora_do_protocolo || B.fora_do_protocolo)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`tentativas fora do protocolo: ${A.fora_do_protocolo || B.fora_do_protocolo}`); }
     else if (temTentativas && !pv) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo ausente'); }
     else if (temTentativas && !preVooOk) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo nao falhou (tarefa ja verde)'); }
@@ -1336,6 +1399,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     })),
     nao_corridas: naoCorridas.map((t) => t.task_id),
     tentativas_orfas: orfas.map(resumoSolta),
+    inicios_orfaos: iniciosOrfaos.map((i) => ({ task_id: i.task_id, braco: i.braco, tentativa: i.tentativa ?? null })),
     tentativas_duplicadas: duplicadas.map(resumoSolta),
     tarefas_excluidas_antes_de_correr: excluidas.map((e) => ({ task_id: e.task_id, motivo: e.motivo, suplente_usado: e.suplente_usado || null })),
     rastos_do_passo_local: marcas.filter((m) => m.tipo === 'rasto_do_passo_local').map((m) => ({ task_id: m.task_id, motivo: m.motivo })),
@@ -1392,13 +1456,18 @@ if (invocadoDirectamente) {
     if (a.startsWith('--')) { if (!permitidos.has(a)) { console.error(`argumento desconhecido: ${a} (aceites: ${[...permitidos].join(', ')}, cada um com valor separado por espaco)`); process.exit(2); } i++; }
     else { console.error(`argumento solto: ${a}`); process.exit(2); }
   }
-  const preregPath = arg('--prereg', path.join(HERE, 'custo-prereg.json'));
-  const ledgerPath = arg('--ledger', path.join(HERE, 'custo-ledger.jsonl'));
-  const outPath = arg('--out', path.join(HERE, 'custo-analysis.json'));
+  const preregPath = path.resolve(arg('--prereg', path.join(HERE, 'custo-prereg.json')));
+  const ledgerPath = path.resolve(arg('--ledger', path.join(HERE, 'custo-ledger.jsonl')));
+  const outPath = path.resolve(arg('--out', path.join(HERE, 'custo-analysis.json')));
+  // 34 (CLI, d4 do 15.o): o --out nunca e uma entrada — sobrescrever o ledger destruia a unica prova da corrida
+  const mesmoCaminho = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+  if (mesmoCaminho(outPath, preregPath) || mesmoCaminho(outPath, ledgerPath)) { console.error(`--out ${outPath} e o pre-registo ou o ledger — destruiria a entrada`); process.exit(2); }
   if (!fs.existsSync(preregPath)) { console.error(`falta o pre-registo: ${preregPath}`); process.exit(2); }
   if (!fs.existsSync(ledgerPath)) { console.error(`falta o ledger: ${ledgerPath}\nEsta analise nao inventa dados: sem ledger nao ha resultado.`); process.exit(2); }
   const preregTxt = fs.readFileSync(preregPath, 'utf8');
-  const prereg = JSON.parse(preregTxt);
+  let prereg;
+  try { prereg = JSON.parse(preregTxt); } catch (e) { console.error(`pre-registo nao e JSON: ${preregPath} (${e.message})`); process.exit(2); }
+  if (!prereg || typeof prereg !== 'object' || !prereg.metricas || !prereg.metricas.yardstick_custo || !prereg.corpus || !Array.isArray(prereg.corpus.tarefas)) { console.error(`pre-registo sem a forma esperada (metricas.yardstick_custo, corpus.tarefas): ${preregPath}`); process.exit(2); }
   prereg.__sha256 = crypto.createHash('sha256').update(preregTxt).digest('hex');
   const { eventos, linhasInvalidas } = lerLedger(fs.readFileSync(ledgerPath, 'utf8'));
   const r = analisar(prereg, eventos);
