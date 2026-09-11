@@ -585,6 +585,31 @@
  *     `Claude-Opus-5` é Opus e cai na 33); `tempo_incoerente` e
  *     `motivo_com_arrancou` também no passo local (só marca); o JSON de
  *     saída traz `marcas_por_tipo`.
+ * 56. O INVERSO DA 22 (o 20.º revisor: uma claude-p com `arrancou: true`,
+ *     `session_id`/`usage`/`modelUsage`/`total_cost_usd` null, sem
+ *     `tokens_transcript`, `aceite: false` com sumário coerente, contava
+ *     como «A rejeitada» com uma só marca `consumo_desconhecido` — «cumprido
+ *     · A 15 B 15 · válida» onde o honesto dá «A 20 · NÃO»). O prereg define
+ *     ARRANCOU por `session_id` no JSON ou por transcript: `arrancou: true`
+ *     sem nenhuma peça de evidência E sem `tokens_transcript ≥
+ *     TRANSCRIPT_MINIMO` é uma afirmação sem prova → `arrancou_sem_evidencia`,
+ *     INVÁLIDA, (c). A 40 lê-se: um tecto sem JSON tem `session_id` pelo
+ *     transcript (brief 98: pré-gerar o `--session-id`), ou é `arrancou:
+ *     false` com o motivo.
+ * 57. A SONDA PINADA TAMBÉM PELA CACHE: 58 964 dos 58 970 tokens da sonda
+ *     são cache (o system prompt é criado ou lido em TODA a invocação); a
+ *     38 media o piso pelo total e uma forja coerente com cache 0/0 acima
+ *     de 58 970 («B 1 180 000 · 65 556 por aceite · 7,5 USD») passava com
+ *     `marcas 0`. `cache_creation + cache_read < SONDA_CACHE_OPUS` (58 964,
+ *     pinado contra a fixture) → `abaixo_da_sonda` (só marca, como a 38;
+ *     brief 101). Marcas baratas do 20.º, só marca: `pre_voo_verde_sem_testes`
+ *     (o espelho de `pre_voo_sem_vermelho`: «não falhou» com 0 testes é
+ *     runner morto, não «já verde»), `corridos_abaixo_do_pre_voo` (testes
+ *     que desapareceram numa linha aceite — CUSTO-14),
+ *     `modelo_local_divergente_do_pedido` (o router trocou de modelo),
+ *     `local_velocidade_implausivel` (> 10 tok/ms), `aceite_sem_output`
+ *     (Opus aceite com `outputTokens` 0), `paragem_incoerente`
+ *     (`ultima_tarefa`/`n` ≠ o prefixo executado).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -660,6 +685,8 @@ export function violacoesDeTipo(t) {
 }
 /** O total de Opus da sonda real desta maquina (`custo-fixture-sonda.json`: «Responde apenas: OK» = 2 + 4 + 58 964 + 0). Abaixo disto uma claude-p e coerente mas implausivel (38); o teste afirma-o contra a fixture. */
 export const SONDA_TOTAL_OPUS = 58970;
+/** A CACHE da sonda (criacao + leitura = 58 964 de 58 970): o system prompt e criado ou lido em toda a invocacao; uma claude-p com cache 0/0 e implausivel mesmo acima do total (57). */
+export const SONDA_CACHE_OPUS = 58964;
 /** Forma canonica de um instante: a que `new Date().toISOString()` escreve, com Z obrigatorio. Sem isto, `Date.parse` le a hora local de quem analisa (31). */
 export const tsCanonico = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(s) && Number.isFinite(Date.parse(s));
 /** Piso de plausibilidade para um total de tokens vindo do transcript: uma invocacao claude-p que chegou ao Opus carrega milhares de tokens de sistema (31). */
@@ -1073,6 +1100,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       marca({ task_id: e.task_id, tipo: 'exclusao_com_pre_voo_falhado', motivo: `excluida («${e.motivo}») com pre-voo que correu e FALHOU — o worktree existiu e a tarefa nao estava ja verde; nenhuma das duas saidas do prereg se aplica` });
       invalida('tarefa excluida com pre-voo falhado — fora das duas saidas do prereg para suplentes (interpretacao 15, 29)', e.task_id);
     }
+    // 20.o (3): a saida (b) «ja verde» apoiada num pre-voo que «nao falhou» com 0 testes corridos e um runner morto, nao uma tarefa verde — so marca
+    if (pvsEx.length && preVooFalhou(pvsEx[0]) === false && pvsEx[0].tests_corridos === 0) marca({ task_id: e.task_id, tipo: 'pre_voo_verde_sem_testes', motivo: `excluida («${e.motivo}») com pre-voo «nao falhou» e tests_corridos 0 — runner morto ou modulo partido, nao «ja verde» (20.o)` });
     if (!e.suplente_usado) continue;
     marca({ task_id: e.task_id, tipo: 'tarefa_substituida', motivo: `substituida por ${e.suplente_usado} («${e.motivo}») — a primaria passa a incluir um suplente` });
     substituicoes[e.task_id] = e.suplente_usado;
@@ -1211,6 +1240,10 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         if (!ehLocal(t) && t.session_id == null && ((t.usage && typeof t.usage === 'object') || (t.modelUsage && typeof t.modelUsage === 'object'))) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'session_id — o JSON do CLI traz sempre um; a 22 fica cega (40)' });
         // 38: coerente mas implausivel — abaixo do que a sonda desta maquina gasta so para responder «OK»
         if (toks[i] && toks[i].fonte === 'json' && toks[i].total < SONDA_TOTAL_OPUS) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'abaixo_da_sonda', motivo: `Opus com ${toks[i].total} tokens — abaixo dos ${SONDA_TOTAL_OPUS} da sonda («Responde apenas: OK», custo-fixture-sonda.json); coerente mas implausivel (38)` });
+        // 57: o eixo implausivel e a CACHE — o system prompt e criado ou lido em toda a invocacao (58 964 dos 58 970 da sonda); uma forja com cache 0/0 acima do total passava a 38
+        else if (toks[i] && toks[i].fonte === 'json' && toks[i].cache_creation + toks[i].cache_read < SONDA_CACHE_OPUS) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'abaixo_da_sonda', motivo: `Opus com cache_creation ${toks[i].cache_creation} + cache_read ${toks[i].cache_read} = ${toks[i].cache_creation + toks[i].cache_read} — abaixo dos ${SONDA_CACHE_OPUS} de cache da sonda (o system prompt e criado ou lido em toda a invocacao); coerente mas implausivel (57)` });
+        // 20.o (7): uma claude-p ACEITE com 0 tokens de saida do Opus nao editou nada — so marca (efeito na valorizacao ~3 %)
+        if (toks[i] && toks[i].fonte === 'json' && t.aceite === true && toks[i].output === 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'aceite_sem_output', motivo: 'aceite=true com outputTokens 0 do Opus — uma invocacao que editou ficheiros com 0 tokens de saida e impossivel (20.o)' });
         if (ehLocal(t) && typeof t.worktree_listagem_sha_antes === 'string' && typeof t.worktree_listagem_sha_depois === 'string' && t.worktree_listagem_sha_antes !== t.worktree_listagem_sha_depois) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'rasto_do_passo_local', motivo: `listagem do worktree mudou no passo local (${t.worktree_listagem_sha_antes} -> ${t.worktree_listagem_sha_depois}) — a escalacao nao parte do mesmo estado que A (CUSTO-02; so reportado)` });
         if (!ehLocal(t) && toks[i] === null && !naoReconcilia && !jsonParcial && t.modelUsage && typeof t.modelUsage === 'object' && !prob.sem_opus && prob.campos.length === 0) {
           const opusTot = Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((a, c) => a + (Number.isFinite(v && v[c]) ? v[c] : 0), 0), 0);
@@ -1232,6 +1265,10 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           const modelosDoLocal = [t.modelo_pedido, t.modelo_reportado].filter((m) => typeof m === 'string');
           if (modelosDoLocal.some(ehModeloCloud)) { localCloud = true; marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_em_modelo_cloud', motivo: `router-execute com modelo ${modelosDoLocal.filter(ehModeloCloud).join('/')} — o passo local correu num modelo cloud (o dono decidiu «so local (ollama)»); consumo zero por construcao numa linha que nao e local (47, 53)` }); invalida('passo local num modelo cloud — o tratamento B nao foi aplicado; outro tratamento (interpretacoes 47, 53)', ref(t)); }
           else if (typeof t.modelo_reportado === 'string' && !/@sha256:/.test(t.modelo_reportado)) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_local_sem_digest', motivo: `modelo_reportado ${JSON.stringify(t.modelo_reportado)} sem «@sha256:» — o prereg pede nome+digest do ollama; sem digest o modelo local nao e verificavel (47, 53)` }); semDigestDe.add(t); }
+          // 20.o (5): o modelo reportado (nome antes do digest) tem de ser o pedido — o router trocou de modelo; so marca (a 5 exige unanimidade entre passos)
+          if (typeof t.modelo_pedido === 'string' && typeof t.modelo_reportado === 'string' && t.modelo_reportado.split('@')[0] !== t.modelo_pedido) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_local_divergente_do_pedido', motivo: `modelo_reportado ${JSON.stringify(t.modelo_reportado)} nao e o modelo_pedido ${JSON.stringify(t.modelo_pedido)} (20.o)` });
+          // 20.o (6): plausibilidade do local — mais de 10 tokens por ms (10 000 tok/s) nao e um modelo local; so marca (velocidade fora do criterio)
+          if (Number.isFinite(t.tokens_locais) && Number.isFinite(t.duration_ms) && t.tokens_locais / Math.max(t.duration_ms, 1) > 10) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_velocidade_implausivel', motivo: `tokens_locais ${t.tokens_locais} em ${t.duration_ms} ms (${Math.round(t.tokens_locais / Math.max(t.duration_ms, 1) * 1000)} tok/s) — nenhum modelo local faz isto (20.o)` });
           if (t.aceite === true) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_aceite', motivo: 'passo local ACEITE — impossivel por construcao (DECLARACAO_DE_DEGENERESCENCIA); a aceitacao do controlador esta partida' });
           // 97 do 19.o: o tempo do passo local tambem tem de fazer sentido (so marca — nao e direccional)
           const segundosL = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
@@ -1240,6 +1277,12 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         } else {
           if (!arrancouDaTentativa(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tentativa_nao_arrancou', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)}${t.motivo_se_nao ? ' · ' + t.motivo_se_nao : ''}` });
           if (t.arrancou == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'arrancou' });
+          // 56: o inverso da 22 — `arrancou: true` sem NENHUMA peca de evidencia (session_id, usage, modelUsage, custo) e sem transcript e uma afirmacao sem prova; o prereg define ARRANCOU por session_id no JSON ou por transcript
+          if (t.arrancou === true && !evidenciaDeArranque(t) && !(Number.isFinite(t.tokens_transcript) && t.tokens_transcript >= TRANSCRIPT_MINIMO)) {
+            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'arrancou_sem_evidencia', motivo: `arrancou=true sem session_id, sem usage/modelUsage, sem total_cost_usd > 0 e sem tokens_transcript >= ${TRANSCRIPT_MINIMO} — o prereg define «arrancou» por session_id no JSON ou por transcript; uma rejeicao assim baixa o braco sem prova (56)` });
+            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'arrancou=true sem evidencia nenhuma (interpretacao 56)';
+            invalida('arrancou=true numa claude-p sem evidencia nenhuma de arranque — afirmacao sem prova (interpretacao 56)', ref(t));
+          }
           // interpretacao 22: nao-arrancou so e o que o prereg define (spawn:*, sem JSON, sem 900 s) — null incluido (B2 do 7.o)
           const segundosT = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
           const motivoSpawn = motivoSpawnPuro(t.motivo_se_nao);
@@ -1437,6 +1480,10 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       invalida('braco sem tentativa registada numa tarefa que correu, sem paragem — retirar o par sem prova favorece um braco (interpretacao 28)', `${id}/${bracoSemLinha}`);
     }
     if (pv && Number.isFinite(pv.skips)) for (const s of ts) if (Number.isFinite(s.skips) && s.skips > pv.skips) marca({ task_id: id, braco: s.braco, tentativa: s.tentativa, tipo: 'skips_acima_do_pre_voo', motivo: `skips ${s.skips} > ${pv.skips} do pre-voo — testes saltados a mais` });
+    // 20.o (4): testes que DESAPARECERAM entre o pre-voo e uma linha aceite (sha igual, corridos abaixo) — so marca (CUSTO-14: a analise nao le o ficheiro)
+    if (pv && Number.isFinite(pv.tests_corridos)) for (const s of ts) if (s.aceite === true && Number.isFinite(s.tests_corridos) && s.tests_corridos < pv.tests_corridos) marca({ task_id: id, braco: s.braco, tentativa: s.tentativa, tipo: 'corridos_abaixo_do_pre_voo', motivo: `aceite com tests_corridos ${s.tests_corridos} < ${pv.tests_corridos} do pre-voo — ${pv.tests_corridos - s.tests_corridos} teste(s) desapareceram (20.o)` });
+    // 20.o (3): o espelho do pre_voo_sem_vermelho — um pre-voo que «nao falhou» com 0 testes corridos e um runner morto, nao uma tarefa ja verde (a saida (b) para suplente nao se aplica)
+    if (pv && preVooOk === false && Number.isFinite(pv.tests_corridos) && pv.tests_corridos === 0) marca({ task_id: id, tipo: 'pre_voo_verde_sem_testes', motivo: 'pre-voo «nao falhou» com tests_corridos 0 — runner morto ou modulo partido, nao «ja verde»; a exclusao para suplente nao se apoia nisto (20.o)' });
     if (pv && pv.falhou === true && pv.exit_code === 0) marca({ task_id: id, tipo: 'pre_voo_incoerente', motivo: 'pre_voo com falhou=true e exit_code=0 (interpretacao 25)' });
     if (correu) {
       if (!pv) { marca({ task_id: id, tipo: 'pre_voo_ausente', motivo: 'tarefa correu sem evento pre_voo' }); if (temTentativas) invalida('pre-voo ausente numa tarefa que correu — retirar o par favorece um braco (interpretacao 7, 27c)', id); }
@@ -1537,6 +1584,13 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   // ── paragem / prefixo ────────────────────────────────────────────────────
   const fechou = porTarefa.every((t) => t.par_fechado) && paragens.length === 0;
   const paragem = paragens.length > 0 ? paragens[paragens.length - 1] : null;
+  // 20.o (8): `paragem.ultima_tarefa`/`n` tem de bater com o prefixo executado — so marca (o veredicto ja nao sai com paragem)
+  if (paragem) {
+    const comTentativa = porTarefa.filter((x) => x.correu).map((x) => x.task_id);
+    const ultimaReal = comTentativa.length ? comTentativa[comTentativa.length - 1] : null;
+    if (typeof paragem.ultima_tarefa === 'string' && paragem.ultima_tarefa !== ultimaReal) marca({ tipo: 'paragem_incoerente', motivo: `paragem.ultima_tarefa ${JSON.stringify(paragem.ultima_tarefa)} != ultima tarefa com tentativa ${JSON.stringify(ultimaReal)} (20.o)` });
+    if (Number.isFinite(paragem.n) && paragem.n !== comTentativa.length) marca({ tipo: 'paragem_incoerente', motivo: `paragem.n ${paragem.n} != ${comTentativa.length} tarefas com tentativa (20.o)` });
+  }
   if (paragem && porTarefa.every((t) => t.par_fechado)) marca({ tipo: 'paragem_contraditoria', motivo: `evento paragem («${paragem.motivo}») com todos os pares fechados — uma paragem e «nao fechou»; num fim normal nao se escreve (30)` });
   const estado = { fechou, valida: corridaValida };
 

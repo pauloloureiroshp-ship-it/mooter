@@ -21,7 +21,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, tsCanonico, TRANSCRIPT_MINIMO, SONDA_TOTAL_OPUS, SHA256_VAZIO, localSemSaida, localComSaida, ehModeloCloud, SUPLENTES_ESPERADOS, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
+import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, tsCanonico, TRANSCRIPT_MINIMO, SONDA_TOTAL_OPUS, SONDA_CACHE_OPUS, SHA256_VAZIO, localSemSaida, localComSaida, ehModeloCloud, SUPLENTES_ESPERADOS, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SONDA = JSON.parse(fs.readFileSync(path.join(HERE, 'custo-fixture-sonda.json'), 'utf8'));
@@ -59,7 +59,7 @@ function tentativa(task_id, braco, over = {}) {
 
 /** Um passo local, com a forma que o ledger escreve para o router-execute (campos do CLI a null). NUNCA aceite: e impossivel por construcao. */
 function passoLocal(task_id, over = {}) {
-  return tentativa(task_id, 'B', { tentativa: 1, executor: 'router-execute', modelo_pedido: 'ollama', modelo_reportado: 'qwen2.5:3b@sha256:abc',
+  return tentativa(task_id, 'B', { tentativa: 1, executor: 'router-execute', modelo_pedido: 'qwen2.5:3b', modelo_reportado: 'qwen2.5:3b@sha256:abc',   // pedido = reportado sem digest (20.o)
     aceite: false, exit_code: 1, tests_passados: 3, arrancou: true, usage: null, modelUsage: null, total_cost_usd: null, session_id: null,
     tokens_locais: 900, texto_local_sha256: 'deadbeef', duration_ms: 3000, tier_classificado: 'T0', ...over });
 }
@@ -84,7 +84,7 @@ function correr(p, ev, opts) {
 function parReal(t, { aceiteB = true } = {}) {
   const h = t.tests_total_historico;
   const prova = (aceite) => (aceite ? { tests_corridos: h, tests_passados: h, exit_code: 0 } : { tests_corridos: h, tests_passados: h - 1, exit_code: 1 });
-  const ev = [preVoo(t.task_id), tentativa(t.task_id, 'A', { tier_classificado: t.tier_classificado, ...prova(true) })];
+  const ev = [preVoo(t.task_id, { tests_corridos: h, tests_passados: h - 1 }), tentativa(t.task_id, 'A', { tier_classificado: t.tier_classificado, ...prova(true) })];   // o pre-voo corre a mesma suite: corridos = h (20.o)
   if (t.tier_classificado === 'T0' || t.tier_classificado === 'T1') ev.push(passoLocal(t.task_id, { tier_classificado: t.tier_classificado }), escalacao(t.task_id, { tier_classificado: t.tier_classificado, aceite: aceiteB, ...prova(aceiteB) }));
   else ev.push(tentativa(t.task_id, 'B', { tier_classificado: t.tier_classificado, aceite: aceiteB, ...prova(aceiteB) }));
   return ev;
@@ -118,7 +118,7 @@ function parSuplente(id, { aceiteB = true } = {}) {
   const m = SUPLENTES_ESPERADOS[id];
   const h = m.tests_total_historico;
   const prova = (aceite) => (aceite ? { tests_corridos: h, tests_passados: h, exit_code: 0 } : { tests_corridos: h, tests_passados: h - 1, exit_code: 1 });
-  const ev = [preVoo(id), tentativa(id, 'A', { tier_classificado: m.tier_classificado, ...prova(true) })];
+  const ev = [preVoo(id, { tests_corridos: h, tests_passados: h - 1 }), tentativa(id, 'A', { tier_classificado: m.tier_classificado, ...prova(true) })];
   if (m.tier_classificado === 'T0' || m.tier_classificado === 'T1') ev.push(passoLocal(id, { tier_classificado: m.tier_classificado, tests_corridos: h, tests_passados: h - 1 }), escalacao(id, { tier_classificado: m.tier_classificado, aceite: aceiteB, ...prova(aceiteB) }));
   else ev.push(tentativa(id, 'B', { tier_classificado: m.tier_classificado, aceite: aceiteB, ...prova(aceiteB) }));
   return ev;
@@ -1468,7 +1468,7 @@ test('analise · 5.o NO-SHIP (R5-10/R5-11): tempo incoerente marca; exclusao com
 
 test('analise · 6.o NO-SHIP (B1): claude-p que chegou SEM JSON com aceite:true — «estourar o tecto = nao aceite»; contraditorio, corrida INVALIDA', () => {
   // E1b: timeout, sem session_id, sem JSON, ts_fim = ts_inicio + 905 s, aceite:true com prova coerente — o correr-r24 corre a aceitacao DEPOIS do timeout
-  const tecto = (id, b, over = {}) => tentativa(id, b, { arrancou: true, motivo_se_nao: null, session_id: null, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null,
+  const tecto = (id, b, over = {}) => tentativa(id, b, { arrancou: true, motivo_se_nao: null, session_id: `sess-tecto-${id}-${b}`, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null,   // 56: um tecto sem JSON tem session_id pelo transcript (brief 98), senao e arrancou:false
     ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:15:05Z', aceite: true, ...over });
   assert.match(aceiteContraditorio(tecto('x', 'B'), null), /sem JSON/);
   assert.match(aceiteContraditorio(tecto('x', 'B', { session_id: 'sess-z', tokens_transcript: 41000 }), null), /sem JSON/, 'E1a: com transcript continua sem resultado');
@@ -1690,6 +1690,9 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R19y4: [tentativa('t1', 'A'), tentativa('t1', 'B', { duration_ms: null, ts_fim: '2026-09-11T00:20:00Z' }), ...parOk('t2', 'T0')],
     R19y14: [tentativa('t1', 'A', { aceite: false, exit_code: 1, tests_corridos: 10, tests_passados: 10, skips: 0 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
     R19y7: [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'Claude-Opus-5': SONDA.modelUsage['claude-opus-5'] }, modelo_reportado: 'Claude-Opus-5' }), ...parOk('t2', 'T0')],
+    // 20.o revisor (56/57)
+    R20a1: [tentativa('t1', 'A', { arrancou: true, session_id: null, usage: null, modelUsage: null, total_cost_usd: null, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    R20a2: [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...SONDA.modelUsage['claude-opus-5'], inputTokens: 55000, outputTokens: 4000, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.375 } }, usage: { ...SONDA.usage, input_tokens: 55000, output_tokens: 4000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } }, total_cost_usd: 0.375 }), ...parOk('t2', 'T0')],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
   // 'veredicto' = sem veredicto; 'par' = esse par invalido (o par limpo ao lado DA veredicto, e isso e legitimo);
@@ -1711,6 +1714,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R17z8: { corrida: false, par: 't1' }, R17z8b: { corrida: false, par: 't1' }, R17z9: { corrida: false, par: 't1' }, R17z9b: { corrida: false, par: 't1' }, R17z13: { corrida: false },
     R18w2: { corrida: false }, R18w3: { corrida: false, par: 't2' }, R18w17: { corrida: false, par: 't1' }, R18w47: { corrida: false, par: 't1' }, R18w9: { corrida: false, par: 't1' },
     R19y2b: { corrida: false }, R19y2c: { corrida: false }, R19y3: { corrida: false, par: 't2' }, R19y4: { corrida: false, par: 't1' }, R19y14: { corrida: false, par: 't1' }, R19y7: { corrida: false, par: 't1' },
+    R20a1: { corrida: false, par: 't1' }, R20a2: { marca: 'abaixo_da_sonda' },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1723,6 +1727,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     if ('par' in e) { assert.ok(r.fiabilidade.pares_invalidos.some((x) => x.task_id === e.par), `${nome}: par ${e.par} devia ser invalido`); assert.ok(!r.por_tarefa.find((t) => t.task_id === e.par).par_valido); }
     if ('tokens' in e) { assert.equal(r.secundaria.global.A.tokens_opus_total, null, `${nome}: tokens A n/d`); assert.equal(r.secundaria.global.B.tokens_opus_total, null, `${nome}: tokens B n/d`); }
     if ('tokensB' in e) { assert.equal(r.secundaria.global.B.tokens_opus_total, null, `${nome}: tokens B n/d (35/36)`); assert.notEqual(r.secundaria.global.A.tokens_opus_total, null, `${nome}: A nao e tocado`); assert.equal(r.corrida_valida, true, `${nome}: nao toca a primaria`); }
+    if ('marca' in e) { assert.ok(r.marcas.some((m) => m.tipo === e.marca), `${nome}: devia marcar ${e.marca}`); assert.equal(r.corrida_valida, true, `${nome}: so marca`); }
     if ('valorizacao' in e) { assert.equal(r.valorizacao.A.valorizacao_teorica_usd, null, `${nome}: a valorizacao com reparticao n/d e null, nunca zero`); assert.ok(r.corrida_valida === true, `${nome}: nao toca a primaria`); }
     if ('direccao' in e) { assert.equal(r.corrida_valida, true, `${nome}: e uma saida (b), a corrida fica valida`); assert.equal(r.primaria.n_pares_validos, 2, `${nome}: o par CONTA`); assert.equal(r.primaria.aceites_B, 1, `${nome}: a falha de B conta contra B`); }
     // CONTROLO DE DIRECCAO (27): o ledger honesto deste desenho (t1 ok, t2 com B a falhar) da A 2 B 1 -> 1 >= 0 -> «cumprido» por vacuidade com n=2; com n=4 abaixo testa-se a direccao a serio
@@ -1784,6 +1789,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'A rejeitada com exit 0 e passados + skips < corridos (W47)': { aceite: false, exit_code: 0, tests_corridos: 10, tests_passados: 8, skips: 0 },
       'A rejeitada com exit 1 e tudo verde (Y14)': { aceite: false, exit_code: 1, tests_corridos: 10, tests_passados: 10, skips: 0 },
       'A aceite sem duration_ms com ts a 1000 s (Y4b)': { duration_ms: null, ts_fim: '2026-09-11T00:20:00Z' },
+      'A rejeitada com arrancou:true sem evidencia nenhuma (R20-A1)': { arrancou: true, session_id: null, usage: null, modelUsage: null, total_cost_usd: null, aceite: false, exit_code: 1, tests_passados: 9 },
     };
     const evA = (o, semLinha, evento, trocar = false, excluir = false) => [
       ...(excluir ? [preVoo('t1'), { evento: 'tarefa_excluida', task_id: 't1', motivo: 'worktree', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A'), tentativa('s1', 'B', falha)] : trocar ? [tentativa('t1', 'B'), tentativa('t1', 'A')] : [...(semLinha ? [] : [tentativa('t1', 'A', o)]), tentativa('t1', 'B')]),
@@ -3239,6 +3245,102 @@ test('analise · 19.o (95/97): marcas_por_tipo no JSON; tempo incoerente e motiv
   assert.ok(r.marcas.some((m) => m.tipo === 'motivo_com_arrancou' && /passo local/.test(m.motivo)));
   assert.deepEqual(r.marcas_por_tipo, { motivo_com_arrancou: 1, ordem_das_tarefas_divergente: 1, tempo_incoerente: 1 }, 'ordenado por contagem e nome');
   assert.deepEqual(correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B')]).marcas_por_tipo, {});
+});
+
+// ── 20.o revisor: o inverso da 22 (56); a sonda pela cache (57); marcas baratas; M426 ──
+
+test('analise · 20.o NO-SHIP (A1/A1b/A16, 56): arrancou:true numa claude-p sem evidencia nenhuma e sem transcript e afirmacao sem prova — INVALIDA, (c); com session_id (transcript) ou tokens_transcript e um tecto legitimo', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const semNada = { arrancou: true, motivo_se_nao: null, session_id: null, usage: null, modelUsage: null, total_cost_usd: null };
+  // A1: A «rejeitada» com arrancou:true e zero evidencia nas 5 tarefas em que B falha -> antes «cumprido · A 15 B 15 · valida · consumo_desconhecido 5»
+  const a1 = analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' && !falhaB(i) ? { ...e, ...semNada, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1 } : e))));
+  assert.equal(a1.corrida_valida, false);
+  assert.equal(a1.primaria.limiar_descritivo_cumprido, null);
+  assert.equal(a1.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'A').length, 5);
+  assert.equal(a1.fiabilidade.pares_invalidos.filter((x) => /arrancou=true sem evidencia nenhuma.*CORRIDA INVALIDA/.test(x.motivo)).length, 5, '(c) nos 5');
+  // A1b: o mesmo em 5 ms
+  assert.equal(analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' && !falhaB(i) ? { ...e, ...semNada, duration_ms: 5, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1 } : e)))).corrida_valida, false);
+  // A16 (espelho em B): tambem invalida — a mesma afirmacao sem prova
+  const a16 = analisarReal(T.flatMap((t, i) => parReal(t).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' && !falhaB(i) ? { ...e, ...semNada, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1 } : e))));
+  assert.equal(a16.corrida_valida, false);
+  // o tecto LEGITIMO: sem JSON mas com session_id (o transcript existe) -> 27b, valida; ou com tokens_transcript >= piso
+  const p = preregDe(['t1']);
+  const comSessao = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, session_id: 'sess-transcript', aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 })]);
+  assert.equal(comSessao.corrida_valida, true);
+  assert.ok(!comSessao.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
+  const comTranscript = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, tokens_transcript: 123456, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 })]);
+  assert.equal(comTranscript.corrida_valida, true);
+  assert.ok(!comTranscript.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
+  assert.ok(correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, tokens_transcript: 999, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'), 'abaixo do piso do transcript nao e evidencia');
+  // arrancou:false sem evidencia continua a ser a 22/28 (nao a 56)
+  assert.ok(!correr(p, [tentativa('t1', 'A'), naoArrancou('t1', 'B')]).marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
+  // o custo > 0 chega como evidencia (22)
+  assert.ok(!correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, total_cost_usd: 0.5, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
+});
+
+test('analise · 20.o NO-SHIP (A2, 57): a sonda pina-se tambem pela cache — cache_creation + cache_read < 58 964 marca abaixo_da_sonda mesmo acima do total; SONDA_CACHE_OPUS bate com a fixture', () => {
+  const s = SONDA.modelUsage['claude-opus-5'];
+  assert.equal(SONDA_CACHE_OPUS, s.cacheCreationInputTokens + s.cacheReadInputTokens);
+  assert.equal(SONDA_CACHE_OPUS, 58964);
+  const T = PREREG.corpus.tarefas;
+  // A2: B com 55 000 + 4 000 e cache 0/0 (total 59 000 > 58 970), costUSD a lista -> antes «cumprido · marcas 0 · B 1 180 000»
+  const zero = { modelUsage: { 'claude-opus-5': { ...s, inputTokens: 55000, outputTokens: 4000, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.375 } }, usage: { ...SONDA.usage, input_tokens: 55000, output_tokens: 4000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } }, total_cost_usd: 0.375 };
+  const a2 = analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: i !== 3 && i !== 7 }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' ? { ...e, ...zero } : e))));
+  assert.equal(a2.corrida_valida, true, 'so marca, como a 38');
+  assert.equal(a2.marcas.filter((m) => m.tipo === 'abaixo_da_sonda' && m.braco === 'B' && /cache_creation 0 \+ cache_read 0/.test(m.motivo)).length, 20);
+  assert.equal(a2.secundaria.global.B.tokens_opus_total, 20 * 59000, 'o numero continua, com 20 marcas ao lado');
+  // a cache LIDA (escalacao) e a cache CRIADA (1.a invocacao) chegam as duas; 58 963 marca
+  const lida = correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...s, cacheCreationInputTokens: 0, cacheReadInputTokens: 58964, costUSD: 0.029592 } }, total_cost_usd: 0.029592, usage: { ...SONDA.usage, cache_creation_input_tokens: 0, cache_read_input_tokens: 58964, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } } })]);
+  assert.equal(lida.marcas.length, 0);
+  const meio = correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...s, inputTokens: 10, cacheCreationInputTokens: 30000, cacheReadInputTokens: 28963, costUSD: 0.3146315 } }, total_cost_usd: 0.3146315, usage: { ...SONDA.usage, input_tokens: 10, cache_creation_input_tokens: 30000, cache_read_input_tokens: 28963, cache_creation: { ephemeral_1h_input_tokens: 30000, ephemeral_5m_input_tokens: 0 } } })]);   // total 58 977 >= 58 970 (a 38 nao dispara); cache 58 963 < 58 964
+  assert.ok(meio.marcas.some((m) => m.tipo === 'abaixo_da_sonda' && /cache_creation 30000 \+ cache_read 28963/.test(m.motivo)), '58 963 de cache marca');
+  // a 38 (total) tem prioridade na mensagem quando as duas falham
+  const seis = correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...s, inputTokens: 1000, outputTokens: 4, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0051 } }, total_cost_usd: 0.0051, usage: { ...SONDA.usage, input_tokens: 1000, output_tokens: 4, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } } })]);
+  assert.equal(seis.marcas.filter((m) => m.tipo === 'abaixo_da_sonda').length, 1);
+  assert.ok(seis.marcas.some((m) => m.tipo === 'abaixo_da_sonda' && /Opus com 1004 tokens/.test(m.motivo)));
+  // M426: a 36 na fronteira — opus 500 (abaixo do piso) com outros 800 (1x < outros < 10x): outro modelo fez o trabalho
+  const m426 = correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { inputTokens: 500, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0025 }, 'claude-sonnet-5': { inputTokens: 800, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0024 } }, usage: { ...SONDA.usage, input_tokens: 1300, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, total_cost_usd: 0.0049 })]);
+  assert.equal(m426.corrida_valida, false);
+  assert.ok(m426.marcas.some((m) => m.tipo === 'outro_modelo_fez_o_trabalho' && /800 tokens fora de claude-opus\* contra 500/.test(m.motivo)));
+});
+
+test('analise · 20.o (3-8): marcas baratas — pre_voo verde sem testes, corridos abaixo do pre-voo numa linha aceite, modelo local divergente do pedido, velocidade do local implausivel, aceite sem output, paragem incoerente', () => {
+  const s = SONDA.modelUsage['claude-opus-5'];
+  const p = preregDe(['t1', 't2'], { t2: 'T0' }, ['s1']);
+  // (3) pre-voo «nao falhou» com tests_corridos 0: a saida (b) para suplente apoia-se num runner morto
+  const pv0 = analisar(p, [preVoo('t1', { exit_code: 0, falhou: false, tests_corridos: 0, tests_passados: 0 }), { evento: 'tarefa_excluida', task_id: 't1', motivo: 'ja verde', suplente_usado: 's1' }, preVoo('s1'), ...parSuplenteBench('s1'), preVoo('t2'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2')]);
+  assert.ok(pv0.marcas.some((m) => m.tipo === 'pre_voo_verde_sem_testes' && m.task_id === 't1'));
+  assert.equal(pv0.corrida_valida, true);
+  // e numa tarefa que CORREU com esse pre-voo: a 7 invalida (pre-voo nao falhou) e a marca diz que nem «verde» era (M428)
+  const correuVerde = analisar(preregDe(['t1']), [preVoo('t1', { exit_code: 0, falhou: false, tests_corridos: 0, tests_passados: 0 }), tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.equal(correuVerde.corrida_valida, false);
+  assert.ok(correuVerde.marcas.some((m) => m.tipo === 'pre_voo_verde_sem_testes' && m.task_id === 't1' && /runner morto/.test(m.motivo)));
+  // (4) 10 testes desapareceram entre o pre-voo e uma linha aceite
+  const menos = correr(preregDe(['t1']), [preVoo('t1', { tests_corridos: 20, tests_passados: 19 }), tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.equal(menos.marcas.filter((m) => m.tipo === 'corridos_abaixo_do_pre_voo' && /10 teste\(s\) desapareceram/.test(m.motivo)).length, 2);
+  assert.equal(menos.corrida_valida, true);
+  assert.ok(!correr(preregDe(['t1']), [preVoo('t1', { tests_corridos: 20, tests_passados: 19 }), tentativa('t1', 'A', { aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B', { aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'corridos_abaixo_do_pre_voo'), 'so numa linha ACEITE');
+  // (5) o router trocou de modelo
+  const troca = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2', { modelo_reportado: 'llama3.1:8b@sha256:zzz' }), escalacao('t2')]);
+  assert.ok(troca.marcas.some((m) => m.tipo === 'modelo_local_divergente_do_pedido' && /llama3.1:8b/.test(m.motivo)));
+  assert.equal(troca.corrida_valida, true);
+  // (6) 1e9 tokens em 1 ms
+  const rapido = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2', { tokens_locais: 1e9, duration_ms: 1 }), escalacao('t2')]);
+  assert.ok(rapido.marcas.some((m) => m.tipo === 'local_velocidade_implausivel'));
+  assert.ok(!correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2', { tokens_locais: 900, duration_ms: 3000 }), escalacao('t2')]).marcas.some((m) => m.tipo === 'local_velocidade_implausivel'), '300 tok/s e um 3b normal');
+  // (7) Opus aceite com outputTokens 0
+  const semOut = correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...s, outputTokens: 0, costUSD: 0.58965 } }, total_cost_usd: 0.58965, usage: { ...SONDA.usage, output_tokens: 0 } })]);
+  assert.ok(semOut.marcas.some((m) => m.tipo === 'aceite_sem_output' && m.braco === 'B'));
+  assert.ok(!correr(preregDe(['t1']), [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...s, outputTokens: 0, costUSD: 0.58965 } }, total_cost_usd: 0.58965, usage: { ...SONDA.usage, output_tokens: 0 }, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'aceite_sem_output'), 'so numa linha aceite');
+  // (8) paragem com ultima_tarefa/n errados
+  const par4 = preregDe(['t1', 't2', 't3', 't4']);
+  const parou = analisar(par4, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), preVoo('t2'), tentativa('t2', 'A'), tentativa('t2', 'B'), { evento: 'paragem', motivo: 'tecto', ultima_tarefa: 't4', n: 4 }]);
+  assert.equal(parou.marcas.filter((m) => m.tipo === 'paragem_incoerente').length, 2);
+  assert.ok(parou.marcas.some((m) => /ultima_tarefa "t4" != ultima tarefa com tentativa "t2"/.test(m.motivo)));
+  assert.ok(parou.marcas.some((m) => /paragem.n 4 != 2/.test(m.motivo)));
+  const coerente = analisar(par4, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), preVoo('t2'), tentativa('t2', 'A'), tentativa('t2', 'B'), { evento: 'paragem', motivo: 'tecto', ultima_tarefa: 't2', n: 2 }]);
+  assert.ok(!coerente.marcas.some((m) => m.tipo === 'paragem_incoerente'));
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {
