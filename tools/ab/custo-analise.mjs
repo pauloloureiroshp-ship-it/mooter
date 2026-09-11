@@ -456,6 +456,48 @@
  *     tratamento, 33). Acima do piso, `modelo_nao_opus_dominante` continua só
  *     marca: subagentes noutro modelo são plausíveis num run honesto e o
  *     ledger não os distingue de um trabalho desviado.
+ * 37. UM INÍCIO A MAIS É RETOMA (o 16.º revisor: um `tentativa_inicio` B t3
+ *     — ou t9 — sem fim, ao lado do B «oficial» aceite, dava «cumprido ·
+ *     A 20 B 20 · válida» só com `tentativa_sem_fim` em marca; em espelho,
+ *     A t2 sem fim). Contrato mínimo do `tentativa_inicio`: `task_id` e
+ *     `braco` strings, `tentativa` inteiro em {1,2} (A só tem a 1) — fora
+ *     disto `inicio_fora_do_protocolo`, INVÁLIDA, (c) no par. Um inicio SEM
+ *     fim só é legítimo como o ÚLTIMO inicio do ledger numa corrida com
+ *     `paragem` (morte a meio); qualquer outro é um braço lançado a mais
+ *     (a 28 já exige a linha mesmo no spawn falhado) — INVÁLIDA, (c).
+ * 38. NEGATIVOS E NÃO-NÚMEROS DENTRO DO JSON (o 16.º: `cacheReadInputTokens:
+ *     -900` coerente em `usage` E `modelUsage` reconciliava, passava o piso
+ *     e dava «B 74 000 · marcas 0» com `por_categoria.cache_read` −18 000).
+ *     Qualquer sub-campo de tokens ou `costUSD` do `modelUsage` (TODAS as
+ *     chaves) ou das 4 categorias do `usage` (e da divisão 1h/5m) negativo é
+ *     `tipo_invalido` → INVÁLIDA, (c); uma categoria do `usage` presente que
+ *     não é número finito idem (uma string reconcilia por coerção). E a
+ *     forja COERENTE (cache zero nos dois lados: «B 92 000 · marcas 0») é a
+ *     classe «mente de forma coerente» da 30 — não se invalida, mas marca-se
+ *     `abaixo_da_sonda`: total de Opus do JSON < `SONDA_TOTAL_OPUS` (58 970,
+ *     a sonda real desta máquina para «Responde apenas: OK»; se a sonda for
+ *     refeita noutra configuração, esta constante muda por AMENDMENT).
+ * 39. CUSTO DO CLI NUNCA É ZERO POR OMISSÃO (o 16.º: `costUSD` omitido ou
+ *     null dava `custo_cli_opus_usd: 0`; `total_cost_usd: 0` com tokens dava
+ *     `custo_cli_total_usd: 0`, ambos sem marca). `costUSD` ausente/null
+ *     numa chave Opus de uma claude-p que chegou → `campo_em_falta`,
+ *     `custo_cli_usd` da tentativa null (propaga, nunca 0); `total_cost_usd`
+ *     null, 0, ou abaixo da Σ `costUSD` de todas as chaves →
+ *     `custo_cli_incoerente`, `custo_cli_total_usd` null. Só a valorização a
+ *     preço de lista fica. A `custo_zero_com_tokens` (29) continua.
+ * 40. `session_id` null numa claude-p cujo JSON chegou (`usage` ou
+ *     `modelUsage`) → `campo_em_falta` (marca): o JSON do CLI traz sempre
+ *     um, e sem ele a 22 (`session_id_repetido`) fica cega; um tecto sem
+ *     JSON não tem `session_id` por definição. CLI (5 do 16.º): o guarda do `--out` compara o caminho REAL
+ *     (`fs.realpathSync.native`; nome curto 8.3, junction, symlink apontam
+ *     para o mesmo ficheiro), case-insensitive no win32. E a saída (a) do
+ *     pré-registo com RESULTADO no outro braço (6 do 16.º): a análise não a
+ *     invalida — é a saída pré-registada e o ledger não a refuta — mas marca
+ *     `par_invalido_com_resultado_no_outro_braco` com o sentido («retirar
+ *     este par favorece A/B», e se o braço que não arrancou era o SEGUNDO da
+ *     ordem), conta-as em `fiabilidade.saidas_a_com_resultado_no_outro_braco`
+ *     e imprime-as no resumo. Um spawn puro exactamente nas 5 falhas de B
+ *     dá «cumprido» sobre 15 pares COM 5 marcas a dizer «favorece B».
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -519,8 +561,17 @@ export function violacoesDeTipo(t) {
   }
   // tokens_transcript nao e obrigatoria, mas quando existe tem tipo: numero finito >= 0, ou null
   if ('tokens_transcript' in t && t.tokens_transcript !== null && (typeof t.tokens_transcript !== 'number' || !Number.isFinite(t.tokens_transcript) || t.tokens_transcript < 0)) out.push(`tokens_transcript: ${JSON.stringify(t.tokens_transcript)} nao e um numero >= 0`);
+  // 38: tokens e custos nunca negativos DENTRO do usage e do modelUsage (TODAS as chaves, nao so Opus) — um negativo coerente nos dois lados reconcilia e passa o piso; e as 4 categorias do usage, quando presentes, sao numeros finitos (uma string reconcilia por coercao)
+  if (t.modelUsage && typeof t.modelUsage === 'object' && !Array.isArray(t.modelUsage)) for (const [k, v] of Object.entries(t.modelUsage)) if (v && typeof v === 'object') for (const c of [...CAMPOS_TOKENS, 'costUSD']) if (typeof v[c] === 'number' && v[c] < 0) out.push(`modelUsage.${k}.${c}: negativo (${v[c]})`);
+  if (t.usage && typeof t.usage === 'object' && !Array.isArray(t.usage)) {
+    for (const c of ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']) if (c in t.usage && t.usage[c] !== null && (typeof t.usage[c] !== 'number' || !Number.isFinite(t.usage[c]) || t.usage[c] < 0)) out.push(`usage.${c}: ${JSON.stringify(t.usage[c])} nao e um numero >= 0`);
+    const cc = t.usage.cache_creation;
+    if (cc && typeof cc === 'object') for (const c of ['ephemeral_1h_input_tokens', 'ephemeral_5m_input_tokens']) if (typeof cc[c] === 'number' && cc[c] < 0) out.push(`usage.cache_creation.${c}: negativo (${cc[c]})`);
+  }
   return out;
 }
+/** O total de Opus da sonda real desta maquina (`custo-fixture-sonda.json`: «Responde apenas: OK» = 2 + 4 + 58 964 + 0). Abaixo disto uma claude-p e coerente mas implausivel (38); o teste afirma-o contra a fixture. */
+export const SONDA_TOTAL_OPUS = 58970;
 /** Forma canonica de um instante: a que `new Date().toISOString()` escreve, com Z obrigatorio. Sem isto, `Date.parse` le a hora local de quem analisa (31). */
 export const tsCanonico = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(s) && Number.isFinite(Date.parse(s));
 /** Piso de plausibilidade para um total de tokens vindo do transcript: uma invocacao claude-p que chegou ao Opus carrega milhares de tokens de sistema (31). */
@@ -633,7 +684,7 @@ export function tokensOpusDaTentativa(t) {
   if (reconciliar(t).ok === false) return null;                 // 35: usage e modelUsage em desacordo — consumo contestado, nao se imputa
   const cats = { input: 0, output: 0, cache_creation: 0, cache_read: 0 };
   const modelos = [];
-  let custoCli = 0;
+  let custoCli = 0, custoDesconhecido = false;
   for (const [k, v] of Object.entries(mu)) {
     if (!ehOpus(k)) continue;
     modelos.push(k);
@@ -641,7 +692,7 @@ export function tokensOpusDaTentativa(t) {
     cats.output += v.outputTokens;
     cats.cache_creation += v.cacheCreationInputTokens;
     cats.cache_read += v.cacheReadInputTokens;
-    custoCli += Number(v.costUSD) || 0;
+    if (Number.isFinite(v.costUSD)) custoCli += v.costUSD; else custoDesconhecido = true;   // 39: costUSD ausente/null nao e 0 — o custo do CLI fica desconhecido
   }
   const total = cats.input + cats.output + cats.cache_creation + cats.cache_read;
   if (total === 0) return null;   // interpretacao 20: uma claude-p que chegou ao Opus consome; zero e desconhecido
@@ -663,7 +714,7 @@ export function tokensOpusDaTentativa(t) {
       cache_1h = Math.round(cats.cache_creation * f); cache_5m = cats.cache_creation - cache_1h; reparticao = 'proporcional';
     }
   }
-  return { ...cats, cache_creation_1h: cache_1h, cache_creation_5m: cache_5m, reparticao_cache: reparticao, total, modelos, custo_cli_usd: custoCli, fonte: 'json' };
+  return { ...cats, cache_creation_1h: cache_1h, cache_creation_5m: cache_5m, reparticao_cache: reparticao, total, modelos, custo_cli_usd: custoDesconhecido ? null : custoCli, fonte: 'json' };
 }
 
 /** Reconciliacao `usage` vs soma de `modelUsage`. Passo local: nao se aplica. */
@@ -863,15 +914,32 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   // tentativa_inicio (26): reinicio da mesma tentativa = retoma com outra pegada
   const inicios = porTipo('tentativa_inicio');
   const semFim = new Set();   // `${task_id}/${braco}` com tentativa_inicio sem tentativa_fim (28: o braco ARRANCOU a tentar)
+  const iniciosForaDoProtocolo = [];   // 37: inicios que sao «um braco lancado a mais» — (c) no par da tarefa
   if (inicios.length > 0) {
     const chave = (t) => `${t.task_id}|${t.braco}|${t.tentativa ?? 1}`;
+    // 37: contrato minimo do tentativa_inicio — task_id e braco strings, tentativa inteiro em {1,2} (A so tem a 1)
+    for (const i of inicios) {
+      const problemas = [];
+      if (typeof i.task_id !== 'string') problemas.push(`task_id ${JSON.stringify(i.task_id ?? null)} nao e string`);
+      if (typeof i.braco !== 'string') problemas.push(`braco ${JSON.stringify(i.braco ?? null)} nao e string`);
+      const n = i.tentativa ?? 1;
+      if (!Number.isInteger(n) || n < 1 || n > 2) problemas.push(`tentativa ${JSON.stringify(i.tentativa)} fora de {1,2}`);
+      else if (i.braco === 'A' && n !== 1) problemas.push('o braco A so tem a tentativa 1');
+      if (problemas.length) { iniciosForaDoProtocolo.push(i); marca({ task_id: i.task_id, braco: i.braco, tentativa: i.tentativa, tipo: 'inicio_fora_do_protocolo', motivo: problemas.join('; ') }); invalida('tentativa_inicio fora do protocolo — um braco lancado numa tentativa que o pre-registo nao tem (interpretacao 37)', `${i.task_id}/${i.braco}/${i.tentativa ?? 1}: ${problemas.join('; ')}`); }
+    }
     const contagem = new Map();
     for (const i of inicios) contagem.set(chave(i), (contagem.get(chave(i)) || 0) + 1);
     const fins = new Set(tentativas.map(chave));
+    const chaveDoUltimoInicio = chave(inicios[inicios.length - 1]);   // 37: so o ULTIMO inicio do ledger pode ficar sem fim, e so numa corrida parada (morte a meio)
     for (const [k, n] of contagem) {
       const [task_id, braco, tentativa] = k.split('|');
       if (n > 1) { marca({ task_id, braco, tentativa: Number(tentativa), tipo: 'tentativa_reiniciada', motivo: `${n} eventos tentativa_inicio para a mesma tentativa (interpretacao 26)` }); invalida('tentativa reiniciada — retoma com outra pegada (interpretacao 26)', k.replace(/\|/g, '/')); }
-      if (!fins.has(k)) { semFim.add(`${task_id}/${braco}`); marca({ task_id, braco, tentativa: Number(tentativa), tipo: 'tentativa_sem_fim', motivo: 'tentativa_inicio sem tentativa_fim' }); }
+      if (!fins.has(k)) {
+        semFim.add(`${task_id}/${braco}`);
+        const morteAMeio = paragens.length > 0 && k === chaveDoUltimoInicio;
+        marca({ task_id, braco, tentativa: Number(tentativa), tipo: 'tentativa_sem_fim', motivo: morteAMeio ? 'tentativa_inicio sem tentativa_fim — o ultimo inicio do ledger numa corrida parada (morte a meio)' : 'tentativa_inicio sem tentativa_fim — a linha e obrigatoria mesmo no spawn falhado (28); sem paragem, ou fora do ultimo inicio, e um braco lancado a mais (37)' });
+        if (!morteAMeio) { iniciosForaDoProtocolo.push({ task_id, braco, tentativa: Number(tentativa) }); invalida('tentativa_inicio sem tentativa_fim numa corrida sem paragem (ou fora do ultimo inicio) — um braco lancado a mais, «sem terceira tentativa» (interpretacao 37)', k.replace(/\|/g, '/')); }
+      }
     }
     for (const t of tentativas) if (!contagem.has(chave(t))) marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'tentativa_sem_inicio', motivo: 'tentativa_fim sem tentativa_inicio num ledger que os regista (29)' });
   }
@@ -926,7 +994,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   // 34: um tentativa_inicio orfao e um braco LANCADO fora do protocolo (a retoma morta antes do fim)
   const iniciosOrfaos = inicios.filter((i) => !idsEmJogo.includes(i.task_id) || (i.braco !== 'A' && i.braco !== 'B'));
   for (const i of iniciosOrfaos) { marca({ task_id: i.task_id, braco: i.braco, tentativa: i.tentativa, tipo: 'inicio_orfao', motivo: !idsEmJogo.includes(i.task_id) ? 'tentativa_inicio com task_id fora das tarefas em jogo' : `tentativa_inicio com braco ${JSON.stringify(i.braco)} fora de {A,B}` }); invalida('tentativa_inicio orfao — um braco lancado fora do protocolo (interpretacao 34)', `${i.task_id}/${i.braco}/${i.tentativa ?? 1}`); }
-  const retomaEscondidaEm = (id) => orfas.some((t) => t.task_id === id) || iniciosOrfaos.some((i) => i.task_id === id) || eventosDesconhecidos.some((e) => e.task_id === id);
+  const retomaEscondidaEm = (id) => orfas.some((t) => t.task_id === id) || iniciosOrfaos.some((i) => i.task_id === id) || iniciosForaDoProtocolo.some((i) => i.task_id === id) || eventosDesconhecidos.some((e) => e.task_id === id);
 
   const porTarefa = [];
   for (const id of idsEmJogo) {
@@ -981,6 +1049,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       let contraditorio = null;
       let semOpus = false;
       let outroModelo = false;   // 36
+      const custoTotalIncoerenteDe = new Set();   // 39
       let arrancouContraditorio = false;
       let arrancouMotivoC = null;
       let provaEmFalta = null;
@@ -1019,6 +1088,16 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           else if (outros > opus) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_nao_opus_dominante', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus — o trabalho correu noutro modelo; tokens_opus subestima o consumo (S9 do 13.o)` });
         }
         if (!ehLocal(t) && t.modelUsage && typeof t.modelUsage === 'object') for (const [k, v] of Object.entries(t.modelUsage)) if (k.startsWith('claude-opus') && v && v.costUSD === 0 && ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].some((c) => Number.isFinite(v[c]) && v[c] > 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_zero_com_tokens', motivo: `${k} com costUSD 0 e tokens > 0 — o custo_cli_opus_usd fica subestimado (29)` });
+        // 39: costUSD ausente/null numa chave Opus e campo em falta (o custo do CLI fica null, nunca 0); total_cost_usd a 0/null ou abaixo da soma dos costUSD e incoerente (custo_cli_total_usd null)
+        if (!ehLocal(t) && chegou && t.modelUsage && typeof t.modelUsage === 'object') {
+          for (const [k, v] of Object.entries(t.modelUsage)) if (ehOpus(k) && v && typeof v === 'object' && !Number.isFinite(v.costUSD)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: `${k}.costUSD — custo_cli_opus_usd desconhecido, nunca 0 (39)` });
+          const somaCost = Object.values(t.modelUsage).reduce((s, v) => s + (v && Number.isFinite(v.costUSD) ? v.costUSD : 0), 0);
+          if (t.total_cost_usd == null || t.total_cost_usd === 0 || t.total_cost_usd < somaCost - 1e-6) { custoTotalIncoerenteDe.add(t); marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_cli_incoerente', motivo: `total_cost_usd ${JSON.stringify(t.total_cost_usd ?? null)} com a soma dos costUSD a ${somaCost} — custo_cli_total_usd desconhecido, nunca 0 (39)` }); }
+        }
+        // 40: session_id null numa claude-p cujo JSON CHEGOU (usage ou modelUsage) — o JSON do CLI traz sempre um; sem ele a 22 (session_id repetido) fica cega. Um tecto sem JSON nao tem session_id por definicao.
+        if (!ehLocal(t) && t.session_id == null && ((t.usage && typeof t.usage === 'object') || (t.modelUsage && typeof t.modelUsage === 'object'))) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'session_id — o JSON do CLI traz sempre um; a 22 fica cega (40)' });
+        // 38: coerente mas implausivel — abaixo do que a sonda desta maquina gasta so para responder «OK»
+        if (toks[i] && toks[i].fonte === 'json' && toks[i].total < SONDA_TOTAL_OPUS) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'abaixo_da_sonda', motivo: `Opus com ${toks[i].total} tokens — abaixo dos ${SONDA_TOTAL_OPUS} da sonda («Responde apenas: OK», custo-fixture-sonda.json); coerente mas implausivel (38)` });
         if (ehLocal(t) && typeof t.worktree_listagem_sha_antes === 'string' && typeof t.worktree_listagem_sha_depois === 'string' && t.worktree_listagem_sha_antes !== t.worktree_listagem_sha_depois) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'rasto_do_passo_local', motivo: `listagem do worktree mudou no passo local (${t.worktree_listagem_sha_antes} -> ${t.worktree_listagem_sha_depois}) — a escalacao nao parte do mesmo estado que A (CUSTO-02; so reportado)` });
         if (!ehLocal(t) && toks[i] === null && !naoReconcilia && !jsonParcial && t.modelUsage && typeof t.modelUsage === 'object' && !prob.sem_opus && prob.campos.length === 0) {
           const opusTot = Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((a, c) => a + (Number.isFinite(v && v[c]) ? v[c] : 0), 0), 0);
@@ -1150,7 +1229,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         tokens,
         valorizacao_usd: somaOuNull(toks.map((k) => valorizar(k, precos))),
         custo_cli_usd: somaOuNull(toks.map((k) => (k === null ? null : k.custo_cli_usd))),
-        custo_cli_total_usd: somaOuNull(xs.map((t, i) => (ehLocal(t) || (toks[i] && toks[i].fonte === 'nao arrancou') ? 0 : Number.isFinite(t.total_cost_usd) ? t.total_cost_usd : null))),
+        custo_cli_total_usd: somaOuNull(xs.map((t, i) => (ehLocal(t) || (toks[i] && toks[i].fonte === 'nao arrancou') ? 0 : custoTotalIncoerenteDe.has(t) ? null : Number.isFinite(t.total_cost_usd) ? t.total_cost_usd : null))),
         duration_ms: somaOuNull(duracoes),
         duracoes_ms: duracoes,
         ate_verde_ms: ateVerde,
@@ -1253,6 +1332,16 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && !pv) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo ausente'); }
     else if (temTentativas && !preVooOk) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('pre-voo nao falhou (tarefa ja verde)'); }
     const parValido = correu && motivoInvalido === null;
+    // 16.o (6): uma saida (a) num par em que o OUTRO braco tem resultado — a analise diz o sentido da remocao, nunca o cala (a saida e a do pre-registo; o ledger nao a refuta)
+    if (motivoInvalido !== null && (bracoQueNaoArrancou === 'A' || bracoQueNaoArrancou === 'B') && !motivoInvalido.includes('(27c)')) {
+      const outroNome = bracoQueNaoArrancou === 'A' ? 'B' : 'A';
+      const outro = outroNome === 'A' ? A : B;
+      if (outro.tentativas > 0 && typeof outro.aceite === 'boolean') {
+        const favorece = (bracoQueNaoArrancou === 'A' && outro.aceite === false) || (bracoQueNaoArrancou === 'B' && outro.aceite === true) ? 'B' : 'A';
+        const segundo = (ordemDosBracos === 'B-depois-A' && bracoQueNaoArrancou === 'B') || (ordemDosBracos === 'A-depois-B' && bracoQueNaoArrancou === 'A');
+        marca({ task_id: id, braco: bracoQueNaoArrancou, tipo: 'par_invalido_com_resultado_no_outro_braco', sentido: `favorece ${favorece}`, motivo: `saida (a) no braco ${bracoQueNaoArrancou} com o braco ${outroNome} ${outro.aceite ? 'aceite' : 'rejeitado'} — retirar este par favorece ${favorece}${segundo ? '; o braco que nao arrancou era o SEGUNDO da ordem (o resultado do primeiro ja era conhecido)' : ''}` });
+      }
+    }
     // par fechado: os dois bracos tem tentativa, ou um evento par_invalido fechou-o (interpretacao 4)
     const parFechado = !!invalido || (A.tentativas > 0 && B.tentativas > 0);
     porTarefa.push({
@@ -1405,6 +1494,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     rastos_do_passo_local: marcas.filter((m) => m.tipo === 'rasto_do_passo_local').map((m) => ({ task_id: m.task_id, motivo: m.motivo })),
     eventos_desconhecidos: eventosDesconhecidos,
     estado_vivo_shas_vistos: shasEstadoVivo,
+    saidas_a_com_resultado_no_outro_braco: { favorece_A: marcas.filter((m) => m.tipo === 'par_invalido_com_resultado_no_outro_braco' && m.sentido === 'favorece A').length, favorece_B: marcas.filter((m) => m.tipo === 'par_invalido_com_resultado_no_outro_braco' && m.sentido === 'favorece B').length },
     modelos_locais_vistos: modelosLocais,
     AVISO: 'CUSTO-10: o consumo dos pares invalidos NAO e apagado; esta aqui.',
   };
@@ -1427,8 +1517,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     fiabilidade,
     por_tarefa: porTarefa.map((t) => ({
       task_id: t.task_id, tier: t.tier, suplente: t.suplente, ordem_dos_bracos: t.ordem_dos_bracos, ordem_observada: t.ordem_observada, pre_voo_falhou: t.pre_voo_falhou, par_valido: t.par_valido, par_fechado: t.par_fechado,
-      A: { tentativas: t.A.tentativas, aceite: t.A.aceite, arrancou: t.A.arrancou, tokens_opus: t.A.tokens ? t.A.tokens.total : null, fontes: t.A.fontes, duration_ms: t.A.duration_ms, tecto_do_orcamento: t.A.tecto, escalou: t.A.escalou, modelos_opus: t.A.modelos_opus },
-      B: { tentativas: t.B.tentativas, aceite: t.B.aceite, arrancou: t.B.arrancou, tokens_opus: t.B.tokens ? t.B.tokens.total : null, fontes: t.B.fontes, duration_ms: t.B.duration_ms, tecto_do_orcamento: t.B.tecto, escalou: t.B.escalou, tokens_locais: t.B.tokens_locais, modelo_local: t.B.modelo_local, modelos_opus: t.B.modelos_opus },
+      A: { tentativas: t.A.tentativas, aceite: t.A.aceite, arrancou: t.A.arrancou, tokens_opus: t.A.tokens ? t.A.tokens.total : null, custo_cli_usd: arred.usd(t.A.custo_cli_usd), custo_cli_total_usd: arred.usd(t.A.custo_cli_total_usd), fontes: t.A.fontes, duration_ms: t.A.duration_ms, tecto_do_orcamento: t.A.tecto, escalou: t.A.escalou, modelos_opus: t.A.modelos_opus },
+      B: { tentativas: t.B.tentativas, aceite: t.B.aceite, arrancou: t.B.arrancou, tokens_opus: t.B.tokens ? t.B.tokens.total : null, custo_cli_usd: arred.usd(t.B.custo_cli_usd), custo_cli_total_usd: arred.usd(t.B.custo_cli_total_usd), fontes: t.B.fontes, duration_ms: t.B.duration_ms, tecto_do_orcamento: t.B.tecto, escalou: t.B.escalou, tokens_locais: t.B.tokens_locais, modelo_local: t.B.modelo_local, modelos_opus: t.B.modelos_opus },
     })),
     marcas,
     linhas_de_ledger_invalidas: null,   // preenchido pelo main
@@ -1460,7 +1550,9 @@ if (invocadoDirectamente) {
   const ledgerPath = path.resolve(arg('--ledger', path.join(HERE, 'custo-ledger.jsonl')));
   const outPath = path.resolve(arg('--out', path.join(HERE, 'custo-analysis.json')));
   // 34 (CLI, d4 do 15.o): o --out nunca e uma entrada — sobrescrever o ledger destruia a unica prova da corrida
-  const mesmoCaminho = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+  // 16.o (5): o alias de caminho (nome curto 8.3, junction, symlink) aponta para o mesmo ficheiro — compara-se o caminho REAL; para um --out que ainda nao existe, o real da pasta + o nome
+  const real = (p) => { try { return fs.realpathSync.native(p); } catch { try { return path.join(fs.realpathSync.native(path.dirname(p)), path.basename(p)); } catch { return p; } } };
+  const mesmoCaminho = (a, b) => { const x = real(a), y = real(b); return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y; };
   if (mesmoCaminho(outPath, preregPath) || mesmoCaminho(outPath, ledgerPath)) { console.error(`--out ${outPath} e o pre-registo ou o ledger — destruiria a entrada`); process.exit(2); }
   if (!fs.existsSync(preregPath)) { console.error(`falta o pre-registo: ${preregPath}`); process.exit(2); }
   if (!fs.existsSync(ledgerPath)) { console.error(`falta o ledger: ${ledgerPath}\nEsta analise nao inventa dados: sem ledger nao ha resultado.`); process.exit(2); }
@@ -1479,6 +1571,6 @@ if (invocadoDirectamente) {
   console.log(`custo-analise: ${estado}${validade} · nao corridas ${f.nao_corridas.length}`);
   const veredicto = p.limiar_descritivo_cumprido === null ? `n/d (${p.veredicto_ausente_porque})` : (p.limiar_descritivo_cumprido ? 'cumprido' : 'NAO cumprido') + (p.veredicto_vacuo ? ' (VACUO: ' + p.AVISO_VACUO + ')' : '') + (p.AVISO_N ? ' · ' + p.AVISO_N : '') + (p.AVISO_SUPLENTES ? ' · ' + p.AVISO_SUPLENTES : '');
   console.log(`  pares validos ${p.n_pares_validos} · aceites A ${p.aceites_A} B ${p.aceites_B} · limiar descritivo ${veredicto}`);
-  console.log(`  tokens Opus total A ${r.secundaria.global.A.tokens_opus_total ?? 'n/d'} B ${r.secundaria.global.B.tokens_opus_total ?? 'n/d'} · marcas ${r.marcas.length} · invalidos ${f.pares_invalidos.length} · orfas ${f.tentativas_orfas.length} · duplicadas ${f.tentativas_duplicadas.length} · linhas de ledger invalidas ${linhasInvalidas.length} · eventos desconhecidos ${f.eventos_desconhecidos.length}`);
+  console.log(`  tokens Opus total A ${r.secundaria.global.A.tokens_opus_total ?? 'n/d'} B ${r.secundaria.global.B.tokens_opus_total ?? 'n/d'} · marcas ${r.marcas.length} · invalidos ${f.pares_invalidos.length} (saidas (a) com resultado no outro braco: favorece A ${f.saidas_a_com_resultado_no_outro_braco.favorece_A}, favorece B ${f.saidas_a_com_resultado_no_outro_braco.favorece_B}) · orfas ${f.tentativas_orfas.length} · duplicadas ${f.tentativas_duplicadas.length} · linhas de ledger invalidas ${linhasInvalidas.length} · eventos desconhecidos ${f.eventos_desconhecidos.length}`);
   console.log(`  escrito: ${outPath}`);
 }
