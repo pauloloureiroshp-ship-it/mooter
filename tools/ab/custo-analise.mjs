@@ -335,6 +335,32 @@
  *     suplente noutro tier). NÃO fechado (declarado): um A que MENTE de
  *     forma coerente (rejeitado com prova coerente) é indetectável por
  *     ledger — só o worktree o refuta.
+ * 31. A FORMA É PROVA (o 12.º revisor mostrou que a 30 lia instantes mas
+ *     não exigia que fossem legíveis): `ts_inicio`/`ts_fim` só contam na
+ *     forma canónica de `toISOString()` (`tsCanonico`: UTC, `Z`, com ou sem
+ *     ms) — um espaço, um «ZZ», uma vírgula ou uma zona omitida davam NaN em
+ *     SILÊNCIO (bloco de ordem saltado, «cumprido · marcas 0»), e sem zona o
+ *     `Date.parse` lê a hora LOCAL de quem analisa (o veredicto dependia da
+ *     máquina). Violação → `tipo_invalido` (18) e `timestamp ilegivel`,
+ *     corrida INVÁLIDA, (c) no par. OMISSÃO = NULL: uma chave de
+ *     `CHAVES_OBRIGATORIAS` omitida invalida como o null invalidaria (era
+ *     mais barato omitir `ts_inicio` do que escrever null). `aceite: null`
+ *     invalida em QUALQUER linha, passo local incluído (o local corre a
+ *     aceitação e escreve false; com null o par saía sem invalidar). Tempo
+ *     por INSTANTE e, numa linha que CHEGOU, um tempo impossível é (c):
+ *     `ts_fim` antes de `ts_inicio`, `ts_fim === ts_inicio` (nenhuma chamada
+ *     ao CLI dura 0 ms), `duration_ms: 0`; `duracao_incoerente` (> 60 s entre
+ *     `duration_ms` e os ts) só marca. `ts_inicio` igual entre A e B numa
+ *     tarefa do corpus invalida (a ordem pré-registada não é verificável).
+ *     `e_escalacao` incoerente com a tentativa invalida (25). VALORIZAÇÃO:
+ *     `usage.cache_creation` só reparte se cobrir a criação do `modelUsage`
+ *     e não for negativo — `{0,0}` com criação > 0 já não é «sem criação» a
+ *     valorizar a cache a zero (5 000× a favor de B, invisível): repartição
+ *     n/d, valorização null, marca `reparticao_cache_nd`. `tokens_transcript`
+ *     tem tipo (número ≥ 0 ou null) e piso `TRANSCRIPT_MINIMO` = 1000:
+ *     abaixo é desconhecido, não consumo. `reconciliar` falha nos dois
+ *     sentidos (`usage` > 1 % + 10 acima do `modelUsage` é consumo que o
+ *     `modelUsage` não explica).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -358,7 +384,7 @@ export const CHAVES_OBRIGATORIAS = [
 
 /** Contrato de tipo por chave (interpretação 18). `nulo: true` = null aceite; `nao_negativo` para números. */
 export const TIPOS_OBRIGATORIOS = {
-  ts_inicio: { tipo: 'string' }, ts_fim: { tipo: 'string' },
+  ts_inicio: { tipo: 'string', forma: 'ts' }, ts_fim: { tipo: 'string', forma: 'ts' },
   task_id: { tipo: 'string' }, braco: { tipo: 'string' },
   tentativa: { tipo: 'number', valores: [1, 2] }, e_escalacao: { tipo: 'boolean' },
   tier_classificado: { tipo: 'string', nulo: true, valores: ['T0', 'T1', 'T2', 'T3'] },
@@ -393,9 +419,17 @@ export function violacoesDeTipo(t) {
     if (tv === 'number' && !Number.isFinite(v)) { out.push(`${k}: nao finito`); continue; }
     if (c.nao_negativo && v < 0) out.push(`${k}: negativo (${v})`);
     if (c.valores && !c.valores.includes(v)) out.push(`${k}: ${JSON.stringify(v)} fora de {${c.valores.join(',')}}`);
+    // 31: um timestamp so conta se tiver a forma canonica de toISOString() (UTC, Z, com ou sem ms) — sem zona e a hora LOCAL de quem analisa; um espaco ou um «ZZ» da NaN em silencio
+    if (c.forma === 'ts' && !tsCanonico(v)) out.push(`${k}: ${JSON.stringify(v)} nao e um timestamp canonico (YYYY-MM-DDTHH:MM:SS[.mmm]Z)`);
   }
+  // tokens_transcript nao e obrigatoria, mas quando existe tem tipo: numero finito >= 0, ou null
+  if ('tokens_transcript' in t && t.tokens_transcript !== null && (typeof t.tokens_transcript !== 'number' || !Number.isFinite(t.tokens_transcript) || t.tokens_transcript < 0)) out.push(`tokens_transcript: ${JSON.stringify(t.tokens_transcript)} nao e um numero >= 0`);
   return out;
 }
+/** Forma canonica de um instante: a que `new Date().toISOString()` escreve, com Z obrigatorio. Sem isto, `Date.parse` le a hora local de quem analisa (31). */
+export const tsCanonico = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(s) && Number.isFinite(Date.parse(s));
+/** Piso de plausibilidade para um total de tokens vindo do transcript: uma invocacao claude-p que chegou ao Opus carrega milhares de tokens de sistema (31). */
+export const TRANSCRIPT_MINIMO = 1000;
 
 // ── leitura ────────────────────────────────────────────────────────────────
 
@@ -479,7 +513,7 @@ export function tokensOpusDaTentativa(t) {
   const jsonUtil = mu && typeof mu === 'object' && !prob.sem_opus && prob.campos.length === 0;
   if (!jsonUtil) {
     if (naoArrancouPuro(t)) return ZEROS('nao arrancou');
-    if (t && Number.isFinite(t.tokens_transcript) && t.tokens_transcript > 0) {
+    if (t && Number.isFinite(t.tokens_transcript) && t.tokens_transcript >= TRANSCRIPT_MINIMO) {
       return { input: null, output: null, cache_creation: null, cache_read: null, cache_creation_1h: null, cache_creation_5m: null,
         reparticao_cache: 'n/d', total: t.tokens_transcript, modelos: [], custo_cli_usd: null, fonte: 'transcript' };
     }
@@ -504,9 +538,11 @@ export function tokensOpusDaTentativa(t) {
   // diz-se que foi assim; se `usage` nao trouxer a divisao, fica null.
   const cc = t.usage && t.usage.cache_creation;
   let cache_1h = null, cache_5m = null, reparticao = 'n/d';
-  if (cc && Number.isFinite(cc.ephemeral_1h_input_tokens) && Number.isFinite(cc.ephemeral_5m_input_tokens)) {
+  if (cc && Number.isFinite(cc.ephemeral_1h_input_tokens) && Number.isFinite(cc.ephemeral_5m_input_tokens) && cc.ephemeral_1h_input_tokens >= 0 && cc.ephemeral_5m_input_tokens >= 0) {
     const tot = cc.ephemeral_1h_input_tokens + cc.ephemeral_5m_input_tokens;
-    if (tot === 0) { cache_1h = 0; cache_5m = 0; reparticao = 'sem criacao'; }
+    // 31: a divisao do usage tem de cobrir a criacao do modelUsage; abaixo disso (incl. {0,0} com criacao > 0) a reparticao e n/d — nunca «sem criacao» a valorizar a zero
+    if (tot < cats.cache_creation) { cache_1h = null; cache_5m = null; reparticao = 'n/d (usage.cache_creation abaixo do modelUsage)'; }
+    else if (tot === 0) { cache_1h = 0; cache_5m = 0; reparticao = 'sem criacao'; }
     else if (cc.ephemeral_5m_input_tokens === 0) { cache_1h = cats.cache_creation; cache_5m = 0; reparticao = 'toda 1h'; }
     else if (cc.ephemeral_1h_input_tokens === 0) { cache_1h = 0; cache_5m = cats.cache_creation; reparticao = 'toda 5m'; }
     else {
@@ -526,6 +562,10 @@ export function reconciliar(t) {
   const somaIn = Object.values(mu).reduce((s, v) => s + (Number(v && v.inputTokens) || 0), 0);
   if ((Number(u.output_tokens) || 0) < somaOut) return { ok: false, motivo: `usage.output ${u.output_tokens} < soma modelUsage ${somaOut}` };
   if ((Number(u.input_tokens) || 0) < somaIn) return { ok: false, motivo: `usage.input ${u.input_tokens} < soma modelUsage ${somaIn}` };
+  // 31: e no outro sentido — um usage muito acima do modelUsage e consumo que o modelUsage nao explica (f1 do 12.o)
+  const acima = (a, s) => a > s * 1.01 + 10;
+  if (acima(Number(u.output_tokens) || 0, somaOut)) return { ok: false, motivo: `usage.output ${u.output_tokens} > soma modelUsage ${somaOut} — consumo que o modelUsage nao explica` };
+  if (acima(Number(u.input_tokens) || 0, somaIn)) return { ok: false, motivo: `usage.input ${u.input_tokens} > soma modelUsage ${somaIn} — consumo que o modelUsage nao explica` };
   return { ok: true, motivo: null };
 }
 
@@ -694,9 +734,10 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   }
   // chaves omitidas (12) e contrato de tipo (18) — sobre TODAS, orfas incluidas
   const tipoInvalidoDe = new Map();
+  const omitidasDe = new Set();   // 31: chave omitida = null — o par fica marcado invalido para contabilidade
   for (const t of tentativas) {
     const omitidas = CHAVES_OBRIGATORIAS.filter((c) => !(c in t));
-    if (omitidas.length) marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'chave_omitida', motivo: omitidas.join(', ') });
+    if (omitidas.length) { omitidasDe.add(t); marca({ task_id: t.task_id, braco: t.braco, tentativa: t.tentativa, tipo: 'chave_omitida', motivo: omitidas.join(', ') }); invalida('chave obrigatoria omitida — a ledger.regra manda escrever null; omitir e mais barato do que null e nao pode valer menos (interpretacao 31)', `${ref(t)}: ${omitidas.join(', ')}`); }
     const viol = violacoesDeTipo(t);
     if (viol.length) {
       tipoInvalidoDe.set(t, viol);
@@ -787,13 +828,16 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     let ordemDosBracos = meta ? meta.ordem_dos_bracos : null;
     let ordemObservada = null;
     let bracosIntercalados = false;
+    let tsIlegivel = false;
+    for (const x of ts) for (const k of ['ts_inicio', 'ts_fim']) if (!tsCanonico(x[k])) { tsIlegivel = true; }
+    if (tsIlegivel) invalida('timestamp ilegivel ou fora da forma canonica numa tentativa — a ordem e a intercalacao nao sao verificaveis (interpretacao 31)', id);
     if (ts.length > 0 && ts.every((t) => typeof t.ts_inicio === 'string')) {
       // 30: por INSTANTE (Date.parse), nunca por string — um offset «-03:00» ou «.500Z» vs «Z» trocava a ordem lexica
       const instante = (s) => (typeof s === 'string' ? Date.parse(s) : NaN);
       const primeiroDe = (bb) => Math.min(...ts.filter((t) => t.braco === bb).map((t) => instante(t.ts_inicio)));
       const a0 = primeiroDe('A'), b0 = primeiroDe('B');
       if (Number.isFinite(a0) && Number.isFinite(b0) && a0 !== b0) ordemObservada = b0 < a0 ? 'A-depois-B' : 'B-depois-A';
-      else if (Number.isFinite(a0) && Number.isFinite(b0)) marca({ task_id: id, tipo: 'ts_iguais_entre_bracos', motivo: `ts_inicio no mesmo instante em A e B — dois spawns sequenciais nao partilham o instante (29)` });
+      else if (Number.isFinite(a0) && Number.isFinite(b0)) { marca({ task_id: id, tipo: 'ts_iguais_entre_bracos', motivo: `ts_inicio no mesmo instante em A e B — dois spawns sequenciais nao partilham o instante (29)` }); if (meta) invalida('ts_inicio no mesmo instante em A e B numa tarefa do corpus — a ordem pre-registada nao e verificavel (interpretacoes 29, 31)', id); }
       // 30: os bracos nao se intercalam — o intervalo [min ts_inicio, max ts_fim] de cada braco e disjunto do outro (K3: a escalacao de B a correr DEPOIS de A)
       const intervalo = (bb) => { const xs = ts.filter((t) => t.braco === bb); return xs.length ? [Math.min(...xs.map((t) => instante(t.ts_inicio))), Math.max(...xs.map((t) => instante(t.ts_fim)))] : null; };
       const iA = intervalo('A'), iB = intervalo('B');
@@ -808,7 +852,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     if (shaDivergente) { marca({ task_id: id, tipo: 'test_file_sha_divergente', motivo: `test_file_sha_antes ${shasAntes.join(' vs ')} — os bracos nao viram o mesmo ficheiro congelado; o par nao e um par` }); invalida('test_file_sha_antes divergente entre os bracos da mesma tarefa (interpretacao 29)', `${id}: ${shasAntes.join(' vs ')}`); }
     const braco = (b) => {
       const xs = ts.filter((t) => t.braco === b).sort((p, q) => (p.tentativa ?? 0) - (q.tentativa ?? 0));
-      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, arrancou_motivo_c: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, sem_opus: false, repetida: false, ultima_puro: false, ultima_curta: false };
+      if (xs.length === 0) return { tentativas: 0, aceite: null, aceite_indecidivel: false, prova_em_falta: null, arrancou_motivo_c: null, tokens: null, valorizacao_usd: null, custo_cli_usd: null, custo_cli_total_usd: null, duration_ms: null, duracoes_ms: [], ate_verde_ms: null, arrancou: null, arrancou_evidencia: null, arrancou_valor_ultima: null, motivo_se_nao: null, escalou: false, tecto: [], tokens_locais: null, modelo_local: [], modelos_opus: [], fontes: [], local_aceite: false, fora_do_protocolo: null, contraditorio: null, arrancou_contraditorio: false, tipo_invalido: false, chave_omitida: false, sem_opus: false, repetida: false, ultima_puro: false, ultima_curta: false };
       const toks = xs.map(tokensOpusDaTentativa);
       let contraditorio = null;
       let semOpus = false;
@@ -830,6 +874,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         if (ehLocal(t) && typeof t.worktree_listagem_sha_antes === 'string' && typeof t.worktree_listagem_sha_depois === 'string' && t.worktree_listagem_sha_antes !== t.worktree_listagem_sha_depois) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'rasto_do_passo_local', motivo: `listagem do worktree mudou no passo local (${t.worktree_listagem_sha_antes} -> ${t.worktree_listagem_sha_depois}) — a escalacao nao parte do mesmo estado que A (CUSTO-02; so reportado)` });
         if (!ehLocal(t) && toks[i] === null && t.modelUsage && typeof t.modelUsage === 'object' && !prob.sem_opus && prob.campos.length === 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tokens_zero_com_arrancou', motivo: 'modelUsage Opus com todos os tokens a zero numa claude-p que chegou ao CLI — impossivel; consumo desconhecido (interpretacao 20)' });
         if (toks[i] === null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'consumo_desconhecido', motivo: prob.sem_opus || prob.campos.length ? 'modelUsage sem Opus utilizavel e sem tokens_transcript > 0' : t.arrancou === false ? `nao arrancou sem ser spawn:* (motivo_se_nao=${JSON.stringify(t.motivo_se_nao ?? null)}) — nao se zera (interpretacao 3)` : 'arrancou, sem modelUsage e sem tokens_transcript > 0 — tecto ou morte sem JSON', transcript: Number.isFinite(t.tokens_transcript) ? t.tokens_transcript : null });
+        if (toks[i] && toks[i].fonte === 'json' && typeof toks[i].reparticao_cache === 'string' && toks[i].reparticao_cache.startsWith('n/d') && toks[i].cache_creation > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'reparticao_cache_nd', motivo: `cache_creation ${toks[i].cache_creation} sem divisao 1h/5m utilizavel (${toks[i].reparticao_cache}) — valorizacao null, nunca zero (31)` });
         if (toks[i] && toks[i].fonte === 'transcript') marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'consumo_do_transcript', motivo: 'sem JSON; total do transcript e a unica fonte (prereg secundaria.timeout_sem_json)', transcript: t.tokens_transcript });
         if (ehLocal(t)) {
           const pecasCli = pecasDeEvidenciaBruta(t);
@@ -870,14 +915,19 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
               if (!contaEmB) { provaEmFalta = provaEmFalta || faltam.join(', '); invalida(t.aceite === true ? 'aceite=true sem prova completa — nao verificavel; retirar o par favorece um braco (27c)' : 'aceite=false em A sem prova completa — nao verificavel; baixar A favorece B (27c)', `${ref(t)}: ${faltam.join(', ')}`); }
             }
           }
-          if (typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' && t.ts_fim === t.ts_inicio && Number.isFinite(t.duration_ms) && t.duration_ms > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: `ts_fim === ts_inicio com duration_ms ${t.duration_ms} — os dois ts no momento da escrita` });
-          if (chegou && ((typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' && t.ts_fim < t.ts_inicio) || t.duration_ms === 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: t.duration_ms === 0 ? 'duration_ms 0 numa invocacao que chegou' : `ts_fim ${t.ts_fim} < ts_inicio ${t.ts_inicio}` });
+          // 31: tempo por INSTANTE; numa linha que chegou, um tempo impossivel e (c) — a linha e uma testemunha que se contradiz
+          const tempoIncoerente = (Number.isFinite(segundosT) && segundosT === 0 && Number.isFinite(t.duration_ms) && t.duration_ms > 0) ? `ts_fim === ts_inicio com duration_ms ${t.duration_ms} — os dois ts no momento da escrita`
+            : chegou && Number.isFinite(segundosT) && segundosT < 0 ? `ts_fim ${t.ts_fim} antes de ts_inicio ${t.ts_inicio}`
+            : chegou && Number.isFinite(segundosT) && segundosT === 0 ? 'ts_fim === ts_inicio numa invocacao que chegou — nenhuma chamada ao CLI dura 0 ms'
+            : chegou && t.duration_ms === 0 ? 'duration_ms 0 numa invocacao que chegou' : null;
+          if (tempoIncoerente) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: tempoIncoerente }); if (chegou) { arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'tempo incoerente numa linha que chegou (interpretacao 31)'; invalida('tempo incoerente numa linha que chegou ao CLI — a testemunha contradiz-se (interpretacao 31)', `${ref(t)}: ${tempoIncoerente}`); } }
+          if (chegou && Number.isFinite(segundosT) && Number.isFinite(t.duration_ms) && Math.abs(segundosT * 1000 - t.duration_ms) > 60000) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'duracao_incoerente', motivo: `duration_ms ${t.duration_ms} vs ts_fim - ts_inicio ${segundosT}s — mais de 60 s de diferenca (so velocidade)` });
           if (durouComoTecto) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tecto_aparente', motivo: `ts_fim - ts_inicio = ${segundosT}s >= tecto ${tectoS}s (aceite=${JSON.stringify(t.aceite ?? null)}) — so marca, o intervalo pode incluir a aceitacao (interpretacao 19)` });
           if (t.arrancou === true && typeof t.motivo_se_nao === 'string' && t.motivo_se_nao.length > 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'motivo_com_arrancou', motivo: `arrancou=true com motivo_se_nao=${JSON.stringify(t.motivo_se_nao)} (interpretacao 25)` });
         }
-        if (t.aceite == null) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'aceite' }); if (!ehLocal(t) && chegou) invalida('aceite null numa claude-p que chegou — o input da primaria em falta; retirar o par favorece um braco (27c)', ref(t)); }
+        if (t.aceite == null) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'aceite' }); invalida(ehLocal(t) ? 'aceite null num passo local — o local corre a aceitacao e escreve false; retirar o par favorece um braco (27c, 31)' : 'aceite null numa claude-p — o input da primaria em falta; retirar o par favorece um braco (27c)', ref(t)); }
         if (meta && t.tier_classificado == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'tier_classificado (o runtime nao confirmou o tier pre-registado)' });
-        if (typeof t.e_escalacao === 'boolean' && Number.isFinite(t.tentativa) && t.e_escalacao !== (t.tentativa === 2)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'escalacao_incoerente', motivo: `e_escalacao=${t.e_escalacao} com tentativa=${t.tentativa} (interpretacao 25)` });
+        if (typeof t.e_escalacao === 'boolean' && Number.isFinite(t.tentativa) && t.e_escalacao !== (t.tentativa === 2)) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'escalacao_incoerente', motivo: `e_escalacao=${t.e_escalacao} com tentativa=${t.tentativa} (interpretacao 25)` }); invalida('e_escalacao incoerente com a tentativa — a linha contradiz-se (interpretacoes 25, 31)', ref(t)); }
         const contra = aceiteContraditorio(t, historico, pv && Number.isFinite(pv.skips) ? pv.skips : null);
         if (contra) {
           contraditorio = contraditorio || contra;
@@ -929,6 +979,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         arrancou_contraditorio: arrancouContraditorio,
         arrancou_motivo_c: arrancouMotivoC,
         tipo_invalido: xs.some((t) => tipoInvalidoDe.has(t)),
+        chave_omitida: xs.some((t) => omitidasDe.has(t)),
         sem_opus: semOpus,
         repetida: xs.some((t) => repetidas.has(t)),
         arrancou: arrancouDaTentativa(ultima),                         // interpretacao 2: a ultima tentativa, pela flag
@@ -1023,6 +1074,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     else if (temTentativas && bracosIntercalados) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('bracos intercalados (interpretacao 30)'); }
     else if (temTentativas && shaDivergente) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('test_file_sha_antes divergente entre os bracos (interpretacao 29)'); }
     else if (temTentativas && (A.tipo_invalido || B.tipo_invalido)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tipo invalido em campo obrigatorio (interpretacao 18)'); }
+    else if (temTentativas && (A.chave_omitida || B.chave_omitida)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('chave obrigatoria omitida (interpretacao 31)'); }
     else if (temTentativas && (A.repetida || B.repetida)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('tentativa repetida por cima (interpretacao 23)'); }
     else if (temTentativas && (A.aceite_indecidivel || B.aceite_indecidivel)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c('aceite null — o input da primaria esta em falta (interpretacao 12)'); }
     else if (temTentativas && (A.prova_em_falta || B.prova_em_falta)) { bracoQueNaoArrancou = 'n/a'; motivoInvalido = c(`aceite=true sem prova completa: ${A.prova_em_falta || B.prova_em_falta} (interpretacao 12)`); }
