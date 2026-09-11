@@ -815,7 +815,7 @@ test('analise · CUSTO-07 — consumo desconhecido propaga null ate a valorizaca
   const p = preregDe(['t1', 't2']);
   const ev = [
     tentativa('t1', 'A'), tentativa('t1', 'B'),
-    tentativa('t2', 'A', { modelUsage: null, usage: null, aceite: false, duration_ms: 900000 }),   // estourou o tecto, sem JSON, sem transcript
+    tentativa('t2', 'A', { modelUsage: { 'claude-opus-5': { ...SONDA.modelUsage['claude-opus-5'], cacheCreationInputTokens: 0 } }, aceite: false, exit_code: 1, tests_passados: 9 }),   // nao reconcilia (35): consumo desconhecido, par valido (um tecto sem transcript seria INVALIDA pela 58)
     tentativa('t2', 'B'),
   ];
   const r = correr(p, ev);
@@ -834,7 +834,7 @@ test('analise · CUSTO-07 — consumo desconhecido propaga null ate a valorizaca
 
 test('analise · tecto sem JSON mas com tokens_transcript: o transcript e a fonte do total, marca consumo_do_transcript, valorizacao null', () => {
   const p = preregDe(['t1']);
-  const r = correr(p, [tentativa('t1', 'A', { modelUsage: null, usage: null, aceite: false, tokens_transcript: 123456 }), tentativa('t1', 'B')]);
+  const r = correr(p, [tentativa('t1', 'A', { modelUsage: null, usage: null, total_cost_usd: null, aceite: false, tokens_transcript: 123456 }), tentativa('t1', 'B')]);   // 58: sem JSON nao ha total_cost_usd
   assert.equal(r.por_tarefa[0].A.tokens_opus, 123456);
   assert.deepEqual(r.por_tarefa[0].A.fontes, ['transcript']);
   assert.equal(r.secundaria.global.A.tokens_opus_total, 123456);
@@ -1269,7 +1269,7 @@ test('analise · 7.o NO-SHIP (B2): timeout escrito com arrancou:null — fora da
   const rF = correr(p, [...base, timeout({ arrancou: false, motivo_se_nao: 'timeout' })]);
   assert.equal(rF.corrida_valida, false);
   // T (o brief): arrancou true com session_id do --session-id, aceite:false -> o timeout conta CONTRA B
-  const rT = correr(p, [...base, timeout({ arrancou: true, motivo_se_nao: null, session_id: 'sess-timeout' })]);
+  const rT = correr(p, [...base, timeout({ arrancou: true, motivo_se_nao: null, session_id: 'sess-timeout', tokens_transcript: 123456 })]);   // 58: o session_id (pre-gerado, brief 98) nao prova — o transcript encontrado sim
   assert.equal(rT.corrida_valida, true);
   assert.equal(rT.primaria.n_pares_validos, 4);
   assert.equal(rT.primaria.aceites_B, 1);
@@ -1277,7 +1277,7 @@ test('analise · 7.o NO-SHIP (B2): timeout escrito com arrancou:null — fora da
   // o contra-factual que o B2 produzia: se o timeout saisse do denominador, 3 pares A 3 B 1 -> 1 >= 1 -> cumprido
   const rContra = correr(preregDe(['t1', 't2', 't3']), [...base.slice(0, 6)]);   // o mesmo ledger sem t4, num prereg de 3
   assert.equal(rContra.primaria.limiar_descritivo_cumprido, true, 'e por isto que o par NAO pode sair');
-  assert.ok(rT.marcas.some((m) => m.tipo === 'consumo_desconhecido'));
+  assert.ok(rT.marcas.some((m) => m.tipo === 'consumo_do_transcript'), '58: com o transcript encontrado o consumo vem do transcript, nao e desconhecido');
   assert.ok(rT.marcas.some((m) => m.tipo === 'tecto_aparente'));
   // e um spawn:* verdadeiro (50 ms, sem JSON) com arrancou null continua a ser par invalido sem invalidar a corrida
   const rS = correr(p, [...base, timeout({ arrancou: false, motivo_se_nao: 'spawn:ENOENT', ts_fim: '2026-09-11T00:00:01Z', duration_ms: 50, exit_code: null, tests_corridos: null, tests_passados: null, test_file_sha_antes: null, test_file_sha_depois: null, skips: null })]);
@@ -1468,7 +1468,7 @@ test('analise · 5.o NO-SHIP (R5-10/R5-11): tempo incoerente marca; exclusao com
 
 test('analise · 6.o NO-SHIP (B1): claude-p que chegou SEM JSON com aceite:true — «estourar o tecto = nao aceite»; contraditorio, corrida INVALIDA', () => {
   // E1b: timeout, sem session_id, sem JSON, ts_fim = ts_inicio + 905 s, aceite:true com prova coerente — o correr-r24 corre a aceitacao DEPOIS do timeout
-  const tecto = (id, b, over = {}) => tentativa(id, b, { arrancou: true, motivo_se_nao: null, session_id: `sess-tecto-${id}-${b}`, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null,   // 56: um tecto sem JSON tem session_id pelo transcript (brief 98), senao e arrancou:false
+  const tecto = (id, b, over = {}) => tentativa(id, b, { arrancou: true, motivo_se_nao: null, session_id: `sess-tecto-${id}-${b}`, tokens_transcript: 250000, usage: null, modelUsage: null, total_cost_usd: null, duration_ms: null,   // 56/58: um tecto sem JSON prova-se pelo transcript (tokens_transcript), nao pelo session_id
     ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:15:05Z', aceite: true, ...over });
   assert.match(aceiteContraditorio(tecto('x', 'B'), null), /sem JSON/);
   assert.match(aceiteContraditorio(tecto('x', 'B', { session_id: 'sess-z', tokens_transcript: 41000 }), null), /sem JSON/, 'E1a: com transcript continua sem resultado');
@@ -1488,7 +1488,7 @@ test('analise · 6.o NO-SHIP (B1): claude-p que chegou SEM JSON com aceite:true 
   assert.equal(r2.primaria.n_pares_validos, 3);
   assert.equal(r2.por_tarefa[2].B.aceite, false);
   assert.equal(r2.marcas.filter((m) => m.tipo === 'tecto_aparente').length, 1, 'tecto_aparente marca independentemente de aceite (7.o revisor)');
-  assert.ok(r2.marcas.some((m) => m.tipo === 'consumo_desconhecido'));
+  assert.ok(r2.marcas.some((m) => m.tipo === 'consumo_do_transcript'), '58: o tecto honesto tem transcript — o consumo vem de la');
 });
 
 test('analise · 6.o NO-SHIP (I1): tentativa_inicio — reinicio da mesma tentativa invalida a corrida; inicio sem fim marca; sem inicios nao se verifica', () => {
@@ -1692,6 +1692,11 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R19y7: [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'Claude-Opus-5': SONDA.modelUsage['claude-opus-5'] }, modelo_reportado: 'Claude-Opus-5' }), ...parOk('t2', 'T0')],
     // 20.o revisor (56/57)
     R20a1: [tentativa('t1', 'A', { arrancou: true, session_id: null, usage: null, modelUsage: null, total_cost_usd: null, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    // 21.o revisor (58)
+    R21a1: [tentativa('t1', 'A', { arrancou: true, session_id: 'sess-pre-gerado', usage: null, modelUsage: null, total_cost_usd: null, tokens_transcript: 0, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    R21a1b: [tentativa('t1', 'A', { arrancou: true, session_id: 'sess-pre-gerado', usage: null, modelUsage: null, total_cost_usd: null, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 180000 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    R21a1c: [tentativa('t1', 'A', { arrancou: true, session_id: null, usage: null, modelUsage: null, total_cost_usd: 0.01, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    R21a9: [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { ...SONDA.modelUsage, 'claude-haiku-4-5': { inputTokens: '300000', outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.3 } } }), ...parOk('t2', 'T0')],
     R20a2: [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...SONDA.modelUsage['claude-opus-5'], inputTokens: 55000, outputTokens: 4000, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.375 } }, usage: { ...SONDA.usage, input_tokens: 55000, output_tokens: 4000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } }, total_cost_usd: 0.375 }), ...parOk('t2', 'T0')],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
@@ -1715,6 +1720,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R18w2: { corrida: false }, R18w3: { corrida: false, par: 't2' }, R18w17: { corrida: false, par: 't1' }, R18w47: { corrida: false, par: 't1' }, R18w9: { corrida: false, par: 't1' },
     R19y2b: { corrida: false }, R19y2c: { corrida: false }, R19y3: { corrida: false, par: 't2' }, R19y4: { corrida: false, par: 't1' }, R19y14: { corrida: false, par: 't1' }, R19y7: { corrida: false, par: 't1' },
     R20a1: { corrida: false, par: 't1' }, R20a2: { marca: 'abaixo_da_sonda' },
+    R21a1: { corrida: false, par: 't1' }, R21a1b: { corrida: false, par: 't1' }, R21a1c: { corrida: false, par: 't1' }, R21a9: { corrida: false, par: 't1' },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1790,6 +1796,8 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'A rejeitada com exit 1 e tudo verde (Y14)': { aceite: false, exit_code: 1, tests_corridos: 10, tests_passados: 10, skips: 0 },
       'A aceite sem duration_ms com ts a 1000 s (Y4b)': { duration_ms: null, ts_fim: '2026-09-11T00:20:00Z' },
       'A rejeitada com arrancou:true sem evidencia nenhuma (R20-A1)': { arrancou: true, session_id: null, usage: null, modelUsage: null, total_cost_usd: null, aceite: false, exit_code: 1, tests_passados: 9 },
+      'A rejeitada com session_id pre-gerado e transcript 0 (R21-A1)': { arrancou: true, session_id: 'sess-pre-gerado', usage: null, modelUsage: null, total_cost_usd: null, tokens_transcript: 0, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 },
+      'A rejeitada so com total_cost_usd sem JSON (R21-A1c)': { arrancou: true, session_id: null, usage: null, modelUsage: null, total_cost_usd: 0.01, aceite: false, exit_code: 1, tests_passados: 9 },
     };
     const evA = (o, semLinha, evento, trocar = false, excluir = false) => [
       ...(excluir ? [preVoo('t1'), { evento: 'tarefa_excluida', task_id: 't1', motivo: 'worktree', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A'), tentativa('s1', 'B', falha)] : trocar ? [tentativa('t1', 'B'), tentativa('t1', 'A')] : [...(semLinha ? [] : [tentativa('t1', 'A', o)]), tentativa('t1', 'B')]),
@@ -3258,25 +3266,33 @@ test('analise · 20.o NO-SHIP (A1/A1b/A16, 56): arrancou:true numa claude-p sem 
   assert.equal(a1.corrida_valida, false);
   assert.equal(a1.primaria.limiar_descritivo_cumprido, null);
   assert.equal(a1.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'A').length, 5);
-  assert.equal(a1.fiabilidade.pares_invalidos.filter((x) => /arrancou=true sem evidencia nenhuma.*CORRIDA INVALIDA/.test(x.motivo)).length, 5, '(c) nos 5');
+  assert.equal(a1.fiabilidade.pares_invalidos.filter((x) => /arrancou=true sem JSON nem transcript.*CORRIDA INVALIDA/.test(x.motivo)).length, 5, '(c) nos 5');
   // A1b: o mesmo em 5 ms
   assert.equal(analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' && !falhaB(i) ? { ...e, ...semNada, duration_ms: 5, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1 } : e)))).corrida_valida, false);
   // A16 (espelho em B): tambem invalida — a mesma afirmacao sem prova
   const a16 = analisarReal(T.flatMap((t, i) => parReal(t).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' && !falhaB(i) ? { ...e, ...semNada, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1 } : e))));
   assert.equal(a16.corrida_valida, false);
-  // o tecto LEGITIMO: sem JSON mas com session_id (o transcript existe) -> 27b, valida; ou com tokens_transcript >= piso
+  // o tecto LEGITIMO: sem JSON mas com o transcript ENCONTRADO (tokens_transcript >= piso) -> 27b, valida. Um session_id sozinho NAO prova (58: pode ser pre-gerado, brief 98)
   const p = preregDe(['t1']);
-  const comSessao = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, session_id: 'sess-transcript', aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 })]);
-  assert.equal(comSessao.corrida_valida, true);
-  assert.ok(!comSessao.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
+  const soSessao = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, session_id: 'sess-pre-gerado', tokens_transcript: 0, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 })]);
+  assert.equal(soSessao.corrida_valida, false, '58: session_id string com tokens_transcript 0 («procurado, nao encontrado») nao e evidencia');
+  assert.ok(soSessao.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia' && /nao prova: pode ser pre-gerado/.test(m.motivo)));
+  assert.equal(correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, session_id: 'sess-pre-gerado', aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 180000 })]).corrida_valida, false, 'A1b: crash com session_id e sem a chave tokens_transcript');
   const comTranscript = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, tokens_transcript: 123456, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 })]);
   assert.equal(comTranscript.corrida_valida, true);
   assert.ok(!comTranscript.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
   assert.ok(correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, tokens_transcript: 999, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'), 'abaixo do piso do transcript nao e evidencia');
   // arrancou:false sem evidencia continua a ser a 22/28 (nao a 56)
   assert.ok(!correr(p, [tentativa('t1', 'A'), naoArrancou('t1', 'B')]).marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
-  // o custo > 0 chega como evidencia (22)
-  assert.ok(!correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, total_cost_usd: 0.5, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
+  // 58: o custo e um campo do JSON — total_cost_usd sem usage/modelUsage e uma linha que se contradiz (A1c do 21.o)
+  const soCusto = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, total_cost_usd: 0.01, aceite: false, exit_code: 1, tests_passados: 9 })]);
+  assert.equal(soCusto.corrida_valida, false);
+  assert.ok(soCusto.marcas.some((m) => m.tipo === 'custo_sem_json'));
+  assert.ok(soCusto.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'), 'e sem JSON nem transcript continua sem evidencia');
+  // o total_cost_usd 0 (nao null) sem JSON nao e «custo»: so a 56/58
+  assert.ok(!correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, total_cost_usd: 0, tokens_transcript: 123456, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'custo_sem_json'));
+  // com JSON, total_cost_usd e coerente (nao e a 58)
+  assert.ok(!correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B')]).marcas.some((m) => m.tipo === 'custo_sem_json'));
 });
 
 test('analise · 20.o NO-SHIP (A2, 57): a sonda pina-se tambem pela cache — cache_creation + cache_read < 58 964 marca abaixo_da_sonda mesmo acima do total; SONDA_CACHE_OPUS bate com a fixture', () => {
@@ -3341,6 +3357,73 @@ test('analise · 20.o (3-8): marcas baratas — pre_voo verde sem testes, corrid
   assert.ok(parou.marcas.some((m) => /paragem.n 4 != 2/.test(m.motivo)));
   const coerente = analisar(par4, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B'), preVoo('t2'), tentativa('t2', 'A'), tentativa('t2', 'B'), { evento: 'paragem', motivo: 'tecto', ultima_tarefa: 't2', n: 2 }]);
   assert.ok(!coerente.marcas.some((m) => m.tipo === 'paragem_incoerente'));
+});
+
+// ── 21.o revisor: sem JSON a unica evidencia e o transcript (58); um so turno (59); marcas baratas ──
+
+test('analise · 21.o NO-SHIP (A1/A1b/A1c, 58): sem JSON, session_id string e total_cost_usd nao provam — so o transcript; o controlo honesto com transcript continua valido', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const semJson = { arrancou: true, motivo_se_nao: null, usage: null, modelUsage: null, total_cost_usd: null };
+  const emA = (over) => T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' && !falhaB(i) ? { ...e, ...semJson, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1, ...over, ...(over.session_id ? { session_id: `${over.session_id}-${t.task_id}` } : {}), ...(over.duration_ms ? { ts_fim: new Date(Date.parse(e.ts_inicio) + over.duration_ms).toISOString() } : {}) } : e)));   // session_id por tarefa (22); ts coerentes com a duracao
+  // A1: tecto de 900 s com session_id pre-gerado e tokens_transcript 0 («procurado, nao encontrado») nas 5 falhas de B -> antes «cumprido · A 15 B 15 · valida»
+  const a1 = analisarReal(emA({ session_id: 'sess-pre-gerado', tokens_transcript: 0, duration_ms: 900000 }));
+  assert.equal(a1.corrida_valida, false);
+  assert.equal(a1.primaria.limiar_descritivo_cumprido, null);
+  assert.equal(a1.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'A').length, 5);
+  assert.equal(a1.fiabilidade.pares_invalidos.filter((x) => /sem JSON nem transcript.*CORRIDA INVALIDA/.test(x.motivo)).length, 5);
+  // A1b: crash aos 180 s, sem a chave tokens_transcript
+  assert.equal(analisarReal(emA({ session_id: 'sess-pre-gerado', duration_ms: 180000 })).corrida_valida, false);
+  // A1c: a unica «evidencia» e um total_cost_usd 0.01 sem JSON
+  const a1c = analisarReal(emA({ session_id: null, total_cost_usd: 0.01 }));
+  assert.equal(a1c.corrida_valida, false);
+  assert.equal(a1c.marcas.filter((m) => m.tipo === 'custo_sem_json' && m.braco === 'A').length, 5);
+  assert.ok(a1c.corrida_invalida_por.some((x) => /total_cost_usd numa claude-p sem usage nem modelUsage/.test(x.motivo)));
+  // controlo honesto: o mesmo tecto COM o transcript encontrado (250 k tokens) -> «cumprido · A 15 B 15 · valida» com consumo_do_transcript + tecto_aparente
+  const honesto = analisarReal(emA({ session_id: 'sess-pre-gerado', tokens_transcript: 250000, duration_ms: 900000 }));
+  assert.equal(honesto.corrida_valida, true);
+  assert.equal(honesto.primaria.limiar_descritivo_cumprido, true);
+  assert.deepEqual(honesto.marcas_por_tipo, { consumo_do_transcript: 5, tecto_aparente: 5 });
+  // a 22 nao muda: um session_id numa linha arrancou:false continua a torna-la contraditoria (brief 102: null num spawn falhado)
+  const c1 = correr(preregDe(['t1']), [tentativa('t1', 'A'), naoArrancou('t1', 'B', { session_id: 'uuid-pre-gerado' })]);
+  assert.equal(c1.corrida_valida, false);
+  assert.ok(c1.marcas.some((m) => m.tipo === 'arrancou_contraditorio' || m.tipo === 'nao_arrancou_fora_da_definicao'));
+});
+
+test('analise · 21.o (59, 3-7): num_turns 1 aceite marca; output > 1 tok/ms marca; local verde rejeitado marca; pre-voo exit 1 com nada a falhar marca; tarefa excluida duas vezes invalida; token em string em qualquer chave e tipo_invalido', () => {
+  const s = SONDA.modelUsage['claude-opus-5'];
+  const p1 = preregDe(['t1']);
+  // 59: so com num_turns registado (brief 106); sem a chave nao se ve
+  assert.ok(correr(p1, [tentativa('t1', 'A'), tentativa('t1', 'B', { num_turns: 1 })]).marcas.some((m) => m.tipo === 'aceite_num_so_turno' && m.braco === 'B'));
+  assert.ok(!correr(p1, [tentativa('t1', 'A'), tentativa('t1', 'B', { num_turns: 7 })]).marcas.some((m) => m.tipo === 'aceite_num_so_turno'));
+  assert.ok(!correr(p1, [tentativa('t1', 'A'), tentativa('t1', 'B', { num_turns: 1, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'aceite_num_so_turno'), 'so numa linha aceite');
+  assert.ok(!correr(p1, [tentativa('t1', 'A'), tentativa('t1', 'B')]).marcas.some((m) => m.tipo === 'aceite_num_so_turno'), 'sem num_turns: declarado, nao verificado');
+  // (3) 5 M de output em 180 s
+  const veloz = correr(p1, [tentativa('t1', 'A', { modelUsage: { 'claude-opus-5': { ...s, outputTokens: 5000000, costUSD: 125.58965 } }, usage: { ...SONDA.usage, output_tokens: 5000000 }, total_cost_usd: 125.58965, duration_ms: 180000 }), tentativa('t1', 'B')]);
+  assert.ok(veloz.marcas.some((m) => m.tipo === 'output_velocidade_implausivel' && /27778 tok\/s/.test(m.motivo)));
+  assert.equal(veloz.corrida_valida, true, 'so marca');
+  assert.ok(!correr(p1, [tentativa('t1', 'A', { modelUsage: { 'claude-opus-5': { ...s, outputTokens: 4000, costUSD: 0.68965 } }, usage: { ...SONDA.usage, output_tokens: 4000 }, total_cost_usd: 0.68965, duration_ms: 60000 }), tentativa('t1', 'B')]).marcas.some((m) => m.tipo === 'output_velocidade_implausivel'), '67 tok/s e normal');
+  // (4) local com aceitacao verde e aceite:false
+  const p2 = preregDe(['t1', 't2'], { t2: 'T0' });
+  const verde = correr(p2, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2', { exit_code: 0, tests_passados: 10, tests_corridos: 10 }), escalacao('t2')]);
+  assert.ok(verde.marcas.some((m) => m.tipo === 'local_verde_rejeitado' && /10\/10 passados/.test(m.motivo)));
+  assert.equal(verde.corrida_valida, true);
+  assert.ok(!correr(p2, [tentativa('t1', 'A'), tentativa('t1', 'B'), tentativa('t2', 'A', { tier_classificado: 'T0' }), passoLocal('t2'), escalacao('t2')]).marcas.some((m) => m.tipo === 'local_verde_rejeitado'));
+  // (5) pre-voo exit 1 com passados + skips == corridos
+  const pv55 = correr(p1, [preVoo('t1', { exit_code: 1, falhou: true, tests_corridos: 10, tests_passados: 10, skips: 0 }), tentativa('t1', 'A'), tentativa('t1', 'B')]);
+  assert.ok(pv55.marcas.some((m) => m.tipo === 'pre_voo_sem_vermelho' && /nada falhou e o runner saiu != 0/.test(m.motivo)));
+  assert.equal(pv55.corrida_valida, true, 'so marca — o pre-voo nao e alavanca da primaria');
+  // (6) a mesma tarefa excluida duas vezes consome dois suplentes
+  const p3 = preregDe(['t1', 't2'], {}, ['s1', 's2']);
+  const dupla = analisar(p3, [preVoo('t1', { exit_code: 0, falhou: false }), { evento: 'tarefa_excluida', task_id: 't1', motivo: 'ja verde', suplente_usado: 's1' }, { evento: 'tarefa_excluida', task_id: 't1', motivo: 'ja verde', suplente_usado: 's2' }, preVoo('s2'), ...parSuplenteBench('s2'), preVoo('t2'), tentativa('t2', 'A'), tentativa('t2', 'B')]);
+  assert.equal(dupla.corrida_valida, false);
+  assert.ok(dupla.marcas.some((m) => m.tipo === 'suplente_fora_do_protocolo' && /excluida.*repetida|tarefa_excluida repetida/.test(m.motivo)));
+  // (7) tokens em string numa chave Haiku: tipo_invalido (antes: coagia na reconciliacao e escapava ao modelo_nao_opus_dominante)
+  const str = correr(p1, [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { ...SONDA.modelUsage, 'claude-haiku-4-5': { inputTokens: '300000', outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.3 } } })]);
+  assert.equal(str.corrida_valida, false);
+  assert.ok(str.marcas.some((m) => m.tipo === 'tipo_invalido' && /modelUsage\.claude-haiku-4-5\.inputTokens: "300000" nao e um numero/.test(m.motivo)));
+  assert.deepEqual(violacoesDeTipo(tentativa('x', 'A', { modelUsage: { 'claude-opus-5': { ...s, cacheReadInputTokens: null } } })), [], 'null fica para o campo_em_falta');
+  assert.ok(violacoesDeTipo(tentativa('x', 'A', { modelUsage: { 'claude-opus-5': { ...s, cacheReadInputTokens: NaN } } })).some((x) => /nao e um numero/.test(x)));
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {

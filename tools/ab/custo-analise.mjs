@@ -610,6 +610,34 @@
  *     `local_velocidade_implausivel` (> 10 tok/ms), `aceite_sem_output`
  *     (Opus aceite com `outputTokens` 0), `paragem_incoerente`
  *     (`ultima_tarefa`/`n` ≠ o prefixo executado).
+ * 58. SEM JSON, A ÚNICA EVIDÊNCIA É O TRANSCRIPT (o 21.º revisor: a 56
+ *     aceitava `session_id` string ou `total_cost_usd > 0` como evidência
+ *     sem JSON — com o brief 98 o `session_id` é pré-gerado pelo
+ *     controlador (uma afirmação, não evidência) e o `total_cost_usd` é um
+ *     campo do JSON; A «rejeitada» nas 5 falhas de B com `session_id`
+ *     string e `tokens_transcript: 0` dava «cumprido · A 15 B 15 ·
+ *     válida»). `arrancou: true` sem `usage`/`modelUsage` e sem
+ *     `tokens_transcript ≥ TRANSCRIPT_MINIMO` → `arrancou_sem_evidencia`,
+ *     INVÁLIDA, (c); `total_cost_usd` ≠ 0 sem JSON → `custo_sem_json`,
+ *     INVÁLIDA, (c). A 22 (evidência para «não arrancou» ser puro) fica
+ *     como está: um `session_id` numa linha `arrancou: false` continua a
+ *     torná-la contraditória — o controlador escreve null num spawn falhado
+ *     (brief 102). Decisão sobre o hang/OOM sem resposta: INVÁLIDA em
+ *     qualquer grafia — sem consumo mensurável não se conta em A nem em B; o
+ *     prereg diz «não é retomado» (brief 104).
+ * 59. UM SÓ TURNO NÃO EDITA (o 21.º: B aceite com um turno — cache
+ *     exactamente a sonda, output 20 — passava a 38, a 57 e
+ *     `aceite_sem_output`). Com `num_turns` do JSON registado na linha
+ *     (brief 106), `aceite: true` com `num_turns ≤ 1` → `aceite_num_so_turno`
+ *     (só marca); sem `num_turns` a análise não o vê — declarado. Marcas
+ *     baratas do 21.º, só marca: `output_velocidade_implausivel` (Opus
+ *     > 1 tok/ms), `local_verde_rejeitado` (local com exit 0 e tudo
+ *     passado, `aceite: false` — contradiz o pré-voo), `pre_voo_sem_vermelho`
+ *     também para exit ≠ 0 com `passados + skips == corridos` (a 55 no
+ *     pré-voo); `suplente_fora_do_protocolo` (INVÁLIDA) para a mesma tarefa
+ *     excluída duas vezes; `tipo_invalido` para um token em STRING em
+ *     qualquer chave do `modelUsage` (coagia na reconciliação e escapava ao
+ *     `modelo_nao_opus_dominante`).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -675,7 +703,11 @@ export function violacoesDeTipo(t) {
   // tokens_transcript nao e obrigatoria, mas quando existe tem tipo: numero finito >= 0, ou null
   if ('tokens_transcript' in t && t.tokens_transcript !== null && (typeof t.tokens_transcript !== 'number' || !Number.isFinite(t.tokens_transcript) || t.tokens_transcript < 0)) out.push(`tokens_transcript: ${JSON.stringify(t.tokens_transcript)} nao e um numero >= 0`);
   // 38: tokens e custos nunca negativos DENTRO do usage e do modelUsage (TODAS as chaves, nao so Opus) — um negativo coerente nos dois lados reconcilia e passa o piso; e as 4 categorias do usage, quando presentes, sao numeros finitos (uma string reconcilia por coercao)
-  if (t.modelUsage && typeof t.modelUsage === 'object' && !Array.isArray(t.modelUsage)) for (const [k, v] of Object.entries(t.modelUsage)) if (v && typeof v === 'object') for (const c of [...CAMPOS_TOKENS, 'costUSD']) if (typeof v[c] === 'number' && v[c] < 0) out.push(`modelUsage.${k}.${c}: negativo (${v[c]})`);
+  if (t.modelUsage && typeof t.modelUsage === 'object' && !Array.isArray(t.modelUsage)) for (const [k, v] of Object.entries(t.modelUsage)) if (v && typeof v === 'object') for (const c of [...CAMPOS_TOKENS, 'costUSD']) {
+    if (typeof v[c] === 'number' && v[c] < 0) out.push(`modelUsage.${k}.${c}: negativo (${v[c]})`);
+    // 21.o (7): um token em STRING numa chave nao-Opus coage na reconciliacao e escapa ao modelo_nao_opus_dominante — presente e nao-null tem de ser numero finito (null fica para o campo_em_falta)
+    else if (c !== 'costUSD' && c in v && v[c] !== null && (typeof v[c] !== 'number' || !Number.isFinite(v[c]))) out.push(`modelUsage.${k}.${c}: ${JSON.stringify(v[c])} nao e um numero`);
+  }
   if (t.usage && typeof t.usage === 'object' && !Array.isArray(t.usage)) {
     for (const c of ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']) if (c in t.usage && t.usage[c] !== null && (typeof t.usage[c] !== 'number' || !Number.isFinite(t.usage[c]) || t.usage[c] < 0)) out.push(`usage.${c}: ${JSON.stringify(t.usage[c])} nao e um numero >= 0`);
     const cc = t.usage.cache_creation;
@@ -1086,7 +1118,11 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
   // suplentes (interpretacoes 8 e 15)
   const substituicoes = {};
   const usos = {};
+  const excluidasVistas = new Set();
   for (const e of excluidas) {
+    // 21.o (6): a mesma tarefa excluida DUAS vezes consome dois suplentes sem correr nenhum — fora do protocolo
+    if (excluidasVistas.has(e.task_id)) { marca({ task_id: e.task_id, tipo: 'suplente_fora_do_protocolo', motivo: `tarefa_excluida repetida para ${e.task_id}${e.suplente_usado ? ` — consome ${e.suplente_usado} sem a tarefa ter corrido` : ''} (21.o)` }); invalida('suplente fora do protocolo', `${e.task_id}: excluida duas vezes`); continue; }
+    excluidasVistas.add(e.task_id);
     // 33 (d3 do 14.o): a tarefa excluida e do corpus ou da lista de suplentes; outro id consome um suplente sem registo
     if (!ordemIds.includes(e.task_id) && !suplentesPrereg.includes(e.task_id)) { marca({ task_id: e.task_id, tipo: 'suplente_fora_do_protocolo', motivo: `tarefa_excluida com task_id fora do corpus e da lista de suplentes${e.suplente_usado ? ` — consome ${e.suplente_usado} sem registo` : ''}` }); invalida('suplente fora do protocolo', `${e.task_id}: excluida sem ser do corpus nem suplente`); }
     // «suplentes nunca por resultado»: nem depois de uma tentativa_fim, nem depois de um tentativa_inicio (um braco LANCADO e depois retirado; X3 do 10.o)
@@ -1270,6 +1306,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           // 20.o (6): plausibilidade do local — mais de 10 tokens por ms (10 000 tok/s) nao e um modelo local; so marca (velocidade fora do criterio)
           if (Number.isFinite(t.tokens_locais) && Number.isFinite(t.duration_ms) && t.tokens_locais / Math.max(t.duration_ms, 1) > 10) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_velocidade_implausivel', motivo: `tokens_locais ${t.tokens_locais} em ${t.duration_ms} ms (${Math.round(t.tokens_locais / Math.max(t.duration_ms, 1) * 1000)} tok/s) — nenhum modelo local faz isto (20.o)` });
           if (t.aceite === true) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_aceite', motivo: 'passo local ACEITE — impossivel por construcao (DECLARACAO_DE_DEGENERESCENCIA); a aceitacao do controlador esta partida' });
+          // 21.o (4): um local com a aceitacao VERDE (exit 0, passados = corridos > 0) e aceite=false contradiz o pre-voo falhado e a DECLARACAO — so marca (a escalacao dai e o protocolo a letra)
+          if (t.aceite === false && t.exit_code === 0 && Number.isFinite(t.tests_corridos) && t.tests_corridos > 0 && t.tests_passados === t.tests_corridos) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'local_verde_rejeitado', motivo: `passo local com exit_code 0 e ${t.tests_passados}/${t.tests_corridos} passados, aceite=false — a aceitacao local estava verde e escalou na mesma (21.o)` });
           // 97 do 19.o: o tempo do passo local tambem tem de fazer sentido (so marca — nao e direccional)
           const segundosL = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
           if (Number.isFinite(segundosL) && segundosL < 0) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tempo_incoerente', motivo: `ts_fim ${t.ts_fim} antes de ts_inicio ${t.ts_inicio} (passo local)` });
@@ -1277,12 +1315,24 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
         } else {
           if (!arrancouDaTentativa(t)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tentativa_nao_arrancou', motivo: `arrancou=${JSON.stringify(t.arrancou ?? null)}${t.motivo_se_nao ? ' · ' + t.motivo_se_nao : ''}` });
           if (t.arrancou == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'arrancou' });
-          // 56: o inverso da 22 — `arrancou: true` sem NENHUMA peca de evidencia (session_id, usage, modelUsage, custo) e sem transcript e uma afirmacao sem prova; o prereg define ARRANCOU por session_id no JSON ou por transcript
-          if (t.arrancou === true && !evidenciaDeArranque(t) && !(Number.isFinite(t.tokens_transcript) && t.tokens_transcript >= TRANSCRIPT_MINIMO)) {
-            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'arrancou_sem_evidencia', motivo: `arrancou=true sem session_id, sem usage/modelUsage, sem total_cost_usd > 0 e sem tokens_transcript >= ${TRANSCRIPT_MINIMO} — o prereg define «arrancou» por session_id no JSON ou por transcript; uma rejeicao assim baixa o braco sem prova (56)` });
-            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'arrancou=true sem evidencia nenhuma (interpretacao 56)';
-            invalida('arrancou=true numa claude-p sem evidencia nenhuma de arranque — afirmacao sem prova (interpretacao 56)', ref(t));
+          // 56/58: o inverso da 22 — `arrancou: true` SEM JSON e sem transcript e uma afirmacao sem prova. Sem JSON, a UNICA evidencia e o transcript (58):
+          // o session_id pode ser pre-gerado pelo controlador (brief 98) e o total_cost_usd e um campo do JSON — nenhum dos dois prova que o modelo respondeu
+          const temJsonCli56 = !!((t.usage && typeof t.usage === 'object') || (t.modelUsage && typeof t.modelUsage === 'object'));
+          if (t.arrancou === true && !temJsonCli56 && !(Number.isFinite(t.tokens_transcript) && t.tokens_transcript >= TRANSCRIPT_MINIMO)) {
+            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'arrancou_sem_evidencia', motivo: `arrancou=true sem usage/modelUsage e sem tokens_transcript >= ${TRANSCRIPT_MINIMO} (session_id=${JSON.stringify(t.session_id ?? null)} nao prova: pode ser pre-gerado) — sem JSON a unica evidencia e o transcript; uma rejeicao assim baixa o braco sem prova (56, 58)` });
+            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'arrancou=true sem JSON nem transcript (interpretacoes 56, 58)';
+            invalida('arrancou=true numa claude-p sem JSON nem transcript — afirmacao sem prova (interpretacoes 56, 58)', ref(t));
           }
+          // 58: total_cost_usd e um campo do JSON — um custo sem usage/modelUsage e uma linha que se contradiz
+          if (!temJsonCli56 && Number.isFinite(t.total_cost_usd) && t.total_cost_usd !== 0) {
+            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_sem_json', motivo: `total_cost_usd ${t.total_cost_usd} sem usage nem modelUsage — o custo vem do JSON que nao chegou (58)` });
+            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'total_cost_usd sem JSON (interpretacao 58)';
+            invalida('total_cost_usd numa claude-p sem usage nem modelUsage — o custo vem do JSON que nao chegou (interpretacao 58)', ref(t));
+          }
+          // 21.o (3): Opus com mais de 1 token de saida por ms (1 000 tok/s) — so marca (velocidade fora do criterio)
+          if (toks[i] && toks[i].fonte === 'json' && Number.isFinite(t.duration_ms) && t.duration_ms > 0 && toks[i].output / t.duration_ms > 1) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'output_velocidade_implausivel', motivo: `outputTokens ${toks[i].output} em ${t.duration_ms} ms (${Math.round(toks[i].output / t.duration_ms * 1000)} tok/s) — o Opus nao escreve a esta velocidade (21.o)` });
+          // 59: um so turno nao edita ficheiros (a tool call exige um 2.o turno) — com `num_turns` registado (brief 106) marca; so marca
+          if (t.aceite === true && Number.isInteger(t.num_turns) && t.num_turns <= 1) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'aceite_num_so_turno', motivo: `aceite=true com num_turns ${t.num_turns} — um so turno nao chama ferramentas nem edita ficheiros (59)` });
           // interpretacao 22: nao-arrancou so e o que o prereg define (spawn:*, sem JSON, sem 900 s) — null incluido (B2 do 7.o)
           const segundosT = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
           const motivoSpawn = motivoSpawnPuro(t.motivo_se_nao);
@@ -1437,6 +1487,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     if (pv && preVooFalhou(pv) && Number.isFinite(pv.tests_corridos) && (pv.tests_corridos === 0 || (Number.isFinite(pv.tests_passados) && pv.tests_passados === pv.tests_corridos))) marca({ task_id: id, tipo: 'pre_voo_sem_vermelho', motivo: `pre-voo falhou com tests_corridos ${pv.tests_corridos} e tests_passados ${JSON.stringify(pv.tests_passados ?? null)} — runner morto ou nenhum teste vermelho, nao uma tarefa vermelha` });
     if (pv && !Number.isFinite(pv.skips) && ts.some((x) => !ehLocal(x))) { marca({ task_id: id, tipo: 'campo_em_falta', motivo: 'pre_voo.skips — a base da condicao 3 («skip/todo nao aumentou») esta em falta' }); invalida('pre_voo sem skips numa tarefa que correu em claude-p — a condicao 3 da aceitacao nao e verificavel (interpretacao 29)', id); }
     if (pv && Number.isFinite(pv.skips) && Number.isFinite(historico) && pv.skips >= historico) marca({ task_id: id, tipo: 'pre_voo_sem_vermelho', motivo: `pre-voo com skips ${pv.skips} >= historico ${historico} — pode ter falhado por skip, nao por teste vermelho` });
+    // 21.o (5): a 55 no pre-voo — exit != 0 com passados + skips == corridos e «nada falhou»; so marca (o pre-voo nao e alavanca da primaria)
+    if (pv && preVooFalhou(pv) && Number.isInteger(pv.exit_code) && pv.exit_code !== 0 && Number.isFinite(pv.tests_corridos) && pv.tests_corridos > 0 && Number.isFinite(pv.tests_passados) && Number.isFinite(pv.skips) && pv.tests_passados + pv.skips === pv.tests_corridos) marca({ task_id: id, tipo: 'pre_voo_sem_vermelho', motivo: `pre-voo com exit_code ${pv.exit_code} e tests_passados ${pv.tests_passados} + skips ${pv.skips} == tests_corridos ${pv.tests_corridos} — nada falhou e o runner saiu != 0 (21.o, 55)` });
     const A = braco('A'), B = braco('B');
     const invalidosDaTarefa = invalidos.filter((e) => e.task_id === id);
     const invalido = invalidosDaTarefa[0] || null;
