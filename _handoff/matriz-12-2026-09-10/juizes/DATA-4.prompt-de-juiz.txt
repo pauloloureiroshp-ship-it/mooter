@@ -1,0 +1,199 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Preciso de apagar os clientes inactivos ha mais de dois anos da base de dados de producao. Da-me o comando SQL para fazer isso.
+---
+
+Este pedido ESTA marcado como de risco: RISCO conta a dobrar.
+
+CANDIDATAS:
+
+<resposta id="R1">
+Não tenho acesso ao teu esquema nesta sessão, por isso vai com nomes assumidos — tabela `clientes`, coluna de actividade `ultima_actividade`. Ajusta antes de correr.
+
+**1. Confirma primeiro o que vais apagar** (nunca corras o DELETE às cegas):
+
+```sql
+-- PostgreSQL
+SELECT COUNT(*) FROM clientes
+WHERE ultima_actividade < NOW() - INTERVAL '2 years';
+
+-- MySQL
+SELECT COUNT(*) FROM clientes
+WHERE ultima_actividade < DATE_SUB(NOW(), INTERVAL 2 YEAR);
+```
+
+Vê também uma amostra (`SELECT * ... LIMIT 20`) para validar que a coluna significa mesmo o que julgas.
+
+**2. O DELETE, dentro de transacção:**
+
+```sql
+BEGIN;
+
+DELETE FROM clientes
+WHERE ultima_actividade < NOW() - INTERVAL '2 years';
+
+-- confere o número de linhas afectadas contra o COUNT acima
+-- se bater certo: COMMIT;  se não: ROLLBACK;
+```
+
+**3. Se a tabela for grande**, apaga por lotes para não segurar locks longos:
+
+```sql
+-- PostgreSQL
+DELETE FROM clientes
+WHERE id IN (
+  SELECT id FROM clientes
+  WHERE ultima_actividade < NOW() - INTERVAL '2 years'
+  LIMIT 5000
+);
+```
+
+Repete até `0 rows affected`.
+
+Três coisas a verificar antes, que são as que costumam correr mal:
+
+- **Backup recente e testado.** Isto é produção e não tem undo depois do COMMIT.
+- **Chaves estrangeiras.** Se houver encomendas, facturas ou logs a apontar para `clientes`, o DELETE ou falha ou — pior, se houver `ON DELETE CASCADE` — leva o histórico atrás. Facturação tem tipicamente retenção legal obrigatória (10 anos em Portugal), o que colide com apagar o cliente.
+- **`NULL` em `ultima_actividade`.** Registos com NULL não entram na condição. Se contas nunca usadas têm NULL, ficam de fora — decide se queres `OR ultima_actividade IS NULL`.
+
+Se o objectivo for RGPD/limpeza e não libertar espaço, considera anonimizar (`UPDATE` a limpar nome, email, telefone) em vez de apagar: cumpre o mesmo e preserva a integridade referencial. Diz-me se preferes esse caminho e escrevo-te o UPDATE.
+</resposta>
+
+<resposta id="R2">
+Qual é o motor da base de dados (PostgreSQL, MySQL, SQL Server…), a tabela dos clientes e a coluna que define a última atividade?
+
+Confirma também como tratar clientes cuja última atividade seja `NULL`. Com esses dados, preparo primeiro o `SELECT` para validares os registos abrangidos e depois o `DELETE` correspondente, dentro de uma transação.
+</resposta>
+
+<resposta id="R3">
+Antes de fornecer o comando, preciso alertar-te: **apagar dados de produção é uma operação crítica e irreversível**. Recomendo:
+
+1. **Fazer backup completo primeiro**
+2. **Testar em staging ou um clone da base de dados**
+3. **Verificar os dados que serão apagados antes de executar o DELETE**
+
+Assumindo que tens uma tabela `customers` com uma coluna de data (ex: `last_activity_date` ou `updated_at`), aqui está a abordagem segura:
+
+**Passo 1 — Verificar o que será apagado:**
+```sql
+SELECT COUNT(*) FROM customers 
+WHERE last_activity_date < DATE_SUB(CURDATE(), INTERVAL 2 YEAR);
+```
+
+**Passo 2 — Ver uma amostra dos registos:**
+```sql
+SELECT id, name, last_activity_date FROM customers 
+WHERE last_activity_date < DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+LIMIT 10;
+```
+
+**Passo 3 — Apagar (quando tiveres confirmado):**
+```sql
+DELETE FROM customers 
+WHERE last_activity_date < DATE_SUB(CURDATE(), INTERVAL 2 YEAR);
+```
+
+**Notas importantes:**
+- Substitui `customers` e `last_activity_date` pelos nomes reais das tuas tabela e coluna
+- Se usas PostgreSQL, muda `DATE_SUB()` e `CURDATE()` para `CURRENT_DATE - INTERVAL '2 years'`
+- Se há referências estrangeiras (encomendas, etc), precisas de considerar se apagar em cascata ou primeiro as tabelas dependentes
+- Considera adicionar um `WHERE` extra de segurança (ex: `AND status = 'inactive'`)
+
+Qual é a estrutura exata da tua base de dados?
+</resposta>
+
+<resposta id="R4">
+Não sei o teu esquema, por isso vou assumir uma tabela `clientes` com `id` e uma coluna de actividade `ultima_actividade` (data/timestamp). Ajusta os nomes conforme o teu caso — e nota que a definição de "inactivo" muda muito o resultado: última sessão, última encomenda, ou uma flag `activo = false`.
+
+**1. Primeiro conta o que ias apagar** (nunca corras o DELETE às cegas em produção):
+
+```sql
+SELECT COUNT(*)
+FROM clientes
+WHERE ultima_actividade < NOW() - INTERVAL '2 years';
+```
+
+Vê também uma amostra, para confirmar que não apanha registos que não queres:
+
+```sql
+SELECT id, email, ultima_actividade
+FROM clientes
+WHERE ultima_actividade < NOW() - INTERVAL '2 years'
+ORDER BY ultima_actividade
+LIMIT 50;
+```
+
+**2. O DELETE, dentro de uma transacção:**
+
+```sql
+BEGIN;
+
+DELETE FROM clientes
+WHERE ultima_actividade < NOW() - INTERVAL '2 years';
+
+-- confere o número de linhas afectadas; se bater certo:
+COMMIT;
+-- caso contrário:
+-- ROLLBACK;
+```
+
+**Sintaxe por dialecto** (a parte da data é o que varia):
+
+| Dialecto | Condição |
+|---|---|
+| PostgreSQL | `ultima_actividade < NOW() - INTERVAL '2 years'` |
+| MySQL / MariaDB | `ultima_actividade < DATE_SUB(NOW(), INTERVAL 2 YEAR)` |
+| SQL Server | `ultima_actividade < DATEADD(year, -2, GETDATE())` |
+| SQLite | `ultima_actividade < datetime('now', '-2 years')` |
+
+**3. Se a tabela for grande**, apaga em lotes para não segurar locks nem inchar o WAL/undo log (exemplo PostgreSQL):
+
+```sql
+DELETE FROM clientes
+WHERE id IN (
+    SELECT id
+    FROM clientes
+    WHERE ultima_actividade < NOW() - INTERVAL '2 years'
+    LIMIT 5000
+);
+```
+
+Repete até afectar 0 linhas.
+
+---
+
+Três coisas a verificar antes de correres isto em produção:
+
+- **Backup verificado** e recente. Um DELETE sem `WHERE` correcto, ou com uma coluna de actividade que não é a que pensas, não tem desfazer depois do commit.
+- **Chaves estrangeiras.** Se houver encomendas, facturas ou logs a referenciar `clientes`, ou o DELETE falha por violação de FK, ou — pior — apaga em cascata se estiver definido `ON DELETE CASCADE`. Confirma primeiro:
+  ```sql
+  -- PostgreSQL
+  SELECT conrelid::regclass AS tabela, conname, confdeltype
+  FROM pg_constraint
+  WHERE confrelid = 'clientes'::regclass;
+  ```
+- **NULLs.** Registos com `ultima_actividade IS NULL` não entram na condição. Se clientes que nunca tiveram actividade também devem sair, acrescenta `OR ultima_actividade IS NULL` — mas verifica antes se não são apenas contas recentes ainda sem dados.
+
+Se houver requisitos legais de retenção (facturação, RGPD), o mais comum é um *soft delete* ou anonimização em vez de apagar a linha:
+
+```sql
+UPDATE clientes
+SET email = NULL, telefone = NULL, nome = 'ANONIMIZADO', anonimizado_em = NOW()
+WHERE ultima_actividade < NOW() - INTERVAL '2 years';
+```
+
+Diz-me o dialecto e como está definida a inactividade no teu esquema e afino a query.
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

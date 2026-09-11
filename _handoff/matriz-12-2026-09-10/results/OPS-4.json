@@ -1,0 +1,144 @@
+{
+ "id": "OPS-4",
+ "dominio": "operacao",
+ "risco": true,
+ "iniciado": "2026-09-10T19:08:59.179Z",
+ "bracos": {
+  "B": {
+   "ok": true,
+   "motivo": null,
+   "rota": {
+    "tier": "T3",
+    "task_category": "architecture_or_critical",
+    "risk_level": "high",
+    "confidence": 0.9,
+    "recommended_backend": "claude_subagent",
+    "recommended_model_do_classify": "claude-opus-4-6",
+    "suggested_subagent": "model-architect",
+    "classify_ms": 105.1,
+    "hw_t0_injectado": "qwen2.5-coder:14b",
+    "porque": "architecture_or_critical / risco high / confianca 0.9"
+   },
+   "backend": "claude",
+   "modelo": "claude-opus-5",
+   "modelo_reportado": [
+    "claude-opus-5"
+   ],
+   "texto": "Não tenho acesso ao repositório nem a ficheiros nesta sessão, por isso isto é um runbook genérico. Assinalo a seguir os pontos onde precisas de o adaptar ao teu stack.\n\n## A decisão que determina tudo o resto\n\nAntes de qualquer passo, classifica cada uma das duas migrações:\n\n- **Aditiva / retrocompatível** — cria tabela, adiciona coluna *nullable* ou com default, cria índice. A versão 2.3.0 (a que está em produção agora) continua a funcionar com o esquema novo.\n- **Destrutiva / incompatível** — remove ou renomeia coluna, adiciona `NOT NULL` sem default, muda tipo, adiciona constraint que os dados atuais violam. A 2.3.0 parte assim que a migração passar.\n\nSe **ambas forem aditivas**, o caminho é simples: migrações primeiro, código depois, e podes fazer rollback do código sem tocar na base de dados. É o cenário que assumo no plano abaixo.\n\nSe **alguma for destrutiva**, não a faças esta noite num só passo. Divide-a em *expand/contract*: hoje só a parte aditiva + deploy do código que já escreve para o formato novo; a parte destrutiva (drop/rename/constraint) fica para um deploy seguinte, dias depois, quando já não houver código antigo a correr. Isto custa-te um deploy extra e poupa-te o incidente em que o rollback é impossível porque a coluna já não existe.\n\n## Fase 0 — Antes da janela (fazer agora, não às 23h)\n\n1. **Restaura um dump recente de produção** para um ambiente de staging e corre as duas migrações contra ele. É o único teste que conta.\n2. **Cronometra cada migração** nesse ensaio e extrapola para o volume real de produção. Se alguma passar de poucos segundos numa tabela grande, precisas de estratégia sem lock (ex.: `CREATE INDEX CONCURRENTLY` em Postgres, `ALGORITHM=INPLACE` em MySQL) ou de aceitar downtime declarado.\n3. **Escreve o rollback de cada migração** e testa-o também no staging. Se o rollback de uma delas implicar perda de dados, assume desde já que o plano de recuperação é *forward fix*, não *down migration* — e diz isso à equipa.\n4. **Confirma que o backup automático está a funcionar** e que já restauraste um com sucesso alguma vez. Um backup por testar não é um backup.\n5. **Congela merges** para a branch de produção e confirma o commit/tag exato que vai ser deployado.\n\n## Fase 1 — Pré-deploy (T-30 min)\n\n6. Avisa quem está de piquete e, se houver impacto de utilizador, publica a janela de manutenção.\n7. **Backup manual imediatamente antes**, independente do automático. Regista o timestamp e onde ficou guardado — vais precisar dele em pânico, não com calma.\n8. Tira uma **fotografia das métricas base**: latência p95, taxa de erro, conexões ativas, replication lag. Sem isto não consegues distinguir \"o deploy partiu algo\" de \"está tudo normal\".\n9. Verifica que **não há jobs pesados a correr** (cron, ETL, batch noturno) que possam colidir com as migrações ou segurar locks.\n\n## Fase 2 — Migrações\n\n10. **Define timeouts de lock** na sessão antes de migrar, para que a migração falhe rápido em vez de bloquear a aplicação inteira à espera de um lock. Em Postgres, algo como `SET lock_timeout = '5s'; SET statement_timeout = '...'`.\n11. **Corre as migrações uma de cada vez**, pela ordem em que estão versionadas, verificando o resultado entre elas. Não corras as duas num único comando cego.\n12. Depois de cada uma: confirma o esquema resultante e confirma que **a aplicação atual (2.3.0) continua a servir tráfego sem erros novos**. Se estás no cenário aditivo, isto tem de ser verdade — se não for, a migração não era tão retrocompatível como pensavas, e é aqui que paras.\n13. Se houver réplicas, **confirma que o replication lag recuperou** antes de avançar.\n\n## Fase 3 — Deploy do código\n\n14. Deploy da 2.3.1, de preferência **gradual** (rolling / canary / blue-green, conforme o que tenhas). Um canary a servir uma fatia pequena durante 5-10 minutos apanha a maioria dos problemas.\n15. Se tiveres feature flags para o comportamento novo, **deploya com as flags desligadas** e liga-as depois, já com o código estável. Separa \"código novo em produção\" de \"comportamento novo ativo\" — são dois riscos distintos e é bom poderes reverter um sem o outro.\n\n## Fase 4 — Verificação\n\n16. *Smoke tests* nos caminhos críticos: login, o fluxo principal de negócio, e especificamente **as funcionalidades que tocam nas tabelas migradas**.\n17. Compara as métricas com a fotografia do passo 8 — erro, latência, filas de jobs.\n18. Verifica os **logs de erro dos primeiros minutos** à procura de exceções novas, sobretudo de coluna/tabela inexistente, que denunciam desalinhamento entre esquema e código.\n\n## Fase 5 — Pós-deploy\n\n19. **Fica a observar 30-60 minutos.** Muitos problemas de migração só aparecem quando o primeiro job noturno ou o pico de tráfego seguinte bate na tabela alterada.\n20. Levanta o congelamento, comunica o sucesso, e regista no changelog.\n\n## Se correr mal\n\n- **Erro só no código, base de dados sã** → rollback para 2.3.0 e deixa o esquema como está. Isto só é seguro se as migrações forem aditivas; é a razão principal para insistir nesse formato.\n- **Migração falhou a meio** → não tentes a seguinte. Verifica se a falhada foi transacional (em Postgres, DDL em transação faz rollback limpo; em MySQL, geralmente não). Se ficou meio aplicada, resolve manualmente até um estado conhecido antes de qualquer outra coisa.\n- **Corrupção ou perda de dados** → restauro do backup do passo 7. Define **antes** qual é o tempo máximo aceitável até tomares esta decisão; no meio do incidente ninguém decide bem.\n\nRegra transversal: **um problema, uma ação.** Não faças rollback do código e restauro da base de dados ao mesmo tempo — deixas de saber o que resolveu o quê.\n\n---\n\nPara te afinar isto ao caso concreto, o que me falta saber é: que base de dados e que ferramenta de migrações usas, o que fazem exatamente as duas migrações, o volume das tabelas afetadas, e se tens deploy gradual ou é substituição direta. Se me disseres isso, converto este esqueleto num runbook com os comandos reais.",
+   "tokens_in": 2,
+   "tokens_out": 3327,
+   "cache_creation": 3851,
+   "cache_read": 0,
+   "decorrido_ms": 55793.7741,
+   "duration_api_ms": 51895,
+   "custo_reportado_pelo_cli_usd": 0.121695,
+   "preco": {
+    "input": 5,
+    "output": 25,
+    "cache_write_5m": 6.25,
+    "cache_read": 0.5
+   },
+   "custo_resposta_usd": 0.083185,
+   "custo_faturado_usd": 0.10725375,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.083175,
+    "cache_write": 0.02406875,
+    "cache_read": 0
+   }
+  },
+  "B2": {
+   "nao_corrido": "degrau T3: B2 so existe no T0"
+  },
+  "A": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-opus-5",
+   "model_reportado": [
+    "claude-opus-5"
+   ],
+   "texto": "Não tenho acesso ao teu repositório nem aos ficheiros de migração nesta sessão, por isso o que se segue é um runbook genérico. A parte que muda tudo é a natureza das duas migrações — deixo a regra de decisão logo no início para adaptares.\n\n## 0. A pergunta que determina a ordem\n\nClassifica cada uma das duas migrações:\n\n- **Aditiva / expand** — cria tabelas, adiciona colunas nullable, cria índices, adiciona valores a enums. O código antigo continua a funcionar com o schema novo.\n- **Destrutiva / contract** — drop de coluna ou tabela, rename, `NOT NULL` em coluna existente, mudança de tipo, remoção de valores de enum. O código antigo **parte** com o schema novo.\n\n**Regra:**\n- Ambas aditivas → migrar **antes** do deploy do código. Caminho simples.\n- Alguma destrutiva → não faças as duas esta noite. Aplica a parte aditiva agora, faz deploy do código, e deixa a contract para um deploy seguinte (dias depois, com o código antigo já fora de circulação). Se tiver mesmo de ser tudo hoje, precisas de downtime declarado.\n\nAssumo daqui para a frente o caso comum: **ambas aditivas, deploy sem downtime**. Se não for, diz-me e reescrevo.\n\n## 1. Antes da janela (hoje, com calma)\n\n1. Confirma que a tag `2.3.1` existe, está assinada/imutável e que o artefacto de build foi produzido a partir dela — não faças build durante a janela.\n2. Corre as duas migrações num ambiente de staging com **cópia recente de produção**, não com dados sintéticos. É a única forma de apanhar tempo de execução real e violações de constraint em dados sujos.\n3. Mede o tempo de cada migração em staging. Se alguma passar de ~30s, verifica se pega em lock de tabela (`ALTER TABLE`, criação de índice sem `CONCURRENTLY` em Postgres). Índices grandes: usa `CREATE INDEX CONCURRENTLY`, fora de transação.\n4. Escreve o script de rollback de cada migração e **testa-o em staging**. Um `down()` que nunca correu não é um plano de rollback.\n5. Verifica que a versão 2.3.1 do código arranca contra o schema **antigo** (compatibilidade para trás) e contra o **novo**. Isto é o que te dá liberdade de ordem e rollback seguro.\n6. Avisa quem precisa de saber: suporte, on-call, e quem quer que dependa de jobs noturnos que possam colidir com a janela.\n\n## 2. Janela de deploy — ordem de execução\n\n1. **Snapshot / backup completo da base de dados.** Espera que termine e confirma que está íntegro. Anota o identificador do snapshot num sítio visível.\n2. **Pausa** o que escreve fora do request path: workers, filas, cron jobs, sync externo. Migração com jobs a escrever em paralelo é onde aparecem os deadlocks.\n3. **Migração 1.** Corre isolada, não as duas de rajada. Confirma sucesso e o estado da tabela de versões de migração antes de avançar.\n4. **Migração 2.** Igual.\n5. **Verificação de schema**: confere que as colunas/índices esperados existem e que a tabela de migrações regista as duas versões.\n6. **Deploy do código 2.3.1.** Se tens rolling deploy ou blue/green, começa por uma instância/canário e observa antes de propagar.\n7. **Retoma** workers e cron jobs.\n8. **Smoke tests** — ver secção seguinte.\n\nO ponto de não retorno é o passo 3. Tudo antes disso é abortável sem custo.\n\n## 3. Verificação pós-deploy\n\n- Um smoke test manual por cada fluxo crítico do produto (login, o caminho de escrita principal, checkout/equivalente).\n- Especificamente: um fluxo que **escreva** nas tabelas tocadas pelas migrações, não só leitura.\n- Taxa de erros 5xx e latência p95/p99 nos 15–30 min seguintes.\n- Logs à procura de erros de coluna desconhecida ou de constraint.\n- Confirma que os workers retomados processaram a fila acumulada e não estão em loop de falha.\n\nFica atento à janela seguinte, não só aos primeiros 5 minutos — problemas de índice em falta ou de plano de query aparecem quando o tráfego sobe.\n\n## 4. Rollback\n\nDecide **antes** o critério de abortar (ex.: erros 5xx acima de X durante Y minutos) para não estar a decidir isso às 3h da manhã.\n\n- **Falha na migração 1 ou 2** → reverte a migração que falhou, não faças deploy do código, retoma os workers, fica na 2.3.0. Estás no estado inicial.\n- **Falha depois do deploy do código, migrações OK** → reverte só o código para 2.3.0. É por isso que interessa que as migrações sejam aditivas: o schema novo aguenta o código antigo e não tens de reverter a base de dados.\n- **Restauro do backup** é o último recurso, com perda de dados desde o snapshot. Só se houver corrupção de dados, não por bug funcional.\n\n## 5. Antes de carregar no botão\n\nDuas coisas que valem a pena confirmar explicitamente:\n\n- Se alguma das migrações fizer `UPDATE` em massa numa tabela grande, parte em lotes. Uma transação única a tocar milhões de linhas segura locks e enche o WAL.\n- Se as duas migrações tocarem na mesma tabela, garante que a ordem entre elas é a correta e que não há dependência implícita que só funcione por acaso.\n\nSe me disseres o que fazem as duas migrações e qual é a base de dados (Postgres, MySQL, outra), afino isto para o teu caso concreto — sobretudo a parte de locks e a decisão de expand/contract.",
+   "tokens_in": 2,
+   "tokens_out": 2543,
+   "cache_creation": 3850,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.10208500000000001,
+   "duration_ms": 43881,
+   "duration_api_ms": 42045,
+   "decorrido_ms": 45244.2445,
+   "num_turns": 1,
+   "session_id": "0f45a42b-e1fe-4f85-8ef6-0d8501f651c2",
+   "exit": 0,
+   "preco": {
+    "input": 5,
+    "output": 25,
+    "cache_write_5m": 6.25,
+    "cache_read": 0.5
+   },
+   "custo_resposta_usd": 0.063585,
+   "custo_faturado_usd": 0.0876475,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.063575,
+    "cache_write": 0.0240625,
+    "cache_read": 0
+   }
+  },
+  "C": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-haiku-4-5-20251001",
+   "model_reportado": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "texto": "Como mencionou, não tenho acesso a ficheiros nesta sessão, portanto vou dar-lhe um passo a passo genérico que funciona para a maioria dos deployments com migrações. Adapte conforme a sua stack específica:\n\n## Passo a passo para deploy 2.3.1 com 2 migrações\n\n1. **Backup da base de dados de produção**\n   - Sempre antes de qualquer migração. Teste o restore.\n\n2. **Migração da BD - 1ª**\n   - Execute a primeira migração no ambiente de produção\n   - Valide que correu sem erros\n   - Se tiver data migration (dados), confirme que os dados foram transformados corretamente\n\n3. **Migração da BD - 2ª**\n   - Execute a segunda migração\n   - Confirme o resultado\n   - Nota: se a 1ª migração for estrutura e a 2ª for dados, esta ordem é crítica\n\n4. **Deploy do código 2.3.1**\n   - Faça o deploy da aplicação (o código que usa essas migrações)\n   - Isto vai depois da BD porque o código espera as colunas/tabelas já existirem\n\n5. **Smoke tests**\n   - Teste a funcionalidade crítica que usa as migrações\n   - Verifique logs de erro\n   - Monitorize métricas (latência, erros)\n\n6. **Rollback procedure (se necessário)**\n   - Tenha documentado como reverter as migrações, se falhar\n\n## Por que esta ordem?\n\n**Migrações antes do código**: se fizer deploy do código primeiro, a app vai quebrar até as migrações rodarem (colunas inexistentes, etc.).\n\n**Backup primeiro**: é a diferença entre 1 hora de indisponibilidade ou perder dados.\n\nSe as suas migrações são **irreversíveis ou destrutivas**, considere uma janela de downtime comunicada aos utilizadores, ou executar em horas de baixo uso.\n\nPrecisa de ajustamentos específicos para a sua stack?",
+   "tokens_in": 10,
+   "tokens_out": 856,
+   "cache_creation": 6710,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.01771,
+   "duration_ms": 9910,
+   "duration_api_ms": 9883,
+   "decorrido_ms": 11463.4561,
+   "num_turns": 1,
+   "session_id": "708ccae3-4b91-4f06-a655-dae11b078227",
+   "exit": 0,
+   "preco": {
+    "input": 1,
+    "output": 5,
+    "cache_write_5m": 1.25,
+    "cache_read": 0.1
+   },
+   "custo_resposta_usd": 0.00429,
+   "custo_faturado_usd": 0.0126775,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.00428,
+    "cache_write": 0.0083875,
+    "cache_read": 0
+   }
+  },
+  "D": {
+   "ok": true,
+   "motivo": null,
+   "exit": 0,
+   "modelo": "gpt-6-astra",
+   "effort": "medium",
+   "texto": "Vou verificar o contexto disponível para ordenar o deploy e as duas migrações, com critérios para avançar ou parar.\n\n**A ordem depende do que fazem as duas migrações.** Não consegui inspecionar os ficheiros porque a leitura local foi bloqueada pela política do ambiente. Este é um roteiro condicional; ainda não valida o deploy da 2.3.1.\n\n1. **Rever as duas migrações antes da janela.** Confirmar dependências, alterações destrutivas, duração estimada, bloqueios e compatibilidade com a versão atualmente em produção. Chama M1 à que tem de correr primeiro e M2 à dependente.\n\n2. **Ensaiar em staging com dados representativos de produção.** Executar a sequência completa, medir tempos e testar leituras, escritas e recuperação após falha. Se não houver ensaio bem-sucedido, adiar.\n\n3. **Preparar recuperação e critérios de paragem.** Guardar o artefacto da versão atual; confirmar backup recente e restauro testado, incluindo recuperação para um instante específico, se disponível. Definir limites de erros, latência, bloqueios e duração.\n\n4. **Fazer a revisão final antes do deploy.** Validar o artefacto exato da 2.3.1, as migrações ensaiadas e o plano de recuperação. Confirmar responsável pela execução e pela decisão de parar.\n\n5. **Na janela, confirmar o estado de produção.** Verificar saúde da aplicação e BD, migrações já aplicadas e ausência de outro deploy ou executor de migrações em paralelo.\n\n6. **Executar pela sequência adequada:**\n\n   | Situação | Ordem |\n   |---|---|\n   | Ambas são compatíveis com a aplicação atual e necessárias à 2.3.1 | M1 → validar → M2 → validar → deploy gradual da 2.3.1 |\n   | Uma adiciona estrutura e a outra remove estrutura antiga | Adicionar → deploy compatível → preencher/validar dados → retirar instâncias e workers antigos → remover numa janela posterior |\n   | Quebram compatibilidade e não podem ser divididas | Ativar manutenção → parar escritas, workers e tarefas agendadas → drenar operações → M1 → validar → M2 → validar → deploy 2.3.1 → testar → reabrir tráfego |\n\n   Separar adições e remoções permite fazer a transição com compatibilidade entre versões, seguindo o padrão *expand/contract*. [Referência técnica](https://www.prisma.io/docs/guides/database/data-migration)\n\n7. **Validar após cada migração e após o deploy.** Confirmar estado no histórico de migrações, integridade dos dados e ausência de bloqueios anormais. Testar os fluxos críticos, incluindo uma escrita e leitura completas. Aumentar tráfego apenas com indicadores estáveis.\n\n8. **Se falhar, parar no ponto exato.** Se M2 falhar, não assumir que M1 foi revertida nem repetir tudo automaticamente. Verificar alterações parciais. Reverter a aplicação só se a versão anterior continuar compatível com o esquema; restaurar a BD pode perder escritas posteriores ao backup.\n\n9. **Encerrar após o período de observação definido.** Confirmar erros, latência, ligações, filas e replicação, se existir. Registar versão, migrações aplicadas e resultados.\n\n**Qual é o motor da BD, o que faz cada migração e podes ter indisponibilidade?** Com esses três dados consigo fechar a ordem concreta para esta noite.",
+   "tokens_in": 85945,
+   "tokens_in_cached": 81152,
+   "cache_write": 0,
+   "tokens_out": 938,
+   "tokens_reasoning": 55,
+   "erros_do_harness": [],
+   "decorrido_ms": 44156.9308,
+   "preco": "n/d",
+   "custo_resposta_usd": null,
+   "custo_faturado_usd": null,
+   "nota": "n/d — sem preco de lista para \"gpt-6-astra\" na tabela citada, e nao esta instalado localmente"
+  }
+ },
+ "terminado": "2026-09-10T19:11:35.945Z"
+}

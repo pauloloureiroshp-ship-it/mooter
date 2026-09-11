@@ -120,6 +120,7 @@ tools/router/.sentry.json
 # e leva com eles os 5 ledgers do P7 -- os unicos ficheiros que sustentam o veredicto do R-24.
 !_handoff/provas-v1-2026-09-09/**/*.jsonl
 !_handoff/provas-v1-2026-09-09/**/*.log
+!_handoff/matriz-12-2026-09-10/**/*.jsonl
 training-*.json
 model-weights/
 *.onnx

@@ -1,0 +1,168 @@
+{
+ "id": "SMOKE-1",
+ "dominio": "smoke",
+ "risco": false,
+ "iniciado": "2026-09-10T18:00:22.614Z",
+ "bracos": {
+  "B": {
+   "ok": true,
+   "rota": {
+    "tier": "T0",
+    "task_category": "trivial_local",
+    "risk_level": "minimal",
+    "confidence": 0.8,
+    "recommended_backend": "ollama",
+    "recommended_model_do_classify": "qwen2.5-coder:14b",
+    "suggested_subagent": "local-summarizer",
+    "classify_ms": 125.1,
+    "hw_t0_injectado": "qwen2.5-coder:14b",
+    "porque": "trivial_local / risco minimal / confianca 0.8"
+   },
+   "backend": "ollama",
+   "modelo": "qwen2.5-coder:14b",
+   "texto": "Boa dia à equipa!",
+   "tokens_in": 109,
+   "tokens_out": 8,
+   "cache_creation": 0,
+   "cache_read": 0,
+   "decorrido_ms": 642.1966,
+   "duration_api_ms": 429,
+   "tecto_tokens": 2048,
+   "truncou": false,
+   "preco": {
+    "input": 0,
+    "output": 0
+   },
+   "custo_resposta_usd": 0,
+   "custo_faturado_usd": 0,
+   "nota": "modelo local: $0 de fornecedor (a GPU e do dono)"
+  },
+  "B2": {
+   "ok": true,
+   "rota": {
+    "tier": "T0",
+    "task_category": "trivial_local",
+    "risk_level": "minimal",
+    "confidence": 0.8,
+    "recommended_backend": "ollama",
+    "recommended_model_do_classify": "qwen2.5-coder:14b",
+    "suggested_subagent": "local-summarizer",
+    "classify_ms": 91.5,
+    "hw_t0_injectado": "qwen2.5-coder:14b",
+    "porque": "trivial_local / risco minimal / confianca 0.8",
+    "modelo_t0_forcado": "qwen3:30b"
+   },
+   "backend": "ollama",
+   "modelo": "qwen3:30b",
+   "texto": "Okay, the user wants a single sentence in Portuguese to wish a good morning to a team of four people. Let me make sure it's concise and in PT-PT.\n\nFirst, \"Bom dia\" is the standard greeting. Need to address the team of four. In Portuguese, \"equipa\" is used, but sometimes \"equipe\" is also acceptable, though \"equipa\" is more common in Portugal.\n\nSo, \"Bom dia à equipa de quatro pessoas!\" Wait, but \"equipa\" is feminine, so \"à equipa\" is correct. But maybe it's better to say \"à equipa de quatro pessoas\" or just \"à equipa\" since the number is specified. Wait, the user said \"equipa de quatro pessoas\", so including that.\n\nWait, the user wants a single sentence. Let me check if \"Bom dia à equipa de quatro pessoas!\" is correct. But maybe it's more natural to say \"Bom dia à equipa!\" since the four people are part of the team. But the user specified to mention four people. Hmm.\n\nWait, the instruction says \"desejar bom dia a uma equipa de quatro pessoas\". So the team consists of four people. So the correct phrasing would be \"Bom dia à equipa de quatro pessoas!\" But in Portuguese, when referring to a team, you might just say \"Bom dia à equipa!\" without specifying the number, but the user wants it included.\n\nWait, the user says \"uma equipa de quatro pessoas\", so the team is made up of four people. So the correct phrase would be \"Bom dia à equipa de quatro pessoas!\" But maybe in Portuguese, it's more common to say \"Bom dia à equipa de quatro elementos!\" but \"pessoas\" is correct.\n\nWait, \"equipa de quatro pessoas\" is correct. So the sentence should be \"Bom dia à equipa de quatro pessoas!\" But let me check if \"equipa\" is the right word. In Portugal, \"equipa\" is used, not \"equipe\". So yes.\n\nWait, but maybe the user wants it to be a natural greeting. Sometimes people just say \"Bom dia à equipa!\" without specifying the number. But the user specifically asked to mention four people. So I should include it.\n\nSo the correct sentence is \"Bom dia à equipa de quatro pessoas!\" Let me check the grammar. \"À\" is \"a + a\", so \"à equipa\" is correct. \"de quatro pessoas\" is correct. So the sentence is grammatically right.\n\nWait, but maybe \"equipa\" is feminine, so \"à equipa\" is correct. Yes. So the sentence is correct. Let me confirm with an example. If I say \"Bom dia à equipa!\", that's correct. Adding \"de quatro pessoas\" makes it \"Bom dia à equipa de quatro pessoas!\".\n\nYes, that's the correct structure. So the answer should be that sentence.\n</think>\n\nBom dia à equipa de quatro pessoas!",
+   "tokens_in": 111,
+   "tokens_out": 654,
+   "cache_creation": 0,
+   "cache_read": 0,
+   "decorrido_ms": 19294.4438,
+   "duration_api_ms": 19178,
+   "tecto_tokens": 2048,
+   "truncou": false,
+   "preco": {
+    "input": 0,
+    "output": 0
+   },
+   "custo_resposta_usd": 0,
+   "custo_faturado_usd": 0,
+   "nota": "modelo local: $0 de fornecedor (a GPU e do dono)"
+  },
+  "A": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-opus-5",
+   "model_reportado": [
+    "claude-opus-5"
+   ],
+   "texto": "Bom dia a toda a equipa — que os quatro tenham um excelente dia de trabalho!",
+   "tokens_in": 2,
+   "tokens_out": 127,
+   "cache_creation": 3719,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.040375,
+   "duration_ms": 4246,
+   "duration_api_ms": 2943,
+   "decorrido_ms": 5891.4058,
+   "num_turns": 1,
+   "session_id": "1ddba890-ebb6-4969-917e-3a8cf7ba0740",
+   "exit": 0,
+   "preco": {
+    "input": 5,
+    "output": 25,
+    "cache_write_5m": 6.25,
+    "cache_read": 0.5
+   },
+   "custo_resposta_usd": 0.003185,
+   "custo_faturado_usd": 0.02642875,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.003175,
+    "cache_write": 0.02324375,
+    "cache_read": 0
+   }
+  },
+  "C": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-haiku-4-5-20251001",
+   "model_reportado": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "texto": "Bom dia a toda a equipa, desejo um excelente dia cheio de energia e sucesso para vocês!",
+   "tokens_in": 10,
+   "tokens_out": 208,
+   "cache_creation": 6624,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.014298,
+   "duration_ms": 3840,
+   "duration_api_ms": 2601,
+   "decorrido_ms": 5437.1546,
+   "num_turns": 1,
+   "session_id": "0e7a4ad1-7e74-46c1-ac58-b3a7452b6e56",
+   "exit": 0,
+   "preco": {
+    "input": 1,
+    "output": 5,
+    "cache_write_5m": 1.25,
+    "cache_read": 0.1
+   },
+   "custo_resposta_usd": 0.00105,
+   "custo_faturado_usd": 0.00933,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.00104,
+    "cache_write": 0.00828,
+    "cache_read": 0
+   }
+  },
+  "D": {
+   "ok": true,
+   "motivo": null,
+   "exit": 0,
+   "modelo": "gpt-6-astra",
+   "effort": "medium",
+   "texto": "Bom dia aos quatro, que tenham um excelente dia de trabalho em equipa!",
+   "tokens_in": 27145,
+   "tokens_in_cached": 0,
+   "cache_write": 0,
+   "tokens_out": 19,
+   "tokens_reasoning": 0,
+   "erros_do_harness": [],
+   "decorrido_ms": 7399.9916,
+   "preco": {
+    "input": 0,
+    "output": 0
+   },
+   "custo_resposta_usd": 0,
+   "custo_faturado_usd": 0,
+   "nota": "modelo local: $0 de fornecedor (a GPU e do dono)"
+  }
+ },
+ "terminado": "2026-09-10T18:01:01.501Z"
+}

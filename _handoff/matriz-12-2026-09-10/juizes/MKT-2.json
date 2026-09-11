@@ -1,0 +1,160 @@
+{
+ "id": "MKT-2",
+ "chave": {
+  "R1": "A",
+  "R2": "B",
+  "R3": "B2",
+  "R4": "D",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Anuncia a novidade com tom directo, mas inventa detalhes operacionais, não cumpre as 120 palavras e acrescenta comentários fora do email.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Anuncia o modo escuro e convida a experimentar, mas fica muito aquém das 120 palavras e exige preencher vários campos.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Entrega um processo de elaboração interminável e incompleto, com contagens erradas e benefícios não confirmados, em vez de um email pronto.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Entrega um email de 120 palavras, directo e com convite final, embora repita a ideia de escolher o aspecto da app.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta um email utilizável após revisão, mas não chega às 120 palavras, presume detalhes e benefícios não fornecidos e termina com um agradecimento em vez do convite.",
+     "total": 6,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Anuncia a novidade com tom directo, mas inventa detalhes operacionais, não cumpre as 120 palavras e acrescenta comentários fora do email.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Anuncia o modo escuro e convida a experimentar, mas fica muito aquém das 120 palavras e exige preencher vários campos.\"},\"R3\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Entrega um processo de elaboração interminável e incompleto, com contagens erradas e benefícios não confirmados, em vez de um email pronto.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Entrega um email de 120 palavras, directo e com convite final, embora repita a ideia de escolher o aspecto da app.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta um email utilizável após revisão, mas não chega às 120 palavras, presume detalhes e benefícios não fornecidos e termina com um agradecimento em vez do convite.\"}}",
+   "custo_tokens": {
+    "in": 29938,
+    "out": 391,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 17423.4687
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Cumpre extensao, tom directo e fecho convidativo, com placeholders claros e razoaveis",
+     "total": 9,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Muito curto (nem 50 palavras), fica longe das 120 pedidas e tem tom mais efusivo que directo",
+     "total": 3,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expoe todo o raciocinio interno em vez de entregar apenas o email pedido, inutilizavel tal como esta",
+     "total": 0,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Email correcto e usavel mas repete-se sobre 'liberdade de escolha' em vez de ser directo, e fica sem assunto nem assinatura",
+     "total": 7,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Bem estruturado com assunto e fecho adequados, mas linguagem um pouco mais promocional do que o 'sem exageros' pedido",
+     "total": 8,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Cumpre extensao, tom directo e fecho convidativo, com placeholders claros e razoaveis\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Muito curto (nem 50 palavras), fica longe das 120 pedidas e tem tom mais efusivo que directo\"},\"R3\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expoe todo o raciocinio interno em vez de entregar apenas o email pedido, inutilizavel tal como esta\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Email correcto e usavel mas repete-se sobre 'liberdade de escolha' em vez de ser directo, e fica sem assunto nem assinatura\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Bem estruturado com assunto e fecho adequados, mas linguagem um pouco mais promocional do que o 'sem exageros' pedido\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 541,
+    "cache_write": 10483,
+    "cache_read": 3298
+   },
+   "ms": 8683.7386
+  }
+ }
+}

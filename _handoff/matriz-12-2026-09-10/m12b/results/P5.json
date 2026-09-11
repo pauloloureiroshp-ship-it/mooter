@@ -1,0 +1,36 @@
+{
+ "id": "P5",
+ "iniciado": "2026-09-11T22:46:52.961Z",
+ "braco": "B_m12b",
+ "ok": true,
+ "rota": {
+  "tier": "T0",
+  "task_category": "trivial_local",
+  "risk_level": "minimal",
+  "confidence": 0.8,
+  "recommended_backend": "ollama",
+  "recommended_model_do_classify": "qwen2.5-coder:14b",
+  "suggested_subagent": "local-summarizer",
+  "classify_ms": 89.4,
+  "hw_t0_injectado": "qwen2.5-coder:14b",
+  "porque": "trivial_local / risco minimal / confianca 0.8"
+ },
+ "backend": "ollama",
+ "modelo": "qwen2.5-coder:14b",
+ "texto": "Coloca a tua chave da API em um ficheiro de configuração ou variável de ambiente, dependendo da tua aplicação. Evita colocá-la no código fonte.",
+ "tokens_in": 111,
+ "tokens_out": 40,
+ "cache_creation": 0,
+ "cache_read": 0,
+ "decorrido_ms": 802.9468,
+ "duration_api_ms": 695,
+ "tecto_tokens": 2048,
+ "truncou": false,
+ "preco": {
+  "input": 0,
+  "output": 0
+ },
+ "custo_resposta_usd": 0,
+ "custo_faturado_usd": 0,
+ "nota": "modelo instalado no Ollama desta maquina: $0 de fornecedor (a GPU e do dono, e gasta energia)"
+}

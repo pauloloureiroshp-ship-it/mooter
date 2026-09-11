@@ -1,0 +1,156 @@
+{
+ "id": "DATA-3",
+ "chave": {
+  "R1": "D",
+  "R2": "B2",
+  "R3": "C",
+  "R4": "A",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Define um processo completo e proporcional, com afectações, controlo de duplicados, validação histórica e revisão de ambiguidades.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe deliberação extensa e termina com instruções insuficientes que não resolvem tolerâncias nem agrupamentos e permitem correspondências erradas.",
+     "total": 1,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Oferece um ponto de partida, mas não concretiza tolerâncias ou agrupamentos, limita a revisão às diferenças e promete poupanças de tempo sem fundamento.",
+     "total": 5,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta regras e controlos sólidos, mas impõe Python sem necessidade demonstrada e generaliza taxas de retenção, desempenho e ganhos sem sustentação.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Enumera ferramentas e etapas genéricas sem explicar a correspondência e propõe actualizar a contabilidade automaticamente sem validação nem tratamento de ambiguidades.",
+     "total": 2,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Define um processo completo e proporcional, com afectações, controlo de duplicados, validação histórica e revisão de ambiguidades.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe deliberação extensa e termina com instruções insuficientes que não resolvem tolerâncias nem agrupamentos e permitem correspondências erradas.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Oferece um ponto de partida, mas não concretiza tolerâncias ou agrupamentos, limita a revisão às diferenças e promete poupanças de tempo sem fundamento.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta regras e controlos sólidos, mas impõe Python sem necessidade demonstrada e generaliza taxas de retenção, desempenho e ganhos sem sustentação.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Enumera ferramentas e etapas genéricas sem explicar a correspondência e propõe actualizar a contabilidade automaticamente sem validação nem tratamento de ambiguidades.\"}}",
+   "custo_tokens": {
+    "in": 31157,
+    "out": 399,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Processo claro com regras em cascata, tabela de afectacoes e aviso sobre nao forcar combinacoes, sem se perder em excesso",
+     "total": 10,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expoe raciocinio interno em ingles por engano e a resposta final e demasiado generica para 300 pagamentos agrupados",
+     "total": 0,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Da opcoes razoaveis mas superficiais (tolerancia fixa sem justificar, agrupamentos so manuais) e delega quase tudo a perguntas de seguimento",
+     "total": 5,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Resposta mais completa e tecnicamente solida (cascata, subset-sum limitado, retencoes, controlo de totais) mas e longa para o pedido",
+     "total": 9,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 0,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Lista generica de boas praticas de automatizacao empresarial que nao aborda o problema concreto de pagamentos agrupados e diferencas de centimos",
+     "total": 1,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Processo claro com regras em cascata, tabela de afectacoes e aviso sobre nao forcar combinacoes, sem se perder em excesso\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expoe raciocinio interno em ingles por engano e a resposta final e demasiado generica para 300 pagamentos agrupados\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Da opcoes razoaveis mas superficiais (tolerancia fixa sem justificar, agrupamentos so manuais) e delega quase tudo a perguntas de seguimento\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Resposta mais completa e tecnicamente solida (cascata, subset-sum limitado, retencoes, controlo de totais) mas e longa para o pedido\"},\"R5\":{\"RESOLVE\":0,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Lista generica de boas praticas de automatizacao empresarial que nao aborda o problema concreto de pagamentos agrupados e diferencas de centimos\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 583,
+    "cache_write": 12576,
+    "cache_read": 3298
+   }
+  }
+ }
+}

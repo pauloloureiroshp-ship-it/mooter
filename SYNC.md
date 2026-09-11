@@ -50,6 +50,20 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-10 · MATRIZ 12 — o Mooter contra a escolha real do utilizador, e perdeu
+
+`_handoff/matriz-12-2026-09-10/` (branch `claude/matriz-12-mooter-comparison-3c2b8e`). Índice em `verdict.md` (v3); cópia no vault `20-mooter/artifacts/matriz-12-2026-09-10/`; 17 linhas no `INBOX.md` do livro.
+
+**Perdeu, e está impresso:** 12 prompts, 4 braços, juízes cegos de duas famílias (Codex, Sonnet 5) com ordem sorteada. **A rota do Mooter 56,5/128 · Haiku 4.5 80,5 · Opus 5 100,5 · Codex 109,0.** O Haiku custou **menos** em lista imputada ($0,1527 contra $0,1620, cache incluído; sem cache a distância alarga). 10 dos 12 foram para local, 2 para Opus, **0 para T1/T2**. No OPS-3 («onde guardo a chave da API no Next.js para não ficar exposta no browser») a rota foi local e a resposta não trata o `NEXT_PUBLIC_`.
+
+**M12-b, corrido a seguir:** só a linha «nunca mais de 3 frases» do system prompt local trocada — **+1,5 em 104**, do tamanho da deriva dos braços que não mudaram (A +0,5, C +2,0, D +1,0). Não era a causa. Sem a linha, o mesmo modelo passou a **recomendar** `NEXT_PUBLIC_` no OPS-3 (0/12). A correcção que a matriz pede é a rota, não o prompt; o D10 vai em PR rascunho separado, marcado «não mergear isolado».
+
+**Adversário (Codex, 17 ataques, todos aceites):** ruído não é calibração; B é Qwen em 10/12, logo o viés de família do J2 pesa *contra* o Mooter; MKT-3 cumpre o critério registado (6/12 previsões, não 5); a conclusão «30b é pior» morreu (sem os 2 truncados a ordem inverte); pré-registo **não ancorado em commit** — falha de processo, declarada.
+
+**11 defeitos** (`09-DEFEITOS-APANHADOS.md`). D1 (o pin local cortava aos 256 tokens) foi fundido por outra sessão como **#498** durante o julgamento — esta pasta foi rebaseada para cima dele. D7: o arbiter de Haiku é no-op nesta máquina (sem `ANTHROPIC_API_KEY`); 7 dos 12 caíam nele. J3 (humano) por preencher, mas a chave está em claro no pacote: cego já não é possível para o autor.
+
+**Não toca no #495** («o router como está»): nenhum ficheiro do motor muda neste PR.
+
 ## 2026-09-09 · Pacote de provas v1 — as hipóteses do deck trocadas por medições
 
 `_handoff/provas-v1-2026-09-09/` (branch `claude/pacote-provas-v1-255558`, **por fundir e por empurrar**). Índice em `08-PACOTE.md`; cópia no vault `20-mooter/artifacts/`.

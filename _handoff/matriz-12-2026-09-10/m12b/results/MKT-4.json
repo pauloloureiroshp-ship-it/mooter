@@ -1,0 +1,36 @@
+{
+ "id": "MKT-4",
+ "iniciado": "2026-09-11T22:47:00.693Z",
+ "braco": "B_m12b",
+ "ok": true,
+ "rota": {
+  "tier": "T0",
+  "task_category": "ambiguous_medium",
+  "risk_level": "low",
+  "confidence": 0.6,
+  "recommended_backend": "ollama",
+  "recommended_model_do_classify": "qwen2.5-coder:14b",
+  "suggested_subagent": "local-summarizer",
+  "classify_ms": 90.5,
+  "hw_t0_injectado": "qwen2.5-coder:14b",
+  "porque": "ambiguous_medium / risco low / confianca 0.6"
+ },
+ "backend": "ollama",
+ "modelo": "qwen2.5-coder:14b",
+ "texto": "**Plano de Lançamento - Q4**\n\n**Setembro:**\n- **Tarefas:**\n  - Finalizar desenvolvimento e testes da aplicação\n  - Preparar material de marketing e apresentação\n  - Criar um site de landing page\n  - Definir estratégia de preços e planos\n- **Medir:**\n  - Progresso de desenvolvimento\n  - Feedback de testes internos\n  - Engajamento com potenciais clientes\n\n**Outubro:**\n- **Tarefas:**\n  - Lançamento beta para um grupo de clientes piloto\n  - Coleta de feedback e ajustes\n  - Iniciar campanhas de marketing (SEO, redes sociais, email marketing)\n  - Estabelecer parcerias com construtoras locais\n- **Medir:**\n  - Número de inscrições beta\n  - Feedback dos clientes piloto\n  - Engajamento nas redes sociais\n  - Número de parcerias estabelecidas\n\n**Novembro:**\n- **Tarefas:**\n  - Lançamento oficial da aplicação\n  - Ampliar campanhas de marketing\n  - Implementar sistema de suporte ao cliente\n  - Iniciar programa de referências\n- **Medir:**\n  - Número de downloads e instalações\n  - Taxa de conversão de inscrições para clientes pagantes\n  - Número de interações com o suporte\n  - Crescimento do programa de referências\n\n**Dezembro:**\n- **Tarefas:**\n  - Focar na aquisição de clientes\n  - Refinar e otimizar a experiência do utilizador\n  - Preparar relatórios e análises de desempenho\n  - Planejar estratégias para o próximo ano\n- **Medir:**\n  - Número total de clientes pagantes\n  - Retenção de clientes\n  - Satisfação dos clientes\n  - Feedback para melhorias futuras\n\n**Objetivo Final:**\nAlcançar 200 clientes pagantes até o final do ano.",
+ "tokens_in": 175,
+ "tokens_out": 465,
+ "cache_creation": 0,
+ "cache_read": 0,
+ "decorrido_ms": 7640.3658,
+ "duration_api_ms": 7529,
+ "tecto_tokens": 2048,
+ "truncou": false,
+ "preco": {
+  "input": 0,
+  "output": 0
+ },
+ "custo_resposta_usd": 0,
+ "custo_faturado_usd": 0,
+ "nota": "modelo instalado no Ollama desta maquina: $0 de fornecedor (a GPU e do dono, e gasta energia)"
+}
