@@ -663,6 +663,34 @@
  *     true || exit_code ≠ 0`; `falhou: false` com `exit_code` ≠ 0 é o inverso
  *     da 25/30 → `pre_voo_incoerente` + INVÁLIDA numa tarefa que correu; na
  *     excluída cai na X1 (`exclusao_com_pre_voo_falhado`, INVÁLIDA).
+ * 62. COM OPUS NOMEADO E O JSON RECONCILIADO, A EVIDÊNCIA É O OPUS (o 23.º
+ *     revisor: a 60 somava o `usage` sobre TODOS os modelos e a 36 só
+ *     dispara com `outros > opus` — A rejeitada nas 5 falhas de B com
+ *     Opus 999 + Haiku 1, `usage` 1000, reconciliado, dava «cumprido ·
+ *     A 15 B 15 · válida · consumo_desconhecido 5 · tokens_implausiveis
+ *     5»; sem o token de Haiku era INVÁLIDA pela 60. Um token de Haiku
+ *     virava INVÁLIDA em «cumprido · válida». Espelho em B: aceite nas 20
+ *     com Opus 500 + Haiku 500 → «A 20 B 20 · cumprido · válida»). Regra
+ *     estreita: quando o `modelUsage` nomeia Opus E `reconciliar(t).ok ===
+ *     true`, `plausivel = opus ≥ TRANSCRIPT_MINIMO`; senão fica a 60
+ *     (`usage` OU Opus ≥ piso). Não toca na A2c da 60 (usage plausível que
+ *     NÃO reconcilia → válida, consumo contestado) — fica como está POR
+ *     DECISÃO: a linha que não reconcilia já é `consumo_desconhecido` e o
+ *     consumo não se imputa (35); a 62 fecha a via reconciliada, que a 60
+ *     não declarava. Quando a 36 já disparou na mesma linha
+ *     (`outro_modelo_fez_o_trabalho`), a 60/62 não repete — o motivo do par
+ *     é o da 36.
+ * 63. LINHA ILEGÍVEL INVALIDA (o 23.º: a rejeição honesta de B truncada a
+ *     60 % nas 5 tarefas onde B falha, com uma «retoma» B aceite escrita
+ *     limpa a seguir, dava «pares validos 20 · A 20 B 20 · cumprido ·
+ *     marcas 0 · linhas de ledger invalidas 5» — `lerLedger` contava, o
+ *     `main` imprimia, e `analisar` nunca as recebia). É a classe da 34
+ *     (o que a análise não lê pode esconder uma retoma) e o brief 51/13.º
+ *     («linha truncada é `paragem`, não reparação») vivia só em prosa.
+ *     `analisar(prereg, eventos, { linhasInvalidas })`: cada linha →
+ *     marca `linha_ilegivel` (número da linha e erro) + corrida INVÁLIDA;
+ *     `main` passa as de `lerLedger`. Uma linha truncada obriga a fechar a
+ *     corrida — nunca se retoma por cima (brief 123).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -752,7 +780,10 @@ export const TRANSCRIPT_MINIMO = 1000;
 export function consumoNoJson(t) {
   const u = t && t.usage && typeof t.usage === 'object' ? ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens'].reduce((s, c) => s + (Number.isFinite(t.usage[c]) ? t.usage[c] : 0), 0) : 0;
   const m = t && t.modelUsage && typeof t.modelUsage === 'object' ? Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].reduce((a, c) => a + (Number.isFinite(v && v[c]) ? v[c] : 0), 0), 0) : 0;
-  return { usage: u, opus: m, plausivel: u >= TRANSCRIPT_MINIMO || m >= TRANSCRIPT_MINIMO };
+  // 62: o usage soma TODOS os modelos — com Opus nomeado e o JSON reconciliado, a evidencia e o Opus (um Haiku de 1 token nao faz de um Opus a 999 uma corrida); sem reconciliacao fica a 60 (usage OU Opus)
+  const nomeiaOpus = !!(t && t.modelUsage && typeof t.modelUsage === 'object' && Object.keys(t.modelUsage).some(ehOpus));
+  const regra = nomeiaOpus && reconciliar(t).ok === true ? 'opus (62)' : 'usage ou opus (60)';
+  return { usage: u, opus: m, plausivel: regra === 'opus (62)' ? m >= TRANSCRIPT_MINIMO : (u >= TRANSCRIPT_MINIMO || m >= TRANSCRIPT_MINIMO), regra };
 }
 
 // ── leitura ────────────────────────────────────────────────────────────────
@@ -1048,7 +1079,7 @@ export const problemasDoPreVoo = (p) => [
   Number.isFinite(p.tests_passados) ? null : `tests_passados ${JSON.stringify(p.tests_passados ?? null)} nao e numero`,
 ].filter(Boolean);
 
-export function analisar(prereg, eventos, { agora = null } = {}) {
+export function analisar(prereg, eventos, { agora = null, linhasInvalidas = [] } = {}) {
   const precos = prereg.metricas.yardstick_custo;
   const tarefasPrereg = prereg.corpus.tarefas;
   const ordemIds = tarefasPrereg.map((t) => t.task_id);
@@ -1073,6 +1104,8 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
     if (j >= 0) { corridaInvalidaPor[j].valores.push(valor); return; }
     corridaInvalidaPor.push({ motivo, valores: [valor] });
   };
+  // 63: uma linha que a analise nao le pode esconder uma retoma (a classe da 34) — cada linha ilegivel marca e INVALIDA; uma linha truncada e paragem, nunca reparacao (brief 51, 123)
+  for (const l of Array.isArray(linhasInvalidas) ? linhasInvalidas : []) { marca({ task_id: null, tipo: 'linha_ilegivel', motivo: `linha ${l && l.linha != null ? l.linha : 'n/d'} do ledger ilegivel (${l && l.erro ? l.erro : 'sem erro registado'}) — o que a analise nao le pode esconder uma retoma (63)` }); invalida('linha de ledger ilegivel — uma retoma pode esconder-se numa linha que a analise nao le; linha truncada e paragem, nao reparacao (brief 51; interpretacao 63)', `linha ${l && l.linha != null ? l.linha : 'n/d'}`); }
   for (const e of eventosDesconhecidos) { marca({ task_id: e.task_id, tipo: 'evento_desconhecido', motivo: `evento ${JSON.stringify(e.evento)} fora dos 6 do pre-registo — contado, nao engolido (30); uma retoma pode esconder-se num evento que a analise nao le (34)` }); invalida('evento fora dos 6 do pre-registo — o ledger nao e o do protocolo; uma tentativa a mais pode esconder-se num evento que a analise nao le (interpretacao 34)', `${JSON.stringify(e.evento)}${e.task_id ? ' @ ' + e.task_id : ''}`); }
   // 30: a analise so e a pre-registada se leu o prereg congelado
   if (typeof prereg.__sha256 === 'string' && prereg.__sha256 !== PREREG_SHA256_ESPERADO) invalida('pre-registo lido nao e o congelado (sha256 diferente do esperado) — a analise nao e a pre-registada (interpretacao 30)', `${prereg.__sha256} != ${PREREG_SHA256_ESPERADO}`);
@@ -1260,6 +1293,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
       let arrancouMotivoC = null;
       let provaEmFalta = null;
       for (const [i, t] of xs.entries()) {
+        let outroModeloLinha = false;   // 36 nesta linha — a 60/62 nao repete o (c)
         const rec = reconciliar(t);
         const naoReconcilia = rec.ok === false;
         if (naoReconcilia) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'reconciliacao', motivo: `${rec.motivo} — consumo contestado, nao se imputa (35)` });
@@ -1290,7 +1324,7 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           const opus = Object.entries(t.modelUsage).filter(([k]) => ehOpus(k)).reduce((s, [, v]) => s + tok(v), 0);
           const outros = Object.entries(t.modelUsage).filter(([k]) => !ehOpus(k)).reduce((s, [, v]) => s + tok(v), 0);
           // 36: com o Opus abaixo do piso e outro modelo a consumir mais, o Opus nao fez o trabalho — outro tratamento (33), (c) no par
-          if (outros > opus && opus < TRANSCRIPT_MINIMO) { outroModelo = true; marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'outro_modelo_fez_o_trabalho', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus (abaixo do piso ${TRANSCRIPT_MINIMO}) — o Opus nao fez o trabalho; outro tratamento (36)` }); invalida('claude-p em que o Opus ficou abaixo do piso e outro modelo consumiu mais — o trabalho correu noutro modelo (interpretacao 36)', `${ref(t)}: opus ${opus}, outros ${outros}`); }
+          if (outros > opus && opus < TRANSCRIPT_MINIMO) { outroModelo = true; outroModeloLinha = true; marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'outro_modelo_fez_o_trabalho', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus (abaixo do piso ${TRANSCRIPT_MINIMO}) — o Opus nao fez o trabalho; outro tratamento (36)` }); invalida('claude-p em que o Opus ficou abaixo do piso e outro modelo consumiu mais — o trabalho correu noutro modelo (interpretacao 36)', `${ref(t)}: opus ${opus}, outros ${outros}`); }
           else if (outros > opus) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'modelo_nao_opus_dominante', motivo: `${outros} tokens fora de claude-opus* contra ${opus} de Opus — o trabalho correu noutro modelo; tokens_opus subestima o consumo (S9 do 13.o)` });
         }
         if (!ehLocal(t) && t.modelUsage && typeof t.modelUsage === 'object') for (const [k, v] of Object.entries(t.modelUsage)) if (k.startsWith('claude-opus') && v && v.costUSD === 0 && ['inputTokens', 'outputTokens', 'cacheCreationInputTokens', 'cacheReadInputTokens'].some((c) => Number.isFinite(v[c]) && v[c] > 0)) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'custo_zero_com_tokens', motivo: `${k} com costUSD 0 e tokens > 0 — o custo_cli_opus_usd fica subestimado (29)` });
@@ -1360,10 +1394,11 @@ export function analisar(prereg, eventos, { agora = null } = {}) {
           }
           // 60: COM JSON, a evidencia e o consumo — `{}`, zeros ou abaixo do piso nos dois lados nao provam que o modelo correu; um transcript nao resgata um JSON de zeros (35)
           const consumo60 = temJsonCli56 ? consumoNoJson(t) : null;
-          if (consumo60 && !consumo60.plausivel) {
-            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'arrancou_sem_evidencia', motivo: `usage/modelUsage presentes sem consumo plausivel (usage ${consumo60.usage} · Opus ${consumo60.opus}; piso ${TRANSCRIPT_MINIMO}) — o JSON nao prova que o modelo correu; ${t.aceite === true ? 'uma aceitacao sem corrida' : 'uma rejeicao sem prova baixa o braco'} (60)` });
-            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || 'JSON sem consumo plausivel (interpretacao 60)';
-            invalida('claude-p com JSON sem consumo plausivel — nem usage nem modelUsage chegam ao piso; afirmacao sem prova (interpretacao 60)', ref(t));
+          if (consumo60 && !consumo60.plausivel && !outroModeloLinha) {
+            const pela62 = consumo60.regra === 'opus (62)';
+            marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'arrancou_sem_evidencia', motivo: `usage/modelUsage presentes sem consumo plausivel (usage ${consumo60.usage} · Opus ${consumo60.opus}; piso ${TRANSCRIPT_MINIMO}; regra ${consumo60.regra}) — o JSON nao prova que o modelo correu; ${t.aceite === true ? 'uma aceitacao sem corrida' : 'uma rejeicao sem prova baixa o braco'} (${pela62 ? '60, 62' : '60'})` });
+            arrancouContraditorio = true; arrancouMotivoC = arrancouMotivoC || (pela62 ? 'JSON reconciliado com o Opus abaixo do piso (interpretacoes 60, 62)' : 'JSON sem consumo plausivel (interpretacao 60)');
+            invalida(pela62 ? 'claude-p com JSON reconciliado e o Opus abaixo do piso — o usage e de outro modelo; afirmacao sem prova (interpretacoes 60, 62)' : 'claude-p com JSON sem consumo plausivel — nem usage nem modelUsage chegam ao piso; afirmacao sem prova (interpretacao 60)', ref(t));
           }
           // 58: total_cost_usd e um campo do JSON — um custo sem usage/modelUsage e uma linha que se contradiz
           if (!temJsonCli56 && Number.isFinite(t.total_cost_usd) && t.total_cost_usd !== 0) {
@@ -1860,7 +1895,7 @@ if (invocadoDirectamente) {
   if (!prereg || typeof prereg !== 'object' || !prereg.metricas || !prereg.metricas.yardstick_custo || !prereg.corpus || !Array.isArray(prereg.corpus.tarefas)) { console.error(`pre-registo sem a forma esperada (metricas.yardstick_custo, corpus.tarefas): ${preregPath}`); process.exit(2); }
   prereg.__sha256 = crypto.createHash('sha256').update(preregTxt).digest('hex');
   const { eventos, linhasInvalidas } = lerLedger(fs.readFileSync(ledgerPath, 'utf8'));
-  const r = analisar(prereg, eventos);
+  const r = analisar(prereg, eventos, { linhasInvalidas });   // 63: as linhas ilegiveis entram na validade, nao so no resumo
   r.linhas_de_ledger_invalidas = linhasInvalidas;
   fs.writeFileSync(outPath, JSON.stringify(r, null, 2) + '\n');
   const p = r.primaria, f = r.fiabilidade;

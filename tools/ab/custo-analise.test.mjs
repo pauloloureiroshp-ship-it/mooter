@@ -1711,6 +1711,9 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R22a2b: [tentativa('t1', 'A', { usage: { input_tokens: 500, output_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 500, outputTokens: 10, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0028 } }, total_cost_usd: 0.0028, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
     R22a25: [tentativa('t1', 'A'), tentativa('t1', 'B', { usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0 } }, total_cost_usd: 0 }), ...parOk('t2', 'T0')],
     R22a5b: [preVoo('t1', { exit_code: 1, falhou: false }), { evento: 'tarefa_excluida', task_id: 't1', motivo: 'ja verde', suplente_usado: 's1' }, preVoo('s1'), tentativa('s1', 'A'), tentativa('s1', 'B'), ...parOk('t2', 'T0')],
+    // 23.o revisor (62)
+    R23x1b: [tentativa('t1', 'A', { usage: { input_tokens: 990, output_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 989, outputTokens: 10, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0052 }, 'claude-haiku-4-5': { inputTokens: 1, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.000001 } }, total_cost_usd: 0.005201, aceite: false, exit_code: 1, tests_passados: 9 }), tentativa('t1', 'B'), ...parOk('t2', 'T0')],
+    R23x1f: [tentativa('t1', 'A'), tentativa('t1', 'B', { usage: { input_tokens: 1000, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 500, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0025 }, 'claude-haiku-4-5': { inputTokens: 500, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0005 } }, total_cost_usd: 0.003 }), ...parOk('t2', 'T0')],
     R20a2: [tentativa('t1', 'A'), tentativa('t1', 'B', { modelUsage: { 'claude-opus-5': { ...SONDA.modelUsage['claude-opus-5'], inputTokens: 55000, outputTokens: 4000, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.375 } }, usage: { ...SONDA.usage, input_tokens: 55000, output_tokens: 4000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } }, total_cost_usd: 0.375 }), ...parOk('t2', 'T0')],
   };
   // O que cada ataque tem de produzir. 'corrida' = corrida INVALIDA (veredicto null por arrasto);
@@ -1736,6 +1739,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
     R20a1: { corrida: false, par: 't1' }, R20a2: { marca: 'abaixo_da_sonda' },
     R21a1: { corrida: false, par: 't1' }, R21a1b: { corrida: false, par: 't1' }, R21a1c: { corrida: false, par: 't1' }, R21a9: { corrida: false, par: 't1' },
     R22a1: { corrida: false, par: 't1' }, R22a2: { corrida: false, par: 't1' }, R22a2b: { corrida: false, par: 't1' }, R22a25: { corrida: false, par: 't1' }, R22a5b: { corrida: false },
+    R23x1b: { corrida: false, par: 't1' }, R23x1f: { corrida: false, par: 't1' },
     E1b: { corrida: false }, E1a: { corrida: false }, E4: { corrida: false }, E2: { corrida: false }, E2b: { corrida: false },
   };
   for (const [nome, ev] of Object.entries(ataques)) {
@@ -1776,6 +1780,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'aceite com estado_vivo null (B4b)': { aceite: true, estado_vivo_sha: null },
       'aceite com JSON todo a zero (R22-A25)': { aceite: true, usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0 } }, total_cost_usd: 0 },
       'aceite com usage {} (R22-A25b)': { aceite: true, usage: {}, modelUsage: null, total_cost_usd: null },
+      'aceite com Opus 500 + Haiku 500 reconciliado (R23-X1f)': { aceite: true, usage: { input_tokens: 1000, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 500, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0025 }, 'claude-haiku-4-5': { inputTokens: 500, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0005 } }, total_cost_usd: 0.003 },
       'excluida «ja verde» com pre_voo falhou:false e exit 1 (R22-A5b)': { __excluirComPv: { exit_code: 1, falhou: false } },
     };
     for (const [nome, over] of Object.entries(ataquesB)) {
@@ -1821,6 +1826,7 @@ test('analise · CONTRATO — nenhum dos ledgers P7A..P7K do 4.o revisor sai com
       'A rejeitada com usage {} e modelUsage null (R22-A1)': { usage: {}, modelUsage: null, aceite: false, exit_code: 1, tests_passados: 9 },
       'A rejeitada com JSON todo a zero (R22-A2)': { usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0 } }, total_cost_usd: 0, aceite: false, exit_code: 1, tests_passados: 9 },
       'A rejeitada com 510 tokens nos dois lados (R22-A2b)': { usage: { input_tokens: 500, output_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 500, outputTokens: 10, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0028 } }, total_cost_usd: 0.0028, aceite: false, exit_code: 1, tests_passados: 9 },
+      'A rejeitada com Opus 999 + Haiku 1 reconciliado (R23-X1b)': { usage: { input_tokens: 990, output_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 989, outputTokens: 10, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.0052 }, 'claude-haiku-4-5': { inputTokens: 1, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.000001 } }, total_cost_usd: 0.005201, aceite: false, exit_code: 1, tests_passados: 9 },
       'A rejeitada com zeros e transcript 250k (R22-A28)': { usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0 } }, total_cost_usd: 0, tokens_transcript: 250000, aceite: false, exit_code: 1, tests_passados: 9 },
     };
     const evA = (o, semLinha, evento, trocar = false, excluir = false) => [
@@ -2582,6 +2588,9 @@ test('analise · 13.o (e4/e5/e6): o main — exit 2 sem ledger, --out sem valor 
   assert.match(ok.stdout, /linhas de ledger invalidas 2/, 'e4: as linhas invalidas aparecem no resumo');
   const r = JSON.parse(fs.readFileSync(out, 'utf8'));
   assert.equal(r.linhas_de_ledger_invalidas.length, 2);
+  assert.equal(r.corrida_valida, false, '63: as linhas ilegiveis entram na validade');
+  assert.equal(r.marcas.filter((m) => m.tipo === 'linha_ilegivel').length, 2);
+  assert.match(ok.stdout, /INVALIDA: .*linha de ledger ilegivel/);
   assert.equal(r.prereg_sha256, PREREG_SHA256_ESPERADO);
   assert.equal(r.corrida_fechou_os_pares, false, 't1 e uma das 20 do prereg real? nao — e orfa; o prefixo e 0/20');
 });
@@ -2767,7 +2776,7 @@ test('analise · 15.o NO-SHIP (X5/X4, 36): piso de plausibilidade no JSON; Opus 
   assert.equal(x5.primaria.limiar_descritivo_cumprido, null);
   assert.equal(x5.secundaria.global.B.tokens_opus_total, null, 'B: n/d, nao 120');
   assert.equal(x5.marcas.filter((m) => m.tipo === 'tokens_implausiveis' && m.braco === 'B').length, 20, 'a marca da 36 continua');
-  assert.equal(x5.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'B' && /\(60\)/.test(m.motivo)).length, 20);
+  assert.equal(x5.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'B' && /regra opus \(62\).*\(60, 62\)/.test(m.motivo)).length, 20, '6 nos dois lados reconcilia -> a regra e a 62');
   assert.equal(x5.marcas.filter((m) => m.tipo === 'tokens_zero_com_arrancou').length, 0);
   // X4: A rejeitada em 5 com Opus a 6 tokens e Sonnet com 310 k -> antes «cumprido · A 15 B 20 · valida · marcas 5»
   const sonnet = { ...seis, 'claude-sonnet-5': { inputTokens: 300000, outputTokens: 10000, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 1.05 } };
@@ -3490,7 +3499,7 @@ test('analise · 22.o NO-SHIP (A1/A1b/A2/A2b/A25/A28, 60): usage {} + modelUsage
   const a25 = analisarReal(T.flatMap((t) => parReal(t).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' ? { ...e, usage: zerosU, modelUsage: zerosM, total_cost_usd: 0 } : e))));
   assert.equal(a25.corrida_valida, false);
   assert.equal(a25.primaria.limiar_descritivo_cumprido, null);
-  assert.equal(a25.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'B' && /aceitacao sem corrida \(60\)/.test(m.motivo)).length, 20);
+  assert.equal(a25.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'B' && /aceitacao sem corrida \(60, 62\)/.test(m.motivo)).length, 20, 'zeros reconciliam -> a regra e a 62');
   // fronteira DECLARADA: consumo plausivel num SO lado e evidencia de corrida — usage 313 k com modelUsage null (A24) e json_parcial, valida; usage plausivel que nao reconcilia (A2c = CUSTO-07) e consumo_desconhecido, valida
   const a24 = analisarReal(emA({ usage: { input_tokens: 3000, output_tokens: 10000, cache_creation_input_tokens: 300000, cache_read_input_tokens: 0 }, modelUsage: null }));
   assert.equal(a24.corrida_valida, true, 'A24: usage plausivel sem modelUsage e json_parcial (35), consumo desconhecido, valida — declarado');
@@ -3505,8 +3514,8 @@ test('analise · 22.o NO-SHIP (A1/A1b/A2/A2b/A25/A28, 60): usage {} + modelUsage
   const h = analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) })));
   assert.equal(h.corrida_valida, true); assert.equal(h.marcas.length, 0); assert.equal(h.primaria.limiar_descritivo_cumprido, false, 'honesto: A 20 B 15 -> NAO cumprido');
   // consumoNoJson: exportado e exacto
-  assert.deepEqual(consumoNoJson({ usage: {}, modelUsage: null }), { usage: 0, opus: 0, plausivel: false });
-  assert.deepEqual(consumoNoJson(tentativa('x', 'A')), { usage: OPUS_TOTAL, opus: OPUS_TOTAL, plausivel: true });
+  assert.deepEqual(consumoNoJson({ usage: {}, modelUsage: null }), { usage: 0, opus: 0, plausivel: false, regra: 'usage ou opus (60)' });
+  assert.deepEqual(consumoNoJson(tentativa('x', 'A')), { usage: OPUS_TOTAL, opus: OPUS_TOTAL, plausivel: true, regra: 'opus (62)' });
   assert.equal(consumoNoJson({ usage: { input_tokens: 999 }, modelUsage: null }).plausivel, false, 'abaixo do piso');
   assert.equal(consumoNoJson({ usage: { input_tokens: 1000 }, modelUsage: null }).plausivel, true, 'no piso');
   assert.equal(consumoNoJson({ usage: null, modelUsage: { 'claude-opus-5': { inputTokens: 1000 } } }).plausivel, true, 'so o modelUsage');
@@ -3550,6 +3559,92 @@ test('analise · 22.o NO-SHIP (A5b, 61): tarefas excluidas «ja verde» com pre_
   // e o inverso (25/30) continua a ir pela mesma escada
   const k4 = analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'pre_voo' && !falhaB(i) ? { ...e, exit_code: 0 } : e))));
   assert.equal(k4.fiabilidade.pares_invalidos.filter((x) => /pre_voo contraditorio: falhou=true com exit_code=0/.test(x.motivo)).length, 5);
+});
+
+// ── 23.o revisor: com Opus nomeado e o JSON reconciliado, a evidencia e o Opus (62); linha ilegivel invalida (63) ──
+
+test('analise · 23.o NO-SHIP (X1/X1b/X1f, 62): Opus abaixo do piso com outro modelo a completar o usage reconciliado — um token de Haiku nao faz de um Opus a 999 uma corrida; a A2c (nao reconcilia) fica valida por decisao', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const emA = (over) => T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) }).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'A' && !falhaB(i) ? { ...e, aceite: false, exit_code: 1, tests_passados: t.tests_total_historico - 1, ...over } : e)));
+  const mix = (opusIn, haikuIn) => ({ usage: { input_tokens: opusIn + haikuIn, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: opusIn, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: opusIn * 5 / 1e6 }, 'claude-haiku-4-5': { inputTokens: haikuIn, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: haikuIn * 1 / 1e6 } }, total_cost_usd: (opusIn * 5 + haikuIn) / 1e6 });
+  // X1b: Opus 999 + Haiku 1 (usage 1000, reconcilia) nas 5 rejeicoes de A -> antes «cumprido · A 15 B 15 · valida · consumo_desconhecido 5 · tokens_implausiveis 5»
+  const x1b = analisarReal(emA(mix(999, 1)));
+  assert.equal(x1b.corrida_valida, false);
+  assert.equal(x1b.primaria.limiar_descritivo_cumprido, null);
+  assert.equal(x1b.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'A' && /usage 1000 · Opus 999.*regra opus \(62\).*\(60, 62\)/.test(m.motivo)).length, 5);
+  assert.ok(x1b.corrida_invalida_por.some((x) => /JSON reconciliado e o Opus abaixo do piso.*interpretacoes 60, 62/.test(x.motivo) && x.valores.length === 5));
+  assert.equal(x1b.fiabilidade.pares_invalidos.filter((x) => /Opus abaixo do piso.*60, 62.*CORRIDA INVALIDA/.test(x.motivo)).length, 5);
+  assert.equal(x1b.marcas.filter((m) => m.tipo === 'tokens_implausiveis').length, 5, 'a marca da 36 continua');
+  // o controlo sem o Haiku (usage 999) ja era INVALIDA pela 60 — a 62 iguala os dois
+  const x1c = analisarReal(emA({ usage: { input_tokens: 999, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: { 'claude-opus-5': { inputTokens: 999, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.004995 } }, total_cost_usd: 0.004995 }));
+  assert.equal(x1c.corrida_valida, false);
+  // X1: Opus 500 + Haiku 500 -> idem (outros == opus: a 36 nao dispara, a 62 sim)
+  const x1 = analisarReal(emA(mix(500, 500)));
+  assert.equal(x1.corrida_valida, false);
+  assert.equal(x1.marcas.filter((m) => m.tipo === 'outro_modelo_fez_o_trabalho').length, 0, 'outros == opus nao e «outro modelo»');
+  assert.equal(x1.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia').length, 5);
+  // X1f (direccao B): B aceite nas 20 com Opus 500 + Haiku 500 -> antes «A 20 B 20 · cumprido · valida» com custo_cli_total_usd 0,06 e tokens n/d
+  const x1f = analisarReal(T.flatMap((t) => parReal(t).map((e) => (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' ? { ...e, ...mix(500, 500) } : e))));
+  assert.equal(x1f.corrida_valida, false);
+  assert.equal(x1f.primaria.limiar_descritivo_cumprido, null);
+  assert.equal(x1f.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia' && m.braco === 'B' && /aceitacao sem corrida/.test(m.motivo)).length, 20);
+  // quando a 36 dispara na mesma linha (outros > opus, Opus < piso) o motivo do par e o da 36 — a 60/62 nao repete
+  const x1d = analisarReal(emA(mix(1, 999)));
+  assert.equal(x1d.corrida_valida, false);
+  assert.equal(x1d.marcas.filter((m) => m.tipo === 'outro_modelo_fez_o_trabalho').length, 5);
+  assert.equal(x1d.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia').length, 0, 'a 36 ja disse tudo');
+  assert.equal(x1d.fiabilidade.pares_invalidos.filter((x) => /outro modelo fez o trabalho.*CORRIDA INVALIDA/.test(x.motivo)).length, 5);
+  // X17: Haiku dominante com Opus PLAUSIVEL (58 970) reconciliado — so marca (subagentes noutro modelo sao plausiveis)
+  const x17 = analisarReal(emA({ usage: { ...SONDA.usage, input_tokens: 2 + 300000 }, modelUsage: { ...SONDA.modelUsage, 'claude-haiku-4-5': { inputTokens: 300000, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, costUSD: 0.3 } }, total_cost_usd: 0.58975 + 0.3 }));
+  assert.equal(x17.corrida_valida, true);
+  assert.equal(x17.marcas.filter((m) => m.tipo === 'modelo_nao_opus_dominante').length, 5);
+  assert.equal(x17.marcas.filter((m) => m.tipo === 'arrancou_sem_evidencia').length, 0);
+  // A2c da 60 (usage plausivel que NAO reconcilia) fica valida POR DECISAO — consumo contestado, nao se imputa (35); e A24 (sem modelUsage) idem
+  const a2c = analisarReal(emA({ modelUsage: { 'claude-opus-5': { ...SONDA.modelUsage['claude-opus-5'], cacheCreationInputTokens: 0 } } }));
+  assert.equal(a2c.corrida_valida, true);
+  assert.equal(consumoNoJson(a2c.todas_as_tentativas ? a2c.todas_as_tentativas[0] : { usage: SONDA.usage, modelUsage: { 'claude-opus-5': { ...SONDA.modelUsage['claude-opus-5'], cacheCreationInputTokens: 0 } } }).regra, 'usage ou opus (60)');
+  assert.equal(analisarReal(emA({ usage: { input_tokens: 3000, output_tokens: 10000, cache_creation_input_tokens: 300000, cache_read_input_tokens: 0 }, modelUsage: null })).corrida_valida, true, 'A24');
+  // consumoNoJson: a regra e explicita
+  assert.equal(consumoNoJson(mix(999, 1)).regra, 'opus (62)');
+  assert.equal(consumoNoJson(mix(999, 1)).plausivel, false);
+  assert.equal(consumoNoJson(mix(1000, 0)).plausivel, true);
+  assert.equal(consumoNoJson({ usage: { input_tokens: 1000 }, modelUsage: { 'claude-haiku-4-5': { inputTokens: 1000 } } }).regra, 'usage ou opus (60)', 'sem Opus nomeado nao e a 62 (a 20 apanha o sem_opus)');
+  assert.equal(consumoNoJson({ usage: { input_tokens: 5000 }, modelUsage: { 'claude-opus-5': { inputTokens: 999 } } }).regra, 'usage ou opus (60)', 'nao reconcilia -> 60');
+  // o honesto nao mexe
+  const h = analisarReal(T.flatMap((t, i) => parReal(t, { aceiteB: falhaB(i) })));
+  assert.equal(h.corrida_valida, true); assert.equal(h.marcas.length, 0);
+});
+
+test('analise · 23.o NO-SHIP (X2e/X2d, 63): uma linha ilegivel no ledger invalida a corrida — a retoma escondida numa linha truncada; lerLedger conta, analisar julga', () => {
+  const T = PREREG.corpus.tarefas;
+  const falhaB = (i) => i % 4 !== 0;
+  const p = preregDe(['t1']);
+  // ao nivel de analisar: linhasInvalidas -> marca linha_ilegivel + INVALIDA
+  const r = analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B')], { linhasInvalidas: [{ linha: 3, erro: 'Unexpected end of JSON input' }] });
+  assert.equal(r.corrida_valida, false);
+  assert.ok(r.marcas.some((m) => m.tipo === 'linha_ilegivel' && /linha 3 do ledger ilegivel \(Unexpected end of JSON input\)/.test(m.motivo)));
+  assert.ok(r.corrida_invalida_por.some((x) => /linha de ledger ilegivel.*interpretacao 63/.test(x.motivo) && x.valores[0] === 'linha 3'));
+  assert.equal(r.primaria.n_pares_validos, 1, 'o par nao sai — a corrida e que e INVALIDA (27c)');
+  assert.equal(analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B')], { linhasInvalidas: [] }).corrida_valida, true);
+  assert.equal(analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B')]).corrida_valida, true, 'omisso = nenhuma');
+  assert.ok(analisar(p, [preVoo('t1'), tentativa('t1', 'A'), tentativa('t1', 'B')], { linhasInvalidas: [{}] }).marcas.some((m) => m.tipo === 'linha_ilegivel' && /linha n\/d.*sem erro registado/.test(m.motivo)), 'entrada sem forma nao rebenta');
+  // X2e de ponta a ponta pelo lerLedger: a rejeicao honesta de B truncada a 60 % nas 5 tarefas onde B falha, e uma «retoma» B aceite limpa a seguir -> antes «pares validos 20 · A 20 B 20 · cumprido · marcas 0 · linhas de ledger invalidas 5»
+  const linhas = [];
+  for (const [i, t] of T.entries()) for (const e of ordenar(parReal(t, { aceiteB: falhaB(i) }))) {
+    const s = JSON.stringify(e);
+    if (e.evento === 'tentativa_fim' && e.braco === 'B' && e.executor === 'claude-p' && !falhaB(i)) { linhas.push(s.slice(0, Math.floor(s.length * 0.6))); linhas.push(JSON.stringify({ ...e, aceite: true, exit_code: 0, tests_passados: e.tests_corridos, session_id: `${e.session_id}-retoma` })); }
+    else linhas.push(s);
+  }
+  const { eventos, linhasInvalidas } = lerLedger(linhas.join('\n') + '\n');
+  assert.equal(linhasInvalidas.length, 5);
+  const x2e = analisar(PREREG, eventos, { linhasInvalidas });
+  assert.equal(x2e.corrida_valida, false);
+  assert.equal(x2e.marcas.filter((m) => m.tipo === 'linha_ilegivel').length, 5);
+  assert.equal(x2e.primaria.limiar_descritivo_cumprido, null);
+  // sem passar as linhas (o que o main fazia ate ao 22.o) a mesma corrida dava «cumprido · valida» — a mordida
+  const cego = analisar(PREREG, eventos);
+  assert.equal(cego.corrida_valida, true); assert.equal(cego.primaria.limiar_descritivo_cumprido, true); assert.equal(cego.marcas.length, 0);
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {
