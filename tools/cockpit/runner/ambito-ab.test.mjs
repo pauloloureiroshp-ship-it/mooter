@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import {
   recolher, corpoDaLista, sha256, contarLinhas, calcularSujeito, principal,
   ficheiroExcluidoPeloNome, extensaoIncluida, SUJEITOS, DIRS_EXCLUIDOS,
+  construirManifesto, headDaRaiz, NOME_MANIFESTO,
 } from './ambito-ab.mjs';
 
 // ─────────────────────────────────────────────────── utilitarios do teste
@@ -267,6 +268,126 @@ test('raiz ausente e `n/d`, nao um verde e nao um erro', () => {
   });
   assert.equal(codigo, 0);
   assert.equal((erro.join('').match(/n\/d/g) || []).length, 4, '3 sujeitos + o resumo');
+});
+
+// ─────────────────────────────────────────────────── o modo --manifesto
+
+const SHA_A = 'a'.repeat(40);
+const SHA_B = 'b'.repeat(40);
+const sujeito = (id, extra = {}) => ({
+  id, nome: id.toLowerCase(), raiz: '/r/' + id, sha_preregisto: SHA_A, head: SHA_A,
+  ficheiros: 2, bytes_lista: 9, sha256_lista: 'f'.repeat(64), ...extra,
+});
+
+test('--manifesto: no_sha_preregistado e MEDIDO do HEAD da raiz, nao copiado do pre-registo', () => {
+  const m = construirManifesto({
+    agora: '2026-09-11T00:00:00Z',
+    anterior: null,
+    sujeitos: [sujeito('S1', { head: SHA_B }), sujeito('S2'), sujeito('S3', { head: null })],
+  });
+  assert.equal(m.sujeitos[0].no_sha_preregistado, false, 'HEAD != sha pre-registado passou por verdadeiro');
+  assert.equal(m.sujeitos[0].head_da_raiz_ao_versionar, SHA_B);
+  assert.equal(m.sujeitos[1].no_sha_preregistado, true);
+  assert.equal(m.sujeitos[2].no_sha_preregistado, null, 'git sem resposta virou um booleano');
+  assert.match(m.sujeitos[2].porque_n_d, /n\/d/);
+  assert.equal(m.totais.ficheiros_no_ambito, 6);
+  assert.deepEqual(m.substituidos, []);
+});
+
+test('MORDIDA --manifesto: a entrada substituida fica registada com o porque DERIVADO (§10.2)', () => {
+  const anterior = {
+    sujeitos: [{ id: 'S1', raiz: '/velha', sha_preregisto: SHA_A, head_da_raiz_ao_versionar: SHA_B,
+      no_sha_preregistado: false, ficheiros_no_ambito: 974, sha256: '0'.repeat(64), gerado_em: '2026-08-26T15:27:32Z' }],
+    substituidos: [{ id: 'S9', porque: 'historia antiga' }],
+  };
+  const m = construirManifesto({
+    agora: '2026-09-11T00:00:00Z',
+    anterior,
+    sujeitos: [sujeito('S1'), sujeito('S2'), sujeito('S3')],
+    nomesNoDirOut: ['braco-a-S1.INVALIDO-bbbbbbbb.json', 'braco-a-S1.INVALIDO-bbbbbbbb.meta.json', 'braco-a-S1.json', 'braco-a-S2.INVALIDO-bbbbbbbb.json'],
+  });
+  assert.equal(m.substituidos.length, 2, 'ou perdeu a historia antiga, ou nao registou a substituicao');
+  assert.equal(m.substituidos[0].id, 'S9', 'substituidos[] tem de ser append-only');
+  const v = m.substituidos[1];
+  assert.equal(v.id, 'S1');
+  assert.equal(v.head_da_raiz_ao_versionar, SHA_B);
+  assert.equal(v.no_sha_preregistado, false);
+  assert.equal(v.ficheiros_no_ambito, 974);
+  assert.equal(v.substituido_por_sha256, 'f'.repeat(64));
+  assert.match(v.porque, /§10\.2/);
+  assert.match(v.porque, /bbbbbbb/);
+  assert.deepEqual(v.artefactos_da_corrida_invalidada,
+    ['braco-a-S1.INVALIDO-bbbbbbbb.json', 'braco-a-S1.INVALIDO-bbbbbbbb.meta.json'],
+    'apanhou artefactos de outro sujeito, ou deixou escapar os de S1');
+});
+
+test('--manifesto: lista que muda SEM o sha ter saido do pre-registado e um sinal, nao uma rotina', () => {
+  const anterior = { sujeitos: [{ id: 'S1', sha_preregisto: SHA_A, head_da_raiz_ao_versionar: SHA_A,
+    no_sha_preregistado: true, sha256: '0'.repeat(64), ficheiros_no_ambito: 1 }] };
+  const m = construirManifesto({ agora: 'T', anterior, sujeitos: [sujeito('S1')] });
+  assert.equal(m.substituidos.length, 1);
+  assert.match(m.substituidos[0].porque, /investigar/);
+});
+
+test('--manifesto: mesma lista (mesmo sha256) nao gera substituicao', () => {
+  const anterior = { sujeitos: [{ id: 'S1', sha256: 'f'.repeat(64), no_sha_preregistado: false }] };
+  const m = construirManifesto({ agora: 'T', anterior, sujeitos: [sujeito('S1')] });
+  assert.deepEqual(m.substituidos, []);
+});
+
+test('MORDIDA --manifesto: sem os tres sujeitos presentes o manifesto NAO se escreve', () => {
+  const { raiz } = arvore({ 'a.js': '1' });
+  const escritos = [];
+  const erro = [];
+  const codigo = principal(['--manifesto', '--out', '/out', '--raiz-S1', raiz, '--raiz-S2', raiz, '--raiz-S3', '/nao-existe'], {
+    out: { write: () => {} },
+    err: { write: (m) => erro.push(m) },
+    existsImpl: (p) => p !== '/nao-existe',
+    writeImpl: (p) => escritos.push(String(p)),
+    mkdirImpl: () => {},
+    readdirImpl: () => [],
+    calcular: () => calcularSujeito(raiz),
+    headImpl: () => SHA_A,
+  });
+  assert.equal(codigo, 1);
+  assert.equal(escritos.some((p) => p.endsWith(NOME_MANIFESTO)), false, 'escreveu um manifesto com um sujeito a menos');
+  assert.match(erro.join(''), /Manifesto NAO escrito/);
+});
+
+test('--manifesto escreve as listas E o manifesto, e --verificar nunca escreve nada', () => {
+  const { raiz } = arvore({ 'a.js': '1', 'b.js': '2' });
+  const r = calcularSujeito(raiz);
+  const escritos = new Map();
+  const io = {
+    out: { write: () => {} },
+    err: { write: () => {} },
+    existsImpl: () => true,
+    readImpl: () => r.corpo,
+    writeImpl: (p, c) => escritos.set(String(p).replace(/\\/g, '/'), c),
+    mkdirImpl: () => {},
+    readdirImpl: () => [],
+    calcular: () => r,
+    headImpl: () => SHA_A,
+    agora: () => '2026-09-11T00:00:00Z',
+  };
+  assert.equal(principal(['--manifesto', '--out', '/out', '--raiz-S1', raiz, '--raiz-S2', raiz, '--raiz-S3', raiz], io), 0);
+  const chaves = [...escritos.keys()].sort();
+  assert.deepEqual(chaves, ['/out/' + NOME_MANIFESTO, '/out/ambito-S1.txt', '/out/ambito-S2.txt', '/out/ambito-S3.txt']);
+  const m = JSON.parse(escritos.get('/out/' + NOME_MANIFESTO));
+  assert.equal(m.produtor, 'tools/cockpit/runner/ambito-ab.mjs --manifesto');
+  assert.deepEqual(m.sujeitos.map((s) => s.sha256), [r.sha256_lista, r.sha256_lista, r.sha256_lista]);
+  assert.equal(m.sujeitos[0].head_da_raiz_ao_versionar, SHA_A);
+
+  escritos.clear();
+  // `readImpl` devolve o corpo; `existsImpl` diz que o manifesto existe — mesmo assim nada se escreve.
+  assert.equal(principal(['--verificar', '--out', '/out', '--raiz-S1', raiz, '--raiz-S2', raiz, '--raiz-S3', raiz], io), 0);
+  assert.equal(escritos.size, 0, '--verificar escreveu no disco');
+});
+
+test('headDaRaiz: 40 hex do git, senao null — nunca o sha pre-registado no lugar do medido', () => {
+  assert.equal(headDaRaiz('/r', { execImpl: () => SHA_B + '\n' }), SHA_B);
+  assert.equal(headDaRaiz('/r', { execImpl: () => 'fatal: not a git repository' }), null);
+  assert.equal(headDaRaiz('/r', { execImpl: () => { throw new Error('ENOENT'); } }), null);
 });
 
 // ─────────────────────────────────────────────────── os sujeitos reais

@@ -27,6 +27,9 @@ const semgrepJson = (results, errors = []) => ({
   version: '1.174.0', results, errors,
   paths: { scanned: [...new Set(results.map((r) => r.path))], skipped: [] },
 });
+// Desde a mordida 5 do adversario (PR #505) um trace so conta se mostrar o semgrep a
+// ser executado; esta e a linha que o `strace -e trace=connect,execve` real produz.
+const EXECVE_SEMGREP = '657   execve("/home/paulo/.local/bin/semgrep", ["semgrep", "scan", "--metrics=off"], 0x7ffe6f2fab38 /* 25 vars */) = 0\n';
 
 function correr(escrever) {
   const dir = mkdtempSync(join(tmpdir(), 'braco-a-mordida-'));
@@ -85,6 +88,7 @@ test('MAU: um connect() para fora tem de contar como saiu-da-maquina', () => {
   const rel = correr((dir) => vazios(dir, () => {
     writeFileSync(join(dir, 'braco-a-S1.json'), JSON.stringify(semgrepJson([])));
     writeFileSync(join(dir, 'braco-a-S1.connect.trace'),
+      EXECVE_SEMGREP +
       '111   connect(3, {sa_family=AF_UNIX, sun_path="/tmp/x.sock"}, 20) = 0\n' +
       '111   connect(4, {sa_family=AF_INET, sin_port=htons(80), sin_addr=inet_addr("127.0.0.1")}, 16) = 0\n' +
       '112   connect(5, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("34.117.59.81")}, 16) = -1 EINPROGRESS\n');
@@ -99,7 +103,7 @@ test('MAU: um connect() para fora tem de contar como saiu-da-maquina', () => {
 test('BOM: trace sem connect nenhum -> nao saiu, mas so porque foi medido', () => {
   const rel = correr((dir) => vazios(dir, () => {
     writeFileSync(join(dir, 'braco-a-S1.json'), JSON.stringify(semgrepJson([])));
-    writeFileSync(join(dir, 'braco-a-S1.connect.trace'), '111   --- SIGCHLD ---\n');
+    writeFileSync(join(dir, 'braco-a-S1.connect.trace'), EXECVE_SEMGREP + '111   --- SIGCHLD ---\n');
   }));
   const r = rel.sujeitos.find((s) => s.id === 'S1').criterio_5_rede;
   assert.equal(r.medido, true);

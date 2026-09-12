@@ -7,7 +7,7 @@
 // Uso:  node tools/cockpit/runner/braco-a-resumo.mjs [<dir-com-os-artefactos>]
 //       (o dir tem de conter braco-a-S<n>.json e, opcionalmente,
 //        braco-a-S<n>.semrede.json, .strace.json e .connect.trace)
-import { readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -78,7 +78,38 @@ function medir(j) {
 
 // Criterio 5 do §4: contagem de sockets, nao declaracao. Uma linha do strace com
 // `connect(` e uma tentativa de ligacao; classificamo-la pela familia e destino.
-function medirRede(p) {
+//
+// PROVA DE EXECUCAO DO PRODUTOR. Um trace com formato de strace prova que o tracer
+// correu; nao prova que correu SOBRE o semgrep. O adversario do PR #505 injectou
+// `123 +++ exited with 1 +++` e o medidor devolveu `medido: true, total_connect: 0`
+// — um zero sem produtor. A partir daqui o trace tem de conter uma linha
+// `execve("<…/semgrep*>", […]) = 0`: o tracer viu o semgrep (ou o semgrep-core, ou
+// o pysemgrep — os tres nomes que o `semgrep` 1.174.0 exec'a, medido) a ser
+// executado com sucesso. E por isso que `braco-a-semgrep.sh --strace` traca
+// `connect,execve` e nao so `connect`: com `-e trace=connect` a execve nao aparece,
+// e os traces de 26/08 (so SIGCHLD) nao tem prova nenhuma — ficam n/d.
+const RE_REGISTO_STRACE = /^\d+\s+(connect\(|execve\(|---|\+\+\+|<\.\.\. )/m;
+export function provaDeExecucao(cru) {
+  const pendentes = new Map(); // pid -> linha execve `<unfinished ...>` de um semgrep*
+  let execvesDeOutros = 0;
+  for (const l of cru.split('\n')) {
+    const m = l.match(/^(\d+)\s+execve\("([^"]*)"/);
+    if (m) {
+      const executavel = m[2];
+      const base = executavel.split('/').pop();
+      if (!/semgrep/.test(base)) { execvesDeOutros++; continue; }
+      const resumo = { pid: Number(m[1]), executavel, linha: l.length > 160 ? l.slice(0, 160) + '…' : l };
+      if (/\)\s*=\s*0\s*$/.test(l)) return resumo;
+      if (/<unfinished \.\.\.>\s*$/.test(l)) pendentes.set(m[1], resumo);
+      continue;
+    }
+    const r = l.match(/^(\d+)\s+<\.\.\. execve resumed>.*=\s*0\s*$/);
+    if (r && pendentes.has(r[1])) return pendentes.get(r[1]);
+  }
+  return { ausente: true, execves_de_outros_executaveis: execvesDeOutros };
+}
+
+export function medirRede(p) {
   if (!existsSync(p)) return { medido: false, porque: `trace ausente: ${p}` };
   const cru = readFileSync(p, 'utf8');
   // O CASO QUE FALTAVA. Ate aqui um trace VAZIO — ou um que so contivesse a mensagem
@@ -87,11 +118,20 @@ function medirRede(p) {
   // criterio 5. Demonstrado na CLI antes desta correccao. Um trace so conta como
   // medicao se mostrar que o tracer chegou a agarrar alguem: pelo menos uma linha no
   // formato de registo do strace com -f (`<pid>  connect(...)`, `<pid>  --- SIG...`).
-  if (!/^\d+\s+(connect\(|---|\+\+\+)/m.test(cru)) {
+  if (!RE_REGISTO_STRACE.test(cru)) {
     return {
       medido: false,
       porque: `trace degenerado (${cru.length} bytes, nenhum registo de strace la dentro): `
         + 'indistinguivel de um tracer que nunca correu — criterio 5 e n/d, nao "nao saiu"',
+    };
+  }
+  const prova = provaDeExecucao(cru);
+  if (prova.ausente) {
+    return {
+      medido: false,
+      porque: 'o tracer nao mostra o semgrep a ser executado: nenhuma linha execve("…semgrep…") = 0 no trace'
+        + ` (${prova.execves_de_outros_executaveis} execve de outros executaveis; um trace so com -e trace=connect nao a contem)`
+        + ' — um zero sem produtor observado e n/d, nao "nao saiu"',
     };
   }
   const linhas = cru.split('\n').filter((l) => l.includes('connect('));
@@ -104,7 +144,129 @@ function medirRede(p) {
     if (alvo === '127.0.0.1' || alvo === '::1') loopback++;
     else externos.push(alvo);
   }
-  return { medido: true, total_connect: linhas.length, af_unix: unix, loopback, externos, saiu_da_maquina: externos.length > 0 };
+  return {
+    medido: true,
+    prova_de_execucao: { pid: prova.pid, executavel: prova.executavel },
+    total_connect: linhas.length, af_unix: unix, loopback, externos, saiu_da_maquina: externos.length > 0,
+  };
+}
+
+// §2.2: "braco que veja outra lista e um braco invalido". Comparar CONTAGENS (974 ==
+// 974) nao compara listas: um braco que varresse 974 ficheiros ERRADOS saia verde.
+// O adversario do PR #505 reproduziu-o com `scanned: ['wrong.js']` contra uma lista
+// de um ficheiro. Passa a comparar o CONJUNTO de caminhos varridos com o conjunto
+// da lista de ambito, normalizando separadores, `./` inicial e o prefixo da raiz.
+export function normalizarCaminho(p, raiz) {
+  let c = String(p).replace(/\\/g, '/');
+  if (raiz) {
+    const r = String(raiz).replace(/\\/g, '/').replace(/\/+$/, '') + '/';
+    if (c.startsWith(r)) c = c.slice(r.length);
+  }
+  return c.replace(/^(\.\/)+/, '');
+}
+
+export function ambitoIntegro({ scanned, listaP, raiz, recibo }) {
+  if (!existsSync(listaP)) {
+    return { medido: false, porque: `lista de ambito ausente: ${listaP} — nao ha com que comparar os caminhos varridos` };
+  }
+  const lista = readFileSync(listaP, 'utf8').split('\n').filter((l) => l.length > 0).map((l) => normalizarCaminho(l));
+  const varridos = (scanned ?? []).map((c) => normalizarCaminho(c, raiz));
+  const setLista = new Set(lista);
+  const setVarridos = new Set(varridos);
+  const soNaLista = lista.filter((c) => !setVarridos.has(c));
+  const soNosVarridos = varridos.filter((c) => !setLista.has(c));
+  return {
+    medido: true,
+    na_lista: lista.length,
+    varridos: varridos.length,
+    igual: soNaLista.length === 0 && soNosVarridos.length === 0 && lista.length === varridos.length,
+    so_na_lista: soNaLista.length,
+    so_nos_varridos: soNosVarridos.length,
+    exemplos_so_na_lista: soNaLista.slice(0, 5),
+    exemplos_so_nos_varridos: soNosVarridos.slice(0, 5),
+    // O recibo da corrida traz a contagem que o .sh leu da lista no momento de
+    // correr. Se discordar da lista que esta no disco agora, a lista mudou entre a
+    // corrida e o resumo — e isso e um facto a publicar, nao a esconder.
+    recibo_concorda: recibo && Number.isInteger(recibo.ficheiros_na_lista)
+      ? recibo.ficheiros_na_lista === lista.length
+      : 'n/d — recibo sem ficheiros_na_lista',
+  };
+}
+
+// Corridas postas de lado: `braco-a-<S>.INVALIDO-<sha7>.*`. Nao se apagam — o §10.10
+// diz que numero nao medido e n/d, nao diz que numero mal medido desaparece. O
+// porque vem do `substituidos[]` do manifesto de ambito (escrito pelo produtor,
+// derivado dos dados), nunca daqui.
+export function invalidados(dir) {
+  let nomes = [];
+  try { nomes = readdirSync(dir); } catch { return []; }
+  let manifesto = null;
+  const pManifesto = join(dir, 'ambito-MANIFESTO.json');
+  if (existsSync(pManifesto)) { try { manifesto = ler(pManifesto); } catch { manifesto = null; } }
+  const grupos = new Map();
+  for (const n of nomes) {
+    const m = n.match(/^braco-a-(S\d)\.INVALIDO-([0-9a-f]{7,40})\./);
+    if (!m) continue;
+    const k = m[1] + '@' + m[2];
+    if (!grupos.has(k)) grupos.set(k, { sujeito: m[1], head_da_raiz: m[2], ficheiros: [] });
+    grupos.get(k).ficheiros.push(n);
+  }
+  return [...grupos.values()].map((g) => {
+    g.ficheiros.sort();
+    const pMeta = join(dir, `braco-a-${g.sujeito}.INVALIDO-${g.head_da_raiz}.meta.json`);
+    const recibo = existsSync(pMeta) ? ler(pMeta) : null;
+    const sub = manifesto && Array.isArray(manifesto.substituidos)
+      ? manifesto.substituidos.find((x) => x && x.id === g.sujeito && String(x.head_da_raiz_ao_versionar || '').startsWith(g.head_da_raiz))
+      : null;
+    return {
+      sujeito: g.sujeito,
+      head_da_raiz: g.head_da_raiz,
+      ficheiros: g.ficheiros,
+      recibo_da_corrida_invalidada: recibo
+        ? { raiz: recibo.raiz, corrido_em: recibo.corrido_em, ficheiros_na_lista: recibo.ficheiros_na_lista, sha256_lista_ambito: recibo.sha256_lista_ambito, sha256_json: recibo.sha256_json }
+        : { medido: false, porque: `recibo ausente: ${pMeta}` },
+      conta: false,
+      porque: sub ? sub.porque : 'n/d — sem entrada correspondente em substituidos[] do ambito-MANIFESTO.json',
+    };
+  });
+}
+
+// A frase do criterio 5, construida dos numeros medidos e so deles. Ate ao PR #505 o
+// texto dizia "0 connect() na corrida que produziu os 22" — e a corrida tracada tinha
+// produzido 20, nao 22 (14 timeouts induzidos pelo tracer). A frase passa a dizer o
+// que cada via mediu, na corrida em que o mediu.
+export function declaracaoCriterio5({ limpo, rede, strace, semrede }) {
+  const a = rede.medido && strace.medido
+    ? `(a) sob strace, ${rede.total_connect} connect() numa corrida com ${strace.brutos} achados`
+      + (strace.achados_identicos
+        ? ' — conjunto de achados identico ao da corrida limpa'
+        : ` — conjunto DIFERENTE do da corrida limpa (so no limpo: ${strace.so_no_limpo}, so no tracado: ${strace.so_no_outro})`)
+    : `(a) sob strace: n/d — ${rede.medido ? strace.porque : rede.porque}`;
+  const b = semrede.medido
+    ? `(b) em netns sem interface, conjunto de achados ${semrede.achados_identicos ? 'identico' : 'DIFERENTE'} ao da corrida limpa`
+      + ` (${semrede.brutos} vs ${limpo.brutos})${semrede.achados_identicos ? ' — a varredura nao precisou de rede' : ''}`
+    : `(b) netns: n/d — ${semrede.porque}`;
+  return a + '; ' + b;
+}
+
+// "$0" nunca foi medido — nao ha recibo de custo em lado nenhum, e contar connect()
+// nao mede dolares (adversario do PR #505). O que existe e um argumento por
+// construcao, e so vale quando pelo menos uma das duas vias o sustenta.
+export function custoEmDolares({ rede, strace, semrede }) {
+  const viaStrace = rede.medido && rede.total_connect === 0 && strace.medido && strace.achados_identicos;
+  const viaNetns = semrede.medido && semrede.achados_identicos;
+  if (!viaStrace && !viaNetns) {
+    return { medido: false, por_construcao: null, porque: 'n/d — nem o strace nem o netns provaram a ausencia de rede nesta corrida' };
+  }
+  const provas = [
+    viaStrace ? '0 connect() sob strace numa corrida com o mesmo conjunto de achados' : null,
+    viaNetns ? 'netns sem interface com o mesmo conjunto de achados' : null,
+  ].filter(Boolean).join('; ');
+  return {
+    medido: false,
+    por_construcao: '$0',
+    porque: `$0 por construcao: nenhuma chamada a API paga foi feita (${provas}) — nao e um recibo de custo`,
+  };
 }
 
 // §3: uma classe = um check_id; classes com < 5 candidatos juntam-se numa classe
@@ -135,7 +297,8 @@ const classesGlobais = new Map();
 for (const s of SUJEITOS) {
   const pLimpo = join(DIR, `braco-a-${s.id}.json`);
   if (!existsSync(pLimpo)) { console.error(`FALTA ${pLimpo}`); process.exitCode = 1; continue; }
-  const limpo = medir(ler(pLimpo));
+  const jLimpo = ler(pLimpo);
+  const limpo = medir(jLimpo);
 
   const comparar = (sufixo) => {
     const p = join(DIR, `braco-a-${s.id}.${sufixo}.json`);
@@ -173,16 +336,14 @@ for (const s of SUJEITOS) {
     quais_degradados: limpo.ficheiros_com_analise_degradada,
     // O §2.2 diz "braco que veja outra lista e um braco invalido". O relatorio imprimia
     // ficheiros_varridos e ficheiros_na_lista lado a lado e NUNCA os comparava: um braco
-    // que varresse 900 dos 974 saia daqui verde. A comparacao passa a ser um campo, nao
-    // um exercicio de leitura de quem le o JSON.
-    ambito_integro: existsSync(pMeta)
-      ? {
-        medido: true,
-        na_lista: recibo.ficheiros_na_lista,
-        varridos: limpo.ficheiros_varridos,
-        igual: recibo.ficheiros_na_lista === limpo.ficheiros_varridos,
-      }
-      : { medido: false, porque: `recibo ausente: ${pMeta} — nao ha com que comparar os varridos` },
+    // que varresse 900 dos 974 saia daqui verde. Depois comparava contagens, e um braco
+    // que varresse 974 ficheiros ERRADOS saia verde na mesma. Agora compara caminhos.
+    ambito_integro: ambitoIntegro({
+      scanned: jLimpo.paths?.scanned,
+      listaP: join(DIR, `ambito-${s.id}.txt`),
+      raiz: existsSync(pMeta) ? recibo.raiz : null,
+      recibo: existsSync(pMeta) ? recibo : null,
+    }),
     n_classes: limpo.n_classes,
     top10_classes: limpo.classes.slice(0, 10).map(([id, n]) => ({ n, check_id: id })),
     todas_as_classes: limpo.classes.map(([id, n]) => ({ n, check_id: id })),
@@ -195,11 +356,19 @@ for (const s of SUJEITOS) {
     corrida_sob_strace: comparar('strace'),
     criterio_5_rede: medirRede(join(DIR, `braco-a-${s.id}.connect.trace`)),
   });
+  const x = relatorio.sujeitos[relatorio.sujeitos.length - 1];
+  x.criterio_5_declaracao = declaracaoCriterio5({ limpo, rede: x.criterio_5_rede, strace: x.corrida_sob_strace, semrede: x.controlo_sem_rede });
+  x.custo_em_dolares = custoEmDolares({ rede: x.criterio_5_rede, strace: x.corrida_sob_strace, semrede: x.controlo_sem_rede });
 }
+
+relatorio.corridas_invalidadas = invalidados(DIR);
 
 relatorio.totais = {
   n_de_avaliacao_por_sujeito: Object.fromEntries(
     relatorio.sujeitos.map((x) => [x.id, x.consequencia_mecanica_do_par_3.n_de_avaliacao])),
+  custo_em_dolares: relatorio.sujeitos.length > 0 && relatorio.sujeitos.every((x) => x.custo_em_dolares.por_construcao === '$0')
+    ? { medido: false, por_construcao: '$0', porque: 'nos tres sujeitos: nenhuma chamada a API paga foi feita — ver custo_em_dolares de cada um; nao e um recibo de custo' }
+    : { medido: false, por_construcao: null, porque: 'n/d — pelo menos um sujeito sem prova de ausencia de rede' },
   volume_entregue_ao_humano: tBrutos, erros: tErros, ficheiros_varridos: tVarridos,
   classes_distintas_no_braco: classesGlobais.size,
   top10_classes_do_braco: [...classesGlobais.entries()]

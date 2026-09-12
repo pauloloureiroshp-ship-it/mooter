@@ -1,25 +1,125 @@
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1589, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1590, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1591, si_uid=1000, si_status=128, si_utime=0, si_stime=0} ---
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1597, si_uid=1000, si_status=128, si_utime=0, si_stime=0} ---
-1599  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1600, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1599  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1601, si_uid=1000, si_status=0, si_utime=0, si_stime=1} ---
-1598  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1599, si_uid=1000, si_status=0, si_utime=8, si_stime=11} ---
-1603  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1604, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1603  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1605, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1603, si_uid=1000, si_status=0, si_utime=8, si_stime=7} ---
-1607  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1608, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1607  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1609, si_uid=1000, si_status=0, si_utime=0, si_stime=1} ---
-1606  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1607, si_uid=1000, si_status=0, si_utime=19, si_stime=23} ---
-1640  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1641, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1640  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1642, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1639  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1640, si_uid=1000, si_status=0, si_utime=6, si_stime=8} ---
-1643  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1644, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1643  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1645, si_uid=1000, si_status=0, si_utime=0, si_stime=2} ---
-1646  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1648, si_uid=1000, si_status=0, si_utime=0, si_stime=1} ---
-1646  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1649, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1646, si_uid=1000, si_status=0, si_utime=7883, si_stime=11175} ---
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1643, si_uid=1000, si_status=0, si_utime=5, si_stime=5} ---
-1737  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1738, si_uid=1000, si_status=0, si_utime=0, si_stime=1} ---
-1737  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1739, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
-1588  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1737, si_uid=1000, si_status=0, si_utime=4, si_stime=5} ---
+832   execve("/home/paulo/.local/bin/semgrep", ["semgrep", "scan", "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--metrics=off", "--no-git-ignore", "--no-rewrite-rule-ids", "--json", "--timeout", "0", "--output", "/home/paulo/ab-braco-a/braco-a-S"..., "--", ".claude/skills/workflows/example"..., ".planning/risk-adversarial-2026-"..., ".planning/risk-adversarial-2026-"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., ...], 0x7ffc11991a80 /* 23 vars */) = 0
+832   execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["osemgrep", "scan", "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--metrics=off", "--no-git-ignore", "--no-rewrite-rule-ids", "--json", "--timeout", "0", "--output", "/home/paulo/ab-braco-a/braco-a-S"..., "--", ".claude/skills/workflows/example"..., ".planning/risk-adversarial-2026-"..., ".planning/risk-adversarial-2026-"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., ...], 0x59b3e2d990d0 /* 25 vars */) = 0
+833   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+833   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+833   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+833   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+833   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = 0
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=833, si_uid=1000, si_status=0, si_utime=0, si_stime=2} ---
+834   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+834   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+834   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+834   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = -1 ENOENT (No such file or directory)
+834   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffcde712c68 /* 25 vars */) = 0
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=834, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+832   execve("/home/paulo/.local/bin/pysemgrep", ["osemgrep", "scan", "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--config", "/mnt/c/Users/Paulo Loureiro/frug"..., "--metrics=off", "--no-git-ignore", "--no-rewrite-rule-ids", "--json", "--timeout", "0", "--output", "/home/paulo/ab-braco-a/braco-a-S"..., "--", ".claude/skills/workflows/example"..., ".planning/risk-adversarial-2026-"..., ".planning/risk-adversarial-2026-"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., ".planning/validation-2026-05-07/"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., "_handoff/_archive/2026-06/mock/e"..., ...], 0x7ffcde712c68 /* 25 vars */) = 0
+835   execve("/home/paulo/.local/bin/git", ["git", "remote", "get-url", "origin"], 0x7ffcc2de4c90 /* 25 vars */) = -1 ENOENT (No such file or directory)
+835   execve("/usr/local/sbin/git", ["git", "remote", "get-url", "origin"], 0x7ffcc2de4c90 /* 25 vars */) = -1 ENOENT (No such file or directory)
+835   execve("/usr/local/bin/git", ["git", "remote", "get-url", "origin"], 0x7ffcc2de4c90 /* 25 vars */) = -1 ENOENT (No such file or directory)
+835   execve("/usr/sbin/git", ["git", "remote", "get-url", "origin"], 0x7ffcc2de4c90 /* 25 vars */) = -1 ENOENT (No such file or directory)
+835   execve("/usr/bin/git", ["git", "remote", "get-url", "origin"], 0x7ffcc2de4c90 /* 25 vars */) = 0
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=835, si_uid=1000, si_status=128, si_utime=0, si_stime=0} ---
+841   execve("/home/paulo/.local/bin/git", ["git", "ls-remote", "--get-url"], 0x60320c5be030 /* 26 vars */) = -1 ENOENT (No such file or directory)
+841   execve("/usr/local/sbin/git", ["git", "ls-remote", "--get-url"], 0x60320c5be030 /* 26 vars */) = -1 ENOENT (No such file or directory)
+841   execve("/usr/local/bin/git", ["git", "ls-remote", "--get-url"], 0x60320c5be030 /* 26 vars */) = -1 ENOENT (No such file or directory)
+841   execve("/usr/sbin/git", ["git", "ls-remote", "--get-url"], 0x60320c5be030 /* 26 vars */) = -1 ENOENT (No such file or directory)
+841   execve("/usr/bin/git", ["git", "ls-remote", "--get-url"], 0x60320c5be030 /* 26 vars */) = 0
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=841, si_uid=1000, si_status=128, si_utime=0, si_stime=0} ---
+843   execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["/home/paulo/.local/lib/python3.1"..., "-rpc"], 0x60320c5be030 /* 26 vars */) = 0
+844   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+844   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+844   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+844   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+844   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = 0
+843   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=844, si_uid=1000, si_status=0, si_utime=0, si_stime=1} ---
+845   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+845   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+845   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+845   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = -1 ENOENT (No such file or directory)
+845   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffcfe0feb80 /* 26 vars */) = 0
+843   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=845, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=843, si_uid=1000, si_status=0, si_utime=12, si_stime=9} ---
+847   execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["/home/paulo/.local/lib/python3.1"..., "-rpc"], 0x60320c5be030 /* 26 vars */) = 0
+848   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+848   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+848   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+848   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+848   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = 0
+847   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=848, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+849   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+849   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+849   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+849   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = -1 ENOENT (No such file or directory)
+849   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffe78c18470 /* 26 vars */) = 0
+847   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=849, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+846   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=847, si_uid=1000, si_status=0, si_utime=13, si_stime=6} ---
+851   execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["/home/paulo/.local/lib/python3.1"..., "-rpc"], 0x60320c5be030 /* 26 vars */) = 0
+852   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+852   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+852   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+852   execve("/usr/sbin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+852   execve("/usr/bin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = 0
+851   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=852, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+853   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+853   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+853   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+853   execve("/usr/sbin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = -1 ENOENT (No such file or directory)
+853   execve("/usr/bin/uname", ["uname", "-s"], 0x7fff84d4fe40 /* 26 vars */) = 0
+851   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=853, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+850   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=851, si_uid=1000, si_status=0, si_utime=21, si_stime=28} ---
+884   execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["/home/paulo/.local/lib/python3.1"..., "-rpc"], 0x60320c5be030 /* 26 vars */) = 0
+885   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+885   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+885   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+885   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+885   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = 0
+884   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=885, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+886   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+886   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+886   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+886   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = -1 ENOENT (No such file or directory)
+886   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffc3bcc9ad0 /* 26 vars */) = 0
+884   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=886, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+883   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=884, si_uid=1000, si_status=0, si_utime=8, si_stime=7} ---
+887   execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["/home/paulo/.local/lib/python3.1"..., "-rpc"], 0x60320c5be030 /* 26 vars */) = 0
+888   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+888   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+888   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+888   execve("/usr/sbin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+888   execve("/usr/bin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = 0
+887   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=888, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+889   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+889   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+889   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+889   execve("/usr/sbin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = -1 ENOENT (No such file or directory)
+889   execve("/usr/bin/uname", ["uname", "-s"], 0x7fff58d35b20 /* 26 vars */) = 0
+887   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=889, si_uid=1000, si_status=0, si_utime=0, si_stime=1} ---
+890   execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["/home/paulo/.local/lib/python3.1"..., "-json", "-rules", "/tmp/tmptgoxbfu8.json", "-targets", "/tmp/tmp76bzcxlx", "-timeout", "0", "-timeout_threshold", "3", "-max_memory", "0", "-fast"], 0x60320c5d93e0 /* 29 vars */) = 0
+892   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+892   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+892   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+892   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+892   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = 0
+890   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=892, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+893   execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+893   execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+893   execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+893   execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = -1 ENOENT (No such file or directory)
+893   execve("/usr/bin/uname", ["uname", "-s"], 0x7ffe33c1d798 /* 29 vars */) = 0
+890   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=893, si_uid=1000, si_status=0, si_utime=0, si_stime=1} ---
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=890, si_uid=1000, si_status=0, si_utime=13278, si_stime=18844} ---
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=887, si_uid=1000, si_status=0, si_utime=4, si_stime=6} ---
+1175  execve("/home/paulo/.local/lib/python3.10/site-packages/semgrep/bin/semgrep-core", ["/home/paulo/.local/lib/python3.1"..., "-rpc"], 0x60320c5d93e0 /* 29 vars */) = 0
+1176  execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1176  execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1176  execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1176  execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1176  execve("/usr/bin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = 0
+1175  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1176, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+1177  execve("/home/paulo/.local/bin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1177  execve("/usr/local/sbin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1177  execve("/usr/local/bin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1177  execve("/usr/sbin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = -1 ENOENT (No such file or directory)
+1177  execve("/usr/bin/uname", ["uname", "-s"], 0x7ffe84c16940 /* 29 vars */) = 0
+1175  --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1177, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+832   --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=1175, si_uid=1000, si_status=0, si_utime=5, si_stime=6} ---

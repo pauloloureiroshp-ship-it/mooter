@@ -720,7 +720,6 @@ tools/cockpit/runner/fora-do-enunciado.mjs
 tools/cockpit/runner/frescura-de-precos.mjs
 tools/cockpit/runner/frescura-por-camada.mjs
 tools/cockpit/runner/gpu-sampler.mjs
-tools/cockpit/runner/indice-do-harness.mjs
 tools/cockpit/runner/landing-coerencia.mjs
 tools/cockpit/runner/launch.mjs
 tools/cockpit/runner/metrica-mae.mjs
@@ -743,7 +742,6 @@ tools/cockpit/runner/runner-core.mjs
 tools/cockpit/runner/self-check.mjs
 tools/cockpit/runner/skills-doctor.mjs
 tools/cockpit/runner/spend-by-model.mjs
-tools/cockpit/runner/teste-fora-do-ci.mjs
 tools/cockpit/runner/triagem.mjs
 tools/cockpit/runner/voidar-fila.mjs
 tools/cockpit/sync-cockpit.mjs

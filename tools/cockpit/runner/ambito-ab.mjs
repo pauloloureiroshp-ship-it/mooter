@@ -23,12 +23,20 @@
  * Trazer o produtor E as listas para dentro do repo e o que torna a frase do §2.2
  * uma afirmacao testavel em vez de uma intencao.
  *
- * O QUE ESTE FICHEIRO NAO FAZ. Nao escreve o manifesto das listas versionadas.
- * O manifesto (`_handoff/ab-audit/ambito-MANIFESTO.json`) foi escrito UMA VEZ, no
- * acto de versionar, e a partir dai so se VERIFICA (`ab-vendorizado.mjs`). Se este
- * script pudesse reescrever o manifesto, um ficheiro corrompido produziria um
- * manifesto a concordar com a corrupcao — o guarda validaria a propria falha.
- * Escritor unico: o acto de vendorizar. Leitor: o verificador.
+ * O MANIFESTO (`_handoff/ab-audit/ambito-MANIFESTO.json`) so e escrito em
+ * `--manifesto` — o acto de vendorizar — e NUNCA em `--verificar`. O verificador
+ * (`ab-vendorizado.mjs`) continua a nao escrever nada: se o verificador soubesse
+ * reescrever o manifesto, um ficheiro corrompido produziria um manifesto a
+ * concordar com a corrupcao. Escritor unico: este produtor, sob a flag explicita.
+ * Leitor: o verificador.
+ *
+ * Ate 2026-09-11 o manifesto tinha sido escrito UMA vez, a mao, fora do repo. A
+ * primeira vez que precisou de mudar (S1 tinha sido varrido em 2d5fd762 e nao no
+ * sha que o §1 ancora, 97ad846b — objeccao 1 do adversario ao PR #505) a
+ * alternativa era editar um JSON a mao, e um manifesto editado a mao e um numero
+ * que ninguem mediu. O `--manifesto` le o HEAD de cada raiz (`git rev-parse`),
+ * compara-o com o sha pre-registado, e regista em `substituidos[]` a entrada que
+ * substitui — com o porque derivado dos dados, nao escrito por quem regenera.
  *
  * DETERMINISMO — as escolhas, e o que cada uma paga.
  *
@@ -49,10 +57,13 @@
  * Uso:  node tools/cockpit/runner/ambito-ab.mjs [--out <dir>] [--raiz-S1 <path>] ...
  *       node tools/cockpit/runner/ambito-ab.mjs --verificar   (nao escreve nada;
  *            regenera em memoria e compara com as listas versionadas)
+ *       node tools/cockpit/runner/ambito-ab.mjs --manifesto   (escreve as listas E
+ *            o ambito-MANIFESTO.json, com o HEAD de cada raiz medido por git)
  */
 
 import { readdirSync, lstatSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 /**
@@ -61,13 +72,17 @@ import path from 'node:path';
  * tornaria o script incorrivel em qualquer outra maquina, que e o contrario do
  * problema que ele veio resolver.
  *
- * `sha_preregisto` e o commit que o §1 ancora. NAO e verificado aqui: verificar
- * exigiria mexer na worktree do sujeito, e uma worktree que anda para a frente
- * (a de S1 andou duas vezes no mesmo dia) e um facto a REGISTAR, nao a corrigir
- * a sorrelfa.
+ * `sha_preregisto` e o commit que o §1 ancora. `--manifesto` LE o HEAD de cada
+ * raiz (`git rev-parse HEAD`, leitura pura) e regista se bate; nao mexe na raiz.
+ * Uma raiz que ande para a frente e um facto a REGISTAR, nao a corrigir a
+ * sorrelfa — e foi exactamente isso que aconteceu a S1 ate 2026-09-11: a raiz
+ * era a worktree `frugal-ab-audit`, que andou de 97ad846b para 2d5fd762 no
+ * proprio dia da corrida. Passa a ser um checkout destacado em
+ * `ab-audit-subjects/mooter` (git worktree, detached @ 97ad846b), ao lado de S2
+ * e S3, que sempre viveram ai.
  */
 export const SUJEITOS = Object.freeze([
-  { id: 'S1', nome: 'mooter', raizPorOmissao: 'C:/Users/Paulo Loureiro/frugal-ab-audit', sha_preregisto: '97ad846b40d7e1939e02d7b826e4388fe65d60e6' },
+  { id: 'S1', nome: 'mooter', raizPorOmissao: 'C:/Users/Paulo Loureiro/ab-audit-subjects/mooter', sha_preregisto: '97ad846b40d7e1939e02d7b826e4388fe65d60e6' },
   { id: 'S2', nome: 'fastify', raizPorOmissao: 'C:/Users/Paulo Loureiro/ab-audit-subjects/fastify', sha_preregisto: '1beaf7e72d24b2fc63a02a7f5806772a00e45454' },
   { id: 'S3', nome: 'hono', raizPorOmissao: 'C:/Users/Paulo Loureiro/ab-audit-subjects/hono', sha_preregisto: '06880c4a2b04de9dd74217f26dd831209b9c01f1' },
 ]);
@@ -221,6 +236,93 @@ function argValor(argv, flag) {
   return (i !== -1 && argv[i + 1]) ? argv[i + 1] : null;
 }
 
+/**
+ * HEAD da raiz de um sujeito, por `git rev-parse HEAD`. Leitura pura. Devolve
+ * `null` quando o git nao responde — e `null` e o que vai para o manifesto,
+ * nunca o sha pre-registado copiado para o lugar do medido.
+ */
+export function headDaRaiz(raiz, { execImpl = execFileSync } = {}) {
+  try {
+    const saida = String(execImpl('git', ['-C', raiz, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })).trim();
+    return /^[0-9a-f]{40}$/.test(saida) ? saida : null;
+  } catch {
+    return null;
+  }
+}
+
+export const NOME_MANIFESTO = 'ambito-MANIFESTO.json';
+
+/**
+ * O manifesto das listas de ambito, calculado dos dados e nao escrito a mao.
+ *
+ * `anterior` e o manifesto que estava no disco (ou null). Cada sujeito cuja
+ * lista muda de sha256 fica registado em `substituidos[]` com a entrada antiga
+ * inteira, a data, e um `porque` DERIVADO: se a entrada antiga nao estava no sha
+ * pre-registado, o porque e o §10.2; se estava, o porque e "investigar" — uma
+ * lista que muda sem o sha mudar e um sinal, nao uma rotina. As entradas
+ * antigas de `substituidos[]` sao preservadas (append-only): o manifesto conta a
+ * historia toda, nao so a ultima versao.
+ *
+ * `artefactos_da_corrida_invalidada` lista os ficheiros `braco-a-<id>.INVALIDO-
+ * <sha8>.*` presentes no directorio de saida — o nome que a corrida invalidada
+ * recebe quando e posta de lado em vez de apagada.
+ */
+export function construirManifesto({ sujeitos, anterior, agora, nomesNoDirOut = [] }) {
+  const substituidos = Array.isArray(anterior && anterior.substituidos) ? anterior.substituidos.slice() : [];
+  const entradas = [];
+  let totalFicheiros = 0;
+  let totalBytes = 0;
+  for (const s of sujeitos) {
+    const entrada = {
+      id: s.id,
+      nome: s.nome,
+      ficheiro: 'ambito-' + s.id + '.txt',
+      raiz: s.raiz,
+      sha_preregisto: s.sha_preregisto,
+      head_da_raiz_ao_versionar: s.head,
+      no_sha_preregistado: s.head === null ? null : s.head === s.sha_preregisto,
+      ficheiros_no_ambito: s.ficheiros,
+      bytes: s.bytes_lista,
+      sha256: s.sha256_lista,
+      gerado_em: agora,
+    };
+    if (s.head === null) entrada.porque_n_d = 'git rev-parse HEAD nao respondeu na raiz; o sha varrido e n/d';
+    entradas.push(entrada);
+    totalFicheiros += s.ficheiros;
+    totalBytes += s.bytes_lista;
+
+    const velha = anterior && Array.isArray(anterior.sujeitos)
+      ? anterior.sujeitos.find((v) => v && v.id === s.id) : null;
+    if (velha && velha.sha256 !== entrada.sha256) {
+      // 8 hex: a forma curta que este repo usa para citar commits (97ad846b, 2d5fd762).
+      const head8 = String(velha.head_da_raiz_ao_versionar || '').slice(0, 8);
+      const pre8 = String(velha.sha_preregisto || s.sha_preregisto).slice(0, 8);
+      const prefixo = 'braco-a-' + s.id + '.INVALIDO-' + head8 + '.';
+      substituidos.push({
+        ...velha,
+        substituido_em: agora,
+        substituido_por_sha256: entrada.sha256,
+        porque: velha.no_sha_preregistado === false
+          ? 'lista gerada em ' + head8 + ', fora do sha pre-registado ' + pre8
+            + ' — §10.2 do pre-registo: trocar o sha de um sujeito invalida a corrida.'
+            + ' A varredura feita sobre esta lista nao conta; os seus artefactos ficam com o prefixo ' + prefixo
+          : 'lista regenerada com sha256 diferente SEM o sha da raiz ter saido do pre-registado — investigar antes de aceitar',
+        artefactos_da_corrida_invalidada: nomesNoDirOut.filter((n) => n.startsWith(prefixo)).sort(),
+      });
+    }
+  }
+  return {
+    regra: 'AB_MOO_AUDIT_PREREGISTO.md §2.2 (branch ab-audit/preregisto)',
+    escrito_em: agora,
+    produtor: 'tools/cockpit/runner/ambito-ab.mjs --manifesto',
+    como_verificar: 'node tools/cockpit/runner/ab-vendorizado.mjs   (bytes)\n'
+      + 'node tools/cockpit/runner/ambito-ab.mjs --verificar        (regenera das raizes e compara)',
+    sujeitos: entradas,
+    totais: { ficheiros_no_ambito: totalFicheiros, bytes_das_listas: totalBytes },
+    substituidos,
+  };
+}
+
 export function principal(argv, {
   out = process.stdout,
   err = process.stderr,
@@ -228,15 +330,20 @@ export function principal(argv, {
   readImpl = readFileSync,
   writeImpl = writeFileSync,
   mkdirImpl = mkdirSync,
+  readdirImpl = readdirSync,
   calcular = calcularSujeito,
+  headImpl = headDaRaiz,
+  agora = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
 } = {}) {
   const verificar = argv.includes('--verificar');
+  const manifesto = argv.includes('--manifesto');
   const dirOut = argValor(argv, '--out')
     || path.resolve(process.cwd(), '_handoff', 'ab-audit');
   if (!verificar) mkdirImpl(dirOut, { recursive: true });
 
   let falhas = 0;
   let ausentes = 0;
+  const calculados = [];
   for (const s of SUJEITOS) {
     const raiz = argValor(argv, '--raiz-' + s.id) || s.raizPorOmissao;
     if (!existsImpl(raiz)) {
@@ -248,6 +355,7 @@ export function principal(argv, {
     }
     const r = calcular(raiz);
     const destino = path.join(dirOut, 'ambito-' + s.id + '.txt');
+    if (manifesto) calculados.push({ ...s, raiz, ...r, head: headImpl(raiz) });
 
     if (verificar) {
       const noDisco = existsImpl(destino) ? String(readImpl(destino, 'utf8')) : null;
@@ -278,6 +386,35 @@ export function principal(argv, {
 
   if (ausentes > 0) {
     err.write('n/d    ' + ausentes + ' sujeito(s) ausente(s) nesta maquina: nada foi afirmado sobre eles.\n');
+  }
+
+  if (manifesto) {
+    // Um manifesto com um sujeito a menos e um manifesto que verifica menos do
+    // que diz. Sem os tres, nao se escreve.
+    if (calculados.length !== SUJEITOS.length) {
+      err.write('FALHA  --manifesto exige os ' + SUJEITOS.length + ' sujeitos presentes; ' + calculados.length + ' presente(s). Manifesto NAO escrito.\n');
+      return 1;
+    }
+    const destino = path.join(dirOut, NOME_MANIFESTO);
+    let anterior = null;
+    if (existsImpl(destino)) {
+      try { anterior = JSON.parse(String(readImpl(destino, 'utf8'))); } catch { anterior = null; }
+    }
+    let nomes = [];
+    try { nomes = readdirImpl(dirOut); } catch { nomes = []; }
+    const m = construirManifesto({ sujeitos: calculados, anterior, agora: agora(), nomesNoDirOut: nomes });
+    writeImpl(destino, JSON.stringify(m, null, 2) + '\n', 'utf8');
+    for (const e of m.sujeitos) {
+      out.write('manifesto ' + e.id + ' head=' + (e.head_da_raiz_ao_versionar || 'n/d').slice(0, 8)
+        + ' pre-registo=' + e.sha_preregisto.slice(0, 8)
+        + ' no_sha_preregistado=' + String(e.no_sha_preregistado)
+        + ' ficheiros=' + e.ficheiros_no_ambito + '\n');
+    }
+    for (const v of m.substituidos) {
+      out.write('substituido ' + v.id + ' sha256=' + String(v.sha256).slice(0, 12) + '… (' + v.ficheiros_no_ambito + ' ficheiros, head '
+        + String(v.head_da_raiz_ao_versionar || 'n/d').slice(0, 8) + ') — ' + v.artefactos_da_corrida_invalidada.length + ' artefacto(s) invalidado(s) no disco\n');
+    }
+    out.write('escrito ' + destino + '\n');
   }
   return falhas > 0 ? 1 : 0;
 }

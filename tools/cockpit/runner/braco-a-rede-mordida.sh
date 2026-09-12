@@ -28,7 +28,8 @@ FALHAS=0
 
 conta() {  # conta() <rotulo> <esperado: zero|naozero> <cmd...>
   local rotulo="$1" esperado="$2"; shift 2
-  strace -f -qq -e trace=connect -o "$TMP/t" "$@" >/dev/null 2>&1
+  # As MESMAS flags de `braco-a-semgrep.sh --strace`; se la mudarem, mudam aqui.
+  strace -f -qq -e trace=connect,execve -o "$TMP/t" "$@" >/dev/null 2>&1
   local n; n=$(grep -c "connect(" "$TMP/t" 2>/dev/null); n=${n:-0}
   local veredicto
   if [ "$esperado" = naozero ]; then

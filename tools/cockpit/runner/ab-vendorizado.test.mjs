@@ -28,7 +28,7 @@ import assert from 'node:assert/strict';
 import {
   verificarEntradas, verificarManifesto, verificarTudo, relatorio,
   entradasDoManifesto, sha256Buf, ehRegraYaml,
-  MANIFESTO_REGRAS, MANIFESTO_AMBITO,
+  MANIFESTO_REGRAS, MANIFESTO_AMBITO, DIR_AB,
 } from './ab-vendorizado.mjs';
 
 const RAIZ_REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -239,7 +239,25 @@ test('o manifesto real declara o que o §2.1 e o §2.2 exigem', () => {
     assert.match(s.sha256, /^[0-9a-f]{64}$/, s.id + ': sha256 malformado');
     assert.ok(s.ficheiros_no_ambito > 0, s.id + ': ambito vazio');
   }
-  // A divergencia de S1 face a ancora do §1 esta DECLARADA, nao apagada.
-  assert.ok(ambito.ressalva_S1 && ambito.ressalva_S1.medicao, 'a ressalva de S1 desapareceu do manifesto');
-  assert.equal(ambito.sujeitos[0].no_sha_preregistado, false);
+  // §1 + §10.2: os TRES sujeitos varridos no sha pre-registado, medido por git e
+  // nao declarado. Ate 2026-09-11 S1 estava em 2d5fd762 e o manifesto dizia-o
+  // (`no_sha_preregistado: false`); o adversario do PR #505 bloqueou por isso.
+  for (const s of ambito.sujeitos) {
+    assert.match(s.sha_preregisto, /^[0-9a-f]{40}$/, s.id + ': sha pre-registado malformado');
+    assert.equal(s.head_da_raiz_ao_versionar, s.sha_preregisto, s.id + ': a lista nao foi gerada no sha pre-registado');
+    assert.equal(s.no_sha_preregistado, true, s.id + ': fora do sha pre-registado (§10.2)');
+  }
+  // A corrida invalidada de S1 esta REGISTADA, nao apagada: entrada substituida
+  // com o head medido, o porque derivado, e os artefactos postos de lado no disco.
+  assert.ok(Array.isArray(ambito.substituidos), 'o manifesto perdeu o historico de substituicoes');
+  const s1Velha = ambito.substituidos.find((x) => x.id === 'S1' && x.no_sha_preregistado === false);
+  assert.ok(s1Velha, 'a entrada de S1 gerada fora do sha pre-registado desapareceu do manifesto');
+  assert.match(s1Velha.head_da_raiz_ao_versionar, /^2d5fd762/);
+  assert.equal(s1Velha.ficheiros_no_ambito, 974);
+  assert.match(s1Velha.porque, /§10\.2/);
+  assert.ok(s1Velha.artefactos_da_corrida_invalidada.length >= 3,
+    'os artefactos da corrida invalidada nao estao no disco com o prefixo INVALIDO-2d5fd76');
+  for (const n of s1Velha.artefactos_da_corrida_invalidada) {
+    assert.equal(existsSync(path.join(RAIZ_REPO, DIR_AB, n)), true, n + ' declarado e ausente');
+  }
 });
