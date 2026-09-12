@@ -306,7 +306,68 @@ function instalarVigiaDeFilhos({ aoFilho, execPath = process.execPath, maxArgs =
   };
 }
 
+/**
+ * O vigia dos WORKERS — o quarto eixo (2026-09-11, 3.ª lente, escape 1).
+ *
+ * Um `worker_threads.Worker` é uma thread do MESMO processo: tem o mesmo PID, a
+ * sonda do SO não o distingue, e o `child_process` não o vê nascer. MEDIDO no
+ * Node v24.14.0 desta máquina, com a sentinela no `NODE_OPTIONS` do processo:
+ *
+ *     new Worker(f, {eval:true})                                 → sentinela ENTRA
+ *     new Worker(f, {eval:true, execArgv:[]})                    → sentinela ENTRA
+ *     new Worker(f, {eval:true, env:{...process.env}})           → sentinela ENTRA
+ *     new Worker(f, {eval:true, env:SHARE_ENV})                  → sentinela ENTRA
+ *     new Worker(f, {eval:true, env:{...process.env, NODE_OPTIONS:''}}) → NÃO ENTRA
+ *
+ * O que decide é o `NODE_OPTIONS` do `env` do worker, não o `execArgv`. Com o
+ * `env` a apagar o `--require`, o worker fez `http.get('http://example.com')`
+ * e recebeu **HTTP 200** com o relatório a dizer `rede_zero: true`.
+ *
+ * Aqui cada worker é ANUNCIADO — `{ev:'worker', tid, execArgv, env,
+ * herda_sentinela}` — e é o pai (`rede-zero.mjs`) que decide se ficou coberto:
+ * só quando a sentinela DENTRO do worker escreveu a sua própria
+ * `sentinela-carregada` com esse `tid`. `herda_sentinela` é a previsão feita a
+ * partir das opções; a cobertura é a linha, nunca a previsão.
+ *
+ * Isto é EVIDÊNCIA, não veredicto: desde a 3.ª lente nenhum processo sem
+ * isolamento do SO dá `true` (ver o cabeçalho de `rede-zero.mjs`). Anunciar os
+ * workers serve para que o relatório diga QUAL foi o buraco, não para o fechar.
+ */
+function instalarVigiaDeWorkers({ aoWorker, nodeOptions = process.env.NODE_OPTIONS, registo = process.env.REDE_ZERO_REGISTO }) {
+  const wt = require('node:worker_threads');
+  const Original = wt.Worker;
+  if (typeof Original !== 'function') return { instaladas: Object.freeze([]), restaurar() {} };
+
+  const prever = (o) => {
+    const env = o && o.env;
+    // Sem `env`, ou com `SHARE_ENV`, o worker vê o `process.env` do processo — e
+    // esse leva a sentinela. Um objecto próprio só a leva se copiou os dois.
+    if (env === undefined || env === null || env === wt.SHARE_ENV) return { env: 'herdado', herda_sentinela: true };
+    if (typeof env !== 'object') return { env: 'proprio', herda_sentinela: false };
+    const herda = String(env.NODE_OPTIONS ?? '') === String(nodeOptions ?? '') && String(env.REDE_ZERO_REGISTO ?? '') === String(registo ?? '');
+    return { env: 'proprio', herda_sentinela: herda };
+  };
+
+  class Worker extends Original {
+    constructor(filename, options) {
+      super(filename, options);
+      try {
+        aoWorker({
+          tid: Number.isInteger(this.threadId) ? this.threadId : null,
+          execArgv: Array.isArray(options && options.execArgv),
+          ...prever(options),
+        });
+      } catch { /* anunciar não pode partir o worker */ }
+    }
+  }
+  wt.Worker = Worker;
+  return {
+    instaladas: Object.freeze(['Worker']),
+    restaurar() { wt.Worker = Original; },
+  };
+}
+
 module.exports = {
   RE_INERTE, fazEhInerte, alvoDoConnect, alvoDoDgram, METODOS_RESOLVER, instalarGuardas,
-  pareceNode, instalarVigiaDeFilhos,
+  pareceNode, instalarVigiaDeFilhos, instalarVigiaDeWorkers,
 };

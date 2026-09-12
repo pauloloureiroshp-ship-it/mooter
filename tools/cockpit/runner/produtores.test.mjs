@@ -28,11 +28,16 @@ import child_process from 'node:child_process';
 import assert from 'node:assert/strict';
 
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
+import os from 'node:os';
 import {
   ORIGENS, normalizar, porTriarPorOrigem, lerProdutores, escrever, correr, posix,
   spawnVivo, ACHADOS_JSON, MANIFESTO_JSON,
   estadoDaCorrida, saudeDaOrigem, redeNaoVacua,
 } from './produtores.mjs';
+// Por namespace, para que o ficheiro carregue contra 481ea0d7 (ver rede-zero.test.mjs).
+import * as produtoresMod from './produtores.mjs';
+const { TEXTO_REDE_NULL_WINDOWS } = produtoresMod;
 import { produtorJscpd } from './produtor-jscpd.mjs';
 import { produtorKnip } from './produtor-knip.mjs';
 import { produtorSemgrep } from './produtor-semgrep.mjs';
@@ -369,9 +374,55 @@ test('MORDIDA · o namespace embrulha o BASH DE LOGIN, não só o semgrep', () =
   assert.equal((c.match(/--config /g) || []).length, 4, 'os quatro conjuntos de §2.1, nem mais nem menos');
   assert.doesNotMatch(c, /--config p\//, 'nenhum --config remoto: o pré-registo congela a cópia local');
 
-  assert.deepEqual(argvWsl('X'), ['--', 'unshare', '-rn', 'bash', '-lc', 'X'],
-    'o unshare tem de estar ANTES do bash, senão o login corre com rede');
-  assert.deepEqual(argvWsl('X', { usarUnshare: false }), ['--', 'bash', '-lc', 'X']);
+  // 3.ª lente (2026-09-11): `wsl.exe -- …` ainda passava por uma shell do WSL
+  // ANTES do unshare, no namespace raiz. `--exec` («without using the default
+  // Linux shell») lança o unshare directamente. Ver o teste W4 abaixo, que o
+  // mede contra o WSL real.
+  assert.deepEqual(argvWsl('X'), ['--exec', 'unshare', '-rn', 'bash', '-lc', 'X'],
+    'o unshare tem de estar ANTES do bash, e nada de shell antes do unshare: --exec');
+  assert.deepEqual(argvWsl('X', { usarUnshare: false }), ['--exec', 'bash', '-lc', 'X']);
+  assert.notEqual(argvWsl('X')[0], '--', 'a via `--` mete uma shell no namespace raiz antes do unshare (medido)');
+});
+
+// ── W4 · a shell do WSL antes do unshare (3.ª lente) ──────────────────────
+//
+// Corre só onde há `wsl.exe` com `unshare -rn` a funcionar (a máquina do dono);
+// noutro lado salta com a razão escrita. Duas mordidas, ambas reproduzidas
+// contra 481ea0d7 (`--`) e a falhar lá:
+//   (a) expansão: `echo '$HOME'` entre aspas simples chegava ao bash de dentro
+//       já expandido pela shell de fora → `/home/paulo`; com `--exec` → `$HOME`.
+//   (b) witness por BASH_ENV/WSLENV: com `--`, o BASH_ENV corria 2× e a 1.ª
+//       vez era no namespace raiz com eth0; com `--exec` corre 1×, só dentro.
+
+function wslDisponivel() {
+  if (process.platform !== 'win32') return { ok: false, porque: 'não é Windows' };
+  const r = child_process.spawnSync('wsl.exe', ['--exec', 'unshare', '-rn', 'bash', '-lc', 'echo SIM'], { encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+  const out = String(r.stdout || '').replace(/\0/g, '');
+  if (r.status !== 0 || !/SIM/.test(out)) return { ok: false, porque: `wsl.exe --exec unshare -rn não respondeu SIM (rc=${r.status})` };
+  return { ok: true };
+}
+
+test('MORDIDA · W4 · com --exec não há shell do WSL antes do unshare, nem expansão fora do namespace', { skip: (() => { const d = wslDisponivel(); return d.ok ? false : d.porque; })() }, () => {
+  const correr = (argv, env = {}) => {
+    const r = child_process.spawnSync('wsl.exe', argv, { encoding: 'utf8', windowsHide: true, timeout: 60_000, env: { ...process.env, ...env } });
+    return String(r.stdout || '').replace(/\0/g, '').trim();
+  };
+  // (a) a shell de fora não pode ter expandido nada: `$HOME` chega literal.
+  assert.equal(correr(argvWsl("echo '$HOME'")), '$HOME',
+    'com `--` a shell de fora expandia dentro de aspas simples (medido: /home/paulo)');
+
+  // (b) cada bash que arranca escreve o seu namespace; só pode haver UM, e sem eth0.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rede-zero-w4-'));
+  const envSh = path.join(dir, 'env.sh');
+  const witness = path.join(dir, 'witness.txt');
+  fs.writeFileSync(envSh, 'echo "ns=$(readlink /proc/self/ns/net) links=$(ip -o link show | cut -d: -f2 | tr -d \' \' | tr \'\\n\' \',\')" >> "$REDE_ZERO_W4"\n');
+  try {
+    correr(argvWsl('true'), { BASH_ENV: envSh, REDE_ZERO_W4: witness, WSLENV: 'BASH_ENV/p:REDE_ZERO_W4/p' });
+    const linhas = fs.readFileSync(witness, 'utf8').trim().split('\n').filter(Boolean);
+    assert.equal(linhas.length, 1, `só um bash pode ter arrancado, e dentro do namespace; viu-se:\n${linhas.join('\n')}`);
+    assert.doesNotMatch(linhas[0], /eth0/, 'o único bash não pode ver a eth0 (isso é o namespace raiz)');
+    assert.match(linhas[0], /links=lo,$/, 'lá dentro só existe lo');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('MORDIDA · um wsl.exe é UM registo, não dois — a cardinalidade não se infla', async () => {
@@ -399,14 +450,46 @@ test('MORDIDA · um wsl.exe é UM registo, não dois — a cardinalidade não se
     opcoesRede: { sondaImpl: async () => ({ remotos: [], udp: 0 }), registo: null },
   });
   assert.equal(nascidos.length, 2, 'dois processos de wsl.exe nascem: a sonda e a corrida');
+  for (const n of nascidos) assert.equal(n.args[0], '--exec', 'os dois lançamentos vão por --exec, sem shell antes do unshare');
   assert.equal(auditoria.filhos.length, 2, 'e dois registos — nem mais, nem sintéticos');
   for (const f of auditoria.filhos) {
     assert.equal(f.sonda.estado, 'bloqueado');
-    assert.match(f.sonda.porque, /bash de login incluído/);
+    assert.match(f.sonda.porque, /shell de login que o lança correram num espaço de nomes/);
+    assert.match(f.sonda.porque, /init do WSL .* não é medido/, 'a afirmação diz o que fica de fora');
   }
+  // O ÚNICO caminho para `true` que resta: todos os processos por construção.
   assert.equal(manifesto.rede.rede_zero, true);
+  assert.match(manifesto.rede.porque, /TODOS em isolamento do SO por construção/);
   assert.doesNotMatch(manifesto.rede.porque, /sondado/,
     'nenhum wsl.exe pode ficar em `sondado`: essa tabela não vê para dentro da VM');
+});
+
+test('MORDIDA · jscpd/knip em Windows nativo: rede `n/d` com a evidência anexada, e o texto diz que é o esperado', async () => {
+  // Um produtor Windows-nativo (um Node com a sentinela, calado) é o caso do
+  // knip. Até 2026-09-11 dava `instrumentado · true`; agora `null`, com o
+  // estado e a evidência no relatório. E o CLI tem de dizer ao dono que é o
+  // resultado esperado, não um defeito — e que só o WSL com node provaria.
+  const produtorNativo = {
+    id: 'knip', origem: 'knip',
+    correr: async ({ ambiente }) => {
+      const p = child_process.spawn(process.execPath, ['-e', '0'], { env: ambiente, windowsHide: true });
+      await new Promise((r) => p.on('close', r));
+      return { brutos: [], meta: { rc: 0, ficheiros_varridos: 1, erros: 0 } };
+    },
+  };
+  const { manifesto, auditoria } = await correr({
+    raiz: 'C:/r', agora: Date.parse(GERADO), produtores: [produtorNativo],
+    opcoesRede: { sondaImpl: async () => ({ remotos: [], udp: 0 }), intervaloSondaMs: 60_000 },
+  });
+  assert.equal(manifesto.origens.knip.estado, 'ok', 'a ferramenta correu limpa…');
+  assert.equal(auditoria.filhos[0].sonda.estado, 'instrumentado', '…a sentinela entrou e não viu nada…');
+  assert.equal(manifesto.rede.rede_zero, null, '…e mesmo assim não há prova: evidência não é veredicto');
+  assert.match(manifesto.rede.porque, /sem isolamento do SO não há prova/);
+  assert.match(manifesto.rede.porque, /process\.binding/);
+  assert.match(TEXTO_REDE_NULL_WINDOWS, /resultado ESPERADO em Windows nativo/);
+  assert.match(TEXTO_REDE_NULL_WINDOWS, /unshare -rn/);
+  assert.match(TEXTO_REDE_NULL_WINDOWS, /which node/);
+  assert.match(TEXTO_REDE_NULL_WINDOWS, /NÃO existe nesta máquina/);
 });
 
 test('semgrep · caminhos do Windows atravessam para o WSL e as aspas aguentam espaços', () => {
@@ -771,6 +854,9 @@ test('MORDIDA · o CLI sai com 0 só quando as três correram E a rede foi medid
     `sem --regras/--jscpd/--knip nenhuma ferramenta corre: o EXIT tinha de o dizer. Saída:\n${saida}`);
   assert.match(saida, /FALHOU/, 'e as três falhas ficam escritas na consola');
   assert.match(saida, /rede_zero: n\/d/, 'e a prova de rede não pode afirmar-se por vacuidade');
+  if (process.platform === 'win32') {
+    assert.match(saida, /resultado ESPERADO em Windows nativo/, 'em Windows o CLI diz que o n/d é o esperado e porquê');
+  }
 });
 
 // ── 11. a severidade que o servidor entrega ao painel ──────────────────────

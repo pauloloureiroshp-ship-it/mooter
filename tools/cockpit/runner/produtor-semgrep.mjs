@@ -28,9 +28,33 @@
  * o `-l` é um shell de LOGIN, que lê `/etc/profile`, `/etc/profile.d/*` e
  * `~/.profile` com `eth0` UP e rota default. Essa parte da corrida tinha como
  * única «medição» a tabela de sockets do Windows, que não vê para dentro da VM:
- * o zero cego que este mesmo cabeçalho condena, três parágrafos acima. Agora o
- * namespace envolve o processo inteiro (ver `argvWsl`), e a própria sonda de
+ * o zero cego que este mesmo cabeçalho condena, três parágrafos acima. O
+ * namespace passou a envolver o bash (ver `argvWsl`), e a própria sonda de
  * disponibilidade é feita já por essa via, para não ser ela o processo cego.
+ *
+ * ⚠️ CORRIGIDO a 2026-09-11, 3.ª lente (codex): havia AINDA uma shell antes do
+ * `unshare`. `wsl.exe -- <cmd>` executa `<cmd>` através da shell por omissão
+ * do WSL, e essa shell corre no namespace raiz, com `eth0` UP. A lente
+ * mostrou-o com `BASH_ENV` via `WSLENV`: a mesma corrida passava por
+ * `net:[4026531840]` (eth0 UP) e só depois por `net:[…]` (lo DOWN), e o
+ * produtor marcava `bloqueado` na mesma. A afirmação «todo o processo correu
+ * num espaço de nomes» era falsa nessa shell. MEDIDO nesta máquina, WSL 2.6.3.0:
+ *
+ *     wsl.exe --  unshare -rn bash -lc …   BASH_ENV corre 2×: ns raiz (lo,eth0) e ns novo (lo)
+ *     wsl.exe --exec unshare -rn bash -lc …   BASH_ENV corre 1×: ns novo (lo), só
+ *
+ * E a shell de fora não era só uma shell: fazia uma ronda de EXPANSÃO sobre o
+ * comando antes de ele entrar no namespace. Medido: `echo '$HOME'` entre aspas
+ * simples chegava ao bash de dentro já como `/home/paulo` pela via `--`, e como
+ * `$HOME` literal pela via `--exec`. Um `$` num caminho de `raiz` ou `dirRegras`
+ * era expandido — ou executado — FORA do namespace.
+ *
+ * Agora é `--exec` («Execute the specified command without using the default
+ * Linux shell», `wsl.exe --help`): o `unshare` é o primeiro processo que o WSL
+ * lança para esta corrida. A afirmação exacta, e só ela: **o semgrep e a shell
+ * que o lança correm dentro do namespace; o init do WSL que lança o `unshare`
+ * corre fora dele, e não é medido (n/d).** Não há forma simples de medir o
+ * tráfego desse init a partir daqui; não se promete.
  *
  * E os `wsl.exe` deixaram de contar duas vezes. A prova era registada como um
  * filho SINTÉTICO ao lado dos dois `wsl.exe` reais, que ficavam em `sondado` —
@@ -139,7 +163,7 @@ export function comandoWsl({ raiz, dirRegras, alvo = '.' }) {
 }
 
 /**
- * O argv do `wsl.exe`. O `unshare -rn` envolve o **bash**, não o semgrep.
+ * O argv do `wsl.exe`. `--exec`, e o `unshare -rn` envolve o **bash**.
  *
  * ── PORQUE É QUE ISTO MUDOU (2026-08-26) ───────────────────────────────────
  * A versão anterior punha `unshare -rn` DENTRO da string, a envolver só o
@@ -149,21 +173,31 @@ export function comandoWsl({ raiz, dirRegras, alvo = '.' }) {
  * sockets do Windows, que estruturalmente não vê para dentro da VM do WSL —
  * o zero cego que o cabeçalho deste ficheiro condena.
  *
- * MEDIDO a 2026-08-26, com o namespace a envolver o bash inteiro:
+ * ── E OUTRA VEZ (2026-09-11) ────────────────────────────────────────────────
+ * `wsl.exe -- …` passa pela shell por omissão do WSL ANTES do `unshare`, no
+ * namespace raiz. `--exec` não. MEDIDO nesta máquina (WSL 2.6.3.0, Node
+ * v24.14.0 a lançar por `spawn`), com um witness por ficheiro para que a
+ * shell de fora não tivesse nada para expandir:
  *
- *     wsl.exe -- unshare -rn bash -lc 'ip -o link show; command -v semgrep; ls /mnt/c'
- *     1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN
- *     /home/paulo/.local/bin/semgrep
- *     MNT_OK
+ *     --      SEG1 ns=net:[4026532230] pwd=/tmp links=lo,   (dentro, sim…)
+ *             …mas BASH_ENV correu ANTES em ns=net:[4026531840] links=lo,eth0,
+ *     --exec  SEG1 ns=net:[4026532292] pwd=/tmp links=lo,
+ *             BASH_ENV correu UMA vez, já em ns=net:[4026532292] links=lo,
+ *     REF     ns=net:[4026531840] pwd=/mnt/c/… links=lo,eth0,
  *
- * Ou seja: lá dentro só existe `lo` e está DOWN, o semgrep continua no PATH
- * (o `/etc/profile` corre à mesma, agora sem rede) e `/mnt/c` continua legível.
- * Contra: fora do namespace o mesmo comando mostra `eth0` UP com rota default.
+ *     expansão pela shell de fora, `echo '$HOME'`:
+ *     --      → /home/paulo        (a shell de fora expandiu dentro de aspas simples)
+ *     --exec  → $HOME              (literal, como o bash de dentro manda)
+ *
+ * Lá dentro só existe `lo` e está DOWN, o semgrep continua no PATH (o
+ * `/etc/profile` do `-l` corre à mesma, agora sem rede) e `/mnt/c` continua
+ * legível. O que corre antes do `unshare` na via `--exec` é o init do WSL, e
+ * não é medido.
  */
 export function argvWsl(comando, { usarUnshare = true } = {}) {
   return usarUnshare
-    ? ['--', 'unshare', '-rn', 'bash', '-lc', comando]
-    : ['--', 'bash', '-lc', comando];
+    ? ['--exec', 'unshare', '-rn', 'bash', '-lc', comando]
+    : ['--exec', 'bash', '-lc', comando];
 }
 
 /**
@@ -188,7 +222,7 @@ export function produtorSemgrep({ dirRegras, alvo = '.', spawnImpl = spawnVivo, 
         marcarFilhoPorPid(pid, temUnshare
           ? {
             estado: 'bloqueado',
-            porque: 'todo o processo (bash de login incluído) correu num espaço de nomes de rede sem interfaces (unshare -rn): não há rota para haver chamada',
+            porque: 'o semgrep e a shell de login que o lança correram num espaço de nomes de rede sem interfaces (wsl.exe --exec unshare -rn): não há rota para haver chamada; o init do WSL que lança o unshare corre fora do namespace e não é medido',
           }
           : {
             estado: 'n/d',

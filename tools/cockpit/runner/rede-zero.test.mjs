@@ -24,12 +24,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import child_process from 'node:child_process';
+import worker_threads from 'node:worker_threads';
 
 import {
   medirRede, auditar, ehInerte, alvoDoConnect, ambienteHostil, instalarGuardas,
   lerRegistoDosFilhos, RedeBloqueada, PORTA_PROXY_MORTA, RE_INERTE,
   METODOS_RESOLVER, classificarPorCamadas, instalarVigiaDeFilhos, pareceNode,
 } from './rede-zero.mjs';
+// Os símbolos da 3.ª lente entram por namespace, para que este ficheiro CARREGUE
+// contra 481ea0d7 e os testes de mordida falhem na asserção, não no import.
+import * as rz from './rede-zero.mjs';
+const { instalarVigiaDeWorkers, FORA_DA_SENTINELA, ESTADOS_POR_CONSTRUCAO } = rz;
 
 // Sonda injectada: nunca vê nada. Serve os casos em que o que se testa é a
 // contabilidade, não o SO.
@@ -150,17 +155,20 @@ test('um adaptador pode declarar a sua própria medição — é o caminho do se
   assert.equal(auditoria.filhos[0].sonda.estado, 'bloqueado');
 });
 
-test('corrida limpa com filho sondado dá `true` e diz quantas amostras foram tiradas', async () => {
+test('corrida limpa com filho sondado é `null` — a amostragem é evidência, e diz quantas amostras tirou', async () => {
   // Sem sentinela (`registo: null`): o que se julga aqui é a via da AMOSTRAGEM.
+  // Até 2026-09-11 dava `true`. A 3.ª lente mostrou UDP a sair entre amostras
+  // (61 bytes de 1.1.1.1:53 com 3 amostras tiradas): observação não é prova.
   const { auditoria } = await medirRede(async () => {
     const p = child_process.spawn(process.execPath, ['-e', 'setTimeout(()=>{},400)']);
     await new Promise((r) => p.on('close', r));
   }, { sondaImpl: sondaLimpa, intervaloSondaMs: 20, registo: null });
 
-  assert.equal(auditoria.rede_zero, true);
+  assert.equal(auditoria.rede_zero, null, 'sondado limpo é evidência, não veredicto');
   assert.equal(auditoria.filhos[0].sonda.estado, 'sondado');
-  assert.ok(auditoria.filhos[0].sonda.amostras >= 1, 'um `true` sem uma única amostra seria um `true` sem medição');
-  assert.match(auditoria.porque, /amostra/);
+  assert.ok(auditoria.filhos[0].sonda.amostras >= 1, 'a evidência tem de dizer quantas amostras');
+  assert.match(auditoria.porque, /sem isolamento do SO não há prova/);
+  assert.match(auditoria.porque, /amostra\(s\) da sonda/);
 });
 
 // ── loopback não é rede ────────────────────────────────────────────────────
@@ -200,12 +208,15 @@ test('alvoDoConnect distingue as três formas do connect, e IPC não é rede', (
   assert.deepEqual(alvoDoConnect([11434, '127.0.0.1']), { tipo: 'loopback', alvo: '127.0.0.1:11434' });
 });
 
-test('auditar recusa transformar "não medi" em "medi zero"', () => {
-  const medido = { cmd: 'a', sonda: { estado: 'sondado', remotos: [], amostras: 3, porque: null } };
+test('auditar recusa transformar "não medi" em "medi zero" — e "observei limpo" também não é "medi zero"', () => {
+  const provado = { cmd: 'w', sonda: { estado: 'bloqueado', remotos: [], amostras: 1, porque: 'unshare' } };
+  const observado = { cmd: 'a', sonda: { estado: 'sondado', remotos: [], amostras: 3, porque: null } };
   const cego = { cmd: 'b', sonda: { estado: 'n/d', remotos: [], amostras: 0, porque: 'sem sonda' } };
-  assert.equal(auditar({ filhos: [medido] }).rede_zero, true);
-  assert.equal(auditar({ filhos: [medido, cego] }).rede_zero, null);
-  assert.equal(auditar({ chamadas: [{ api: 'fetch', alvo: 'x' }], filhos: [medido] }).rede_zero, false);
+  assert.equal(auditar({ filhos: [provado] }).rede_zero, true, 'só a construção dá true');
+  assert.equal(auditar({ filhos: [observado] }).rede_zero, null, 'sondado limpo é evidência');
+  assert.equal(auditar({ filhos: [provado, observado] }).rede_zero, null, 'um sem isolamento chega para não haver prova');
+  assert.equal(auditar({ filhos: [provado, cego] }).rede_zero, null);
+  assert.equal(auditar({ chamadas: [{ api: 'fetch', alvo: 'x' }], filhos: [provado] }).rede_zero, false);
   // Uma chamada registada ganha a tudo: nem sequer se olha para os filhos.
   assert.equal(auditar({ chamadas: [{ api: 'fetch', alvo: 'x' }], filhos: [cego] }).rede_zero, false);
 });
@@ -273,18 +284,22 @@ test('MORDIDA · a sentinela apanha a saída DENTRO do filho e derruba o veredic
   assert.equal(auditoria.filhos[0].sonda.saidas[0].api, 'dns.lookup');
 });
 
-test('um filho calado, com sentinela e SEM addons nativos, é `instrumentado`', async () => {
+test('um filho calado, com sentinela e SEM addons nativos, é `instrumentado` — e o veredicto é `null`', async () => {
   const { auditoria } = await medirRede(async (ctx) => {
     const p = child_process.spawn(process.execPath, ['-e', '0'], { env: ctx.ambiente });
     await new Promise((r) => p.on('close', r));
   }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
 
   // O MESMO filho que, sem sentinela, dava `n/d` por morrer antes da amostra.
-  // A promoção só é legítima porque a camada nativa foi MEDIDA e está vazia.
+  // O estado diz a qualidade da evidência; o veredicto diz que evidência não
+  // é prova: até 2026-09-11 isto era `true`, e foi exactamente com um filho
+  // assim que a 3.ª lente ligou TCP por `process.binding('tcp_wrap')`.
   assert.equal(auditoria.filhos[0].sonda.estado, 'instrumentado');
   assert.equal(auditoria.filhos[0].sonda.nativo, 'sem-addons');
   assert.match(auditoria.filhos[0].sonda.porque, /ZERO addons nativos/);
-  assert.equal(auditoria.rede_zero, true);
+  assert.match(auditoria.filhos[0].sonda.porque, /evidência, não prova/);
+  assert.equal(auditoria.rede_zero, null);
+  assert.match(auditoria.porque, /process\.binding/);
 });
 
 test('MORDIDA · a saída de um NETO (filho de um filho) também derruba o veredicto', async () => {
@@ -499,10 +514,13 @@ test('MORDIDA · G · sentinela + addon nativo + zero amostras é `n/d`, não `i
   assert.match(auditoria.filhos[0].sonda.porque, /não foi observada/);
 });
 
-test('G2 · o MESMO filho com addon, mas com amostras da sonda, volta a ser medido', async () => {
+test('G2 · o MESMO filho com addon, mas com amostras da sonda, é `sondado` — evidência com o nome certo, e `null`', async () => {
   // A regra não é «addon nativo mata o veredicto»: é «uma camada sem NENHUMA
-  // evidência mata o veredicto». Com a sonda a tirar amostras, a camada nativa
-  // passa a ter observação e o número de amostras viaja no relatório.
+  // evidência é n/d». Com a sonda a tirar amostras, a camada nativa passa a ter
+  // observação — e o estado diz a qualidade da PIOR camada: `sondado`, com o
+  // número de amostras. Até 2026-09-11 isto dizia `instrumentado` e dava
+  // `true`; a 3.ª lente apontou que «só promove com addons=0» não batia com
+  // este ramo, e que observação (UDP entre amostras) não é prova.
   const cod = "try{process.dlopen({exports:{}},'C:/nao-existe-addon.node')}catch(e){};setTimeout(()=>{},400)";
   const { auditoria } = await medirRede(async (ctx) => {
     const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
@@ -510,9 +528,10 @@ test('G2 · o MESMO filho com addon, mas com amostras da sonda, volta a ser medi
   }, { sondaImpl: sondaLimpa, intervaloSondaMs: 20 });
 
   assert.ok(auditoria.filhos[0].sonda.amostras >= 1);
-  assert.equal(auditoria.filhos[0].sonda.estado, 'instrumentado');
-  assert.match(auditoria.filhos[0].sonda.porque, /amostra\(s\) da sonda do SO/);
-  assert.equal(auditoria.rede_zero, true);
+  assert.equal(auditoria.filhos[0].sonda.estado, 'sondado');
+  assert.equal(auditoria.filhos[0].sonda.js, 'intercetado', 'a camada de JS continua anexada como evidência');
+  assert.match(auditoria.filhos[0].sonda.porque, /só por amostragem: \d+ amostra\(s\) da sonda do SO/);
+  assert.equal(auditoria.rede_zero, null);
 });
 
 // ── a paridade entre o pai e a sentinela, verificada a correr ───────────────
@@ -562,16 +581,65 @@ test('a lista de métodos de resolução cobre TUDO o que este Node expõe', () 
 test('classificarPorCamadas: a promoção depende da camada nativa, não da fé', () => {
   assert.equal(classificarPorCamadas({ saidas: [], addons: [], amostras: 0 }).estado, 'instrumentado');
   assert.equal(classificarPorCamadas({ saidas: [], addons: ['x.node'], amostras: 0 }).estado, 'n/d');
-  assert.equal(classificarPorCamadas({ saidas: [], addons: ['x.node'], amostras: 3 }).estado, 'instrumentado');
+  // Era `instrumentado` — a afirmação «só promove com addons=0» não batia com o código (3.ª lente).
+  assert.equal(classificarPorCamadas({ saidas: [], addons: ['x.node'], amostras: 3 }).estado, 'sondado');
+});
+
+test('MORDIDA · a matriz de estados: TODAS as combinações addons×por-cobrir×amostras batem com a tabela do cabeçalho', () => {
+  // A 3.ª lente apanhou uma linha da tabela a dizer uma coisa e o código outra
+  // (`addons=1, amostras=1, filhos=[]` → `instrumentado`, contra «só promove
+  // com addons=0 e 0 filhos»). Uma tabela que não é percorrida inteira é uma
+  // promessa. Esta é percorrida inteira, e a expectativa está escrita AQUI, à
+  // mão, linha a linha — não derivada do código.
+  const curl = { api: 'spawnSync', cmd: 'curl.exe', args: [], pid: 1, node: false, coberto: false };
+  const esperado = {
+    // addons | porCobrir | amostras → estado
+    '0|0|0': 'instrumentado',
+    '0|0|1': 'instrumentado',
+    '0|1|0': 'n/d',
+    '0|1|1': 'n/d',
+    '1|0|0': 'n/d',
+    '1|0|1': 'sondado',
+    '1|1|0': 'n/d',
+    '1|1|1': 'n/d',
+  };
+  const vistos = [];
+  for (const addons of [0, 1]) for (const porCobrir of [0, 1]) for (const amostras of [0, 1]) {
+    const chave = `${addons}|${porCobrir}|${amostras}`;
+    const r = classificarPorCamadas({
+      saidas: [],
+      addons: addons ? ['x.node'] : [],
+      amostras,
+      filhos: porCobrir ? [curl] : [],
+    });
+    assert.equal(r.estado, esperado[chave], `addons=${addons} porCobrir=${porCobrir} amostras=${amostras}`);
+    assert.doesNotMatch(r.porque, /não sobra camada/, chave);
+    vistos.push(chave);
+  }
+  assert.equal(vistos.length, 8, 'as oito combinações, nem mais nem menos');
+  assert.deepEqual(Object.keys(esperado).sort(), vistos.sort(), 'a tabela e o percurso cobrem o mesmo conjunto');
+  // Um worker por cobrir é um «por cobrir» como os outros: em qualquer linha
+  // da tabela, leva o estado a `n/d`.
+  const workerSemSentinela = { tid: 1, execArgv: true, env: 'proprio', herda_sentinela: false, coberto: false };
+  for (const addons of [0, 1]) for (const amostras of [0, 1]) {
+    assert.equal(classificarPorCamadas({ saidas: [], addons: addons ? ['x.node'] : [], amostras, workers: [workerSemSentinela] }).estado, 'n/d', `worker por cobrir com addons=${addons} amostras=${amostras}`);
+  }
+  // E nenhum estado que saia daqui pode dar `true` em auditar.
+  for (const estado of ['instrumentado', 'sondado', 'n/d']) {
+    assert.notEqual(auditar({ filhos: [{ cmd: 'x', sonda: { estado, remotos: [], saidas: [], amostras: 1, udp_max: 0, porque: '' } }] }).rede_zero, true, estado);
+  }
 });
 
 test('auditar conta os descendentes não medidos como não medidos', () => {
-  const medido = { cmd: 'a', sonda: { estado: 'instrumentado', remotos: [], saidas: [], amostras: 0, porque: null } };
+  const observado = { cmd: 'a', sonda: { estado: 'instrumentado', remotos: [], saidas: [], amostras: 0, porque: null } };
+  const provado = { cmd: 'w', sonda: { estado: 'bloqueado', remotos: [], saidas: [], amostras: 1, porque: 'unshare' } };
   const cego = { cmd: 'd', pid: 7, sonda: { estado: 'n/d', remotos: [], saidas: [], amostras: 0, porque: 'addon sem sonda' } };
-  assert.equal(auditar({ filhos: [medido] }).rede_zero, true);
-  assert.equal(auditar({ filhos: [medido], descendentes: [cego] }).rede_zero, null);
+  assert.equal(auditar({ filhos: [provado] }).rede_zero, true);
+  assert.equal(auditar({ filhos: [observado] }).rede_zero, null, 'instrumentado é evidência, não prova');
+  assert.equal(auditar({ filhos: [provado], descendentes: [cego] }).rede_zero, null);
+  assert.match(auditar({ filhos: [provado], descendentes: [cego] }).porque, /sem medição/);
   const falador = { cmd: 'd', pid: 7, sonda: { estado: 'instrumentado', remotos: [], saidas: [{ api: 'fetch', alvo: 'https://x' }], amostras: 0, porque: null } };
-  assert.equal(auditar({ filhos: [medido], descendentes: [falador] }).rede_zero, false);
+  assert.equal(auditar({ filhos: [provado], descendentes: [falador] }).rede_zero, false);
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -627,14 +695,19 @@ test('MORDIDA · H · um filho instrumentado que faz nascer um neto NÃO-Node n�
 test('H2 · o MESMO filho a fazer nascer um neto NODE continua `instrumentado` — o neto anuncia-se', async () => {
   // O par positivo: o guarda não pode morder sempre. Um neto Node herda o
   // `NODE_OPTIONS`, escreve a sua própria `sentinela-carregada` e o anunciado
-  // fica coberto. O filho continua medido e o neto aparece como descendente.
+  // fica coberto. O filho continua `instrumentado` e o neto aparece como
+  // descendente. O veredicto é `null` (sem isolamento não há prova), e o
+  // `porque` NÃO pode nomear um buraco de cobertura — é o que distingue este
+  // caso de H e H3.
   const cod = "require('child_process').spawnSync(process.execPath, ['-e','0'], {stdio:'ignore'})";
   const { auditoria } = await medirRede(async (ctx) => {
     const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
     await new Promise((r) => p.on('close', r));
   }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
 
-  assert.equal(auditoria.rede_zero, true);
+  assert.equal(auditoria.rede_zero, null);
+  assert.match(auditoria.porque, /sem isolamento do SO não há prova/);
+  assert.doesNotMatch(auditoria.porque, /sem medição/, 'coberto é coberto: o único motivo do null é a falta de isolamento');
   const f = auditoria.filhos[0];
   assert.equal(f.sonda.estado, 'instrumentado');
   assert.equal(f.sonda.filhos.length, 1);
@@ -797,10 +870,11 @@ test('MORDIDA · P · uma linha `saida` truncada no registo leva o veredicto a `
   assert.match(auditoria.porque, /1 linha/);
 });
 
-test('P2 · o MESMO registo íntegro dá o veredicto de antes — completo é `false`, só carregada é `true`', async () => {
+test('P2 · o MESMO registo íntegro dá o veredicto de antes — completo é `false`, só carregada é `null` sem «partida»', async () => {
   // O par positivo, nas duas direcções: a linha completa é uma saída (`false`,
-  // a nomear o alvo); sem a linha, um descendente calado (`true`). `partidas`
-  // é zero nos dois e não aparece no `porque`.
+  // a nomear o alvo); sem a linha, um descendente calado — `null` desde
+  // 2026-09-11 (é um processo sem isolamento), mas por ESSE motivo e não por
+  // linha partida. `partidas` é zero nos dois e não aparece no `porque`.
   const reg = path.join(os.tmpdir(), `rede-zero-integro-${process.pid}-${Date.now()}.jsonl`);
   fs.writeFileSync(reg,
     JSON.stringify({ pid: 424242, ev: 'sentinela-carregada', apis: 71 }) + '\n'
@@ -812,13 +886,14 @@ test('P2 · o MESMO registo íntegro dá o veredicto de antes — completo é `f
 
   fs.writeFileSync(reg, JSON.stringify({ pid: 424242, ev: 'sentinela-carregada', apis: 71 }) + '\n');
   const b = (await medirRede(async () => {}, { registo: reg, sondaImpl: sondaLimpa })).auditoria;
-  assert.equal(b.rede_zero, true);
+  assert.equal(b.rede_zero, null);
   assert.equal(b.partidas, 0);
   assert.doesNotMatch(b.porque, /partid/i);
+  assert.match(b.porque, /sem isolamento do SO/);
 });
 
 test('auditar: `partidas > 0` é `null` sem saída encontrada, e uma saída ENCONTRADA ganha à mesma', () => {
-  const medido = { cmd: 'a', sonda: { estado: 'instrumentado', remotos: [], saidas: [], amostras: 0, porque: null } };
+  const medido = { cmd: 'a', sonda: { estado: 'bloqueado', remotos: [], saidas: [], amostras: 1, porque: null } };
   assert.equal(auditar({ filhos: [medido], partidas: 0 }).rede_zero, true);
   const r = auditar({ filhos: [medido], partidas: 2 });
   assert.equal(r.rede_zero, null);
@@ -841,4 +916,192 @@ test('o cabeçalho de rede-zero.mjs deixou de citar o teste do spawnVivo como pr
   const pai = fs.readFileSync(path.join(AQUI, 'rede-zero.mjs'), 'utf8');
   assert.doesNotMatch(pai, /trancado por um teste que exige `spawnVivo`/);
   assert.doesNotMatch(pai, /não sobra camada por observar`/);
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// A 3.ª LENTE, 2026-09-11 (codex/OpenAI). Quatro escapes com `rede_zero: true`,
+// e a conclusão que os quatro têm em comum: UMA SENTINELA DENTRO DO PROCESSO
+// NÃO PROVA ZERO REDE. A partir daqui `true` só sai por construção.
+//
+//   W1 · Worker com env sem NODE_OPTIONS   → HTTP 200 real com `true`; tem de ser `null`, worker nomeado
+//   W2 · process.binding('tcp_wrap')       → TCP ligado com `true`; tem de ser `null`, binding nomeado
+//   W3 · UDP entre amostras (udp_max=1)    → DNS real com `true`; tem de ser `null`, UDP nomeado
+//   W4 · shell do WSL antes do unshare     → ver produtores.test.mjs
+//
+// Cada um foi reproduzido contra 481ea0d7 ANTES de tocar no código, com as
+// sondas do próprio adversário; a saída literal está na mensagem do commit.
+// Nenhum destes testes precisa de rede real: o que se afirma é que o veredicto
+// NÃO PODE ser `true`, não que a saída chegou a algum lado.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** TCP cru por `process.binding`, contra TEST-NET-1, fechado logo a seguir. */
+const TENTATIVA_TCP_CRUA = `const {TCP,TCPConnectWrap,constants}=process.binding('tcp_wrap');const t=new TCP(constants.SOCKET);const r=new TCPConnectWrap();r.oncomplete=()=>{};t.connect(r,'${BURACO}',80);t.close();`;
+
+test('MORDIDA · W1 · um worker nascido com env sem o NODE_OPTIONS da sentinela não pode deixar o veredicto em `true`', async () => {
+  // O `worker.cjs` da lente, sem o `http.get` real: o worker tenta um
+  // `net.connect` para TEST-NET e destrói o socket. A sentinela não está lá
+  // dentro (o env apagou o `--require`), logo não intercepta nada — e em
+  // 481ea0d7 o processo saía `instrumentado · true`. Agora o worker é ANUNCIADO
+  // com o `tid`, fica por cobrir, o processo é `n/d` e o `porque` nomeia-o.
+  const worker = `try{const s=require('net').connect(80,'${BURACO}');s.on('error',()=>{});s.destroy()}catch(e){}`;
+  const cod = `const {Worker}=require('node:worker_threads');const w=new Worker(${JSON.stringify(worker)},{eval:true,execArgv:[],env:{...process.env,NODE_OPTIONS:''}});w.on('exit',()=>{});`;
+  const { auditoria } = await medirRede(async (ctx) => {
+    const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
+
+  assert.notEqual(auditoria.rede_zero, true, 'um worker sem sentinela nunca pode dar `true`');
+  assert.equal(auditoria.rede_zero, null);
+  const f = auditoria.filhos[0];
+  assert.equal(f.sonda.estado, 'n/d');
+  assert.equal(f.sonda.workers.length, 1, 'o worker tem de ter sido anunciado');
+  assert.equal(f.sonda.workers[0].coberto, false);
+  assert.equal(f.sonda.workers[0].herda_sentinela, false, 'as opções previam que NÃO herdava');
+  assert.equal(f.sonda.workers[0].env, 'proprio');
+  assert.equal(f.sonda.workers[0].execArgv, true);
+  assert.match(auditoria.porque, /worker\(s\) sem sentinela/);
+  assert.match(auditoria.porque, /env sem o NODE_OPTIONS/);
+});
+
+test('W1b · o MESMO worker com as opções por omissão herda a sentinela, anuncia-se com o tid, e a saída dele conta', async () => {
+  // O controlo da própria lente: com `{eval:true}` a sentinela entra no worker.
+  // O anunciado casa com a `sentinela-carregada` do `tid` dele (coberto), e a
+  // tentativa lá dentro é interceptada → `false`. Uma saída vista é uma saída.
+  const worker = `try{require('net').connect(80,'${BURACO}')}catch(e){}`;
+  const cod = `const {Worker}=require('node:worker_threads');const w=new Worker(${JSON.stringify(worker)},{eval:true});w.on('error',()=>{});w.on('exit',()=>{});`;
+  const { auditoria } = await medirRede(async (ctx) => {
+    const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
+
+  assert.equal(auditoria.rede_zero, false);
+  const f = auditoria.filhos[0];
+  assert.equal(f.sonda.workers.length, 1);
+  assert.equal(f.sonda.workers[0].coberto, true, 'a sentinela do worker escreveu a sua própria sentinela-carregada com o tid');
+  assert.equal(f.sonda.workers[0].herda_sentinela, true);
+  assert.equal(f.sonda.saidas.length, 1);
+  assert.equal(f.sonda.saidas[0].tid, f.sonda.workers[0].tid, 'a saída diz de que thread veio');
+  assert.match(auditoria.porque, new RegExp(escapar(BURACO)));
+});
+
+test('MORDIDA · W2 · process.binding(tcp_wrap) liga por baixo dos guardas — o veredicto não pode ser `true`', async () => {
+  // O `binding.cjs` da lente, contra TEST-NET em vez de 1.1.1.1. `TCP.connect`
+  // não passa por `net.Socket.prototype.connect` nem por `dlopen`: a sentinela
+  // vê `saidas: []`, `addons: []`, e em 481ea0d7 dizia `instrumentado · true`.
+  // NÃO se intercepta `process.binding` (ver o cabeçalho da sentinela): o que
+  // muda é que `instrumentado` deixou de ser prova. O `porque` nomeia o buraco.
+  const { auditoria } = await medirRede(async (ctx) => {
+    const p = child_process.spawn(process.execPath, ['--no-deprecation', '-e', TENTATIVA_TCP_CRUA], { env: ctx.ambiente, stdio: 'ignore' });
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
+
+  assert.notEqual(auditoria.rede_zero, true, 'TCP cru por baixo de net: a sentinela não o vê, e não pode dizer zero');
+  assert.equal(auditoria.rede_zero, null);
+  assert.equal(auditoria.filhos[0].sonda.estado, 'instrumentado', 'a evidência da sentinela fica anexada tal como é');
+  assert.equal(auditoria.filhos[0].sonda.saidas.length, 0, '…e é exactamente por isso que não é prova');
+  assert.match(auditoria.porque, /process\.binding/);
+  assert.match(auditoria.porque, /evidência, não veredicto/);
+});
+
+test('MORDIDA · W3 · um endpoint UDP visto pela sonda (udp_max>0) nunca deixa o veredicto em `true`', async () => {
+  // O `udp.mjs` da lente: consulta DNS a 1.1.1.1:53, 61 bytes de resposta, 3
+  // amostras da sonda com `udp_max=1` — e `auditar()` não olhava para
+  // `udp_max`. Aqui a sonda é injectada a dizer «há um endpoint UDP», sem rede.
+  const sondaUdp = async () => ({ remotos: [], udp: 1 });
+  const { auditoria } = await medirRede(async () => {
+    const p = child_process.spawn(process.execPath, ['-e', 'setTimeout(()=>{},400)']);
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaUdp, intervaloSondaMs: 20, registo: null });
+
+  assert.ok(auditoria.filhos[0].sonda.amostras >= 1);
+  assert.equal(auditoria.filhos[0].sonda.udp_max, 1);
+  assert.notEqual(auditoria.rede_zero, true);
+  assert.equal(auditoria.rede_zero, null);
+  assert.match(auditoria.porque, /endpoint UDP/);
+  assert.match(auditoria.porque, /udp_max=1/);
+  assert.match(auditoria.porque, /sinal do SO nunca dá true/);
+});
+
+test('W3b · auditar: `udp_max` é lido em qualquer estado sem isolamento, e ignorado só num `bloqueado` (a sonda do Windows não vê a VM)', () => {
+  const com = (estado) => ({ cmd: 'x', sonda: { estado, remotos: [], saidas: [], amostras: 3, udp_max: 1, porque: '' } });
+  for (const estado of ['instrumentado', 'sondado']) {
+    const r = auditar({ filhos: [com(estado)] });
+    assert.equal(r.rede_zero, null, estado);
+    assert.match(r.porque, /endpoint UDP/, estado);
+  }
+  // Exactamente o caso literal da lente: `sondado`, 1 amostra, udp_max=1, remotos vazios.
+  assert.equal(auditar({ filhos: [{ cmd: 'udp', sonda: { estado: 'sondado', amostras: 1, udp_max: 1, remotos: [] } }] }).rede_zero, null);
+  // Num `bloqueado` a contagem do wsl.exe é cega: mantém-se o que já estava.
+  const r = auditar({ filhos: [com('bloqueado')] });
+  assert.equal(r.rede_zero, true);
+  assert.doesNotMatch(r.porque, /UDP/);
+  // Um remoto continua a ganhar a tudo, em qualquer estado — incluindo bloqueado.
+  assert.equal(auditar({ filhos: [{ cmd: 'x', sonda: { estado: 'bloqueado', remotos: ['1.1.1.1'], saidas: [], amostras: 1, udp_max: 0 } }] }).rede_zero, false);
+});
+
+test('W5 · `true` só por construção: a lista de estados que provam tem UM elemento, o `porque` di-lo, e os limites estão escritos', () => {
+  assert.deepEqual([...ESTADOS_POR_CONSTRUCAO], ['bloqueado']);
+  const r = auditar({ filhos: [{ cmd: 'wsl.exe', sonda: { estado: 'bloqueado', remotos: [], saidas: [], amostras: 1, udp_max: 0 } }] });
+  assert.equal(r.rede_zero, true);
+  assert.match(r.porque, /TODOS em isolamento do SO por construção/);
+  // O que fica fora está escrito numa lista, e essa lista é a que viaja no porque.
+  assert.equal(FORA_DA_SENTINELA.length, 3);
+  const nulo = auditar({ filhos: [{ cmd: 'node', sonda: { estado: 'instrumentado', remotos: [], saidas: [], amostras: 0, udp_max: 0, instrumentado: true, addons: [], filhos: [], workers: [] } }] });
+  for (const item of FORA_DA_SENTINELA) assert.ok(nulo.porque.includes(item), `o porque tem de nomear: ${item}`);
+  // E o cabeçalho de rede-zero.mjs escreve os quatro limites (os três da sentinela + a shell do WSL).
+  const pai = fs.readFileSync(path.join(AQUI, 'rede-zero.mjs'), 'utf8');
+  for (const marca of ['process.binding', 'workers nascidos', 'UDP entre amostras', 'shell de arranque do WSL']) {
+    assert.match(pai, new RegExp(escapar(marca)), `o cabeçalho tem de escrever o limite: ${marca}`);
+  }
+  const sentinela = fs.readFileSync(path.join(AQUI, 'rede-zero-sentinela.cjs'), 'utf8');
+  assert.match(sentinela, /process\.binding/, 'a sentinela escreve o motivo estrutural de não provar nada');
+  const codigo = sentinela.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(codigo, /process\.binding\s*=/, 'e NÃO o embrulha');
+});
+
+test('W6 · o vigia de workers anuncia tid, execArgv e a previsão do env — medido em processo', async () => {
+  // As cinco formas medidas no cabeçalho de `instalarVigiaDeWorkers`. A
+  // previsão é feita a partir das opções; a cobertura (W1/W1b) é outra coisa.
+  const vistos = [];
+  const vigia = instalarVigiaDeWorkers({ aoWorker: (w) => vistos.push(w), nodeOptions: '--require x', registo: '/r' });
+  try {
+    assert.deepEqual([...vigia.instaladas], ['Worker']);
+    const { Worker, SHARE_ENV } = worker_threads;
+    const esperar = (w) => new Promise((r) => { w.on('exit', r); w.on('error', r); });
+    await esperar(new Worker('0', { eval: true }));
+    await esperar(new Worker('0', { eval: true, execArgv: [] }));
+    await esperar(new Worker('0', { eval: true, env: SHARE_ENV }));
+    await esperar(new Worker('0', { eval: true, env: { NODE_OPTIONS: '--require x', REDE_ZERO_REGISTO: '/r' } }));
+    await esperar(new Worker('0', { eval: true, env: { NODE_OPTIONS: '' } }));
+  } finally { vigia.restaurar(); }
+  assert.equal(vistos.length, 5);
+  for (const v of vistos) assert.ok(Number.isInteger(v.tid) && v.tid > 0, 'cada worker tem tid');
+  assert.deepEqual(vistos.map((v) => [v.execArgv, v.env, v.herda_sentinela]), [
+    [false, 'herdado', true],
+    [true, 'herdado', true],
+    [false, 'herdado', true],
+    [false, 'proprio', true],
+    [false, 'proprio', false],
+  ]);
+  assert.equal(worker_threads.Worker.name, 'Worker', 'o vigia foi reposto');
+});
+
+test('W7 · lerRegistoDosFilhos: a sentinela-carregada de um worker cobre o tid, não o PID; registos sem tid continuam a ler', () => {
+  const { porPid } = lerRegistoDosFilhos('/x', {
+    readImpl: () => [
+      JSON.stringify({ pid: 10, tid: 0, ev: 'sentinela-carregada', apis: 71 }),
+      JSON.stringify({ pid: 10, tid: 0, ev: 'worker', tid_worker: 1, execArgv: true, env: 'proprio', herda_sentinela: false }),
+      JSON.stringify({ pid: 10, tid: 0, ev: 'worker', tid_worker: 2, execArgv: false, env: 'herdado', herda_sentinela: true }),
+      JSON.stringify({ pid: 10, tid: 2, ev: 'sentinela-carregada', apis: 71 }),
+      JSON.stringify({ pid: 10, tid: 2, ev: 'saida', api: 'net.connect', alvo: '192.0.2.1:80' }),
+      JSON.stringify({ pid: 11, ev: 'sentinela-carregada', apis: 71 }),
+    ].join('\n'),
+  });
+  const r = porPid.get(10);
+  assert.equal(r.carregada, true);
+  assert.equal(r.workers.length, 2);
+  assert.deepEqual([...r.workersCarregados], [2], 'só o worker 2 se anunciou');
+  assert.equal(r.saidas.length, 1);
+  assert.equal(r.saidas[0].tid, 2, 'a saída diz de que thread veio');
+  assert.equal(porPid.get(11).carregada, true, 'uma linha sem tid é a thread principal (registo antigo)');
 });

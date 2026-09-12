@@ -7,14 +7,90 @@
  * projecto já pagou por promessas: o modo ANCORADO esteve 10 624 recibos sem
  * correr e ninguém deu por isso, porque a ausência era silenciosa.
  *
- * ── O MECANISMO ESCOLHIDO, E PORQUE É QUE ELE PROVA O QUE DIZ ───────────────
+ * ── A TESE, DESDE 2026-09-11: A SENTINELA DEIXA DE SER PROVA ────────────────
  *
- * Escolhido: **contar e RECUSAR toda a saída no processo que corre a experiência,
- * e tornar cada processo filho mensurável antes de o deixar nascer.**
+ * Três lentes adversariais (2026-08-26 ×2, 2026-09-11 codex/OpenAI) bloquearam
+ * a mesma afirmação por caminhos diferentes, e o padrão é o resultado: **uma
+ * sentinela dentro do processo não consegue PROVAR zero rede**, porque há sempre
+ * uma camada por baixo dela. A 3.ª lente mediu, nesta máquina, Node v24.14.0:
  *
- * A instrumentação sozinha seria um guarda que NUNCA podia falhar em produção,
- * porque os três produtores da F1 são todos processos filhos: o semgrep corre em
- * WSL, o jscpd é um binário nativo, o knip é outro processo Node. Um contador no
+ *   1. `worker_threads.Worker` com `env: {...process.env, NODE_OPTIONS: ''}` —
+ *      o worker nasce sem sentinela, no MESMO PID. `http.get('http://example.com')`
+ *      → **HTTP 200**, e o relatório: `rede_zero: true · instrumentado · saidas: []`.
+ *   2. `process.binding('tcp_wrap')` — o TCP cru do Node, por baixo de `net`.
+ *      `TCP.connect('1.1.1.1', 80)` → **0** (ligado). `saidas: []`, `addons: []`,
+ *      `rede_zero: true`. Não é addon (não passa por `dlopen`), não é JS (não
+ *      passa por `Socket.prototype.connect`).
+ *   3. UDP entre amostras — consulta DNS a `1.1.1.1:53`, **61 bytes de resposta**,
+ *      com a sonda do SO a tirar 3 amostras e a ver `udp_max=1`. `auditar()`
+ *      não olhava para `udp_max`: `rede_zero: true`.
+ *   4. No semgrep: `wsl.exe -- unshare …` passa por uma shell do WSL ANTES do
+ *      `unshare`, com `eth0` UP. Ver `produtor-semgrep.mjs`.
+ *
+ * A partir daqui a semântica é outra, e é esta:
+ *
+ *   · **`rede_zero: true` só por CONSTRUÇÃO.** Cada processo que fez trabalho
+ *     correu inteiro num isolamento do SO que o impede de sair — hoje, e só,
+ *     `unshare -rn` no WSL, estado `bloqueado`. Nenhum outro caminho dá `true`.
+ *   · **A sentinela e a sonda são EVIDÊNCIA, não veredicto.** Um processo
+ *     Windows-nativo (jscpd, knip) sem isolamento dá `rede_zero: null`, com o
+ *     seu estado (`instrumentado` / `sondado`) e a evidência toda anexada:
+ *     saídas interceptadas, addons, filhos, workers, amostras, `udp_max`. O
+ *     `porque` diz o que não se viu (`FORA_DA_SENTINELA`, abaixo).
+ *   · **Uma saída vista é uma saída.** Se a sentinela interceptou ≥1 saída, ou
+ *     a sonda viu um remoto, ou um descendente falou: `false`. Isso não mudou.
+ *   · **Qualquer sinal do SO num processo sem isolamento nunca dá `true`**:
+ *     `remotos` ⇒ `false`; `udp_max > 0` ⇒ `null` a nomeá-lo (UDP não tem
+ *     ligação, a sonda não vê o destino: um socket aberto é sinal, não saída
+ *     vista). Para um `bloqueado` a sonda do Windows não vê para dentro da VM —
+ *     as amostras dela sobre o `wsl.exe` são cegas e continuam a não contar.
+ *
+ * O processo AUDITOR (este) não corre em isolamento nenhum. Os guardas que
+ * instala em si próprio existem para apanhar uma saída acidental do harness
+ * (→ `false`), não para o provar limpo: o objecto da prova são os processos
+ * que fazem trabalho, e o `true` afirma «todos eles em isolamento do SO, e o
+ * auditor sem saída registada». Sem processo nenhum, `true` é vacuidade — e
+ * `produtores.mjs` (`redeNaoVacua`) despromove-o a `null`.
+ *
+ * ── O QUE FICA FORA, ESCRITO EM VEZ DE PROMETIDO ────────────────────────────
+ *
+ *   · `process.binding` / `internalBinding` — NÃO se intercepta. Embrulhá-los
+ *     seria prometer que se conhece a lista de bindings que abrem sockets; a
+ *     lista é do Node. É o motivo estrutural de a sentinela não provar nada.
+ *   · workers nascidos com um `env` sem o `NODE_OPTIONS` da sentinela — são
+ *     ANUNCIADOS (evidência) e ficam «por cobrir»; não se fecha o buraco.
+ *   · UDP entre amostras — a sonda vê endpoints, não pacotes.
+ *   · a shell de arranque do WSL antes do `unshare` — ver `produtor-semgrep.mjs`:
+ *     com `--exec` deixa de existir shell antes do `unshare`; o que corre antes
+ *     é o init do WSL, fora do namespace, e não é medido (n/d).
+ *
+ * ── A MATRIZ DE ESTADOS DE UM PROCESSO COM SENTINELA ────────────────────────
+ *
+ * `classificarPorCamadas` é uma função pura e esta tabela é a sua especificação;
+ * o teste «a matriz de estados» percorre TODAS as combinações. `por cobrir` =
+ * filhos anunciados sem `sentinela-carregada` própria + workers idem.
+ *
+ *   addons | por cobrir | amostras | estado          | e o que isso significa
+ *   -------|------------|----------|-----------------|------------------------------------------
+ *      0   |     0      |    *     | instrumentado   | JS interceptado, sem addons, descendência
+ *          |            |          |                 | coberta. Evidência completa DO QUE A
+ *          |            |          |                 | SENTINELA VÊ. Não é prova → `null`.
+ *      0   |    ≥1      |    *     | n/d             | fez nascer algo que ninguém mediu.
+ *     ≥1   |     0      |    0     | n/d             | a camada nativa não foi observada uma vez.
+ *     ≥1   |     0      |   ≥1     | sondado         | JS por intercepção, nativa SÓ por
+ *          |            |          |                 | amostragem. O nome diz a qualidade.
+ *     ≥1   |    ≥1      |    *     | n/d             | os dois buracos.
+ *
+ * Nenhuma linha desta tabela dá `true`. Só `bloqueado` dá, e `bloqueado` não
+ * sai daqui: é DECLARADO por um adaptador que correu o processo em isolamento.
+ *
+ * ── O MECANISMO, TAL COMO FICOU ─────────────────────────────────────────────
+ *
+ * Contar e RECUSAR toda a saída no processo que corre a experiência, e tornar
+ * cada processo filho mensurável antes de o deixar nascer. A instrumentação
+ * sozinha seria um guarda que NUNCA podia falhar em produção, porque os três
+ * produtores da F1 são todos processos filhos: o semgrep corre em WSL, o jscpd
+ * é um binário nativo, o knip é outro processo Node. Um contador no
  * processo-pai que conta sempre zero, façam os filhos o que fizerem, é
  * exactamente o que o enunciado desta tarefa chama «um guarda indistinguível de
  * um partido».
@@ -32,57 +108,45 @@
  *
  *  2. **Nos filhos** — `child_process.spawn/execFile/exec` (e as variantes
  *     síncronas) passam por um ponto único que REGISTA o filho com o seu argv.
- *     E cada filho tem de trazer a sua própria medição, numa de quatro
- *     qualidades:
+ *     E cada filho traz a sua própria evidência, numa de quatro qualidades:
  *
  *       · `bloqueado`     — o processo correu dentro de um espaço de nomes de
  *                           rede sem interfaces (`unshare -rn` no WSL). Não é
  *                           observação, é construção: não há rota nenhuma para
- *                           haver chamada. É o caminho do semgrep, e é o mais
- *                           forte, porque a tabela de sockets do Windows NÃO VÊ
- *                           para dentro da VM do WSL.
+ *                           haver chamada. É o caminho do semgrep, e é o ÚNICO
+ *                           que dá `true`. A tabela de sockets do Windows NÃO
+ *                           VÊ para dentro da VM do WSL — daí ser declarado
+ *                           pelo adaptador, e não medido daqui.
  *       · `instrumentado` — a sentinela entrou no filho por
- *                           `NODE_OPTIONS=--require` e interceptou lá dentro.
- *                           **Só vale como medição completa se a camada nativa
- *                           desse processo também estiver coberta** — ver
- *                           abaixo.
+ *                           `NODE_OPTIONS=--require`, interceptou lá dentro,
+ *                           não viu addons nem descendência por cobrir.
+ *                           Evidência, não prova: `null`.
  *       · `sondado`       — a tabela de sockets do SO foi lida pelo PID do
- *                           filho, N vezes durante a vida dele. É observação:
- *                           uma ligação curta entre duas amostras escapa.
- *                           Medido a 2026-08-26, uma amostra custa ~550 ms e o
- *                           jscpd corre em 211 ms.
- *       · `n/d`           — não se conseguiu medir.
+ *                           filho, N vezes durante a vida dele (com ou sem
+ *                           sentinela; com sentinela é o caso «addons + ≥1
+ *                           amostra»). É observação: uma ligação curta entre
+ *                           duas amostras escapa. Medido a 2026-08-26, uma
+ *                           amostra custa ~550 ms e o jscpd corre em 211 ms.
+ *                           Evidência, não prova: `null`.
+ *       · `n/d`           — não se conseguiu medir, ou há um buraco nomeado
+ *                           (addon sem amostra, filho/worker por cobrir).
  *
  * ── A CORRECÇÃO DE 2026-08-26: A PROMOÇÃO QUE APAGAVA O `n/d` ──────────────
  *
- * Até hoje, a linha que dizia «sentinela-carregada» promovia o filho de `n/d`
- * (ou de `sondado` com zero amostras) para `instrumentado`, incondicionalmente.
- * Uma lente adversarial mostrou o que isso faz: o jscpd — cujo motor é um addon
- * NATIVO de 3,7 MB, que a sentinela por construção não vê — saía do relatório
- * como `instrumentado`, ou seja «plenamente medido», tendo a sonda do SO tirado
- * ZERO amostras. O mecanismo escrito para impedir que «não medi» virasse «medi
- * zero» era o que estava a fazê-lo.
+ * Até esse dia, a linha que dizia «sentinela-carregada» promovia o filho de
+ * `n/d` (ou de `sondado` com zero amostras) para `instrumentado`,
+ * incondicionalmente. Uma lente adversarial mostrou o que isso faz: o jscpd —
+ * cujo motor é um addon NATIVO de 3,7 MB, que a sentinela por construção não vê
+ * — saía do relatório como `instrumentado`, ou seja «plenamente medido», tendo a
+ * sonda do SO tirado ZERO amostras. O mecanismo escrito para impedir que «não
+ * medi» virasse «medi zero» era o que estava a fazê-lo.
  *
- * A promoção continua a existir, mas deixou de ser um acto de fé: a sentinela
- * instrumenta `process.dlopen` — o ponto único por onde um addon nativo entra
- * num processo Node — e o filho ANUNCIA quantos carregou. A isso a 2.ª lente
- * (abaixo) acrescentou um terceiro eixo: os processos que o filho faz nascer.
- * Daí saem os casos seguintes, e só os dois primeiros são medição:
- *
- *   sentinela + 0 addons + 0 filhos por cobrir → `instrumentado`. O processo
- *                                              correu 100% em JavaScript e não
- *                                              fez nascer nada que a sentinela
- *                                              não tenha voltado a apanhar.
- *   sentinela + N addons + ≥1 amostra da sonda → `instrumentado`. A camada de JS
- *                                              por intercepção, a nativa por
- *                                              observação, e o número de amostras
- *                                              viaja no relatório.
- *   sentinela + N addons + 0 amostras        → `n/d`. É o caso do jscpd. A camada
- *                                              onde o trabalho corre não foi
- *                                              observada nem uma vez, e dizer
- *                                              «medido» seria a mentira exacta
- *                                              que este ficheiro veio impedir.
- *   sentinela + ≥1 filho anunciado por cobrir → `n/d`, com o comando no `porque`.
+ * A promoção passou a depender de `process.dlopen` (a sentinela anuncia cada
+ * addon) e, com a 2.ª lente, dos processos que o filho faz nascer. A 3.ª lente
+ * apontou que a afirmação «só promove com addons=0 e 0 filhos» não batia com o
+ * código: `addons=1, amostras=1, filhos=[]` devolvia `instrumentado`. Agora
+ * devolve `sondado` — o nome da qualidade que a camada nativa REALMENTE tem — e
+ * a tabela no topo deste cabeçalho é percorrida inteira por um teste.
  *
  * ── A 2.ª LENTE (2026-08-26): O NETO QUE NÃO É NODE ─────────────────────────
  *
@@ -133,17 +197,23 @@
  *
  * E daí sai um resultado de TRÊS estados:
  *
- *      rede_zero = false  há tentativa registada, ou um descendente com saída
- *      rede_zero = null   nasceu um processo que NÃO se conseguiu medir, ou o
- *                         registo das sentinelas tem linhas partidas
- *      rede_zero = true   zero tentativas e TODOS os processos medidos a zero
+ *      rede_zero = false  há tentativa registada, ou um filho com remoto visto
+ *                         pela sonda, ou uma saída interceptada dentro de um
+ *                         filho ou descendente
+ *      rede_zero = null   nasceu um processo sem isolamento do SO (mesmo com
+ *                         sentinela e sonda limpas), ou um que NÃO se conseguiu
+ *                         medir, ou com endpoint UDP visto, ou o registo das
+ *                         sentinelas tem linhas partidas
+ *      rede_zero = true   zero tentativas e TODOS os processos em isolamento
+ *                         do SO (`bloqueado`)
  *
- * `null` não é `true`. Não medido nunca é medido-zero.
+ * `null` não é `true`. Não medido nunca é medido-zero — e observado-limpo,
+ * desde a 3.ª lente, também não.
  *
  * O que isto NÃO prova: não bloqueia a rede aos filhos ao nível do SO (isso
- * exigia regra de firewall, ou seja, administrador). O que faz aos filhos é
- * (a) dar-lhes um ambiente hostil e (b) exigir que cada um traga medição própria
- * ou se declare `n/d`.
+ * exigia regra de firewall, ou seja, administrador — ou o `unshare` do WSL,
+ * que só serve a quem corre lá dentro). O que faz aos filhos é (a) dar-lhes um
+ * ambiente hostil e (b) anexar-lhes toda a evidência que consegue recolher.
  */
 
 import fs from 'node:fs';
@@ -184,7 +254,24 @@ export const METODOS_RESOLVER = apis.METODOS_RESOLVER;
 export const instalarGuardas = apis.instalarGuardas;
 /** O vigia de `child_process` que a sentinela instala nos filhos. Exportado para o testar em processo. */
 export const instalarVigiaDeFilhos = apis.instalarVigiaDeFilhos;
+/** O vigia de `worker_threads.Worker` — 4.º eixo. Exportado pelo mesmo motivo. */
+export const instalarVigiaDeWorkers = apis.instalarVigiaDeWorkers;
 export const pareceNode = apis.pareceNode;
+
+/**
+ * O que a sentinela NÃO vê, por construção — a lista que viaja no `porque` de
+ * todo o `null` de um processo sem isolamento. Está aqui, e não num comentário,
+ * para que o texto do relatório e o cabeçalho não possam divergir. Cada entrada
+ * foi MEDIDA pela 3.ª lente (2026-09-11), não suposta.
+ */
+export const FORA_DA_SENTINELA = Object.freeze([
+  'process.binding/internalBinding (TCP cru por baixo de net)',
+  'workers nascidos com um env sem o NODE_OPTIONS da sentinela',
+  'UDP entre amostras da sonda do SO',
+]);
+
+/** Os estados de processo que contam como isolamento do SO. Hoje é um. */
+export const ESTADOS_POR_CONSTRUCAO = Object.freeze(['bloqueado']);
 
 /** Loopback (e o não-especificado) não é rede. Uma fronteira, um predicado. */
 export const ehInerte = apis.fazEhInerte(RE_INERTE);
@@ -289,13 +376,31 @@ export function lerRegistoDosFilhos(caminho, { readImpl = fs.readFileSync } = {}
     let e;
     try { e = JSON.parse(linha); } catch { partidas += 1; continue; }
     if (!e || !Number.isInteger(e.pid)) { partidas += 1; continue; }
-    if (!porPid.has(e.pid)) porPid.set(e.pid, { carregada: false, saidas: [], addons: [], apis: null, filhos: [] });
+    if (!porPid.has(e.pid)) porPid.set(e.pid, { carregada: false, saidas: [], addons: [], apis: null, filhos: [], workers: [], workersCarregados: new Set() });
     const r = porPid.get(e.pid);
+    // `tid`: a thread que escreveu a linha. 0 (ou ausente, em registos antigos)
+    // é a thread principal; >0 é um worker — o MESMO PID, outra sentinela.
+    const tid = Number.isInteger(e.tid) ? e.tid : 0;
     // `apis` é quantos pontos de saída a sentinela instalou LÁ DENTRO. É o que
     // torna a paridade com o pai verificável através da fronteira do processo,
     // em vez de ser uma promessa de que os dois ficheiros estão de acordo.
-    if (e.ev === 'sentinela-carregada') { r.carregada = true; r.apis = Number.isInteger(e.apis) ? e.apis : null; }
-    else if (e.ev === 'saida') r.saidas.push({ api: e.api, alvo: e.alvo });
+    if (e.ev === 'sentinela-carregada') {
+      if (tid === 0) { r.carregada = true; r.apis = Number.isInteger(e.apis) ? e.apis : null; }
+      // A sentinela de um worker anuncia-se com o `tid` dele: é a ÚNICA prova
+      // de que o worker ficou coberto. A previsão feita a partir das opções
+      // (`herda_sentinela`) é evidência; esta linha é a cobertura.
+      else r.workersCarregados.add(tid);
+    }
+    // Uma saída interceptada num worker é uma saída do processo. Sem distinção.
+    else if (e.ev === 'saida') r.saidas.push({ api: e.api, alvo: e.alvo, ...(tid > 0 ? { tid } : {}) });
+    else if (e.ev === 'worker') {
+      r.workers.push({
+        tid: Number.isInteger(e.tid_worker) ? e.tid_worker : null,
+        execArgv: e.execArgv === true,
+        env: String(e.env || '?'),
+        herda_sentinela: e.herda_sentinela === true,
+      });
+    }
     // A camada NATIVA do filho: cada `.node` que ele carregou. Zero destes é a
     // única prova de que a intercepção de JavaScript cobre o processo inteiro.
     else if (e.ev === 'nativo') r.addons.push(String(e.ficheiro || '?'));
@@ -331,26 +436,44 @@ function nomearAnunciado(f) {
   return nome;
 }
 
+/** O nome com que um worker anunciado aparece no `porque`. */
+function nomearWorker(w) {
+  const tid = w.tid === null ? 'tid ?' : `tid ${w.tid}`;
+  const opcoes = [w.execArgv ? 'execArgv próprio' : null, w.env === 'proprio' ? 'env próprio' : null].filter(Boolean).join(', ');
+  return `worker ${tid}${opcoes ? ` (${opcoes})` : ''}${w.herda_sentinela ? ' [previa herdar a sentinela e não se anunciou]' : ' [env sem o NODE_OPTIONS da sentinela]'}`;
+}
+
 /**
  * Aplica as regras de camada a um processo com sentinela carregada. Separada
- * para poder ser testada sem correr nada — é aqui que mora a decisão que a
- * lente adversarial derrubou (duas vezes: a promoção cega com addons, e depois
- * a frase «não sobra camada por observar» com um `curl.exe` a sair a sério).
+ * para poder ser testada sem correr nada — é aqui que mora a decisão que as
+ * lentes derrubaram (a promoção cega com addons; «não sobra camada por
+ * observar» com um `curl.exe` a sair a sério; e `addons=1, amostras=1` a dar
+ * `instrumentado` contra o que estava escrito).
  *
- * `filhos` são os processos que ESTE processo fez nascer, cada um já com
- * `coberto` decidido por quem tem o registo inteiro: `true` só quando o
- * anunciado é Node E escreveu a sua própria `sentinela-carregada`.
+ * A especificação é a tabela «A MATRIZ DE ESTADOS» no cabeçalho, e o teste que
+ * a percorre inteira. `filhos` e `workers` chegam cada um com `coberto` já
+ * decidido por quem tem o registo inteiro: `true` só quando o anunciado
+ * escreveu a sua própria `sentinela-carregada` (pelo PID, ou pelo `tid`).
+ *
+ * Nenhum estado que saia daqui dá `true` em `auditar` — ver o cabeçalho.
  */
-export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0, filhos = [] }) {
+export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0, filhos = [], workers = [] }) {
   const js = `${saidas.length} saída(s) de JavaScript interceptada(s)`;
   const porCobrir = filhos.filter((f) => !f.coberto);
+  const workersPorCobrir = workers.filter((w) => !w.coberto);
   const descendencia = filhos.length === 0
     ? '0 filhos anunciados'
     : `${filhos.length} filho(s) anunciado(s), ${filhos.length - porCobrir.length} coberto(s) pela sentinela`;
+  const threads = workers.length === 0
+    ? '0 workers'
+    : `${workers.length} worker(s), ${workers.length - workersPorCobrir.length} coberto(s) pela sentinela`;
 
   const buracos = [];
   if (porCobrir.length > 0) {
     buracos.push(`fez nascer ${porCobrir.length} processo(s) que a sentinela não cobre e a sonda do SO não apontou: ${porCobrir.map(nomearAnunciado).join(', ')}`);
+  }
+  if (workersPorCobrir.length > 0) {
+    buracos.push(`fez nascer ${workersPorCobrir.length} worker(s) sem sentinela, no mesmo PID, onde a sonda do SO não distingue nada: ${workersPorCobrir.map(nomearWorker).join(', ')}`);
   }
   if (addons.length > 0 && amostras === 0) {
     buracos.push(`carregou ${addons.length} addon(s) nativo(s) e a sonda do SO não tirou UMA amostra: a camada onde esse código corre não foi observada`);
@@ -364,12 +487,14 @@ export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0, 
   if (addons.length === 0) {
     return {
       estado: 'instrumentado',
-      porque: `sentinela dentro do processo: ${js}; ZERO addons nativos carregados; ${descendencia}`,
+      porque: `sentinela dentro do processo: ${js}; ZERO addons nativos carregados; ${descendencia}; ${threads} — evidência, não prova`,
     };
   }
+  // Addons + amostras: a camada nativa tem OBSERVAÇÃO e nada mais. O estado
+  // diz a qualidade da pior camada, não da melhor.
   return {
-    estado: 'instrumentado',
-    porque: `sentinela dentro do processo: ${js}; ${addons.length} addon(s) nativo(s) cobertos por ${amostras} amostra(s) da sonda do SO; ${descendencia}`,
+    estado: 'sondado',
+    porque: `sentinela dentro do processo (${js}) e ${addons.length} addon(s) nativo(s) só por amostragem: ${amostras} amostra(s) da sonda do SO; ${descendencia}; ${threads} — evidência, não prova`,
   };
 }
 
@@ -384,13 +509,32 @@ export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0, 
  * mesma (`false`); sem nenhuma, `partidas > 0` é `null`.
  */
 export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], descendentes = [], partidas = 0 } = {}) {
+  const todos = [...filhos, ...descendentes];
   // Um descendente com saída é o antigo "neto": um processo que este ramo não
   // registou mas que a sentinela viu. Estar um nível abaixo não é estar de fora.
   const netos = descendentes.flatMap((d) => (d.sonda.saidas || []).map((s) => ({ pid: d.pid, ...s })));
-  const naoMedidos = [...filhos, ...descendentes].filter((f) => f.sonda.estado === 'n/d');
+  const naoMedidos = todos.filter((f) => f.sonda.estado === 'n/d');
   // Um destino visto pela sonda do SO e um destino que a sentinela apanhou
   // DENTRO do filho contam o mesmo: os dois são saída observada.
   const comRemoto = filhos.filter((f) => (f.sonda.remotos || []).length > 0 || (f.sonda.saidas || []).length > 0);
+  const porConstrucao = (f) => ESTADOS_POR_CONSTRUCAO.includes(f.sonda.estado);
+  // Sinal do SO num processo sem isolamento: um endpoint UDP visto pela sonda.
+  // UDP não tem ligação, logo a sonda não vê o destino — é sinal, não saída
+  // vista, e nunca pode virar `true`. Num `bloqueado` a sonda do Windows olha
+  // para o `wsl.exe` e não vê para dentro da VM: essa contagem é cega e não
+  // conta (é o que já estava para o semgrep).
+  const comUdp = todos.filter((f) => !porConstrucao(f) && (f.sonda.udp_max || 0) > 0);
+  // A tese da 3.ª lente: sem isolamento do SO não há prova. Um processo
+  // `instrumentado` ou `sondado`, por mais limpo que a evidência esteja, é `null`.
+  const semIsolamento = todos.filter((f) => !porConstrucao(f) && f.sonda.estado !== 'n/d');
+
+  const evidencia = (f) => {
+    const s = f.sonda;
+    const partes = [`${(s.saidas || []).length} saída(s) interceptada(s)`];
+    if (s.instrumentado) partes.push(`${(s.addons || []).length} addon(s)`, `${(s.filhos || []).length} filho(s) anunciado(s)`, `${(s.workers || []).length} worker(s)`);
+    partes.push(`${s.amostras || 0} amostra(s) da sonda`, `udp_max=${s.udp_max || 0}`);
+    return `${f.cmd}=${s.estado} [${partes.join(', ')}]`;
+  };
 
   let rede_zero;
   let porque;
@@ -403,22 +547,28 @@ export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], d
   } else if (netos.length > 0) {
     rede_zero = false;
     porque = `${netos.length} saída(s) de processos descendentes: ${netos.map((n) => `pid ${n.pid}→${n.alvo}`).join(', ')}`;
-  } else if (naoMedidos.length > 0 || partidas > 0) {
+  } else if (naoMedidos.length > 0 || partidas > 0 || comUdp.length > 0 || semIsolamento.length > 0) {
     rede_zero = null;
     const motivos = [];
     if (partidas > 0) {
       motivos.push(`${partidas} linha(s) do registo das sentinelas partida(s)/ilegível(eis): uma saída que um filho começou a escrever e não acabou não pode contar como zero`);
     }
+    if (comUdp.length > 0) {
+      motivos.push(`${comUdp.length} processo(s) com endpoint UDP aberto visto pela sonda do SO (${comUdp.map((f) => `${f.cmd}: udp_max=${f.sonda.udp_max}`).join(', ')}): UDP não tem ligação e a sonda não vê o destino — um socket aberto é sinal do SO, e sinal do SO nunca dá true`);
+    }
     if (naoMedidos.length > 0) {
-      motivos.push(`${naoMedidos.length} de ${filhos.length + descendentes.length} processo(s) sem medição — ${naoMedidos.map((f) => `${f.cmd}: ${f.sonda.porque}`).join('; ')}`);
+      motivos.push(`${naoMedidos.length} de ${todos.length} processo(s) sem medição — ${naoMedidos.map((f) => `${f.cmd}: ${f.sonda.porque}`).join('; ')}`);
+    }
+    if (semIsolamento.length > 0) {
+      motivos.push(`sem isolamento do SO não há prova: ${semIsolamento.length} de ${todos.length} processo(s) correram fora de um espaço de nomes de rede (${semIsolamento.map(evidencia).join('; ')}); a sentinela e a sonda são evidência, não veredicto — não vêem ${FORA_DA_SENTINELA.join(', nem ')}`);
     }
     porque = motivos.join('; ');
   } else {
     rede_zero = true;
-    porque = (filhos.length + descendentes.length) === 0
-      ? '0 tentativas de saída no processo e nenhum filho nasceu'
-      : `0 tentativas de saída no processo; ${filhos.length + descendentes.length} processo(s), todos medidos: `
-        + [...filhos, ...descendentes].map((f) => `${f.cmd}=${f.sonda.estado}${f.sonda.estado === 'sondado' ? `(${f.sonda.amostras} amostra(s))` : ''}`).join(', ');
+    porque = todos.length === 0
+      ? '0 tentativas de saída no processo e nenhum filho nasceu (vacuidade: sem processo, o zero não teve oportunidade de ser outro)'
+      : `0 tentativas de saída no processo auditor; ${todos.length} processo(s), TODOS em isolamento do SO por construção: `
+        + todos.map((f) => `${f.cmd}=${f.sonda.estado}`).join(', ');
   }
 
   return {
@@ -502,7 +652,7 @@ export async function medirRede(fn, {
       pid: null,
       sonda: {
         estado: 'n/d', remotos: [], udp_max: 0, amostras: 0, porque: 'ainda não medido',
-        js: 'n/d', nativo: 'n/d', addons: [], saidas: [], filhos: [],
+        js: 'n/d', nativo: 'n/d', addons: [], saidas: [], filhos: [], workers: [],
       },
       ...extra,
     };
@@ -646,6 +796,10 @@ export async function medirRede(fn, {
   // também não — e o filho que o lançou fica `n/d` a nomeá-lo.
   const coberto = (f) => f.node === true && f.pid !== null && porPid.has(f.pid) && porPid.get(f.pid).carregada === true;
   const anunciadosDe = (v) => (v.filhos || []).map((f) => ({ ...f, coberto: coberto(f) }));
+  // Um worker fica coberto quando a sentinela DENTRO dele escreveu a sua
+  // `sentinela-carregada` com o `tid` dele. A previsão (`herda_sentinela`)
+  // viaja ao lado, como evidência do que as opções diziam.
+  const workersDe = (v) => (v.workers || []).map((w) => ({ ...w, coberto: w.tid !== null && v.workersCarregados.has(w.tid) }));
   // pid do neto → quem o anunciou, para o rotular no relatório.
   const anunciadoPor = new Map();
   for (const [pid, v] of porPid) for (const f of v.filhos || []) if (f.pid !== null) anunciadoPor.set(f.pid, { pid, cmd: f.cmd });
@@ -657,13 +811,14 @@ export async function medirRede(fn, {
     r.sonda.addons = v.addons;
     r.sonda.apis = v.apis;
     r.sonda.filhos = anunciadosDe(v);
+    r.sonda.workers = workersDe(v);
     r.sonda.js = 'intercetado';
     r.sonda.nativo = v.addons.length === 0 ? 'sem-addons' : `${v.addons.length} addon(s)`;
     r.sonda.instrumentado = true;
     // NUNCA se rebaixa um `bloqueado` (prova por construção) nem se toca no que
     // o adaptador declarou. E a promoção só acontece pelas regras de camada.
     if (!r.declarado && (r.sonda.estado === 'n/d' || r.sonda.estado === 'sondado')) {
-      const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: r.sonda.amostras, filhos: r.sonda.filhos });
+      const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: r.sonda.amostras, filhos: r.sonda.filhos, workers: r.sonda.workers });
       r.sonda.estado = c.estado;
       r.sonda.porque = c.porque;
     }
@@ -674,7 +829,8 @@ export async function medirRede(fn, {
     if (pidsDeFilhos.has(pid) || !v.carregada) continue;
     // Nunca foi sondado: este ramo não soube o PID a tempo. Logo `amostras: 0`.
     const anunciados = anunciadosDe(v);
-    const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: 0, filhos: anunciados });
+    const workers = workersDe(v);
+    const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: 0, filhos: anunciados, workers });
     const pai = anunciadoPor.get(pid);
     descendentes.push({
       cmd: pai
@@ -685,7 +841,7 @@ export async function medirRede(fn, {
       sonda: {
         estado: c.estado, porque: c.porque, remotos: [], udp_max: 0, amostras: 0,
         js: 'intercetado', nativo: v.addons.length === 0 ? 'sem-addons' : `${v.addons.length} addon(s)`,
-        addons: v.addons, saidas: v.saidas, filhos: anunciados, instrumentado: true,
+        addons: v.addons, saidas: v.saidas, filhos: anunciados, workers, instrumentado: true,
       },
     });
   }

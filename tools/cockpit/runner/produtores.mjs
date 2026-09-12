@@ -504,6 +504,9 @@ async function principal(argv) {
   for (const f of [...auditoria.filhos, ...(auditoria.descendentes || [])]) {
     console.log(`  processo ${f.cmd} → ${f.sonda.estado}${f.sonda.porque ? ` (${f.sonda.porque})` : ` · ${f.sonda.amostras} amostra(s)`}`);
   }
+  if (manifesto.rede.rede_zero === null && process.platform === 'win32') {
+    console.log(TEXTO_REDE_NULL_WINDOWS);
+  }
 
   if (!soRelato) {
     const { alvoAchados, alvoManifesto } = escrever({ dir, itens, manifesto });
@@ -519,11 +522,37 @@ async function principal(argv) {
   // de binário e `rede_zero: true` por vacuidade. Um cron ou um CI que chamasse
   // isto via sucesso. Agora: 3 se a prova de rede não é `true` (é a afirmação
   // do gate), 2 se alguma ferramenta não correu ou correu partida, 0 só quando
-  // as três correram limpas E a rede foi medida a zero.
+  // as três correram limpas E a rede foi PROVADA a zero por construção.
+  //
+  // Em Windows nativo, com o jscpd e o knip a correr fora de um isolamento do
+  // SO, o 3 é o resultado ESPERADO — ver `TEXTO_REDE_NULL_WINDOWS`. Não é um
+  // defeito a corrigir no código de saída: é o código de saída a dizer que a
+  // prova não existe nesta máquina.
   if (manifesto.rede.rede_zero !== true) return 3;
   if (manifesto.estado !== 'ok') return 2;
   return 0;
 }
+
+/**
+ * O que se diz ao dono quando a rede fica `n/d` em Windows. Escrito como
+ * constante para que o teste possa exigir o texto e o texto não possa derivar
+ * do que o código faz.
+ *
+ * MEDIDO a 2026-09-11 nesta máquina: `wsl.exe --exec bash -lc 'which node'` no
+ * Ubuntu-22.04 → nada (`type node` → `not found`). O único `node` que o WSL
+ * alcança é o do Windows por interop, e um processo Windows não corre dentro
+ * de um `unshare` do Linux. Não se instala software no WSL por causa disto.
+ */
+export const TEXTO_REDE_NULL_WINDOWS = [
+  '',
+  'rede n/d é o resultado ESPERADO em Windows nativo: o jscpd e o knip correm fora de',
+  'qualquer isolamento do SO, e desde 2026-09-11 a sentinela e a sonda são evidência,',
+  'não prova (process.binding, workers sem NODE_OPTIONS e UDP entre amostras passam',
+  'por baixo delas — medido três vezes por três adversários). A única forma de os',
+  'provar a zero é correrem também dentro de `unshare -rn` no WSL, com um node',
+  'instalado LÁ — que NÃO existe nesta máquina (medido: `which node` no Ubuntu-22.04',
+  'devolve nada; o `npx` do Windows por interop não corre dentro do unshare).',
+].join('\n');
 
 if (process.argv[1] && process.argv[1].endsWith('produtores.mjs')) {
   principal(process.argv.slice(2))
