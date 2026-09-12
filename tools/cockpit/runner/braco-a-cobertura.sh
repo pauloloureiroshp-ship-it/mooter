@@ -11,7 +11,7 @@
 # So le. Nao toca em nenhum sujeito.
 set -uo pipefail
 export PATH="$HOME/.local/bin:$PATH"; export SEMGREP_ENABLE_VERSION_CHECK=0
-REGRAS="/mnt/c/Users/Paulo Loureiro/frugal-ab-braco-a/_handoff/ab-audit/regras-semgrep"
+REGRAS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/_handoff/ab-audit/regras-semgrep"
 T=$(mktemp -d)
 printf 'const x = 1;\n' > "$T/a.js"; printf 'const y: number = 1;\n' > "$T/b.ts"
 corre() { semgrep scan --metrics=off --no-git-ignore --no-rewrite-rule-ids "$@" "$T" 2>&1 \

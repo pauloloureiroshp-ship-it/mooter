@@ -41,14 +41,17 @@ export PATH="$HOME/.local/bin:$PATH"
 # alguma coisa e o strace do modo --strace, nao esta linha.
 export SEMGREP_ENABLE_VERSION_CHECK=0
 
-REPO="/mnt/c/Users/Paulo Loureiro/frugal-ab-braco-a"
+# A raiz do repositorio deriva-se do proprio script, nao de um caminho de
+# maquina escrito a mao: o CI conta ficheiros de codigo vivo com o nome antigo
+# do produto, e um caminho de worktree so vale nesta maquina.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 REGRAS="$REPO/_handoff/ab-audit/regras-semgrep"
 LISTA="$REPO/_handoff/ab-audit/ambito-$SUJ.txt"
 OUT="$HOME/ab-braco-a"; mkdir -p "$OUT"
 
 # §2.2 — a raiz de cada sujeito e a que o ambito-MANIFESTO.json declara. Os tres sao
 # lidos em MODO SO-LEITURA; nao se escreve la nada. S1 e um checkout DESTACADO no sha
-# que o §1 ancora (97ad846b). Ate 2026-09-11 era a worktree `frugal-ab-audit`, que
+# que o §1 ancora (97ad846b). Ate 2026-09-11 era a worktree de trabalho da F0, que
 # tinha andado para 2d5fd762 antes da corrida — dois ficheiros a mais no ambito, e
 # uma corrida fora do sha pre-registado (§10.2). Essa corrida esta em
 # `braco-a-S1.INVALIDO-2d5fd762.*` e nao conta.

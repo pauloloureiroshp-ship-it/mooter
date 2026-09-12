@@ -76,7 +76,7 @@ import path from 'node:path';
  * raiz (`git rev-parse HEAD`, leitura pura) e regista se bate; nao mexe na raiz.
  * Uma raiz que ande para a frente e um facto a REGISTAR, nao a corrigir a
  * sorrelfa — e foi exactamente isso que aconteceu a S1 ate 2026-09-11: a raiz
- * era a worktree `frugal-ab-audit`, que andou de 97ad846b para 2d5fd762 no
+ * era a worktree de trabalho da F0, que andou de 97ad846b para 2d5fd762 no
  * proprio dia da corrida. Passa a ser um checkout destacado em
  * `ab-audit-subjects/mooter` (git worktree, detached @ 97ad846b), ao lado de S2
  * e S3, que sempre viveram ai.
