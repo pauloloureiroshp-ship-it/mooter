@@ -1,0 +1,23 @@
+{
+  "sujeito": "S3",
+  "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/hono",
+  "head_da_raiz": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+  "modo": "strace",
+  "tracer": "strace -f -qq -e trace=connect,execve",
+  "extra_do_modo": ["--timeout","0"],
+  "rc": 0,
+  "parede_s": 40.350,
+  "ficheiros_na_lista": 221,
+  "regras_correram": 89,
+  "semgrep": "1.174.0",
+  "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
+  "corrido_em": "2026-09-12T10:24:04Z",
+  "sha256_lista_ambito": "0149fc8663c8c6bc4275c941542270b2889c7f43207735e188ff2e20117435a0",
+  "sha256_regras": {
+    "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
+    "p-typescript.yaml": "63fbcca1826e787ca43282bf139ccec16745ad6551c87850b9ccee9ca9f98c0b",
+    "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
+    "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
+  },
+  "sha256_json": "23b754d75dea131e982f230b1d899b56d95dbe5bed7ae3de508c662f550f202e"
+}
