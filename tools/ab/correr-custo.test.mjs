@@ -427,7 +427,8 @@ test('ponta a ponta (NOTA DO TECTO, declarada): A morta aos 900 s que deixa o wo
   await correrTarefa(h.ctx, h.tarefa, h.ledger);
   const A = h.linhas()[6];
   assert.equal(A.arrancou, false, 'sem JSON e sem transcript encontravel'); assert.equal(A.motivo_se_nao, 'timeout'); assert.equal(A.tecto_estourado, true); assert.equal(A.aceite, false, '138: sem JSON = nao aceite'); assert.equal(A.exit_code, 0); assert.equal(A.session_id, null, '102'); assert.equal(A.tokens_transcript, 0);
-  assert.ok(h.chamadas.some((c) => c.exe === 'powershell'), '139: a arvore do processo e morta depois do tecto');
+  if (process.platform === 'win32') assert.ok(h.chamadas.some((c) => c.exe === 'powershell'), '139: a arvore do processo e morta depois do tecto');
+  else assert.deepEqual(A.arvore_morta, { tentado: false }, '139: matarArvore e win32 por desenho (CI corre em ubuntu)');
   const r = h.julgar();
   assert.equal(r.corrida_valida, false, 'a lacuna declarada no cabecalho: precisa da interpretacao 64');
   // o mesmo tecto com o worktree vermelho: aceite:false com provas vermelhas — a linha e honesta; sem transcript a 22 invalida na mesma (brief 7.º/1: «e o correcto»)
@@ -492,7 +493,7 @@ test('ponta a ponta (achado 2 do 2.º revisor): JSON completo + sinal do spawnSy
   await h.correrAsDuas();
   const A = h.linhas()[6];
   assert.equal(A.arrancou, true); assert.equal(A.tecto_estourado, false, 'o tecto mede-se pelo duration_ms do JSON (48)'); assert.equal(A.duration_ms, 120000); assert.equal(A.sinal_depois_do_json, true); assert.equal(A.cli_sinal, 'SIGTERM'); assert.equal(A.aceite, true);
-  assert.ok(A.arvore_morta && A.arvore_morta.tentado === true, '139: a arvore e morta na mesma');
+  assert.ok(A.arvore_morta && A.arvore_morta.tentado === (process.platform === 'win32'), '139: a arvore e morta na mesma (win32); noutras plataformas fica declarado tentado:false');
   const r = h.julgar();
   assert.equal(r.corrida_valida, true); assert.equal(r.primaria.aceites_A, 2);
   // e um JSON cujo proprio duration_ms diz >= 900 s e tecto (48), com ou sem sinal
