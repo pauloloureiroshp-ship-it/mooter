@@ -47,6 +47,39 @@
  *   · o guarda FALHA (codigo 1) se a linha de base trouxer um orfao fora da
  *     lista inicial sem justificacao — mesmo que alguem o tenha escrito a mao.
  *
+ * ── A LISTA INICIAL E IMUTAVEL, E O GUARDA VERIFICA-O ───────────────────────
+ *
+ * Na 2.ª ronda (2026-09-12) um adversario acrescentou um caminho a
+ * `inicio.orfaos` a mao e o guarda passou de codigo 1 para 0 sem
+ * justificacao nenhuma: «o guarda confia na lista que devia fiscalizar».
+ * Tinha razao. A lista de 2026-08-26 tem 180 entradas e nao muda — nem
+ * cresce, nem encolhe: um inicial que passe a coberto continua na foto, e o
+ * guarda calcula «ainda por cobrir» = inicio ∩ orfaos actuais. O sha256 da
+ * lista (ordenada, `\n`-joined) esta em `SHA_INICIO_2026_08_26`, em CODIGO:
+ * uma linha de base cujo `inicio.orfaos` nao bate com ele e ADULTERADA e o
+ * guarda sai com codigo 2 — nao ha `--linha-base` que a regrave, porque
+ * `--linha-base` copia `inicio` e recusa copiar um que nao bata. Orfaos
+ * novos vao para `justificacoes`, com o porque; e o unico sitio onde entram.
+ *
+ * (Ate esta ronda o `--linha-base` encolhia `inicio.orfaos` quando um
+ * inicial passava a coberto — 178 no ficheiro, 180 no `total`. Um sha de uma
+ * lista que encolhe nao serve; a lista voltou aos 180 de 2d5fd762.)
+ *
+ * ── RESSALVAS (medidas pelo adversario, 2026-09-12; comportamento mantido) ──
+ *
+ *   · `--porque "a.test.js=x=y"` divide no PRIMEIRO `=`: a justificacao fica
+ *     `x=y`, inteira. E o que se quer.
+ *   · Um orfao justificado que passa a coberto perde a justificacao na
+ *     regravacao seguinte (poda); se voltar a ser orfao, tem de justificar de
+ *     novo. E o que se quer: uma frase para um teste que ja corria e uma
+ *     frase a envelhecer.
+ *   · LIMITACAO (nao reproduzida, escrita): um dos 180 iniciais que passe a
+ *     coberto e depois volte a ser orfao entra sem porque — esta na foto. A
+ *     alternativa (exigir porque a quem ja esteve coberto) pedia uma segunda
+ *     lista mutavel dentro do ficheiro, que e o que esta ronda tirou. A
+ *     catraca continua a acusar o regresso como `novo` (codigo 1); so a
+ *     regravacao e que nao pede o porque.
+ *
  * ── PORQUE E QUE NAO TEM DETECTOR PROPRIO ───────────────────────────────────
  *
  * A cobertura calcula-se em `indice-do-harness.testesGateados()`, que ja e a
@@ -60,17 +93,32 @@
  *        --porque "a/b.test.mjs=artefacto de experiencia datada"  # regrava
  *
  * Saida: 0 = a catraca aguenta. 1 = cresceu, encolheu, ou ha orfao sem
- * justificacao (ver mensagem). 2 = falhou a medir.
+ * justificacao (ver mensagem). 2 = falhou a medir, ou a lista inicial foi
+ * alterada.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { testesGateados, RAIZ_REPO } from './indice-do-harness.mjs';
 
 export const CAMINHO_LINHA_BASE = path.join(RAIZ_REPO, 'tools', 'cockpit', 'runner', 'testes-orfaos.baseline.json');
 
-export function lerLinhaBase({ caminho = CAMINHO_LINHA_BASE, readImpl = fs.readFileSync } = {}) {
+/**
+ * sha256 da lista inicial de 2026-08-26 (180 caminhos, ordenados, `\n`-joined),
+ * tal como foi commitada em 2d5fd762. Calculado UMA vez e escrito aqui: e a
+ * unica coisa que impede `inicio.orfaos` de ser editado para dispensar um
+ * orfao sem porque. Se alguem precisar de mudar isto, a pergunta e «porque e
+ * que a foto de 26/08 mudou?» — e a resposta nao existe.
+ */
+export const SHA_INICIO_2026_08_26 = 'e17e43f83fc74689efd1f38b0108a41699747f99c174f4a19c02bc104cf46f1b';
+
+export const shaDaLista = (lista) => createHash('sha256').update([...lista].map(String).sort().join('\n')).digest('hex');
+
+export const MENSAGEM_INICIO_ALTERADO = 'a lista inicial foi alterada; a lista inicial e imutavel — orfaos novos vao para `justificacoes`';
+
+export function lerLinhaBase({ caminho = CAMINHO_LINHA_BASE, readImpl = fs.readFileSync, shaInicio = SHA_INICIO_2026_08_26 } = {}) {
   let j;
   try {
     j = JSON.parse(String(readImpl(caminho, 'utf8')));
@@ -84,6 +132,13 @@ export function lerLinhaBase({ caminho = CAMINHO_LINHA_BASE, readImpl = fs.readF
     // Formato anterior a 2026-09-11: sem a lista inicial nao ha como saber que
     // entradas precisam de justificacao. Nao se adivinha — pede-se regravar.
     return { presente: false, porque: 'linha de base sem o bloco `inicio` (formato anterior a 2026-09-11) — regravar', orfaos: [], justificacoes: {}, inicio: null };
+  }
+  const sha = shaDaLista(inicio.orfaos);
+  if (sha !== shaInicio) {
+    // A foto de 26/08 nao bate com o sha em codigo: alguem mexeu na lista que
+    // dispensa justificacao. Nao e «regravar» — e codigo 2, e diz-se qual e o
+    // sha que veio, para quem for comparar com o git.
+    return { presente: false, adulterada: true, porque: `${MENSAGEM_INICIO_ALTERADO} (sha da lista lida ${sha.slice(0, 12)}, esperado ${shaInicio.slice(0, 12)}; ${inicio.orfaos.length} entradas)`, orfaos: [], justificacoes: {}, inicio: null };
   }
   const justificacoes = j.justificacoes && typeof j.justificacoes === 'object' && !Array.isArray(j.justificacoes) ? j.justificacoes : {};
   return {
@@ -124,6 +179,11 @@ export function verificar({ raiz = RAIZ_REPO, linhaBaseImpl = lerLinhaBase, gate
     return { ok: false, codigo: 2, porque: `nao foi possivel medir a cobertura: ${p.porque}` };
   }
   const lb = linhaBaseImpl({});
+  if (lb.adulterada) {
+    // Sem `orfaos` de proposito: o `--linha-base` le isso como «nao ha o que
+    // gravar» e sai com 2. Uma lista inicial mexida nao se regrava por cima.
+    return { ok: false, codigo: 2, porque: lb.porque, linha_base_lida: lb };
+  }
   if (!lb.presente) {
     return {
       ok: false,
@@ -139,6 +199,7 @@ export function verificar({ raiz = RAIZ_REPO, linhaBaseImpl = lerLinhaBase, gate
   // escreveu a mao, ou um regravar antigo deixou-as passar. Nao passam.
   const sem_justificacao = semJustificacao(lb.orfaos, lb);
   const ok = novos.length === 0 && resolvidos.length === 0 && sem_justificacao.length === 0;
+  const agora = new Set(p.orfaos || []);
   return {
     ok,
     codigo: ok ? 0 : 1,
@@ -147,6 +208,8 @@ export function verificar({ raiz = RAIZ_REPO, linhaBaseImpl = lerLinhaBase, gate
     orfaos: p.orfaos || [],
     linha_base: lb.orfaos.length,
     inicio: lb.inicio,
+    // A foto de 26/08 nao muda; o que muda e quantos dela AINDA sao orfaos.
+    inicio_por_cobrir: lb.inicio.orfaos.filter((f) => agora.has(f)).length,
     justificacoes: lb.justificacoes,
     novos,
     resolvidos,
@@ -166,10 +229,15 @@ export function verificar({ raiz = RAIZ_REPO, linhaBaseImpl = lerLinhaBase, gate
  * justificacao para um teste que ja corre e uma frase a envelhecer no sitio
  * onde as frases deviam ser verdade.
  */
-export function escreverLinhaBase(r, { caminho = CAMINHO_LINHA_BASE, writeImpl = fs.writeFileSync, porques = {}, hoje = new Date() } = {}) {
+export function escreverLinhaBase(r, { caminho = CAMINHO_LINHA_BASE, writeImpl = fs.writeFileSync, porques = {}, hoje = new Date(), shaInicio = SHA_INICIO_2026_08_26 } = {}) {
   const inicio = r.inicio && Array.isArray(r.inicio.orfaos) ? r.inicio : null;
   if (!inicio) {
     return { ok: false, codigo: 2, porque: 'sem lista inicial (`inicio.orfaos`) nao se regrava: a linha de base actual nao a traz' };
+  }
+  if (shaDaLista(inicio.orfaos) !== shaInicio) {
+    // A leitura ja recusa isto; aqui e a segunda porta, para quem chamar esta
+    // funcao com um `inicio` que nao veio de `lerLinhaBase`.
+    return { ok: false, codigo: 2, porque: MENSAGEM_INICIO_ALTERADO };
   }
   const orfaos = [...(r.orfaos || [])].sort();
   const anteriores = r.justificacoes && typeof r.justificacoes === 'object' ? r.justificacoes : {};
@@ -211,13 +279,14 @@ export function escreverLinhaBase(r, { caminho = CAMINHO_LINHA_BASE, writeImpl =
     justificacoes,
     orfaos,
     // A lista de 2026-08-26, congelada: e contra ela que se decide quem
-    // precisa de justificacao. Encolhe quando um inicial passa a coberto; nunca
-    // cresce. (E os 180 daquele dia nao trazem porque: sao a divida herdada,
-    // e diz-se que o sao.)
-    inicio: { data: inicio.data, total: inicio.total, orfaos: inicio.orfaos.filter((f) => orfaos.includes(f)) },
+    // precisa de justificacao. COPIADA, nunca filtrada — o sha em codigo e
+    // sobre os 180 daquele dia, e um inicial que passe a coberto continua na
+    // foto (o guarda diz quantos ainda faltam). (Os 180 nao trazem porque:
+    // sao a divida herdada, e diz-se que o sao.)
+    inicio: { data: inicio.data, total: inicio.total, orfaos: [...inicio.orfaos] },
   };
   writeImpl(caminho, JSON.stringify(j, null, 2) + '\n');
-  return { ok: true, codigo: 0, ...j };
+  return { ok: true, codigo: 0, ...j, inicio_por_cobrir: inicio.orfaos.filter((f) => orfaos.includes(f)).length };
 }
 
 export function imprimir(r) {
@@ -225,7 +294,7 @@ export function imprimir(r) {
     console.error(`teste-fora-do-ci: ${r.porque}`);
     return 2;
   }
-  console.log(`testes versionados ${r.total} · alcancados pelo CI ${r.cobertos} · orfaos ${r.orfaos.length} (linha de base ${r.linha_base}; inicio ${r.inicio.data}: ${r.inicio.total}; justificados ${Object.keys(r.justificacoes).length})`);
+  console.log(`testes versionados ${r.total} · alcancados pelo CI ${r.cobertos} · orfaos ${r.orfaos.length} (linha de base ${r.linha_base}; inicio ${r.inicio.data}: ${r.inicio.total}, ainda por cobrir ${r.inicio_por_cobrir}; justificados ${Object.keys(r.justificacoes).length})`);
   if (r.novos.length) {
     console.error(`\n::error::${r.novos.length} teste(s) NOVO(S) que o CI nao corre:`);
     for (const f of r.novos) console.error(`  ${f}`);
@@ -270,23 +339,23 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
       console.error(`nao ha o que gravar: ${r.porque}`);
       process.exit(2);
     }
-    // Sem linha de base NENHUMA (primeira vez): a lista de hoje e a divida
-    // inicial, datada de hoje — herdada, sem porque, e diz-se que o e. Com uma
-    // linha de base do formato antigo, nao se adivinha o inicio: a leitura ja
-    // disse o que falta, e `escreverLinhaBase` recusa com codigo 2.
-    const lida = r.linha_base_lida || {};
-    const base = r.inicio ? r : {
-      ...r,
-      inicio: lida.ausente ? { data: new Date().toISOString().slice(0, 10), total: (r.orfaos || []).length, orfaos: [...(r.orfaos || [])].sort() } : (lida.inicio || null),
-      justificacoes: lida.justificacoes || {},
-    };
-    const j = escreverLinhaBase(base, { porques: porquesDe(process.argv) });
+    // Sem `inicio` lido (ficheiro ausente, ilegivel, ou do formato antigo) nao
+    // se regrava: a lista inicial e imutavel e vive no git, e recria-la a
+    // partir da arvore de hoje seria dispensar toda a divida posterior a
+    // 26/08 sem porque. (Ate 2026-09-12 este ramo fabricava um `inicio` novo
+    // datado de hoje — com o sha em codigo, esse ficheiro seria recusado na
+    // leitura seguinte; a saida honesta e restaurar o ficheiro.)
+    if (!r.inicio) {
+      console.error(`linha de base NAO regravada: sem lista inicial legivel (${(r.linha_base_lida || {}).porque || r.porque || 'sem linha de base'}). A lista inicial de 2026-08-26 e imutavel e vive no git — restaurar com \`git checkout -- ${path.relative(RAIZ_REPO, CAMINHO_LINHA_BASE).split(path.sep).join('/')}\` e regravar por cima.`);
+      process.exit(2);
+    }
+    const j = escreverLinhaBase(r, { porques: porquesDe(process.argv) });
     if (!j.ok) {
       console.error(`linha de base NAO regravada: ${j.porque}`);
       for (const f of j.sem_justificacao || []) console.error(`  ${f}`);
       process.exit(j.codigo);
     }
-    console.error(`linha de base gravada: ${j.orfaos.length} orfaos de ${j.total_versionados} testes versionados (${Object.keys(j.justificacoes).length} com justificacao, inicio ${j.inicio.data}: ${j.inicio.orfaos.length} ainda por cobrir de ${j.inicio.total})`);
+    console.error(`linha de base gravada: ${j.orfaos.length} orfaos de ${j.total_versionados} testes versionados (${Object.keys(j.justificacoes).length} com justificacao, inicio ${j.inicio.data}: ${j.inicio_por_cobrir} ainda por cobrir de ${j.inicio.total})`);
     process.exit(0);
   }
   if (process.argv.includes('--json')) {

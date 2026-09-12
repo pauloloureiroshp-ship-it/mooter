@@ -22,10 +22,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { comparar, verificar, escreverLinhaBase, lerLinhaBase, semJustificacao, porquesDe } from './teste-fora-do-ci.mjs';
+import { comparar, verificar, escreverLinhaBase, lerLinhaBase, semJustificacao, porquesDe, shaDaLista, SHA_INICIO_2026_08_26, MENSAGEM_INICIO_ALTERADO } from './teste-fora-do-ci.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const GUARDA = path.join(AQUI, 'teste-fora-do-ci.mjs');
@@ -140,7 +141,7 @@ test('MORDIDA: regravar com um orfao novo SEM --porque sai 1 e NAO escreve', () 
   let escreveu = false;
   const r = escreverLinhaBase(
     { total: 3, orfaos: ['a.test.js', 'novo.test.js'], justificacoes: {}, inicio: { data: '2026-08-26', total: 1, orfaos: ['a.test.js'] } },
-    { writeImpl: () => { escreveu = true; } },
+    { writeImpl: () => { escreveu = true; }, shaInicio: shaDaLista(['a.test.js']) },
   );
   assert.equal(r.ok, false);
   assert.equal(r.codigo, 1);
@@ -148,12 +149,13 @@ test('MORDIDA: regravar com um orfao novo SEM --porque sai 1 e NAO escreve', () 
   assert.equal(escreveu, false, 'recusar e nao escrever — uma linha de base meia-escrita e pior que nenhuma');
 });
 
-test('regravar COM --porque escreve a justificacao, preserva o inicio e data o texto', () => {
+test('regravar COM --porque escreve a justificacao, COPIA o inicio e data o texto', () => {
   let escrito = null;
   const hoje = new Date('2026-09-11T22:00:00Z');
+  const inicio = { data: '2026-08-26', total: 2, orfaos: ['a.test.js', 'resolvido.test.js'] };
   const r = escreverLinhaBase(
-    { total: 3, orfaos: ['novo.test.js', 'a.test.js'], justificacoes: {}, inicio: { data: '2026-08-26', total: 2, orfaos: ['a.test.js', 'resolvido.test.js'] } },
-    { writeImpl: (_p, c) => { escrito = c; }, porques: { 'novo.test.js': 'artefacto de experiencia datada' }, hoje },
+    { total: 3, orfaos: ['novo.test.js', 'a.test.js'], justificacoes: {}, inicio },
+    { writeImpl: (_p, c) => { escrito = c; }, porques: { 'novo.test.js': 'artefacto de experiencia datada' }, hoje, shaInicio: shaDaLista(inicio.orfaos) },
   );
   assert.equal(r.ok, true);
   const j = JSON.parse(escrito);
@@ -161,7 +163,11 @@ test('regravar COM --porque escreve a justificacao, preserva o inicio e data o t
   assert.deepEqual(j.justificacoes, { 'novo.test.js': 'artefacto de experiencia datada' });
   assert.equal(j.inicio.data, '2026-08-26');
   assert.equal(j.inicio.total, 2, 'o total inicial e historico e nao mexe');
-  assert.deepEqual(j.inicio.orfaos, ['a.test.js'], 'o inicial que passou a coberto sai da lista inicial viva');
+  // Ate 2026-09-12 o inicial que passava a coberto SAIA daqui («lista inicial
+  // viva»). Com o sha em codigo a lista e uma foto: copia-se inteira, e o
+  // que se calcula e quantos dela ainda faltam cobrir.
+  assert.deepEqual(j.inicio.orfaos, ['a.test.js', 'resolvido.test.js'], 'a foto de 26/08 copia-se inteira — nao encolhe');
+  assert.equal(r.inicio_por_cobrir, 1, 'resolvido.test.js ja corre; a.test.js ainda nao');
   assert.equal(j.regravada_em, '2026-09-11T22:00:00.000Z');
   assert.match(j.porque_existe, /divida conhecida a 2026-09-11 \(inicio 2026-08-26: 2 orfaos\)/, 'datado dinamicamente, com o inicio ao lado');
   assert.match(escrito, /Regravar isto para calar um vermelho/);
@@ -171,7 +177,7 @@ test('regravar PODA a justificacao de um ficheiro que deixou de ser orfao, e man
   let escrito = null;
   escreverLinhaBase(
     { total: 3, orfaos: ['fica.test.js'], justificacoes: { 'fica.test.js': 'continua a mao', 'ja-corre.test.js': 'ja nao interessa' }, inicio: { data: '2026-08-26', total: 0, orfaos: [] } },
-    { writeImpl: (_p, c) => { escrito = c; } },
+    { writeImpl: (_p, c) => { escrito = c; }, shaInicio: shaDaLista([]) },
   );
   const j = JSON.parse(escrito);
   assert.deepEqual(j.justificacoes, { 'fica.test.js': 'continua a mao' });
@@ -267,5 +273,82 @@ test('a linha de base commitada e do formato novo e nao tem orfao sem porque', (
   assert.equal(lb.presente, true, lb.porque);
   assert.equal(lb.inicio.data, '2026-08-26');
   assert.equal(lb.inicio.total, 180, 'a divida inicial de 2026-08-26 eram 180 — e historico, nao mexe');
+  assert.equal(lb.inicio.orfaos.length, 180, 'a foto inteira, nao so os que ainda faltam (ate 2026-09-12 o ficheiro trazia 178)');
+  assert.equal(shaDaLista(lb.inicio.orfaos), SHA_INICIO_2026_08_26, 'o ficheiro versionado bate com o sha em codigo');
   assert.deepEqual(semJustificacao(lb.orfaos, lb), []);
 });
+
+// ── MORDIDA (g): a lista inicial e imutavel ─────────────────────────────────
+
+test('MORDIDA (g): acrescentar um caminho a `inicio.orfaos` a mao NAO dispensa a justificacao — codigo 2, nao 0', () => {
+  // Reproducao de um adversario (2026-09-12), contra a linha de base real:
+  //   1. tirou a justificacao de um orfao → codigo 1, com o caminho em
+  //      `sem_justificacao` (certo);
+  //   2. acrescentou esse caminho a `inicio.orfaos` → codigo 0, sem porque.
+  // «O guarda confia na lista que devia fiscalizar.» Agora a lista inicial
+  // tem sha em codigo, e um `inicio` que nao bate e uma linha de base
+  // ADULTERADA: codigo 2, e nem o `--linha-base` a regrava.
+  const real = JSON.parse(fs.readFileSync(LINHA_BASE, 'utf8'));
+  const alvo = Object.keys(real.justificacoes)[0];
+  assert.ok(alvo, 'a linha de base real tem de ter pelo menos um orfao justificado para esta mordida fazer sentido');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'catraca-g-'));
+  const caminho = path.join(dir, 'baseline.json');
+  // O contador e fixo — o que se mede aqui e a LEITURA da linha de base.
+  const gate = () => ({ valor: 0.5, num: 1, den: 2, orfaos: real.orfaos });
+  const correr = (j) => { fs.writeFileSync(caminho, JSON.stringify(j)); return verificar({ gateadosImpl: gate, linhaBaseImpl: () => lerLinhaBase({ caminho }) }); };
+  try {
+    // 0. intacta: passa.
+    assert.equal(correr(real).codigo, 0, 'a linha de base real, intacta, passa contra ela propria');
+    // 1. sem a justificacao: codigo 1, nomeia.
+    const semPorque = JSON.parse(JSON.stringify(real));
+    delete semPorque.justificacoes[alvo];
+    const r1 = correr(semPorque);
+    assert.equal(r1.codigo, 1);
+    assert.deepEqual(r1.sem_justificacao, [alvo]);
+    // 2. o ataque: o caminho passa para `inicio.orfaos`.
+    const forjada = JSON.parse(JSON.stringify(semPorque));
+    forjada.inicio.orfaos.push(alvo);
+    const r2 = correr(forjada);
+    assert.notEqual(r2.codigo, 0, 'ate 2026-09-12 isto dava 0 — a dispensa sem porque por edicao');
+    assert.equal(r2.codigo, 2);
+    assert.match(r2.porque, /a lista inicial foi alterada; a lista inicial e imutavel/);
+    assert.match(r2.porque, /181 entradas/);
+    // 3. E tirar um do inicio (para o empurrar para «novo» e depois justificar
+    //    com um porque de conveniencia) tambem nao bate.
+    const encolhida = JSON.parse(JSON.stringify(real));
+    encolhida.inicio.orfaos.pop();
+    assert.equal(correr(encolhida).codigo, 2, 'encolher a foto tambem e alterar a foto');
+    // 4. `--linha-base` por cima de uma lista inicial alterada: recusa, nada
+    //    escrito. (`escreverLinhaBase` e a segunda porta; a primeira e a leitura.)
+    let escreveu = false;
+    const w = escreverLinhaBase({ total: 2, orfaos: real.orfaos, justificacoes: real.justificacoes, inicio: forjada.inicio }, { writeImpl: () => { escreveu = true; } });
+    assert.equal(w.codigo, 2);
+    assert.equal(w.porque, MENSAGEM_INICIO_ALTERADO);
+    assert.equal(escreveu, false);
+    // 5. E a leitura de uma lista inicial sintetica (o `attacks.mjs` do
+    //    adversario usava `inicio.orfaos: ['old.test.js']`) e adulterada: so a
+    //    foto de 26/08 deste repositorio e que bate com o sha em codigo.
+    const sintetica = lerLinhaBase({ readImpl: () => JSON.stringify({ inicio: { data: '2026-08-26', total: 1, orfaos: ['old.test.js'] }, orfaos: ['old.test.js', 'new.test.js'], justificacoes: {} }) });
+    assert.equal(sintetica.presente, false);
+    assert.equal(sintetica.adulterada, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('(g) o sha em codigo e o da lista de 2026-08-26 tal como foi commitada — nao um sha de conveniencia', () => {
+  // `git show 2d5fd762:tools/cockpit/runner/testes-orfaos.baseline.json` traz
+  // os 180 `orfaos` daquele dia (o ficheiro ainda sem bloco `inicio`). O sha
+  // em codigo tem de ser o dessa lista, e nao o dos 178 que o ficheiro trazia
+  // ate 2026-09-12. Se o git nao tiver o commit (clone raso), diz-se e a
+  // comparacao contra o ficheiro versionado (teste anterior) continua a valer.
+  let bruto = null;
+  try {
+    bruto = execFileSync('git', ['show', '2d5fd762:tools/cockpit/runner/testes-orfaos.baseline.json'], { cwd: AQUI, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch { /* sem o commit */ }
+  if (!bruto) return;
+  const lista = JSON.parse(bruto).orfaos;
+  assert.equal(lista.length, 180);
+  assert.equal(shaDaLista(lista), SHA_INICIO_2026_08_26);
+});
+
