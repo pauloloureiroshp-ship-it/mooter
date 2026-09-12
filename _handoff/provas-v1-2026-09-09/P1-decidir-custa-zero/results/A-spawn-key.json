@@ -1,0 +1,3037 @@
+{
+ "arm": "A-spawn",
+ "env": "key",
+ "runs": 6,
+ "at": "2026-09-09T12:58:56.033Z",
+ "node": "v24.14.0",
+ "determinism": {
+  "identical_across_runs": true,
+  "differing": []
+ },
+ "rows": [
+  {
+   "id": "n01",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 98.1758
+  },
+  {
+   "id": "n02",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 98.0958
+  },
+  {
+   "id": "n03",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 100.3108
+  },
+  {
+   "id": "n04",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.672
+  },
+  {
+   "id": "n05",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 100.7488
+  },
+  {
+   "id": "n06",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 103.8721
+  },
+  {
+   "id": "n07",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 90.4019
+  },
+  {
+   "id": "n08",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.5778
+  },
+  {
+   "id": "n09",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "simple_transform_or_explain",
+   "exit": 0,
+   "ms": 98.0148
+  },
+  {
+   "id": "n10",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.9743
+  },
+  {
+   "id": "n11",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.9299
+  },
+  {
+   "id": "n12",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.2331
+  },
+  {
+   "id": "n13",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.5113
+  },
+  {
+   "id": "n14",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 99.9204
+  },
+  {
+   "id": "n15",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.6297
+  },
+  {
+   "id": "n16",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.5338
+  },
+  {
+   "id": "n17",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 103.2559
+  },
+  {
+   "id": "n18",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.8003
+  },
+  {
+   "id": "n19",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 100.2651
+  },
+  {
+   "id": "n20",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.2021
+  },
+  {
+   "id": "n21",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.4867
+  },
+  {
+   "id": "n22",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 98.7914
+  },
+  {
+   "id": "n23",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 100.1391
+  },
+  {
+   "id": "n24",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.1771
+  },
+  {
+   "id": "n25",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.9891
+  },
+  {
+   "id": "n26",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.0765
+  },
+  {
+   "id": "n27",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.6757
+  },
+  {
+   "id": "n28",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.7323
+  },
+  {
+   "id": "n29",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 99.606
+  },
+  {
+   "id": "n30",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 100.1131
+  },
+  {
+   "id": "n31",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.8833
+  },
+  {
+   "id": "n32",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 98.1518
+  },
+  {
+   "id": "n33",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 97.6968
+  },
+  {
+   "id": "n34",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.1014
+  },
+  {
+   "id": "n35",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 92.188
+  },
+  {
+   "id": "n36",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.2439
+  },
+  {
+   "id": "n37",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.9685
+  },
+  {
+   "id": "n38",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.8711
+  },
+  {
+   "id": "n39",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.0949
+  },
+  {
+   "id": "n40",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 99.5264
+  },
+  {
+   "id": "r01",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 99.4028
+  },
+  {
+   "id": "r02",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 100.2346
+  },
+  {
+   "id": "r03",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.453
+  },
+  {
+   "id": "r04",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.133
+  },
+  {
+   "id": "r05",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.8599
+  },
+  {
+   "id": "r06",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 103.857
+  },
+  {
+   "id": "r07",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.1584
+  },
+  {
+   "id": "r08",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.0545
+  },
+  {
+   "id": "r09",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.007
+  },
+  {
+   "id": "r10",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.3522
+  },
+  {
+   "id": "r11",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.0471
+  },
+  {
+   "id": "r12",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 99.2622
+  },
+  {
+   "id": "r13",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 104.401
+  },
+  {
+   "id": "r14",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.2988
+  },
+  {
+   "id": "r15",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.426
+  },
+  {
+   "id": "r16",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.1577
+  },
+  {
+   "id": "r17",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.363
+  },
+  {
+   "id": "r18",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.5975
+  },
+  {
+   "id": "r19",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.2891
+  },
+  {
+   "id": "r20",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 93.9033
+  },
+  {
+   "id": "r21",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.2743
+  },
+  {
+   "id": "r22",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 93.8027
+  },
+  {
+   "id": "r23",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 94.3002
+  },
+  {
+   "id": "n01",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.1815
+  },
+  {
+   "id": "n02",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.6376
+  },
+  {
+   "id": "n03",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.4183
+  },
+  {
+   "id": "n04",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.1266
+  },
+  {
+   "id": "n05",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.8751
+  },
+  {
+   "id": "n06",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.2461
+  },
+  {
+   "id": "n07",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 88.1028
+  },
+  {
+   "id": "n08",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.0472
+  },
+  {
+   "id": "n09",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "simple_transform_or_explain",
+   "exit": 0,
+   "ms": 94.4725
+  },
+  {
+   "id": "n10",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.5477
+  },
+  {
+   "id": "n11",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.1771
+  },
+  {
+   "id": "n12",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.5692
+  },
+  {
+   "id": "n13",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.0763
+  },
+  {
+   "id": "n14",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 96.4001
+  },
+  {
+   "id": "n15",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.285
+  },
+  {
+   "id": "n16",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.7855
+  },
+  {
+   "id": "n17",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 94.9147
+  },
+  {
+   "id": "n18",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.473
+  },
+  {
+   "id": "n19",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.6917
+  },
+  {
+   "id": "n20",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.1296
+  },
+  {
+   "id": "n21",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.1495
+  },
+  {
+   "id": "n22",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.0135
+  },
+  {
+   "id": "n23",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.2618
+  },
+  {
+   "id": "n24",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.1595
+  },
+  {
+   "id": "n25",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.3858
+  },
+  {
+   "id": "n26",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.8672
+  },
+  {
+   "id": "n27",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.9114
+  },
+  {
+   "id": "n28",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 94.8556
+  },
+  {
+   "id": "n29",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 94.4147
+  },
+  {
+   "id": "n30",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.782
+  },
+  {
+   "id": "n31",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 94.43
+  },
+  {
+   "id": "n32",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.9438
+  },
+  {
+   "id": "n33",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 94.2265
+  },
+  {
+   "id": "n34",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.3731
+  },
+  {
+   "id": "n35",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 89.3888
+  },
+  {
+   "id": "n36",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.4024
+  },
+  {
+   "id": "n37",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.0896
+  },
+  {
+   "id": "n38",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 99.914
+  },
+  {
+   "id": "n39",
+   "run": 2,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.617
+  },
+  {
+   "id": "n40",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 99.3428
+  },
+  {
+   "id": "r01",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.1874
+  },
+  {
+   "id": "r02",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.4593
+  },
+  {
+   "id": "r03",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.6721
+  },
+  {
+   "id": "r04",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.8615
+  },
+  {
+   "id": "r05",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.5667
+  },
+  {
+   "id": "r06",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.5222
+  },
+  {
+   "id": "r07",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.5527
+  },
+  {
+   "id": "r08",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.5913
+  },
+  {
+   "id": "r09",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.3952
+  },
+  {
+   "id": "r10",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 101.5085
+  },
+  {
+   "id": "r11",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.3087
+  },
+  {
+   "id": "r12",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.4535
+  },
+  {
+   "id": "r13",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.3316
+  },
+  {
+   "id": "r14",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.9914
+  },
+  {
+   "id": "r15",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.4587
+  },
+  {
+   "id": "r16",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.2265
+  },
+  {
+   "id": "r17",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.92
+  },
+  {
+   "id": "r18",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.1727
+  },
+  {
+   "id": "r19",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.3107
+  },
+  {
+   "id": "r20",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.9173
+  },
+  {
+   "id": "r21",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.0416
+  },
+  {
+   "id": "r22",
+   "run": 2,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.491
+  },
+  {
+   "id": "r23",
+   "run": 2,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 98.696
+  },
+  {
+   "id": "n01",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 102.4792
+  },
+  {
+   "id": "n02",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 100.9647
+  },
+  {
+   "id": "n03",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 107.676
+  },
+  {
+   "id": "n04",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.5838
+  },
+  {
+   "id": "n05",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.9519
+  },
+  {
+   "id": "n06",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.7442
+  },
+  {
+   "id": "n07",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 90.1943
+  },
+  {
+   "id": "n08",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.4586
+  },
+  {
+   "id": "n09",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "simple_transform_or_explain",
+   "exit": 0,
+   "ms": 94.8595
+  },
+  {
+   "id": "n10",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.5632
+  },
+  {
+   "id": "n11",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 101.5259
+  },
+  {
+   "id": "n12",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.5729
+  },
+  {
+   "id": "n13",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.5703
+  },
+  {
+   "id": "n14",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 95.3358
+  },
+  {
+   "id": "n15",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.4913
+  },
+  {
+   "id": "n16",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.3212
+  },
+  {
+   "id": "n17",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.3389
+  },
+  {
+   "id": "n18",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.7318
+  },
+  {
+   "id": "n19",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 98.1448
+  },
+  {
+   "id": "n20",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.2611
+  },
+  {
+   "id": "n21",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.2279
+  },
+  {
+   "id": "n22",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 100.2528
+  },
+  {
+   "id": "n23",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.0895
+  },
+  {
+   "id": "n24",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.9503
+  },
+  {
+   "id": "n25",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 103.5996
+  },
+  {
+   "id": "n26",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.7948
+  },
+  {
+   "id": "n27",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.6051
+  },
+  {
+   "id": "n28",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 94.1313
+  },
+  {
+   "id": "n29",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 96.373
+  },
+  {
+   "id": "n30",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 93.6663
+  },
+  {
+   "id": "n31",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 95.7563
+  },
+  {
+   "id": "n32",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.522
+  },
+  {
+   "id": "n33",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 95.4774
+  },
+  {
+   "id": "n34",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.9342
+  },
+  {
+   "id": "n35",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 89.2247
+  },
+  {
+   "id": "n36",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.4001
+  },
+  {
+   "id": "n37",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.8839
+  },
+  {
+   "id": "n38",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.0796
+  },
+  {
+   "id": "n39",
+   "run": 3,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.4827
+  },
+  {
+   "id": "n40",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.0361
+  },
+  {
+   "id": "r01",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.0721
+  },
+  {
+   "id": "r02",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.3374
+  },
+  {
+   "id": "r03",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.1015
+  },
+  {
+   "id": "r04",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.0647
+  },
+  {
+   "id": "r05",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.8795
+  },
+  {
+   "id": "r06",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.0014
+  },
+  {
+   "id": "r07",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.8115
+  },
+  {
+   "id": "r08",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.6968
+  },
+  {
+   "id": "r09",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.1716
+  },
+  {
+   "id": "r10",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.3363
+  },
+  {
+   "id": "r11",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.0468
+  },
+  {
+   "id": "r12",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.3904
+  },
+  {
+   "id": "r13",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.7017
+  },
+  {
+   "id": "r14",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 93.7847
+  },
+  {
+   "id": "r15",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.6587
+  },
+  {
+   "id": "r16",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 92.3391
+  },
+  {
+   "id": "r17",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.2423
+  },
+  {
+   "id": "r18",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.0188
+  },
+  {
+   "id": "r19",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.7682
+  },
+  {
+   "id": "r20",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.6709
+  },
+  {
+   "id": "r21",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.5972
+  },
+  {
+   "id": "r22",
+   "run": 3,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 93.8183
+  },
+  {
+   "id": "r23",
+   "run": 3,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 95.4817
+  },
+  {
+   "id": "n01",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.296
+  },
+  {
+   "id": "n02",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 98.5315
+  },
+  {
+   "id": "n03",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.2355
+  },
+  {
+   "id": "n04",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.7281
+  },
+  {
+   "id": "n05",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.9323
+  },
+  {
+   "id": "n06",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.1214
+  },
+  {
+   "id": "n07",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 88.279
+  },
+  {
+   "id": "n08",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 99.0022
+  },
+  {
+   "id": "n09",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "simple_transform_or_explain",
+   "exit": 0,
+   "ms": 96.6458
+  },
+  {
+   "id": "n10",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.6311
+  },
+  {
+   "id": "n11",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.4982
+  },
+  {
+   "id": "n12",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.3588
+  },
+  {
+   "id": "n13",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.7016
+  },
+  {
+   "id": "n14",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 96.0464
+  },
+  {
+   "id": "n15",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.3819
+  },
+  {
+   "id": "n16",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.8735
+  },
+  {
+   "id": "n17",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.3679
+  },
+  {
+   "id": "n18",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.0751
+  },
+  {
+   "id": "n19",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.5249
+  },
+  {
+   "id": "n20",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.3952
+  },
+  {
+   "id": "n21",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 104.1229
+  },
+  {
+   "id": "n22",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.3712
+  },
+  {
+   "id": "n23",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.4739
+  },
+  {
+   "id": "n24",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.2579
+  },
+  {
+   "id": "n25",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 93.381
+  },
+  {
+   "id": "n26",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 93.1402
+  },
+  {
+   "id": "n27",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 93.2339
+  },
+  {
+   "id": "n28",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 93.7187
+  },
+  {
+   "id": "n29",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 93.3741
+  },
+  {
+   "id": "n30",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.1547
+  },
+  {
+   "id": "n31",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.3879
+  },
+  {
+   "id": "n32",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.4175
+  },
+  {
+   "id": "n33",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 96.683
+  },
+  {
+   "id": "n34",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.7081
+  },
+  {
+   "id": "n35",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 88.6842
+  },
+  {
+   "id": "n36",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 93.8835
+  },
+  {
+   "id": "n37",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.1215
+  },
+  {
+   "id": "n38",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 95.7866
+  },
+  {
+   "id": "n39",
+   "run": 4,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.7898
+  },
+  {
+   "id": "n40",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 99.0422
+  },
+  {
+   "id": "r01",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.643
+  },
+  {
+   "id": "r02",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.1991
+  },
+  {
+   "id": "r03",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.4738
+  },
+  {
+   "id": "r04",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.2432
+  },
+  {
+   "id": "r05",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 99.2812
+  },
+  {
+   "id": "r06",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.5261
+  },
+  {
+   "id": "r07",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.5091
+  },
+  {
+   "id": "r08",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.9531
+  },
+  {
+   "id": "r09",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.9568
+  },
+  {
+   "id": "r10",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.1285
+  },
+  {
+   "id": "r11",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.2264
+  },
+  {
+   "id": "r12",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.1731
+  },
+  {
+   "id": "r13",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.0897
+  },
+  {
+   "id": "r14",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.0871
+  },
+  {
+   "id": "r15",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.8513
+  },
+  {
+   "id": "r16",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.5718
+  },
+  {
+   "id": "r17",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.8467
+  },
+  {
+   "id": "r18",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 101.1223
+  },
+  {
+   "id": "r19",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.0201
+  },
+  {
+   "id": "r20",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.4835
+  },
+  {
+   "id": "r21",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 93.8843
+  },
+  {
+   "id": "r22",
+   "run": 4,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.8159
+  },
+  {
+   "id": "r23",
+   "run": 4,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 97.2961
+  },
+  {
+   "id": "n01",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.7577
+  },
+  {
+   "id": "n02",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.0863
+  },
+  {
+   "id": "n03",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.0915
+  },
+  {
+   "id": "n04",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.1539
+  },
+  {
+   "id": "n05",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 100.7064
+  },
+  {
+   "id": "n06",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.9578
+  },
+  {
+   "id": "n07",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 90.3481
+  },
+  {
+   "id": "n08",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.9655
+  },
+  {
+   "id": "n09",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "simple_transform_or_explain",
+   "exit": 0,
+   "ms": 95.2969
+  },
+  {
+   "id": "n10",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.1747
+  },
+  {
+   "id": "n11",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.76
+  },
+  {
+   "id": "n12",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.943
+  },
+  {
+   "id": "n13",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.3642
+  },
+  {
+   "id": "n14",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 95.7856
+  },
+  {
+   "id": "n15",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.6743
+  },
+  {
+   "id": "n16",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.1991
+  },
+  {
+   "id": "n17",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.9529
+  },
+  {
+   "id": "n18",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.1788
+  },
+  {
+   "id": "n19",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 98.6623
+  },
+  {
+   "id": "n20",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.7075
+  },
+  {
+   "id": "n21",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.4249
+  },
+  {
+   "id": "n22",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 94.6517
+  },
+  {
+   "id": "n23",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 94.057
+  },
+  {
+   "id": "n24",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.4141
+  },
+  {
+   "id": "n25",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 94.3345
+  },
+  {
+   "id": "n26",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 93.7586
+  },
+  {
+   "id": "n27",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.5554
+  },
+  {
+   "id": "n28",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 94.5891
+  },
+  {
+   "id": "n29",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 94.3466
+  },
+  {
+   "id": "n30",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 98.1077
+  },
+  {
+   "id": "n31",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 99.1607
+  },
+  {
+   "id": "n32",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 99.7839
+  },
+  {
+   "id": "n33",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 103.3241
+  },
+  {
+   "id": "n34",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.0944
+  },
+  {
+   "id": "n35",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 92.5211
+  },
+  {
+   "id": "n36",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.3409
+  },
+  {
+   "id": "n37",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.529
+  },
+  {
+   "id": "n38",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.302
+  },
+  {
+   "id": "n39",
+   "run": 5,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.4169
+  },
+  {
+   "id": "n40",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 101.3871
+  },
+  {
+   "id": "r01",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 103.7156
+  },
+  {
+   "id": "r02",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 104.3206
+  },
+  {
+   "id": "r03",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 103.2296
+  },
+  {
+   "id": "r04",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.1928
+  },
+  {
+   "id": "r05",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.6129
+  },
+  {
+   "id": "r06",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.6241
+  },
+  {
+   "id": "r07",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.1404
+  },
+  {
+   "id": "r08",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.5604
+  },
+  {
+   "id": "r09",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.7529
+  },
+  {
+   "id": "r10",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.7055
+  },
+  {
+   "id": "r11",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.8994
+  },
+  {
+   "id": "r12",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.8773
+  },
+  {
+   "id": "r13",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.3494
+  },
+  {
+   "id": "r14",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.9294
+  },
+  {
+   "id": "r15",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.2739
+  },
+  {
+   "id": "r16",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.3913
+  },
+  {
+   "id": "r17",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.0233
+  },
+  {
+   "id": "r18",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.5908
+  },
+  {
+   "id": "r19",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.0516
+  },
+  {
+   "id": "r20",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 94.8543
+  },
+  {
+   "id": "r21",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.4266
+  },
+  {
+   "id": "r22",
+   "run": 5,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.6806
+  },
+  {
+   "id": "r23",
+   "run": 5,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 96.5296
+  },
+  {
+   "id": "n01",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.0001
+  },
+  {
+   "id": "n02",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.6852
+  },
+  {
+   "id": "n03",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.4358
+  },
+  {
+   "id": "n04",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 100.2667
+  },
+  {
+   "id": "n05",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.989
+  },
+  {
+   "id": "n06",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.375
+  },
+  {
+   "id": "n07",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 88.3741
+  },
+  {
+   "id": "n08",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.346
+  },
+  {
+   "id": "n09",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "simple_transform_or_explain",
+   "exit": 0,
+   "ms": 96.6302
+  },
+  {
+   "id": "n10",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.7471
+  },
+  {
+   "id": "n11",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 97.5761
+  },
+  {
+   "id": "n12",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.7213
+  },
+  {
+   "id": "n13",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.1547
+  },
+  {
+   "id": "n14",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 94.962
+  },
+  {
+   "id": "n15",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.6632
+  },
+  {
+   "id": "n16",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 98.8436
+  },
+  {
+   "id": "n17",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 94.8627
+  },
+  {
+   "id": "n18",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 94.7766
+  },
+  {
+   "id": "n19",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.5937
+  },
+  {
+   "id": "n20",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 100.3045
+  },
+  {
+   "id": "n21",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.9558
+  },
+  {
+   "id": "n22",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.5014
+  },
+  {
+   "id": "n23",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.5693
+  },
+  {
+   "id": "n24",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 93.1242
+  },
+  {
+   "id": "n25",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.6361
+  },
+  {
+   "id": "n26",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 94.7492
+  },
+  {
+   "id": "n27",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.992
+  },
+  {
+   "id": "n28",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.917
+  },
+  {
+   "id": "n29",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 95.5121
+  },
+  {
+   "id": "n30",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 98.9637
+  },
+  {
+   "id": "n31",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 100.4427
+  },
+  {
+   "id": "n32",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 96.307
+  },
+  {
+   "id": "n33",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 96.9886
+  },
+  {
+   "id": "n34",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 95.4705
+  },
+  {
+   "id": "n35",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 89.4753
+  },
+  {
+   "id": "n36",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.4213
+  },
+  {
+   "id": "n37",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 96.3514
+  },
+  {
+   "id": "n38",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 97.6756
+  },
+  {
+   "id": "n39",
+   "run": 6,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 99.1613
+  },
+  {
+   "id": "n40",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 99.5049
+  },
+  {
+   "id": "r01",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.4206
+  },
+  {
+   "id": "r02",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.6351
+  },
+  {
+   "id": "r03",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 96.5031
+  },
+  {
+   "id": "r04",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.008
+  },
+  {
+   "id": "r05",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 94.5831
+  },
+  {
+   "id": "r06",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 100.4537
+  },
+  {
+   "id": "r07",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 104.3128
+  },
+  {
+   "id": "r08",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 102.1607
+  },
+  {
+   "id": "r09",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.8642
+  },
+  {
+   "id": "r10",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.4546
+  },
+  {
+   "id": "r11",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.3425
+  },
+  {
+   "id": "r12",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 100.6467
+  },
+  {
+   "id": "r13",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.0712
+  },
+  {
+   "id": "r14",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 95.0926
+  },
+  {
+   "id": "r15",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.8994
+  },
+  {
+   "id": "r16",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.1723
+  },
+  {
+   "id": "r17",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 98.6589
+  },
+  {
+   "id": "r18",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 97.5785
+  },
+  {
+   "id": "r19",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 95.5064
+  },
+  {
+   "id": "r20",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 96.4882
+  },
+  {
+   "id": "r21",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 97.541
+  },
+  {
+   "id": "r22",
+   "run": 6,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 99.5512
+  },
+  {
+   "id": "r23",
+   "run": 6,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 97.3369
+  }
+ ]
+}

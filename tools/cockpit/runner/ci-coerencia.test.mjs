@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  nodeDe, runtimeDePublicacao, scriptsEmFalta, lerWorkflows, nomeQueMente,
+  nodeDe, runtimeDePublicacao, scriptsEmFalta, lerWorkflows, nomeQueMente, blocoPartido,
 } from './ci-coerencia.mjs';
 
 const wf = (ficheiro, src) => ({ ficheiro, src });
@@ -171,4 +171,80 @@ test('o numero de um passo nao contamina o passo seguinte', () => {
     "          node-version: '22'",
   ].join('\n'))]);
   assert.deepEqual(m, [], 'cada passo compara-se consigo mesmo');
+});
+
+/* ── blocoPartido ─────────────────────────────────────────────────────────
+   Sinteticos, como todo o resto deste ficheiro. O primeiro reproduz a FORMA
+   exacta do defeito medido a 2026-09-01 no `version-sync.yml` — um corpo de
+   PR multilinha dentro de um `run:` — sem depender do estado do repo hoje.  */
+
+const BOM = [
+  'name: Exemplo',
+  'on:',
+  '  push:',
+  "    tags: ['v*']",
+  'jobs:',
+  '  j:',
+  '    runs-on: ubuntu-latest',
+  '    steps:',
+  '      - run: |',
+  '          echo "uma linha"',
+  '          echo "outra"',
+].join('\n');
+
+test('apanha o corpo multilinha que escapou do `run:` para a coluna 0', () => {
+  const partido = [
+    'name: Version Sync',
+    'jobs:',
+    '  sync:',
+    '    steps:',
+    '      - run: |',
+    '          gh pr create \\',
+    '            --body "Aberto pelo workflow na tag.',
+    '',
+    'Alinha os cinco ficheiros de versao com a tag publicada:',
+    'instala — sem este merge, publica um bundle com a versao anterior." \\',
+    '            || echo "ja existe"',
+  ].join('\n');
+  const f = blocoPartido([wf('version-sync.yml', partido)]);
+  assert.equal(f.length, 2, 'as duas linhas de conteudo a coluna 0 sao acusadas');
+  assert.deepEqual(f.map((x) => x.linha), [9, 10], 'aponta a linha, para ser accionavel');
+  assert.equal(f[0].ficheiro, 'version-sync.yml');
+});
+
+test('cala-se num workflow bem formado', () => {
+  assert.deepEqual(blocoPartido([wf('bom.yml', BOM)]), []);
+});
+
+test('chave de topo, comentario e marcador de documento nao sao fuga', () => {
+  const src = ['---', '# comentario a coluna 0', 'run-name: x', 'on: push', '...'].join('\n');
+  assert.deepEqual(blocoPartido([wf('w.yml', src)]), [],
+    'sao todos legitimos a coluna 0 — acusa-los ensinava a ignorar a guarda');
+});
+
+test('linha vazia dentro de um bloco nao conta como fuga', () => {
+  const src = ['jobs:', '  j:', '    steps:', '      - run: |', '          echo a', '', '          echo b'].join('\n');
+  assert.deepEqual(blocoPartido([wf('w.yml', src)]), [],
+    'YAML permite linhas vazias dentro de um block scalar');
+});
+
+test('CRLF: uma linha em branco do Windows nao e acusada', () => {
+  // Sem cortar o `\r`, uma linha vazia chega como '\r' — comprimento 1, primeiro
+  // caracter nao-espaco — e a guarda acusava TODOS os brancos do ficheiro.
+  // Foi o que aconteceu na primeira mordida: 15 acusacoes, 8 delas brancos.
+  assert.deepEqual(blocoPartido([wf('crlf.yml', BOM.split('\n').join('\r\n'))]), [],
+    'fins de linha do Windows nao podem inventar fugas');
+});
+
+test('CRLF: e uma fuga verdadeira continua a ser acusada', () => {
+  const src = ['jobs:', '  j:', '', 'fugida aqui'].join('\r\n');
+  const f = blocoPartido([wf('crlf.yml', src)]);
+  assert.equal(f.length, 1, 'cortar o \\r nao pode cegar a guarda');
+  assert.equal(f[0].texto, 'fugida aqui', 'e o texto sai limpo, sem o \\r');
+});
+
+test('varre todos os workflows, nao so o primeiro', () => {
+  const f = blocoPartido([wf('a.yml', BOM), wf('b.yml', ['jobs:', 'fugida aqui'].join('\n'))]);
+  assert.equal(f.length, 1);
+  assert.equal(f[0].ficheiro, 'b.yml', 'a fuga do segundo ficheiro nao pode passar despercebida');
 });

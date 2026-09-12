@@ -12,6 +12,7 @@ const os = require('os');
 const path = require('path');
 
 const SCRIPT = path.join(__dirname, 'register-hooks.js');
+const NODE_EXE = process.execPath.replace(/\\/g, '/');
 
 function run(settingsPath) {
   const r = spawnSync(process.execPath, [SCRIPT, settingsPath, '/opt/router', '/opt/hooks'], {
@@ -55,7 +56,7 @@ test('register-hooks arms the tap in all four hook arrays, idempotently', () => 
   // command points at the forward-slashed hooks dir (cross-OS)
   const upsCmd = s.hooks.UserPromptSubmit.flatMap((e) => e.hooks).find((h) => h.command.includes('live-preview-tap.js'));
   assert.match(upsCmd.command, /"\/opt\/hooks\/live-preview-tap\.js" UserPromptSubmit$/);
-  assert.match(upsCmd.command, new RegExp(`^"${process.execPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" `));
+  assert.match(upsCmd.command, new RegExp(`^"${NODE_EXE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" `));
 
   // second run is a no-op — nothing added, no duplicates
   const second = run(settingsPath);
@@ -101,7 +102,7 @@ test('register-hooks upgrades bare-node Mooter hooks without rewriting user hook
   assert.equal(result.code, 0);
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   const commands = settings.hooks.Stop.flatMap((entry) => entry.hooks || []).map((hook) => hook.command);
-  assert.ok(commands.includes(`"${process.execPath}" "/opt/hooks/gsd-turn-end.js"`));
+  assert.ok(commands.includes(`"${NODE_EXE}" "/opt/hooks/gsd-turn-end.js"`));
   assert.ok(commands.includes('node /my/own/hook.js'));
 
   fs.rmSync(dir, { recursive: true, force: true });

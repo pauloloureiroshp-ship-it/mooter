@@ -89,13 +89,13 @@ export const SITIOS = [
     ficheiro: 'install.sh',
     porque: 'o que o instalador POSIX recusa',
     obrigatorio: true,
-    padroes: [/NODE_MAJOR"?\s*-lt\s*(\d+)/g, /needs Node (\d+)\+/g],
+    padroes: [/Verifies Claude Code \+ Node (\d+)/g, /NODE_MAJOR"?\s*-lt\s*(\d+)/g, /needs Node (\d+)\+/g],
   },
   {
     ficheiro: 'landing/public/install.sh',
     porque: 'a copia que o site serve por curl | sh',
     obrigatorio: true,
-    padroes: [/NODE_MAJOR"?\s*-lt\s*(\d+)/g, /needs Node (\d+)\+/g],
+    padroes: [/Verifies Claude Code \+ Node (\d+)/g, /NODE_MAJOR"?\s*-lt\s*(\d+)/g, /needs Node (\d+)\+/g],
   },
   {
     ficheiro: 'install.ps1',
@@ -110,6 +110,36 @@ export const SITIOS = [
     padroes: [/nodeMajor\s*-lt\s*(\d+)/g, /needs Node (\d+)\+/g],
   },
   { ficheiro: 'CONTRIBUTING.md', porque: 'o que se pede a quem contribui', padroes: PADROES_DOC },
+  {
+    ficheiro: 'README.md',
+    porque: 'o requisito publicado a quem instala',
+    obrigatorio: true,
+    padroes: [...PADROES_DOC, /\bNode\.js (\d+)\+/g],
+  },
+  {
+    ficheiro: 'landing/app/(marketing)/install/page.tsx',
+    porque: 'o piso mostrado na pagina publica de instalacao',
+    obrigatorio: true,
+    padroes: [/verify Claude Code \+ Node (\d+)/g],
+  },
+  {
+    // 2026-08-28 · este dizia `"minNodeVersion": "18.0.0"` enquanto os dois
+    // instaladores recusavam Node < 22, e a guarda deu «todos os 13 sitios
+    // dizem Node 22+» sem o ver. Ninguem LE este campo (grep por
+    // `minNodeVersion` no repo: zero consumidores fora do proprio ficheiro),
+    // o que o torna pior e nao melhor: um numero morto que contradiz o
+    // instalador nao tem quem o corrija por deixar de funcionar.
+    ficheiro: 'tools/router/version.json',
+    porque: 'o piso declarado no SSOT da versao, que o site e o CLI servem',
+    obrigatorio: true,
+    padroes: [/"minNodeVersion":\s*"(\d+)/g],
+  },
+  {
+    ficheiro: 'tools/cli/commands/doctor.js',
+    porque: 'o diagnostico que aprova ou recusa o runtime instalado',
+    obrigatorio: true,
+    padroes: [/check\('Node\.js (\d+)\+'/g, /versionGte\(ver, '(\d+)\.0\.0'\)/g, /need (\d+)\+/g],
+  },
   { ficheiro: 'tests/README.md', porque: 'o piso que o guia de testes promete', padroes: PADROES_DOC },
   { ficheiro: 'docs/strategy/MOOTER_OPERATIONS.md', porque: 'o runbook de operacao', padroes: PADROES_DOC },
   { ficheiro: 'docs/strategy/PASTOR_OPERATIONS.md', porque: 'o runbook do Pastor', padroes: PADROES_DOC },

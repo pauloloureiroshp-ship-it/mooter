@@ -1,0 +1,11 @@
+L1-c local true {"answer":"A19-3302"}
+L1-d local true {"answer":["z","x","y","x"]}
+L2-c local true {"answer":["blue","green","red"]}
+L2-d local false {"answer":2}
+L3-c local false {"answer":12}
+L3-d local false {"answer":10}
+L4-c local false {"answer":12}
+L4-d local false {"answer":["1","3","4","6"]}
+L5-c local false {"answer":["B","D","E"]}
+L5-d local false {"answer":["A","C","E"]}
+-> results\local-holdout.json

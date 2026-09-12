@@ -2,6 +2,15 @@ const { spawn } = require('child_process');
 const { color, warn, info } = require('../lib/ui');
 const { which, paths } = require('../lib/paths');
 const fs = require('fs');
+const path = require('path');
+
+function claudeLaunch(claudeBin, args, { isWindows = paths.isWindows, comSpec = process.env.ComSpec } = {}) {
+  const extension = path.extname(claudeBin).toLowerCase();
+  if (isWindows && (extension === '.cmd' || extension === '.bat')) {
+    return { command: comSpec || 'cmd.exe', args: ['/d', '/c', claudeBin, ...args] };
+  }
+  return { command: claudeBin, args };
+}
 
 function run(args) {
   const claudeBin = which('claude');
@@ -34,7 +43,8 @@ function run(args) {
   process.stdout.write('\n');
 
   const env = { ...process.env, MOOTER_MODE: '1' };
-  const child = spawn(claudeBin, args, { stdio: 'inherit', env, shell: false });
+  const launch = claudeLaunch(claudeBin, args);
+  const child = spawn(launch.command, launch.args, { stdio: 'inherit', env, shell: false });
   child.on('exit', (code) => process.exit(code || 0));
   child.on('error', (err) => {
     console.error(`  ${color.red('[XX]')} failed to launch claude: ${err.message}`);
@@ -42,4 +52,4 @@ function run(args) {
   });
 }
 
-module.exports = { run };
+module.exports = { run, claudeLaunch };

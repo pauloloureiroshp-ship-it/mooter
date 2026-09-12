@@ -66,7 +66,9 @@ function metricsPath() {
 }
 
 function ollamaHost() {
-  return process.env.OLLAMA_HOST || 'http://localhost:11434';
+  // Este valor alimenta três `new URL(...)` (linhas ~212, ~275, ~374), que
+  // lançam `Invalid URL` com host sem esquema. Ver `ollama-host.js`.
+  return require('./ollama-host.js').ollamaHostFromEnv('http://localhost:11434');
 }
 
 // ── Pure helpers ────────────────────────────────────────────────────────────

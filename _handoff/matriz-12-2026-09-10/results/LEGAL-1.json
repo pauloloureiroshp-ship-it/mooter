@@ -1,0 +1,165 @@
+{
+ "id": "LEGAL-1",
+ "dominio": "juridico",
+ "risco": false,
+ "iniciado": "2026-09-10T18:58:37.017Z",
+ "bracos": {
+  "B": {
+   "ok": true,
+   "rota": {
+    "tier": "T0",
+    "task_category": "simple_transform_or_explain",
+    "risk_level": "low",
+    "confidence": 0.85,
+    "recommended_backend": "ollama",
+    "recommended_model_do_classify": "qwen2.5-coder:14b",
+    "suggested_subagent": "local-summarizer",
+    "classify_ms": 90.6,
+    "hw_t0_injectado": "qwen2.5-coder:14b",
+    "porque": "simple_transform_or_explain / risco low / confianca 0.85"
+   },
+   "backend": "ollama",
+   "modelo": "qwen2.5-coder:14b",
+   "texto": "A cláusula de não-concorrência significa que, durante 24 meses, não podes trabalhar ou ter qualquer interesse comercial em concorrência com a empresa em todo o território nacional.",
+   "tokens_in": 130,
+   "tokens_out": 45,
+   "cache_creation": 0,
+   "cache_read": 0,
+   "decorrido_ms": 4887.3714,
+   "duration_api_ms": 4775,
+   "tecto_tokens": 2048,
+   "truncou": false,
+   "preco": {
+    "input": 0,
+    "output": 0
+   },
+   "custo_resposta_usd": 0,
+   "custo_faturado_usd": 0,
+   "nota": "modelo instalado no Ollama desta maquina: $0 de fornecedor (a GPU e do dono, e gasta energia)"
+  },
+  "B2": {
+   "ok": true,
+   "rota": {
+    "tier": "T0",
+    "task_category": "simple_transform_or_explain",
+    "risk_level": "low",
+    "confidence": 0.85,
+    "recommended_backend": "ollama",
+    "recommended_model_do_classify": "qwen2.5-coder:14b",
+    "suggested_subagent": "local-summarizer",
+    "classify_ms": 88.6,
+    "hw_t0_injectado": "qwen2.5-coder:14b",
+    "porque": "simple_transform_or_explain / risco low / confianca 0.85",
+    "modelo_t0_forcado": "qwen3:30b"
+   },
+   "backend": "ollama",
+   "modelo": "qwen3:30b",
+   "texto": "Okay, the user received a contract with a 24-month non-compete clause covering the entire national territory. They want a simple explanation of what that means in practice.\n\nFirst, I need to break down the key points: 24 months, non-compete, national territory. Non-compete usually means they can't work for competitors or start their own business in the same field after leaving the job. The 24 months is the duration. National territory means it applies everywhere in the country, not just a region.\n\nWait, but in Portugal, non-compete clauses have legal limits. I should check if 24 months is standard. From what I remember, in Portugal, non-compete clauses can't exceed 24 months, but they must be reasonable in scope and duration. However, the user is asking for practical implications, not legal validity.\n\nSo, in practice, after leaving the job, they can't work for a competitor or start a similar business anywhere in Portugal for two years. They might need to check if the clause is enforceable, but the user just wants to know what it means, not if it's legal.\n\nNeed to keep it simple. Avoid legal jargon. Use everyday terms. Maybe mention that they can't join a rival company or start their own business in the same sector for two years across the whole country.\n\nWait, the user is in Portugal, so the answer should be in PT-PT. But the response needs to be in Portuguese. Let me confirm the user's instruction: \"Respondes em PT-PT (Portugal).\" So the answer must be in Portuguese.\n\nBut the user's question is in Portuguese, so the answer should be in Portuguese. Let me make sure to write the response in Portuguese, concise, no more than three sentences.\n\nCheck if the clause is for the entire national territory. So \"todo o território nacional\" means the whole country. So they can't work in any part of Portugal for competitors or similar businesses for 24 months after leaving.\n\nAlso, need to clarify that it's not about the company's location but the territory. So even if they move to another city, it's still covered.\n\nSo the practical meaning: After leaving, you can't work for a competitor or start a similar business anywhere in Portugal for two years.\n\nMake sure it's simple. Avoid mentioning legal aspects unless necessary. The user just wants to know what it means for them.\n\nSo the answer should be: \"Significa que, após deixar o emprego, não pode trabalhar para concorrentes ou iniciar um negócio semelhante em qualquer parte de Portugal durante 24 meses.\"\n\nCheck the length. Three sentences max. Let me count: one sentence. That's good. Keep it short.\n\nWait, the user said \"na prática para mim\" so practical implications. So maybe add that they might need to find a different job outside their field or wait two years.\n\nBut the user asked for simple explanation. So stick to the main point. The main point is the restriction period and scope.\n\nYes, the answer I have covers that. Let me check if \"concorrentes\" is correct. Yes, competitors. \"Negócio semelhante\" is similar business.\n\nOkay, that's concise and in Portuguese. Should be good.\n</think>\n\nSignifica que, após deixar o emprego, não pode trabalhar para concorrentes ou iniciar um negócio semelhante em qualquer parte de Portugal durante 24 meses.",
+   "tokens_in": 132,
+   "tokens_out": 718,
+   "cache_creation": 0,
+   "cache_read": 0,
+   "decorrido_ms": 10442.4204,
+   "duration_api_ms": 10334,
+   "tecto_tokens": 2048,
+   "truncou": false,
+   "preco": {
+    "input": 0,
+    "output": 0
+   },
+   "custo_resposta_usd": 0,
+   "custo_faturado_usd": 0,
+   "nota": "modelo instalado no Ollama desta maquina: $0 de fornecedor (a GPU e do dono, e gasta energia)"
+  },
+  "A": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-opus-5",
+   "model_reportado": [
+    "claude-opus-5"
+   ],
+   "texto": "Vou explicar assumindo que é um contrato português (o teu email e a linguagem apontam para isso). Se for de outro país, diz-me, porque as regras mudam bastante. E o aviso óbvio à partida: isto é informação geral, não é aconselhamento jurídico — e não vi o contrato, só a descrição que me deste.\n\n## O que a cláusula faz, em linguagem simples\n\nUma cláusula de não-concorrência é um compromisso de que, **depois de saíres**, não vais trabalhar numa atividade que concorra com a empresa. Não é sobre o que fazes enquanto lá estás (isso já está coberto pelo dever de lealdade). É um travão ao que podes fazer a seguir.\n\nNa prática, ela tem sempre três dimensões, e só duas é que me deste:\n\n- **Duração:** 24 meses. Dois anos após a saída em que a tua liberdade de escolher empregador ou clientes fica limitada.\n- **Território:** todo o país. Ou seja, mudar de cidade não resolve — só sair de Portugal, ou mudar de setor.\n- **Âmbito de atividade:** é a parte mais importante e que não referiste. Diz \"atividade concorrente\" de forma vaga? Lista empresas concretas? Descreve funções? Uma cláusula que te proíbe de \"exercer atividade concorrente\" é muito mais ampla — e muito mais perigosa — do que uma que diz \"não trabalhar para as empresas X, Y e Z nas funções de vendas\".\n\n## O que isto significa no teu dia-a-dia, se for válida e ficar como está\n\n- Durante dois anos, os empregadores mais óbvios para ti — os do teu setor, onde a tua experiência vale mais — ficam fora de alcance.\n- Aplica-se normalmente independentemente do motivo da saída: despedimento, saída por tua iniciativa, fim do contrato.\n- Costuma abranger trabalhar por conta própria e como freelancer, não só ser contratado por um concorrente.\n- Se houver **cláusula penal** associada (um valor fixo a pagar em caso de incumprimento), é isso que a empresa te exige se entender que violaste — sem ter de provar o prejuízo concreto.\n\n## Três coisas que mudam tudo, e que tens de ir verificar no papel\n\n**1. Há compensação?** Em Portugal, num contrato de trabalho, uma cláusula destas só é válida se a empresa te pagar uma compensação durante o período de limitação. Não é opcional nem um detalhe. Se o contrato impõe 24 meses de restrição e não prevê pagamento nenhum, há um problema sério de validade da cláusula. Vê se existe, qual o valor, e como é pago (mensalmente após a saída? diluído no salário?).\n\n**2. É contrato de trabalho ou prestação de serviços?** Se fores trabalhador por conta de outrem, o Código do Trabalho fixa o limite em 2 anos — os teus 24 meses estão no máximo legal, o que é agressivo mas não é automaticamente ilegal (há casos de especial confiança ou acesso a informação sensível em que se admite mais). Se for um contrato de prestação de serviços ou societário, as regras são outras: vale mais a liberdade contratual, mas continua a haver limites de proporcionalidade — um tribunal não valida uma restrição que na prática te impeça de ganhar a vida.\n\n**3. Justifica-se pela tua função?** A lei exige que se trate de atividade cujo exercício possa causar prejuízo real à empresa. Se tens acesso a carteira de clientes, preços, know-how técnico, a cláusula defende-se bem. Se a tua função não dá acesso a nada disso, a amplitude \"todo o território nacional por 24 meses\" é desproporcionada face ao interesse que pretende proteger — e é exatamente aí que estas cláusulas caem ou são reduzidas em tribunal.\n\n## Cuidado com uma confusão frequente\n\nNão-concorrência não é a mesma coisa que:\n\n- **Confidencialidade** — não divulgar informação da empresa. Essa é razoável e costuma não ter prazo.\n- **Não angariação (non-solicit)** — não levar contigo clientes ou colegas. Bem mais restrita e mais fácil de aceitar.\n\nSe o contrato tiver as três, lê-as separadamente. Às vezes a via de negociação é aceitar as duas últimas e reduzir drasticamente a primeira.\n\n## O que eu faria, por ordem\n\n1. **Verificar se há compensação prevista.** Sem ela, num contrato de trabalho, tens um argumento forte e a conversa toda muda.\n2. **Ler o âmbito de atividade.** Se for vago, pedir para o tornar concreto — setor, funções, ou lista de concorrentes. Isto sozinho pode tornar a cláusula viável para ti.\n3. **Negociar duração e território.** 24 meses + país inteiro é o pacote máximo. Pedir 6 ou 12 meses, ou restringir a região onde a empresa opera de facto, é um pedido normal e frequentemente aceite.\n4. **Ver a cláusula penal.** Se o valor for desproporcionado, é reduzível por um tribunal — mas é melhor não chegar lá.\n5. **Antes de assinar, mostrar a um advogado de laboral.** Uma consulta única é barata comparada com dois anos de carreira travada, e a validade depende de detalhes de redação que só se avaliam com o texto à frente.\n\nSe me colares aqui o texto exato da cláusula (e das cláusulas de confidencialidade/compensação, se existirem), digo-te concretamente onde estão os pontos fracos e como propor a alteração.",
+   "tokens_in": 2,
+   "tokens_out": 2934,
+   "cache_creation": 3849,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.11184999999999999,
+   "duration_ms": 48399,
+   "duration_api_ms": 46445,
+   "decorrido_ms": 49814.0944,
+   "num_turns": 1,
+   "session_id": "057310b1-49bf-4992-bb24-a5411d8c3d27",
+   "exit": 0,
+   "preco": {
+    "input": 5,
+    "output": 25,
+    "cache_write_5m": 6.25,
+    "cache_read": 0.5
+   },
+   "custo_resposta_usd": 0.07336,
+   "custo_faturado_usd": 0.09741625,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.07335,
+    "cache_write": 0.02405625,
+    "cache_read": 0
+   }
+  },
+  "C": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-haiku-4-5-20251001",
+   "model_reportado": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "texto": "# Cláusula de Não-Concorrência: O que Significa\n\nEm termos simples, isto significa:\n\n**Durante 24 meses após deixar a empresa**, tu não podes:\n- Trabalhar para empresas que sejam concorrentes diretas\n- Criar o teu próprio negócio no mesmo sector\n- Fazer qualquer coisa que compita com o negócio actual da empresa\n\n**Em todo o território nacional** = Aplica-se a Portugal inteiro. Não podes simplesmente mudar para outra cidade e fazer o mesmo trabalho.\n\n---\n\n## O Impacto Prático Para Ti\n\n**O que fica bloqueado:**\n- Mudar para uma empresa rival nos próximos 2 anos\n- Montar um negócio similar durante esse período\n- Trabalhar como freelancer em áreas directamente concorrentes\n\n**O que fica permitido:**\n- Trabalhar noutros sectores completamente diferentes\n- Trabalhar em empresas que não são concorrentes\n- Fazer formação, estar desempregado, etc.\n\n---\n\n## Pontos Importantes\n\n1. **É uma restrição séria** – A empresa pode processar-te se violar isto\n2. **Depende da definição de \"concorrente\"** – Lê bem o contrato para ver o que consideram concorrente (às vezes é muito abrangente, às vezes é específico)\n3. **Pode ser negociável** – Antes de assinar, podes tentar reduzir o período (ex: 12 meses em vez de 24) ou o âmbito geográfico\n4. **Nem sempre é válida** – Em Portugal, existem algumas limitações legais a estas cláusulas, mas o ónus da prova é teu\n\nSe o sector é muito específico, isto pode ser uma limitação significativa. Vale a pena negociar se possível.",
+   "tokens_in": 10,
+   "tokens_out": 765,
+   "cache_creation": 6716,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.017266999999999998,
+   "duration_ms": 10284,
+   "duration_api_ms": 8772,
+   "decorrido_ms": 11931.6564,
+   "num_turns": 1,
+   "session_id": "e48d8cff-4b4c-43f9-b2a2-05c086acf1d4",
+   "exit": 0,
+   "preco": {
+    "input": 1,
+    "output": 5,
+    "cache_write_5m": 1.25,
+    "cache_read": 0.1
+   },
+   "custo_resposta_usd": 0.003835,
+   "custo_faturado_usd": 0.01223,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.003825,
+    "cache_write": 0.008395,
+    "cache_read": 0
+   }
+  },
+  "D": {
+   "ok": true,
+   "motivo": null,
+   "exit": 0,
+   "modelo": "gpt-6-astra",
+   "effort": "medium",
+   "texto": "Vou confirmar o enquadramento legal; o efeito da cláusula depende do país e do tipo de contrato.\n\nEm linguagem simples: **a cláusula pretende impedir-te de exercer atividades que concorram com a empresa durante dois anos, em qualquer parte do país.** Sem ler o texto, falta confirmar quando começam esses dois anos — frequentemente, é quando o contrato termina.\n\nNa prática, conforme a redação, pode limitar-te a:\n\n- Aceitar emprego numa empresa concorrente.\n- Prestar serviços a concorrentes como independente.\n- Abrir um negócio que concorra com a empresa.\n\n**Mudar de cidade dentro do país não resolveria a restrição territorial.** Mas isto não significa automaticamente que fiques impedido de trabalhar em toda a tua profissão: depende das atividades abrangidas e da validade legal da cláusula. Também é necessário ver se prevê alguma penalização por incumprimento.\n\n**Se for um contrato de trabalho em Portugal**, os 24 meses correspondem ao limite geral previsto na lei. Porém, a duração, por si só, não torna a cláusula válida: exige acordo escrito, uma atividade que possa causar prejuízo ao empregador e compensação ao trabalhador durante a restrição. [Diário da República — pacto de não concorrência](https://diariodarepublica.pt/dr/lexionario/termo/pacto-nao-concorrencia-direito-trabalho).\n\nPodes colar aqui a cláusula, sem dados pessoais, e indicar o país e se é contrato de trabalho ou de prestação de serviços? Assim consigo explicar exatamente o que pretende impedir-te de fazer.",
+   "tokens_in": 58435,
+   "tokens_in_cached": 33664,
+   "cache_write": 0,
+   "tokens_out": 384,
+   "tokens_reasoning": 0,
+   "erros_do_harness": [],
+   "decorrido_ms": 21031.2403,
+   "preco": "n/d",
+   "custo_resposta_usd": null,
+   "custo_faturado_usd": null,
+   "nota": "n/d — sem preco de lista para \"gpt-6-astra\" na tabela citada, e nao esta instalado localmente"
+  }
+ },
+ "terminado": "2026-09-10T19:00:15.307Z"
+}

@@ -1,0 +1,200 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Todos os meses perco um dia a bater o extracto do banco contra as facturas emitidas. Sao cerca de 300 linhas de cada lado, os valores nem sempre coincidem ao centimo e ha pagamentos agrupados. Como e que eu monto um processo para isto?
+---
+
+Este pedido nao esta marcado como de risco.
+
+CANDIDATAS:
+
+<resposta id="R1">
+Montava uma **conciliação semiautomática**: o processo propõe correspondências entre banco e facturas, e tu revês apenas os casos duvidosos. O objectivo é deixar de conferir 600 linhas à mão.
+
+Começa com dois ficheiros exportados todos os meses:
+
+| Extracto bancário | Facturas emitidas |
+|---|---|
+| Identificador do movimento | Número da factura |
+| Data | Cliente |
+| Descrição/referência | Data de emissão e vencimento |
+| Valor recebido | Valor ainda por liquidar |
+
+**Inclui facturas antigas ainda em aberto**, porque um recebimento deste mês pode pagar uma factura de meses anteriores. Guarda os ficheiros originais para poderes reconstruir cada conciliação.
+
+Depois, aplica as regras por esta ordem:
+
+1. **Referência da factura + valor exacto.** É a correspondência mais forte, desde que seja única.
+2. **Cliente identificado + valor exacto.** Propõe a ligação; se houver duas facturas possíveis, deixa para revisão.
+3. **Pequenas diferenças.** Define uma tolerância explícita — por exemplo, até 0,05 € para sugerir uma correspondência. A diferença fica registada; não se considera automaticamente perdoada ou regularizada.
+4. **Pagamentos agrupados.** Procura combinações de facturas do mesmo cliente cuja soma corresponda ao recebimento. Começa por grupos pequenos e datas plausíveis. Se houver várias combinações possíveis, pede confirmação.
+5. **Pagamentos parciais.** Permite ligar vários recebimentos à mesma factura, mantendo o saldo por liquidar.
+
+Nos pagamentos agrupados, **não procures combinações entre todas as 300 facturas**: vais encontrar somas certas por acaso. Restringe primeiro pelo cliente, referência e período. Quando falta essa informação, o aviso de pagamento do cliente é mais útil do que tentar adivinhar.
+
+O resultado deve ter três filas:
+
+- **Conciliado:** correspondência inequívoca, com a regra utilizada.
+- **Para rever:** diferenças, agrupamentos e correspondências ambíguas.
+- **Sem correspondência:** recebimentos por identificar e facturas com saldo aberto.
+
+Há uma peça essencial: uma **tabela de afectações**, em que cada linha liga um movimento bancário a uma factura e indica o montante aplicado. Por exemplo, um recebimento de 450 € pode originar duas linhas: 200 € para a factura A e 250 € para a B. Isto suporta agrupamentos e pagamentos parciais sem duplicar dinheiro.
+
+Para montar isto, começava com **um mês histórico já conferido por ti**. Serve para testar as regras e, sobretudo, detectar correspondências erradas. Só depois automatizava a importação mensal. Cada execução deve preservar as decisões anteriores, impedir movimentos duplicados e mostrar os totais recebidos, afectados e por afectar.
+
+A escolha da ferramenta depende sobretudo de uma coisa: **em que programa emites as facturas e em que formatos consegues exportar as facturas e o extracto — Excel/CSV ou apenas PDF?**
+</resposta>
+
+<resposta id="R2">
+Okay, the user is having trouble reconciling their bank statements with invoices every month. They have around 300 lines on each side, values don't match to the cent, and there are grouped payments. Let me think about how to approach this.
+
+First, they need a systematic way to match transactions. Maybe using a spreadsheet or a tool that can handle large datasets. Excel or Google Sheets could work, but with 300 lines, maybe a database would be better. But the user might not have access to that.
+
+Wait, they mentioned grouped payments. So some payments might cover multiple invoices. They need to split those. Maybe using a tool that can handle partial matches or fuzzy matching. But the user is probably looking for a simple, step-by-step process.
+
+They need to sort both lists by date and amount. Then, look for exact matches first. For the ones that don't match, check for rounding differences or small discrepancies. Maybe use a formula to highlight differences. For grouped payments, they might need to manually split them, but maybe there's a way to automate that with some criteria.
+
+Wait, the user is in Portugal, so maybe they use specific software. But the question is about setting up a process. So the answer should be practical steps. Maybe suggest using Excel with VLOOKUP or XLOOKUP to match amounts, then handle discrepancies manually. Also, check for common errors like missing transactions or duplicate entries.
+
+Wait, the user said "perco um dia a bater" which means they spend a day each month doing this manually. So they need to automate it. But the answer should be concise. The key points: sort both lists, use formulas to match, handle grouped payments by splitting, and use a tool like Excel or a simple script.
+
+But the user might not know how to do that. So the answer should be: Use Excel/Sheets with VLOOKUP/XLOOKUP to match amounts, sort by date/amount, handle grouped payments by splitting based on invoice dates, and use conditional formatting for discrepancies. Keep a log for manual adjustments.
+
+Wait, the user asked for a process, so the steps. But the answer needs to be short. So maybe: "Use Excel/Sheets with VLOOKUP/XLOOKUP to match transactions. Sort both lists by date and amount. Split grouped payments manually based on invoice dates. Highlight discrepancies with conditional formatting."
+
+Check if that's under three sentences. Yes. And in Portuguese, but the code and identifiers in English. So the answer should be in PT-PT, but the terms like Excel, VLOOKUP are in English. The user's question was in Portuguese, so the answer should be in PT-PT.
+
+Wait, the instructions say "Respostas curtas e directas — nunca mais de 3 frases para perguntas simples." So the answer should be three sentences max. Let me check the example response.
+
+The user's example response was: "Use Excel/Sheets com VLOOKUP/XLOOKUP para corresponder transações. Ordene ambas as listas por data e valor. Divida pagamentos agrupados manualmente com base nas datas das facturas."
+
+So that's three sentences. So the answer should be similar. Let me make sure it's in PT-PT, short, and covers the main points.
+
+Yes, the key steps are using Excel functions to match, sorting, and splitting grouped payments. So the answer should be concise, three sentences, in Portuguese.
+</think>
+
+Use Excel/Sheets com VLOOKUP/XLOOKUP para corresponder transações. Ordene ambas as listas por data e valor. Divida pagamentos agrupados manualmente com base nas datas das facturas.
+</resposta>
+
+<resposta id="R3">
+Para automatizar a reconciliação, tens algumas opções consoante a complexidade e o tempo que queres investir:
+
+## Solução Rápida: Planilha com Fórmulas
+
+1. **Cria 3 abas**: uma para extracto, uma para facturas, uma para reconciliação
+2. **Prepara os dados**: exporta extracto e facturas para CSV/Excel
+3. **Usa VLOOKUP ou INDEX-MATCH** para tentar encontrar correspondências:
+   - Coluna de valor do extracto
+   - Fórmula que procura valores similares na lista de facturas (com tolerância de ±0,01€)
+4. **Marca manualmente** os pagamentos agrupados (quando um banco transaction cobre várias facturas)
+5. **Diferenças** ficam destacadas para investigação
+
+Isto reduz de 1 dia para ~1-2 horas.
+
+## Solução Robusta: Script Python
+
+Se os dados vêm sempre do mesmo formato, um script simples faz:
+- Ler CSV/Excel de ambos os lados
+- Fazer matching automático por valor (com fuzzy matching para variações)
+- Agrupar pagamentos (se souber a lógica)
+- Gerar relatório de discrepâncias
+
+Isto deixa-te só com os casos edge para resolver manualmente.
+
+## O que preciso saber para te ajudar melhor:
+
+- Os dados vêm em que formato? (PDF, CSV, Excel exportado do banco?)
+- Como é que os pagamentos agrupados aparecem no extracto? (uma linha com valor total? múltiplas linhas?)
+- Tens alguma coluna que conecta extracto a facturas? (referência, data, número de fatura?)
+- Está isto numa planilha, software de contabilidade, ou sistema diferente?
+
+A solução mais simples que funciona é melhor que a mais perfeita que nunca montas. Começa com a planilha; se demorar muito, depois escalas.
+</resposta>
+
+<resposta id="R4">
+## A ideia central
+
+Não tentes "casar" tudo de uma vez. Um processo de reconciliação que funciona é uma **cascata de regras**, da mais restritiva para a mais permissiva, em que cada nível consome linhas dos dois lados e passa o resto ao nível seguinte. No fim sobra um resíduo pequeno — 5 a 15 linhas em vez de 600 — e esse sim é trabalho humano.
+
+Com 300+300 linhas por mês, isto é um script, não uma folha de cálculo. Python com pandas é a escolha por defeito: corre em segundos, é auditável e o esforço amortiza-se ao segundo mês.
+
+## 1. Normalização (antes de qualquer matching)
+
+Os dois lados têm de chegar à mesma forma canónica:
+
+```
+data | valor | contraparte_norm | referencia | doc_id | origem
+```
+
+O que fazer aqui:
+- **Valores** em cêntimos, inteiros. Nunca floats — evita ruído de arredondamento artificial.
+- **Contraparte normalizada**: maiúsculas, sem acentos, sem pontuação, remover sufixos societários (`LDA`, `SA`, `UNIPESSOAL`). Guarda uma tabela de alias: o descritivo do banco raramente é igual ao nome do cliente na factura.
+- **Referências extraídas por regex** do descritivo bancário: número de factura, NIF, número de contrato. É daqui que vem o matching de alta confiança.
+
+## 2. Explicar as diferenças de valor — a maioria não é ruído
+
+Antes de definires tolerâncias, classifica *porque* é que os valores divergem. Muitas divergências são determinísticas e devem ser regras, não tolerância:
+
+- **Retenção na fonte** — se emites facturas com retenção, o recebimento é sistematicamente 11,5% / 25% mais baixo sobre a base. Isto é uma regra exacta: testa `valor_banco == total - retenção`.
+- **Comissões bancárias / TPA** em recebimentos por cartão ou transferência internacional.
+- **Desconto de pronto pagamento** aplicado unilateralmente pelo cliente.
+- **Diferença cambial**, se facturas fora do euro.
+- **Arredondamento real** — aí sim, tolerância de ±0,02 €.
+
+Tolerância genérica só depois de esgotares as regras. Uma tolerância larga (ex. ±1%) parece resolver, mas gera falsos positivos que só descobres três meses depois.
+
+## 3. A cascata
+
+**Nível 1 — referência + valor exacto.** Match determinístico, confiança máxima, aceitação automática.
+
+**Nível 2 — contraparte + valor exacto, dentro de janela de datas** (ex. -5 a +90 dias face à data da factura). Se houver mais do que um candidato, não decidas: manda para revisão.
+
+**Nível 3 — contraparte + valor com regra de ajustamento** (retenção, comissão, desconto). Regista sempre *qual* a regra aplicada.
+
+**Nível 4 — pagamentos agrupados.** Aqui está o teu problema difícil. Para cada linha de banco não casada, procura o subconjunto de facturas em aberto do mesmo cliente cuja soma dá o valor recebido. É subset-sum, mas fica trivial se limitares o espaço de procura:
+
+- só facturas **do mesmo cliente**;
+- só facturas **em aberto à data** do movimento;
+- limita a cardinalidade a 6-8 facturas por grupo;
+- se o cliente tiver muitas facturas em aberto, ordena por antiguidade e testa primeiro os prefixos (a maioria dos clientes paga o lote mais antigo por ordem).
+
+Com estas restrições cada cliente tem tipicamente 3-15 facturas em aberto e a procura exaustiva é instantânea. **Se houver mais do que uma combinação possível para o mesmo valor, marca como ambíguo e não decidas automaticamente** — é a falha clássica que envenena a reconciliação.
+
+**Nível 5 — pagamentos parciais e o inverso** (uma factura paga em várias tranches). Precisa de saldo por factura, ver ponto 4.
+
+**Nível 6 — resíduo.** Sai para revisão manual com sugestões ordenadas por proximidade (top 3 candidatos por linha), para clicares em vez de procurares.
+
+## 4. O que torna o processo sustentável
+
+**Livro de partidas em aberto.** Não reconcilies "mês contra mês". Mantém um ficheiro de estado com o saldo por factura (`aberta`, `parcial`, `liquidada`) que transita entre meses. Metade da dor mensal vem de pagamentos que atravessam a fronteira do mês.
+
+**Persistir as decisões manuais.** Cada match manual que fazes grava a associação `descritivo_banco → cliente`. No mês 3 o resíduo é metade do do mês 1, porque o sistema aprendeu os alias.
+
+**Controlo de totais.** No fim: `soma(banco) == soma(matched) + soma(não explicado)`, dos dois lados. Se não fechar ao cêntimo, há um bug — não passes à frente.
+
+**Log imutável.** Cada match guarda: nível da cascata, regra aplicada, confiança, timestamp, e se foi automático ou humano. É isto que te permite reverter um match errado sem refazer o mês.
+
+## 5. Ordem de construção
+
+Não construas os seis níveis de uma vez. Faz o 1 e o 2, mede quanto do volume ficou coberto — na prática costumam apanhar 70-85%. Depois olha para o resíduo e deixa que ele te diga qual o nível seguinte a construir: se for maioritariamente agrupamentos, vai para o nível 4; se for retenções, o nível 3 chega. Construir lógica de subset-sum para 4 linhas por mês não vale a pena.
+
+**Duas coisas a montante que valem mais que qualquer código:** pôr referência estruturada de pagamento na factura, e pedir aviso de pagamento (*remittance advice*) aos clientes que agrupam. Cada um deles elimina uma categoria inteira de trabalho, em vez de a automatizar.
+
+Se quiseres, digo-me qual é o formato do extracto (Multibanco/homebanking, CSV/OFX/PDF) e de onde saem as facturas, e desenho-te o script concreto para os níveis 1-4.
+</resposta>
+
+<resposta id="R5">
+Para automatizar este processo, considera usar um software de contabilidade ou um script de automação. Este software pode comparar os extratos bancários com as facturas, identificar discrepâncias e gerar relatórios. Certifica-te de que o software suporta a importação de dados em formato CSV ou Excel para facilitar a integração dos extratos e facturas.
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

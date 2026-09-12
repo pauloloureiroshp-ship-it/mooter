@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ai.mooter.snapshot.plist — reconstroi o Moo Ledger uma vez por dia.
+
+  ⚠️ ISTO E UM MOLDE, NAO UM PLIST INSTALAVEL. Os `__ASSIM__` sao absolutos e
+  por-maquina: um plist commitado com `/Users/<alguem>/` funciona no computador
+  de quem o escreveu e falha em SILENCIO em todos os outros — o launchd nao se
+  queixa de um caminho que nao existe.
+
+  PORQUE E QUE ISTO PRECISA DE EXISTIR.
+
+  O `dist/moo-ledger.html` e o unico artefacto do cockpit que se pode enviar a
+  alguem: nao precisa do device ligado, nao precisa de rede, abre num browser
+  qualquer. Ate aqui so nascia quando alguem se lembrava de correr o comando —
+  e um instantaneo esquecido nao se ve a envelhecer. Continua a parecer certo
+  depois de deixar de o ser, que e o defeito que o proprio Ledger foi construido
+  para nao ter (a v4 nasceu com os numeros cravados no HTML).
+
+  Por isso a outra metade desta onda esta na pagina, e nao aqui: a faixa OPERATE
+  diz «stamped Xh ago», e passadas 24 h o numero PINTA-SE. O agendamento reduz a
+  frequencia do problema; o carimbo visivel e o que impede que ele minta.
+
+  `StartCalendarInterval` as 06:00 (hora da maquina): o loop deste projecto
+  trabalha de noite, portanto de manha ha um dia inteiro de recibos novos para
+  contar. `StartInterval` daria uma hora que anda a deriva a cada reboot.
+
+  `RunAtLoad` porque uma maquina que esteve desligada tem, por definicao, o
+  instantaneo mais velho de todos. SEM `KeepAlive`: e uma tarefa que acaba.
+
+  NAO ESTA INSTALADO. Instalar e um gesto do dono:
+    # O caminho do repo NAO se crava: ha 13 worktrees nesta maquina e o
+    # checkout pode viver em qualquer uma. Corre isto de DENTRO do repo.
+    REPO="$(git rev-parse --show-toplevel)"
+    sed -e "s|__NODE__|$(command -v node)|" \
+        -e "s|__SNAPSHOT__|${REPO}/tools/cockpit/runner/build-ledger-snapshot.mjs|" \
+        -e "s|__REPO__|${REPO}|" \
+        -e "s|__LOG__|$HOME/.mooter/snapshot.log|" \
+        "${REPO}/tools/ops/moo/launchd/ai.mooter.snapshot.plist" \
+        > ~/Library/LaunchAgents/ai.mooter.snapshot.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.mooter.snapshot.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ai.mooter.snapshot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__SNAPSHOT__</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__</string>
+  <key>RunAtLoad</key><true/>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>6</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key><string>__LOG__</string>
+  <key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>

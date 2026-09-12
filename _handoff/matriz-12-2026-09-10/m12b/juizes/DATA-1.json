@@ -1,0 +1,156 @@
+{
+ "id": "DATA-1",
+ "chave": {
+  "R1": "B2",
+  "R2": "B",
+  "R3": "D",
+  "R4": "C",
+  "R5": "A"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Identifica a tabela dinâmica, mas mistura uma longa deliberação com instruções finais incompletas e assume a soma por defeito.",
+     "total": 5,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Apresenta uma fórmula inventada, repetitiva e truncada que impede executar a solução.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Dá passos claros e suficientes para obter os totais e explica como corrigir contagem e valores importados como texto.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Troca a coluna de clientes na fórmula, confunde a sequência da tabela dinâmica, promete atualização automática e inclui um filtro que não calcula totais.",
+     "total": 4,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "A tabela dinâmica resolve, mas acrescenta alternativas dispensáveis, funções sem localização e uma indicação incompleta sobre atualizar dados de um CSV que cresceu.",
+     "total": 8,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Identifica a tabela dinâmica, mas mistura uma longa deliberação com instruções finais incompletas e assume a soma por defeito.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Apresenta uma fórmula inventada, repetitiva e truncada que impede executar a solução.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Dá passos claros e suficientes para obter os totais e explica como corrigir contagem e valores importados como texto.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Troca a coluna de clientes na fórmula, confunde a sequência da tabela dinâmica, promete atualização automática e inclui um filtro que não calcula totais.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"A tabela dinâmica resolve, mas acrescenta alternativas dispensáveis, funções sem localização e uma indicação incompleta sobre atualizar dados de um CSV que cresceu.\"}}",
+   "custo_tokens": {
+    "in": 30909,
+    "out": 401,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 2,
+     "porque": "resposta minima correta mas expoe raciocinio interno e falta detalhe de passos",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "degenera numa formula ilegivel repetida ate ao infinito, inutilizavel",
+     "total": 0,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "passos claros de tabela dinamica e antecipa problemas comuns como soma vs contagem e texto vs numero",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "cobre tabela dinamica e SUMIF com boa formatacao mas nao alerta para armadilhas de importacao de CSV",
+     "total": 6,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "mais completa, cobre varias abordagens e alerta especificamente para problemas de separador decimal e espacos tipicos de CSV, embora seja mais longa",
+     "total": 9,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":2,\"porque\":\"resposta minima correta mas expoe raciocinio interno e falta detalhe de passos\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"degenera numa formula ilegivel repetida ate ao infinito, inutilizavel\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"passos claros de tabela dinamica e antecipa problemas comuns como soma vs contagem e texto vs numero\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"cobre tabela dinamica e SUMIF com boa formatacao mas nao alerta para armadilhas de importacao de CSV\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"mais completa, cobre varias abordagens e alerta especificamente para problemas de separador decimal e espacos tipicos de CSV, embora seja mais longa\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 517,
+    "cache_write": 12602,
+    "cache_read": 3298
+   }
+  }
+ }
+}

@@ -1,0 +1,160 @@
+{
+ "id": "DATA-1",
+ "chave": {
+  "R1": "B2",
+  "R2": "B",
+  "R3": "D",
+  "R4": "C",
+  "R5": "A"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Identifica a tabela dinâmica, mas omite passos essenciais na conclusão e inclui uma longa deliberação desnecessária com uma suposição imprecisa sobre a soma automática.",
+     "total": 5,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Calcula apenas um cliente de cada vez e a fórmula pode exigir adaptação do nome da função e dos separadores ao idioma do Excel.",
+     "total": 7,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Dá os passos necessários para obter todos os totais e explica como corrigir contagens e valores importados como texto.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "A fórmula usa a coluna de produto como cliente, os passos da tabela dinâmica estão fora de ordem e promete atualização automática sem condições.",
+     "total": 4,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta soluções úteis, mas exige possíveis adaptações das funções ao idioma e simplifica excessivamente a atualização do CSV e o tratamento dos separadores decimais.",
+     "total": 7,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Identifica a tabela dinâmica, mas omite passos essenciais na conclusão e inclui uma longa deliberação desnecessária com uma suposição imprecisa sobre a soma automática.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Calcula apenas um cliente de cada vez e a fórmula pode exigir adaptação do nome da função e dos separadores ao idioma do Excel.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Dá os passos necessários para obter todos os totais e explica como corrigir contagens e valores importados como texto.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"A fórmula usa a coluna de produto como cliente, os passos da tabela dinâmica estão fora de ordem e promete atualização automática sem condições.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta soluções úteis, mas exige possíveis adaptações das funções ao idioma e simplifica excessivamente a atualização do CSV e o tratamento dos separadores decimais.\"}}",
+   "custo_tokens": {
+    "in": 29154,
+    "out": 430,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 19432.3833
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Resposta correta mas minima, expõe raciocínio interno não pedido e falta passo a passo.",
+     "total": 5,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "SUMIF exige repetir a formula por cada cliente manualmente, nao da o total por cliente pedido nem explica isso.",
+     "total": 1,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Passo a passo claro e completo com avisos uteis sobre erros comuns de importacao CSV.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Cobre bem a opcao principal mas a opcao SUMIF fica incompleta (nao trata multiplos clientes) e formatacao e mais longa que o necessario.",
+     "total": 6,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Muito completa com alternativas e avisos reais sobre separador decimal e espacos, mas mais extensa do que o pedido exigia.",
+     "total": 9,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Resposta correta mas minima, expõe raciocínio interno não pedido e falta passo a passo.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"SUMIF exige repetir a formula por cada cliente manualmente, nao da o total por cliente pedido nem explica isso.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Passo a passo claro e completo com avisos uteis sobre erros comuns de importacao CSV.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Cobre bem a opcao principal mas a opcao SUMIF fica incompleta (nao trata multiplos clientes) e formatacao e mais longa que o necessario.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Muito completa com alternativas e avisos reais sobre separador decimal e espacos, mas mais extensa do que o pedido exigia.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 534,
+    "cache_write": 9107,
+    "cache_read": 3298
+   },
+   "ms": 10315.0916
+  }
+ }
+}

@@ -10,6 +10,7 @@
 
 import pLimit from "p-limit";
 import type { Facet, FacetIO } from "./facets.ts";
+import { normalizeOllamaHost } from "../ollama-host.ts";
 import { realIO, AUDIT_SYSTEM } from "./facets.ts";
 
 const DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434";
@@ -43,7 +44,9 @@ export type WorkerFn = (req: WorkerRequest) => Promise<WorkerResult>;
 // ── Default worker: local Ollama (free) or Anthropic messages (cloud) ────────
 
 async function callOllama(req: WorkerRequest): Promise<WorkerResult> {
-  const host = (req.host ?? process.env.OLLAMA_HOST ?? DEFAULT_OLLAMA_HOST).replace(/\/+$/, "");
+  // Sem normalizar, um OLLAMA_HOST canónico (sem esquema) produz
+  // fetch("127.0.0.1:11434/api/generate") → Failed to parse URL.
+  const host = normalizeOllamaHost(req.host ?? process.env.OLLAMA_HOST, DEFAULT_OLLAMA_HOST);
   try {
     const res = await fetch(`${host}/api/generate`, {
       method: "POST",

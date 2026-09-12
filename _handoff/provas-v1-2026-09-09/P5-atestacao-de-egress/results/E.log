@@ -1,0 +1,21 @@
+n01 exit 0 samples 57 ext 2 160.79.104.10,34.149.66.165
+n02 exit 0 samples 94 ext 2 160.79.104.10,34.149.66.165
+n03 exit 1 samples 75 ext 2 160.79.104.10,34.149.66.165
+n04 exit 1 samples 39 ext 2 160.79.104.10,34.149.66.165
+n05 exit 1 samples 44 ext 2 160.79.104.10,34.149.66.165
+n06 exit 0 samples 56 ext 2 160.79.104.10,34.149.66.165
+n07 exit 0 samples 88 ext 2 160.79.104.10,34.149.66.165
+n08 exit 1 samples 32 ext 2 160.79.104.10,34.149.66.165
+n09 exit 1 samples 43 ext 2 160.79.104.10,34.149.66.165
+n10 exit 0 samples 42 ext 2 160.79.104.10,34.149.66.165
+n11 exit 1 samples 60 ext 2 160.79.104.10,34.149.66.165
+n12 exit 1 samples 54 ext 2 160.79.104.10,34.149.66.165
+n13 exit 0 samples 75 ext 2 160.79.104.10,34.149.66.165
+n14 exit 0 samples 95 ext 2 160.79.104.10,34.149.66.165
+n15 exit 0 samples 77 ext 2 160.79.104.10,34.149.66.165
+n16 exit 1 samples 32 ext 2 160.79.104.10,34.149.66.165
+n17 exit 1 samples 76 ext 2 160.79.104.10,34.149.66.165
+n18 exit 1 samples 44 ext 2 160.79.104.10,34.149.66.165
+n19 exit 0 samples 114 ext 2 160.79.104.10,34.149.66.165
+n20 exit 0 samples 64 ext 2 160.79.104.10,34.149.66.165
+-> results\E-native.json

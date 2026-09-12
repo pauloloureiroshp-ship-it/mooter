@@ -1,0 +1,137 @@
+{
+ "id": "SMOKE-2",
+ "chave": {
+  "R1": "C",
+  "R2": "B",
+  "R3": "A",
+  "R4": "D"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Pede contexto essencial e estabelece precauções adequadas, mas não entrega o procedimento e repete questões de recuperação.",
+     "total": 8,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Fornece um procedimento detalhado com controlo de riscos, mas exige adaptação e sobrestima a recuperação por cópia sem controlar alterações concorrentes.",
+     "total": 9,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Inclui precauções relevantes, mas o COMMIT incondicional no bloco executável compromete a validação prévia e o restauro proposto não garante reversibilidade.",
+     "total": 6,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Identifica as informações indispensáveis e apresenta uma sequência segura e concisa, mas depende das respostas para fornecer instruções executáveis.",
+     "total": 9,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Pede contexto essencial e estabelece precauções adequadas, mas não entrega o procedimento e repete questões de recuperação.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Fornece um procedimento detalhado com controlo de riscos, mas exige adaptação e sobrestima a recuperação por cópia sem controlar alterações concorrentes.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Inclui precauções relevantes, mas o COMMIT incondicional no bloco executável compromete a validação prévia e o restauro proposto não garante reversibilidade.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Identifica as informações indispensáveis e apresenta uma sequência segura e concisa, mas depende das respostas para fornecer instruções executáveis.\"}}",
+   "custo_tokens": {
+    "in": 30126,
+    "out": 396,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 18065.1859
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 0,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "So faz perguntas e nao entrega nenhum procedimento concreto, apesar de cobrir bem os riscos.",
+     "total": 7,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Runbook completo com snapshot de recuperacao, lotes, criterios de aborto e pedido claro dos dados em falta, ainda que extenso.",
+     "total": 11,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Cobre o mesmo essencial que R2 (validacao, backup local, transacao, lotes, rollback) de forma mais concisa e igualmente accionavel.",
+     "total": 12,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Da uma lista de passos correcta mas generica, sem SQL concreto, ficando aquem de um passo a passo executavel.",
+     "total": 8,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":0,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"So faz perguntas e nao entrega nenhum procedimento concreto, apesar de cobrir bem os riscos.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Runbook completo com snapshot de recuperacao, lotes, criterios de aborto e pedido claro dos dados em falta, ainda que extenso.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Cobre o mesmo essencial que R2 (validacao, backup local, transacao, lotes, rollback) de forma mais concisa e igualmente accionavel.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Da uma lista de passos correcta mas generica, sem SQL concreto, ficando aquem de um passo a passo executavel.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 445,
+    "cache_write": 10981,
+    "cache_read": 3298
+   },
+   "ms": 8285.3787
+  }
+ }
+}

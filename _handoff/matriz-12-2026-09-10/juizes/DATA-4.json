@@ -1,0 +1,137 @@
+{
+ "id": "DATA-4",
+ "chave": {
+  "R1": "B",
+  "R2": "D",
+  "R3": "C",
+  "R4": "A"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Fornece SQL com validação e transação, mas exige adaptar o esquema e afirma indevidamente que anonimizar garante o mesmo cumprimento legal.",
+     "total": 9,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Clarifica os dados essenciais antes de uma operação destrutiva e prevê validação e transação, mas ainda não fornece o comando pedido.",
+     "total": 9,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Fornece SQL adaptável e verificações prévias, mas sugere updated_at como atividade e deixa o DELETE sem proteção transacional explícita.",
+     "total": 7,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Cobre várias salvaguardas, mas o COMMIT ativo impede a revisão se o bloco for executado integralmente e o UPDATE não garante anonimização efetiva.",
+     "total": 7,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Fornece SQL com validação e transação, mas exige adaptar o esquema e afirma indevidamente que anonimizar garante o mesmo cumprimento legal.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Clarifica os dados essenciais antes de uma operação destrutiva e prevê validação e transação, mas ainda não fornece o comando pedido.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Fornece SQL adaptável e verificações prévias, mas sugere updated_at como atividade e deixa o DELETE sem proteção transacional explícita.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Cobre várias salvaguardas, mas o COMMIT ativo impede a revisão se o bloco for executado integralmente e o UPDATE não garante anonimização efetiva.\"}}",
+   "custo_tokens": {
+    "in": 29267,
+    "out": 381,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 18657.1889
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Da SQL completo e utilizavel com avisos de FK/retencao legal e alternativa de anonimizacao",
+     "total": 11,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "So faz perguntas, nao entrega nenhum comando SQL",
+     "total": 6,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Da SQL utilizavel mas nao aborda retencao legal nem NULLs, so avisa de FK en passant",
+     "total": 9,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Mais completa: tabela multi-dialecto, verificacao de FKs com query concreta, NULLs e anonimizacao como alternativa legal",
+     "total": 11,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Da SQL completo e utilizavel com avisos de FK/retencao legal e alternativa de anonimizacao\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"So faz perguntas, nao entrega nenhum comando SQL\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Da SQL utilizavel mas nao aborda retencao legal nem NULLs, so avisa de FK en passant\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Mais completa: tabela multi-dialecto, verificacao de FKs com query concreta, NULLs e anonimizacao como alternativa legal\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 408,
+    "cache_write": 9638,
+    "cache_read": 3298
+   },
+   "ms": 8593.5685
+  }
+ }
+}

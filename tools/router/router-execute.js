@@ -193,6 +193,39 @@ function filterDegraded(chain, providerState) {
   return out;
 }
 
+// ── Saude dos fornecedores ──────────────────────────────────────────────
+//
+// `resolveFallbackChain`/`filterDegraded` sempre souberam contornar um motor
+// morto. O que nunca existiu foi quem lhes dissesse QUAL estava morto:
+// `execute()` fazia `deps.providerState || {}` e **nada, em lado nenhum,
+// preenchia esse campo**. A escada era correcta e cega.
+//
+// `provider-health.js` e o ficheiro que faltava. Le-se aqui, com decaimento
+// aplicado na leitura, e escreve-se no fim de cada tentativa. `deps.providerState`
+// continua a ganhar, porque os testes injectam-no e a injeccao tem de mandar.
+let _saude = null;
+function saude() {
+  if (_saude === null) {
+    try { _saude = require('./provider-health.js'); }
+    catch { _saude = false; }   // sem o modulo, o executor comporta-se como antes
+  }
+  return _saude;
+}
+
+/** O estado persistido, ou `{}` se o modulo nao existir / falhar. Nunca lanca. */
+function estadoPersistido(home) {
+  const m = saude();
+  if (!m) return {};
+  try { return m.estadoActual({ home }); } catch { return {}; }
+}
+
+/** Regista o desfecho de uma tentativa. Best-effort: nunca parte o despacho. */
+function registarDesfecho(provider, resultado, extra = {}) {
+  const m = saude();
+  if (!m) return;
+  try { m.registar(provider, resultado, extra); } catch { /* best-effort */ }
+}
+
 // ── Result helpers ──────────────────────────────────────────────────────
 
 /**
@@ -659,7 +692,11 @@ async function execute(input = {}) {
   }
 
   // ── T-06 — fallback chain construction ──────────────────────────────
-  const chain = resolveFallbackChain(classification, deps.providerState || {});
+  // `deps.providerState` (injectado pelos testes) ganha sempre. Sem ele, le-se o
+  // que as sessoes anteriores aprenderam -- que ate 2026-08-28 era literalmente
+  // nada, porque o ficheiro nao existia.
+  const providerState = deps.providerState || estadoPersistido(deps.home);
+  const chain = resolveFallbackChain(classification, providerState);
 
   // If the resolved chain is empty or contains only Anthropic-tier
   // providers, there is nothing the executor can dispatch directly →
@@ -737,6 +774,11 @@ async function execute(input = {}) {
     fallbackChain.push(provider);
 
     if (attemptError) {
+      // A causa e classificada a partir da mensagem real do fornecedor
+      // (`provider-health.js` conhece quota, id de modelo, tier, auth, rede) e
+      // guardada com a sua politica de recuperacao. E o que evita gastar a
+      // proxima sessao a redescobrir isto.
+      registarDesfecho(provider, 'fail', { erro: attemptError, home: deps.home });
       errors.push({
         provider,
         message: String((attemptError && attemptError.message) || attemptError || 'unknown error'),
@@ -746,6 +788,9 @@ async function execute(input = {}) {
     }
 
     if (response && response.ok && response.text) {
+      // Respondeu => esta vivo, e qualquer degradacao anterior deixou de
+      // descrever a realidade. O sucesso limpa na hora.
+      registarDesfecho(provider, 'ok', { home: deps.home });
       // Success! Build ExecuteResult_Ok in the SPEC §4.1 shape.
       const ok = buildOk({
         provider,
@@ -764,7 +809,18 @@ async function execute(input = {}) {
       return ok;
     }
 
-    // Soft failure (returned null or empty text).
+    // Falha macia: devolveu null ou texto vazio.
+    //
+    // Esta e a que nao traz erro nenhum para classificar, e por isso a causa e
+    // DECLARADA. Caso real de 2026-08-28: `kimi-k2.6` e um modelo de raciocinio
+    // e com `max_tokens: 1400` devolveu HTTP 200, content vazio e
+    // `reasoning_tokens: 1399` -- gastou o orcamento todo a pensar. Um executor
+    // que trate isto como «nada a registar» reporta verde tendo produzido nada.
+    registarDesfecho(provider, 'fail', {
+      causa: 'empty_completion',
+      detalhe: 'wrapper devolveu null ou texto vazio (HTTP ok)',
+      home: deps.home,
+    });
     errors.push({
       provider,
       message: 'wrapper returned null or empty text',
@@ -916,27 +972,90 @@ async function executePinned(input = {}) {
   // (measured on Paulo's Mac: gemma4:e4b ~9.6GB → 79s cold-load, ~120s warm at
   // 69% CPU/31% GPU). The old 30s per-attempt default returned no_output before
   // the model even answered. Give LOCAL pins a generous default (env-overridable
-  // via MOOTER_LOCAL_PIN_TIMEOUT_MS); cloud pins keep the short 30s default.
+  // via MOOTER_LOCAL_PIN_TIMEOUT_MS).
+  //
+  // 2026-09-02 — the SAME defect, with the SAME symptom, on the cloud side. Every
+  // `/mooter-codex` dispatch returned {"ok":false,"error":{"code":"no_output"}}
+  // while `codex exec` itself worked (exit 0); the same prompt through
+  // executePinned({timeoutMs:600000}) answered in 283s. The 30s cloud default was
+  // the whole cause. It came from chat-completion latency, but `codex exec` is an
+  // agentic loop — it reads files and reasons for minutes. The reasoning that
+  // earned ollama its generous default applies verbatim here: a pin IS the user
+  // saying "this one, I'll wait". So cloud pins get MOOTER_CLOUD_PIN_TIMEOUT_MS
+  // (default 300s).
+  //
+  // MOOTER_PER_ATTEMPT_TIMEOUT_MS sits between the two: it is how a HOOK caps a
+  // dispatch to fit its own budget, so it must beat the defaults but lose to an
+  // explicit options.timeoutMs. The CLI already forwarded it on the pin path;
+  // reading it here too makes programmatic callers behave identically.
   const wrapperOpts = {};
   const explicitTimeout = Number(options.timeoutMs) || 0;
+  const envPerAttemptMs = Number(process.env.MOOTER_PER_ATTEMPT_TIMEOUT_MS) || 0;
   const localPinDefaultMs = Number(process.env.MOOTER_LOCAL_PIN_TIMEOUT_MS) || 240_000;
+  const cloudPinDefaultMs = Number(process.env.MOOTER_CLOUD_PIN_TIMEOUT_MS) || 300_000;
+  const pinDefaultMs = providerKey === 'ollama' ? localPinDefaultMs : cloudPinDefaultMs;
   wrapperOpts.timeoutMs = explicitTimeout > 0
     ? explicitTimeout
-    : (providerKey === 'ollama' ? localPinDefaultMs : 30_000);
+    : (envPerAttemptMs > 0 ? envPerAttemptMs : pinDefaultMs);
+
+  // 2026-09-11 — maxTokens never reached the wrapper on the pin path: wrapperOpts
+  // carried timeoutMs and model ONLY, so every pinned local call silently took
+  // providers/ollama-api.js's `num_predict: 256` default (execute() passes 1024
+  // at :730; the pin path passed nothing). Measured in the Demo Conductor of
+  // 2026-09-10: 3 of 4 pinned qwen3:30b answers stopped at exactly 256 tokens,
+  // mid-sentence, and the blind judge scored the truncation, not the model.
+  // Same shape as 265281a (feat/landing-redesign, never merged): explicit
+  // options.maxTokens wins; local pins get real headroom (env-overridable);
+  // cloud pins keep the modest execute() default.
+  const explicitMaxTokens = Number(options.maxTokens) || 0;
+  const localPinMaxTokens = Number(process.env.MOOTER_LOCAL_PIN_MAX_TOKENS) || 4096;
+  wrapperOpts.maxTokens = explicitMaxTokens > 0
+    ? explicitMaxTokens
+    : (providerKey === 'ollama' ? localPinMaxTokens : 1024);
+
   if (model) wrapperOpts.model = model;
+
+  // Out-parameter for the wrapper to say WHY it failed. Adapters return a bare
+  // null on failure (a contract every caller already depends on), which cannot
+  // distinguish "killed at the deadline" from "answered nothing" — and those two
+  // ask for opposite fixes. Adapters that fill it (providers/codex-cli.js) let us
+  // report `timeout` instead of a misleading `no_output`; adapters that ignore it
+  // degrade to exactly the previous behaviour.
+  const diag = {};
+  wrapperOpts.diag = diag;
 
   let response = null;
   let threw = null;
+  const startedAt = Date.now();
   try {
     response = await wrapper(effectivePrompt, wrapperOpts);
   } catch (e) {
     threw = e;
   }
+  const elapsedMs = Date.now() - startedAt;
   if (threw) {
-    return { ok: false, error: { code: 'wrapper_threw', message: String((threw && threw.message) || threw), provider: providerKey } };
+    return { ok: false, error: { code: 'wrapper_threw', message: String((threw && threw.message) || threw), provider: providerKey, elapsed_ms: elapsedMs } };
   }
   if (!response || !response.ok || !response.text) {
-    return { ok: false, error: { code: 'no_output', message: 'provider returned no usable text', provider: providerKey } };
+    const spentMs = Number(diag.elapsedMs) > 0 ? Number(diag.elapsedMs) : elapsedMs;
+    if (diag.reason === 'timeout') {
+      const envName = providerKey === 'ollama' ? 'MOOTER_LOCAL_PIN_TIMEOUT_MS' : 'MOOTER_CLOUD_PIN_TIMEOUT_MS';
+      return { ok: false, error: {
+        code: 'timeout',
+        message: `${providerKey} was killed at the ${Math.round(wrapperOpts.timeoutMs / 1000)}s deadline after ${Math.round(spentMs / 1000)}s — it may still have been working. Raise ${envName} (or pass options.timeoutMs).`,
+        provider: providerKey,
+        elapsed_ms: spentMs,
+        timeout_ms: wrapperOpts.timeoutMs,
+      } };
+    }
+    const why = diag.reason ? ` (${diag.reason}${diag.detail ? `: ${String(diag.detail).slice(0, 200)}` : ''})` : '';
+    return { ok: false, error: {
+      code: 'no_output',
+      message: `provider returned no usable text${why}`,
+      provider: providerKey,
+      elapsed_ms: spentMs,
+      ...(diag.reason ? { reason: diag.reason } : {}),
+    } };
   }
   // Wave 65: record the local assistant turn + surface the context tax (honest).
   try { if (_sc && providerKey === 'ollama' && _sc.isEnabled()) _sc.appendTurn(_sc.currentSession(), { role: 'assistant', model, text: response.text, tokens: response.tokensOut }); } catch { /* best-effort */ }
@@ -963,6 +1082,8 @@ module.exports = {
     sanitisePromptPreview,
     buildTelemetryRecord,
     resolveFallbackChain,
+    estadoPersistido,
+    registarDesfecho,
     isAnthropicProvider,
     filterDegraded,
     anthropicProviderToSubagent,

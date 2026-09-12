@@ -1,0 +1,160 @@
+{
+ "id": "MKT-4",
+ "chave": {
+  "R1": "C",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "A",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Cobre os três meses e métricas, mas não dimensiona a aquisição e propõe meses gratuitos que não contribuem para a meta de pagantes.",
+     "total": 7,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Apresenta raciocínio repetitivo com números contraditórios e termina sem completar dezembro nem entregar um plano utilizável.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explicita pressupostos, distribui responsabilidades e apresenta ações, metas líquidas, métricas e um teste de capacidade com conversão assumidamente hipotética.",
+     "total": 10,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "É operacionalmente detalhada, mas apresenta pressupostos como certezas e exige reconciliar a margem de 220 clientes, as metas de 200 e os limiares de decisão contraditórios.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Planeia janeiro a junho em vez do quarto trimestre e ignora a meta de 200 pagantes e a capacidade da equipa.",
+     "total": 2,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Cobre os três meses e métricas, mas não dimensiona a aquisição e propõe meses gratuitos que não contribuem para a meta de pagantes.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Apresenta raciocínio repetitivo com números contraditórios e termina sem completar dezembro nem entregar um plano utilizável.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explicita pressupostos, distribui responsabilidades e apresenta ações, metas líquidas, métricas e um teste de capacidade com conversão assumidamente hipotética.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"É operacionalmente detalhada, mas apresenta pressupostos como certezas e exige reconciliar a margem de 220 clientes, as metas de 200 e os limiares de decisão contraditórios.\"},\"R5\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Planeia janeiro a junho em vez do quarto trimestre e ignora a meta de 200 pagantes e a capacidade da equipa.\"}}",
+   "custo_tokens": {
+    "in": 33809,
+    "out": 432,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 19206.8057
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Plano generico com metas arredondadas sem justificar o funil nem considerar sazonalidade/legal, mas cobre meses e metricas basicas.",
+     "total": 4,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe raciocínio interno em inglês, contas inconsistentes e a resposta corta-se a meio da frase em Dezembro.",
+     "total": 0,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Plano coerente com funil, metas mensais, divisão de equipa e métricas semanais, sem excesso de texto, mas falta detalhe operacional específico do sector.",
+     "total": 8,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Cobre mês a mês com números justificados por um funil explícito, define 'cliente pagante', assinala riscos legais/sazonais e pede os dados que faltam antes de fixar números, embora seja longa.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Ignora completamente o pedido: usa meses errados (Jan-Jun em vez de Q4) e trata a app como se ainda estivesse em desenvolvimento, sem falar em 200 clientes.",
+     "total": 0,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Plano generico com metas arredondadas sem justificar o funil nem considerar sazonalidade/legal, mas cobre meses e metricas basicas.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe raciocínio interno em inglês, contas inconsistentes e a resposta corta-se a meio da frase em Dezembro.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Plano coerente com funil, metas mensais, divisão de equipa e métricas semanais, sem excesso de texto, mas falta detalhe operacional específico do sector.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Cobre mês a mês com números justificados por um funil explícito, define 'cliente pagante', assinala riscos legais/sazonais e pede os dados que faltam antes de fixar números, embora seja longa.\"},\"R5\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Ignora completamente o pedido: usa meses errados (Jan-Jun em vez de Q4) e trata a app como se ainda estivesse em desenvolvimento, sem falar em 200 clientes.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 612,
+    "cache_write": 16914,
+    "cache_read": 3298
+   },
+   "ms": 11910.657
+  }
+ }
+}

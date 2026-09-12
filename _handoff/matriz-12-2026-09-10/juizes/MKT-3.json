@@ -1,0 +1,160 @@
+{
+ "id": "MKT-3",
+ "chave": {
+  "R1": "B",
+  "R2": "D",
+  "R3": "B2",
+  "R4": "C",
+  "R5": "A"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Propõe três planos plausíveis, mas não protege explicitamente as funcionalidades dos clientes atuais nem concretiza a transição.",
+     "total": 6,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Calcula corretamente os valores, apresenta preços como hipóteses e define proteção dos atuais, validação e acompanhamento dos riscos.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "Preserva o plano atual, mas confunde contribuição com lucro, considera suficiente cobrar acima do custo de serviço e inclui extensa divagação.",
+     "total": 3,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Sugere preservar condições, mas promete ausência de cancelamentos, inventa custos e apresenta preços contraditórios e uma compensação de perdas sem fundamento.",
+     "total": 3,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "Oferece uma transição concreta, mas confunde custo com valor, minimiza custos de serviços premium e impõe regras infundadas para diagnosticar e alterar preços.",
+     "total": 4,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Propõe três planos plausíveis, mas não protege explicitamente as funcionalidades dos clientes atuais nem concretiza a transição.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Calcula corretamente os valores, apresenta preços como hipóteses e define proteção dos atuais, validação e acompanhamento dos riscos.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"Preserva o plano atual, mas confunde contribuição com lucro, considera suficiente cobrar acima do custo de serviço e inclui extensa divagação.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Sugere preservar condições, mas promete ausência de cancelamentos, inventa custos e apresenta preços contraditórios e uma compensação de perdas sem fundamento.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"Oferece uma transição concreta, mas confunde custo com valor, minimiza custos de serviços premium e impõe regras infundadas para diagnosticar e alterar preços.\"}}",
+   "custo_tokens": {
+    "in": 30692,
+    "out": 414,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 17732.7183
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 2,
+     "porque": "Estrutura generica sem tratar a base actual nem margem de custo, mas curta e directa",
+     "total": 5,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Usa os numeros dados, propoe grandfathering concreto com prazos e comunicacao, e pede dados de produto antes de fechar precos",
+     "total": 9,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expoe raciocinio interno tipo chain-of-thought em vez de resposta limpa, apesar da conclusao final ser razoavel",
+     "total": 3,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Grandfathering claro e tabela accionavel, mas os custos por plano na tabela sao inventados sem base nos dados fornecidos",
+     "total": 8,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Analise mais completa com matematica do risco de migracao, eixo de valor ligado ao custo real de 12 euros, e plano de execucao com metricas de controlo",
+     "total": 9,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":2,\"porque\":\"Estrutura generica sem tratar a base actual nem margem de custo, mas curta e directa\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Usa os numeros dados, propoe grandfathering concreto com prazos e comunicacao, e pede dados de produto antes de fechar precos\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expoe raciocinio interno tipo chain-of-thought em vez de resposta limpa, apesar da conclusao final ser razoavel\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Grandfathering claro e tabela accionavel, mas os custos por plano na tabela sao inventados sem base nos dados fornecidos\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Analise mais completa com matematica do risco de migracao, eixo de valor ligado ao custo real de 12 euros, e plano de execucao com metricas de controlo\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 551,
+    "cache_write": 11597,
+    "cache_read": 3298
+   },
+   "ms": 9334.7441
+  }
+ }
+}

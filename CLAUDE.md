@@ -4,7 +4,7 @@
 every day: it sets up, watches, and pilots a real multi-agent project from inside VS Code with
 total visibility — alerting foundation gaps (skills, memory, loops, file structure), applying
 vibe-coding best practices automatically, and making the magic visible (Live Preview).
-Under the hood, the engine: a deterministic local-first router (<50ms, $0 to classify)
+Under the hood, the engine: a deterministic local-first router (1 ms cached, 134 ms p50 when it spawns; the rule is $0, the low-confidence arbiter is not)
 that orchestrates multiple LLM subscriptions (Anthropic, OpenAI, Google) plus the user's own
 GPU (Ollama), routing every prompt to the minimum viable tier and learning forever from local
 telemetry — never proxying prompts, never fabricating metrics. The moat is trust: an auditable
@@ -49,6 +49,197 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   (comportamental: 0 das 24 categorias o escolhem) e por
   `tools/cockpit/runner/precificavel-nao-rotavel.test.mjs` (cobertura: qualquer modelo que
   reúna preço + célula medida tem de estar coberto pela guarda).
+  **2026-08-28 · gramática do movimento** allowlists **4 linhas** de
+  `packages/mooter-bridge/fleet-ui.html` (autorizado pelo dono, onda de design de 27-28/08).
+  O portao `moo-design-check` tem duas verificações que varrem o repo inteiro e não pedem
+  licença ao caminho: `movimento-seguro` (só `transform`/`opacity`, sempre com guarda de
+  movimento reduzido) e `linguagem-visual` (as quatro curvas da família, os raios da escala).
+  Esta folha falhava as duas: `@keyframes sl` animava `margin-left` — que fora da GPU faz
+  *layout* a cada frame —, a barra de motor usava uma curva fora da família, e um raio de 5px
+  não está na escala. As três linhas são `margin-left` → `transform: translateX`,
+  `cubic-bezier(.4,0,.2,1)` → `(.2,.8,.2,1)`, e `border-radius: 5px` → `4px`. Zero lógica,
+  zero comportamento, zero JavaScript. Fica registado porque a regra o exige: o congelamento
+  é documentário, e **uma edição não registada é indistinguível de uma violação** — foi o
+  gate de pré-merge desta onda que a apanhou por commitar sem entrada. Provado por
+  `npm run test:design` (53 testes) e pelo índice em 9,09.
+  A **4.ª linha** entra no mesmo dia e pelo mesmo motivo: `.eta` (linha 126) tinha
+  `border-radius: 7px`, e 7 deixou de estar na escala quando ela foi completada
+  (ver `moo-tokens.json → radius_nota`). Passou a `8px` — o degrau `panel`, que é
+  o valor mais usado do repositorio. Zero lógica, zero comportamento.
+  **2026-08-29 · a guarda de movimento reduzido passa a cobrir** allowlists a
+  substituição do bloco `@media (prefers-reduced-motion: reduce)` de
+  `packages/mooter-bridge/fleet-ui.html` (3 linhas → 8, autorizado pelo dono, a
+  pedido explícito). O que estava lá nomeava **dois** selectores —
+  `.mrow.on .mdot` e `.mbar.ind i` — e a folha tem **seis** animados. Ficavam de
+  fora `.pulse` (:59), `.eta-track.pulsante` (:133), `.eta-track.ind > i` (:134)
+  e `.eta-dot.vivo` (:137): **quatro animações `infinite` a correr para quem pediu
+  ao sistema operativo que não corressem.** Não é cosmética — é acessibilidade
+  (WCAG 2.1 SC 2.3.3), e o utilizador afectado é o que tem enxaqueca vestibular
+  ou perturbação de movimento. O portão dava verde porque testava
+  `/prefers-reduced-motion/` por ficheiro: **presença, não cobertura** — a mesma
+  classe de defeito que fez o portão nascer cego para os `.svg` a 2026-08-27.
+  A substituição passa a universal (`*, *::before, *::after` com
+  `animation-duration`, `animation-iteration-count`, `transition-duration` e
+  `scroll-behavior`) **de propósito**: uma lista de selectores foi exactamente o
+  que envelheceu aqui, porque cada animação nova nascia descoberta e em silêncio.
+  Zero lógica, zero comportamento, zero JavaScript — só CSS dentro de um `@media`
+  que só se aplica a quem já pediu menos movimento. Provado por playwright com
+  `reducedMotion: 'reduce'`: as **seis** passam de `infinite` para `x1` a 0,01ms,
+  e as 3 transições da folha também. E o portão deixou de aceitar presença: a
+  verificação `movimento-seguro` passa a exigir cobertura (universal, ou lista
+  que nomeie todos), guardada por 4 testes novos em `moo-design-check.test.mjs`.
+  **2026-09-01 · `OLLAMA_HOST` sem esquema** allowlists **uma adição** —
+  `packages/cli/src/ollama-host.ts` — e **quatro linhas** em ficheiros
+  existentes: `src/audit/orchestrator.ts`, `src/commands/init.ts`,
+  `src/commands/quant-vector.ts`, `src/fable-observe/cca-f-audit.ts`
+  (autorizado pelo dono, a pedido explícito: «faz o install e tudo que sugeriu»).
+  `OLLAMA_HOST=127.0.0.1:11434` — **sem esquema** — é o formato canónico do
+  Ollama, é assim que ele próprio o documenta e o imprime, e é o que esta
+  máquina tem definido. Os quatro sítios assumiam `http://` e concatenavam, o
+  que produz `fetch("127.0.0.1:11434/api/generate")`. Não é hipótese: no motor,
+  a mesma linha fazia o `callOllama()` devolver **`null` sem razão nenhuma**
+  (o `catch` do fetch engolia o `Failed to parse URL`), e o motor **$0** falhava
+  MUDO enquanto o trabalho caía para um motor pago — corrigido em #454/#458.
+  A regra não é importada de `tools/router/ollama-host.js` porque o bundle
+  esbuild do CLI não arrasta código de fora do pacote (AGENTS.md § Conventions):
+  é uma fronteira de **empacotamento**, não de conhecimento. Para as duas cópias
+  não divergirem em silêncio, ambas são provadas contra a **mesma** tabela,
+  `tools/router/ollama-host.casos.json` — os testes correm no repo, não no
+  bundle, e a fronteira não se lhes aplica. Provado por
+  `packages/cli/tests/ollama-host.test.ts` (6) e pelos 2 casos de paridade em
+  `tools/router/ollama-host.test.js`; mordida verificada: alterar um caso da
+  tabela reprova **os dois lados**.
+  **2026-09-01 · release 1.53.0** allowlists **uma linha** em cada um de
+  `packages/mooter-bridge/manifest.json` e `packages/mooter-bridge/version.json`
+  (mais o `released`), e **duas** em `packages/mooter-bridge/entregas-por-versao.json`
+  (a chave `"1.53": []`). Autorizado pelo dono no kickoff da release
+  (`_handoff/_archive/2026-09/KICKOFF-RELEASE-1530.md` — arquivado no mesmo commit
+  que o executa, como manda o `AGENTS.md` § Information architecture; ponto 1:
+  «Bump 1.53.0 … e build
+  `_handoff/mooter-v1530.mcpb`»). Zero linhas de lógica.
+  Não é cosmético e não é redundante com a automação: o `version-sync.yml` só
+  corre **no push da tag**, que acontece DEPOIS do merge — e o `pack-mcpb.mjs`
+  lê `manifest.version` para dar nome e versão ao bundle. Sem o bump aqui, o
+  artefacto que o kickoff pede sairia chamado `mooter-v1520.mcpb` e rotulado
+  1.52.0. O bump manual é **idempotente** com o workflow (ele imprime «already
+  1.53.0 — no change») e é o mesmo gesto de 2026-08-18, que o
+  `versao-coerente.test.js` apanhou e passou a guardar.
+  `"1.53": []` é a declaração honesta de que esta onda **não entrega ficheiro
+  novo à bridge** — o trabalho todo vive em `tools/cockpit/`. Precedente:
+  `"1.50": []`. Provado por `node pack-mcpb.mjs` (335 verificações de conteúdo
+  OK, sha256 `9100e0dfaf5724fbb5845122c64ef3e89e10c0d49a7385f95fa3774004f96ad6`)
+  e por `packages/mooter-bridge/versao-coerente.test.js`.
+  **2026-09-03 · o ciclo de aprendizagem ligado, desligado por omissão** allowlists
+  **modificações** a `packages/router/src/decide-agent.ts` e o ficheiro novo
+  `packages/router/tests/decide-agent-learned.test.ts` (autorizado pelo dono nesta data,
+  a pedido explícito: «segue com o #256 e o #239»). É a segunda entrada a autorizar mexer
+  neste ficheiro de motor, e o motivo é o mesmo que o livro já imprime como o maior defeito
+  do repositório (slide 53): o `adaptive-learner` tinha **0 callers desde 2026-07-03** e o
+  `AGENTS.md` promete «learning forever from local telemetry». Uma frase que o código
+  desmente não se corrige documentando — corrige-se ligando o código ou apagando a frase.
+  Acrescentado: o parâmetro `use_learned` (**default false**), `overrides`/`overrides_path`
+  para injecção em testes, e um `resolveOverrides()` que lê o ficheiro **uma vez** por
+  chamada. Sem `use_learned`, o `buildCandidate` chama `getCell` directamente — comportamento
+  **byte-idêntico** ao motor de antes, que é a razão pela qual isto pode entrar num package
+  congelado. Uma célula aprendida carrega `source:"adaptive-learned"`, para nunca ser
+  apresentada como benchmark citado. Zero alterações à ordenação por TES, ao `force_model`
+  ou aos portões de `min_score` e orçamento. Provado por
+  `packages/router/tests/decide-agent-learned.test.ts` (6/6) e pela suite existente
+  `decide-agent.test.ts` (25/25, sem regressão). **Nota honesta:** isto liga o caminho,
+  não acende o ciclo — o R-17 do roadmap só fecha com 1 caller real, 1 corrida agendada e
+  1 actualização de peso registada no ledger.
+  **2026-09-10 · o piso do `js-yaml` nos dois pacotes que o bundle inlina**
+  allowlists **uma linha** de `packages/cli/package.json` e **uma linha** de
+  `packages/router/package.json` — o devDep `js-yaml` sobe de `^4.1.1` e de
+  `^4.2.0` para `^4.3.2` — mais as 4 linhas correspondentes em cada
+  `package-lock.json` (o range em `packages[""]`, e `version`/`resolved`/
+  `integrity`). O lockfile do `packages/router` leva ainda **3 linhas** que este
+  trabalho não decidiu: o `npm install --package-lock-only` sincronizou o bloco
+  `engines: { "node": ">=22" }` que o `package.json` declara desde a entrada
+  «2026-08-22 · piso de Node» e que o lockfile nunca recebeu. É deriva
+  pré-existente a ser corrigida, não um valor novo — fica registado para o diff
+  não ter uma linha sem dono. Autorizado pelo dono nesta data, a pedido explícito:
+  «corrigir o advisory HIGH … confirma que os três checks de audit passam antes
+  de abrir PR». O `GHSA-2883-xcg3-v3hh` afecta `js-yaml 4.0.0–4.3.1` e era ele,
+  **não** o `sharp`, que punha a vermelho duas das três pernas do
+  `npm audit (block on HIGH)` (`packages/cli` e `tools/router`; só o `hub` era o
+  `sharp`). Zero linhas de lógica: só o piso do range e o `resolved`/`integrity`.
+  Não é dev-only apesar de viver em `devDependencies`. O `build.mjs` do CLI
+  inlina **duas** cópias de `js-yaml` no `packages/cli/mooter.js`: uma resolvida
+  em `packages/cli/node_modules`, outra em `packages/router/node_modules` (por
+  `src/commands/adapter.ts` e `cost-perf.ts` → `packages/router/src/`
+  `classify_domain` · `embedding_store` · `pack_resolve`). Este advisory viajava
+  para a máquina de quem instala, e **corrigir só o `packages/cli` deixava-o lá**:
+  a 2.ª cópia era a 4.2.0, anterior à mitigação, sem uma única ocorrência de
+  `maxTotalMergeKeys`. Foi o gate de pré-merge desta onda que o apanhou, e o
+  motivo por que passou despercebido é estrutural: `packages/router` **não está
+  na matriz** do `.github/workflows/security.yml` (`[tools/router, packages/cli,
+  hub]`) — um pacote que ninguém audita não fica verde, fica invisível. Medido no
+  artefacto, não no lockfile, e com um marcador que **separa 4.3.1 de 4.3.2** —
+  `abnormal merge sequence size`, que existe 1× no dist da 4.3.2 e **0×** no da
+  4.3.1 e no da 4.2.0: antes, **0** ocorrências no bundle; depois, **2** (uma por
+  cópia). Contar `maxTotalMergeKeys` **não** servia — a 4.3.1, que está dentro
+  do advisory, tem as mesmas 7 que a 4.3.2. O bump fecha ainda um segundo
+  artefacto entregue: o `packages/router/pack-hint.cjs`, que o `install.sh`
+  compila na máquina do utilizador e instala como hook, e que também inlina
+  `js-yaml`.
+  Provado por `npm ci && npm test` nos dois pacotes, com o conjunto de falhas
+  **idêntico** antes e depois — `packages/cli` 669 testes, 668 pass, 0 fail, 1
+  skipped; `packages/router` 315 testes, 308 pass, 3 fail, 4 skipped (as 3 são
+  pré-existentes e de ambiente: `0o700` em Windows e duas contagens de packs
+  desactualizadas, 7 esperados contra os 10 `pack.yaml` que o repo tem) — e por `npm run build` a fechar
+  em 0. **Nota honesta:** isto fecha o `js-yaml`, não o `packages/router`. Esse
+  pacote continua fora da matriz de auditoria e mantém, medido a
+  `npm audit --json`, **3 nós HIGH e 1 low**: `fast-uri` (6 advisories),
+  `thrift` (2) e o `@dsnp/parquetjs` que o puxa — devDep **directa** deste
+  package — mais `esbuild`, que é **low**, não HIGH. Ficam por corrigir, e fica
+  por decidir se a matriz cresce: acrescentar `packages/router` hoje poria o CI
+  vermelho de imediato.
+  **2026-09-11 · o pacote que ninguém auditava** allowlists **duas linhas** de
+  `packages/router/package.json` (`esbuild` `^0.28.0` → `^0.28.1`;
+  `@dsnp/parquetjs` `^1.8.7` → **`1.8.8`, pin exacto**), o `package-lock.json`
+  correspondente (medido contra `origin/main`: **36** entradas com versão
+  alterada — 27 são `esbuild` + `@esbuild/*`, 7 a subárvore do `parquetjs`
+  (thrift, zenfs, AWS SDK), mais `fast-uri` e `ws` —, **28** adicionadas, **10**
+  removidas), e o ficheiro novo `packages/router/tests/benchmark-libs.test.ts`.
+  Autorizado pelo dono nesta data, a pedido explícito: «abre PR de seguimento
+  para o packages/router», com as duas decisões de desenho perguntadas e
+  respondidas (matriz do CI: sim; teste: sim). É o seguimento do #489, que
+  deixou escrito o que este pacote tinha: **3 nós HIGH e 1 low** fora da matriz
+  do `security.yml` — `fast-uri` (6 advisories, via `ajv`; 3.1.2 → 3.1.7,
+  lockfile-only), `thrift` (2, via `@dsnp/parquetjs`; 0.21.0 → 0.23.0) e
+  `esbuild` (low; 0.28.0 → 0.28.2). Zero linhas de lógica do motor. Não é
+  dev-only por acaso: os dois únicos consumidores de `ajv` e `@dsnp/parquetjs`
+  são `scripts/wave{1,2}-benchmark/lib/{schema-validate,parquet-write}.ts`, que
+  **nada testava** — e o `src/` nunca os importa, por isso o bundle do CLI sai
+  **byte-idêntico** (`00ee031b…`) e o `pack-hint.cjs` também (122.986 bytes,
+  com a guarda do `js-yaml`). Porquê um pin exacto, num ficheiro cheio de
+  carets: das três versões acima da vulnerável, **duas não servem**.
+  `@dsnp/parquetjs@1.9.3`, o `latest`, é um **publish partido** — 9 ficheiros,
+  sem `dist/`, `main` a apontar para um ficheiro que não existe. `1.8.9`
+  funciona (62 ficheiros, `thrift 0.24.0`) mas declara `engines.node >=24.18.0`
+  — o CI corre em Node 22, este pacote promete `>=22`, e cada `npm ci` passaria
+  a imprimir `EBADENGINE` (o gate de pré-merge apanhou-o: a 1.ª versão desta
+  entrada tinha `~1.8.9` e não o dizia). `1.8.8` limpa os dois HIGH com
+  `engines >=18.18.2`, 62 ficheiros, `npm ci` em silêncio. Um `^` ou um `~`
+  resolviam para uma das duas erradas; só o pin diz «esta e nenhuma acima».
+  O smoke que apanhou o 1.9.3 entra como teste: valida os **102 eventos reais**
+  de `scripts/wave1-benchmark/outputs/RAW_RESULTS.jsonl` com o `ajv`, rejeita
+  um deliberadamente partido (`event_id` está em `required`), e faz round-trip
+  Parquet (102 linhas escritas, 102 lidas, 55.351 bytes — idêntico antes e
+  depois do bump). **Mordida verificada:** com o 1.9.3 instalado sem gravar, o
+  teste sai 1 com `Cannot find package …/parquetjs/dist/parquet.js`; `npm ci`
+  restaura. **Nota honesta sobre o alcance do teste:** `packages/router` recebe
+  `npm ci` no CI mas **nunca `npm test`** (pré-existente — é por isso que as 3
+  falhas de ambiente deste pacote nunca apareceram vermelhas), logo o teste
+  morde localmente e a guarda em CI é o pin. A matriz do
+  `.github/workflows/security.yml` passa a
+  `[tools/router, packages/cli, hub, packages/router]` — um pacote que ninguém
+  audita não fica verde, fica invisível. Provado por `npm audit` a **0 em todas
+  as severidades**, e por `npm ci && npm test`: 319 testes, 312 pass, 3 fail, 4
+  skipped — as 3 são as mesmas pré-existentes de ambiente do #489, conjunto
+  comparado nome a nome. `packs/` fica de fora — tem `js-yaml` 4.1.1 (HIGH) e
+  `esbuild` (low), não está na matriz, e é o próximo do mesmo tipo.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)
