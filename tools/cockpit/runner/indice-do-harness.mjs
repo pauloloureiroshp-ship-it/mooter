@@ -28,7 +28,7 @@
  *   2,0  medicoes com recibo de censo     um numero sem recibo e uma opiniao
  *   1,5  vereditos adversariais publicados um critico que nao se le nao criticou
  *   1,5  devices no mesmo sha             uma frota em shas diferentes mede coisas diferentes
- *   1,5  cobertura de telemetria          o que nao esta instrumentado nao existe
+ *   1,5  turnos com custo casados com decisao  custo que nenhuma recomendacao reclama e custo cego
  *   1,0  higiene de PRs abertos           trabalho parado a apodrecer e divida
  *   0,5  limiares derivados de medicao    um limiar escolhido a olho e um palpite com autoridade
  *   ───
@@ -62,17 +62,36 @@ export const PESOS = Object.freeze({
 
 export const TOTAL_PESOS = Object.values(PESOS).reduce((a, b) => a + b, 0);
 
-/** Uma parcela. `valor` a null = nao medida = vale zero, e o `porque` diz-se. */
+/**
+ * Uma parcela. `valor` a null = nao medida = vale zero, e o `porque` diz-se.
+ *
+ * CONTRATO: `num` e `den` sao inteiros >= 0 e `num <= den`. Somar os pesos a
+ * 10 nao limita o indice a 10 — foi um adversario que o mostrou, com sete
+ * parcelas de `2/1` a darem **20/10**. Uma fonte que devolva `num > den`, um
+ * negativo ou um nao-inteiro esta partida, e uma parcela partida sai NAO
+ * MEDIDA com o `porque` a dizer o que veio: nunca conta, nunca lanca em
+ * producao, e os dois numeros ficam a vista para quem for ver a fonte.
+ */
 export function parcela(id, { num = null, den = null, porque = null, fonte = null, orfaos = null } = {}) {
-  const medida = Number.isFinite(num) && Number.isFinite(den) && den > 0;
+  const temNum = Number.isFinite(num);
+  const temDen = Number.isFinite(den);
+  let violacao = null;
+  if (temNum && temDen) {
+    if (!Number.isInteger(num) || !Number.isInteger(den)) violacao = `num=${num} den=${den} nao sao inteiros`;
+    else if (num < 0 || den < 0) violacao = `num=${num} den=${den} negativo`;
+    else if (num > den) violacao = `num=${num} > den=${den}`;
+  } else if ((temNum && num < 0) || (temDen && den < 0)) {
+    violacao = `num=${num} den=${den} negativo`;
+  }
+  const medida = !violacao && temNum && temDen && den > 0;
   return {
     id,
     peso: PESOS[id],
-    num: Number.isFinite(num) ? num : null,
-    den: Number.isFinite(den) ? den : null,
+    num: temNum ? num : null,
+    den: temDen ? den : null,
     valor: medida ? num / den : null,
     pontos: medida ? (num / den) * PESOS[id] : 0,
-    porque,
+    porque: violacao ? `contrato violado: ${violacao} (esperado inteiros >= 0, num <= den) — a fonte esta partida, a parcela nao conta` : porque,
     fonte,
     ...(orfaos ? { orfaos } : {}),
   };
@@ -83,19 +102,160 @@ export function parcela(id, { num = null, den = null, porque = null, fonte = nul
 /**
  * Um ficheiro de teste que nenhum workflow corre nao protege ninguem.
  *
- * O denominador sao os ficheiros `*.test.*` que o git segue. O numerador sao os
- * que estao ao alcance de alguma coisa que o CI invoca:
+ * O denominador sao os ficheiros `*.test.{js,mjs,cjs,ts,tsx}` que o git segue.
+ * O `.tsx` entrou a 2026-09-11: havia 2 no `landing/app/_components/` e o
+ * denominador nao os via. `*.spec.*` fica de fora com a medicao escrita: nesse
+ * dia `git ls-files '*.spec.*'` devolvia UM ficheiro, `_handoff/maestro-spec/
+ * F0.spec.json`, que nao e um teste — zero testes `.spec`, zero razao para
+ * alargar o padrao.
  *
- *   a) nomeados num `node --test ...` dentro de um workflow;
- *   b) nomeados num script de `package.json` que um workflow invoca com
- *      `npm run <nome>` (a raiz e os package.json dos pacotes);
- *   c) dentro de um directorio onde um workflow corre `node --test` **sem
- *      argumentos** — a descoberta automatica do node apanha-os todos.
+ * O numerador sao os ficheiros ao alcance de alguma coisa que o CI invoca.
+ * Cada `run:` de cada workflow e partido em COMANDOS (por `&&`, `||`, `|`,
+ * `;` e fim de linha, fora de aspas), cada comando e resolvido no
+ * `working-directory` do passo, e **so os comandos com um RUNNER contam**
+ * (`node`, `tsx`, `npx`, `vitest`, `jest`, ou um `--test` solto):
  *
- * O (c) e o que impede este contador de mentir ao contrario: o
- * `packages/mooter-bridge` corre `node --test` pelado, e listar os ficheiros
- * dele um a um daria "0 cobertos" para um pacote inteiramente coberto.
+ *   a) `node --test a.test.mjs` — o nome conta. `echo a.test.mjs` NAO conta:
+ *      nao ha runner nesse comando. A primeira versao recolhia nomes de
+ *      ficheiro de qualquer sitio do texto, e um `echo` cobria um teste;
+ *   b) `node --test "dir/*.test.mjs"` — o glob e casado contra o caminho de
+ *      cada ficheiro com as regras do executor: `*` nao atravessa `/`, `**`
+ *      seguido de `/` atravessa, `?` e um caracter, `{a,b}` e alternativa,
+ *      `?(x)` e opcional.
+ *      Confirmado em Node v24.14.0 por um adversario noutro motor:
+ *      `node --test "a/*.test.mjs"` correu so `a/b.test.mjs`;
+ *      `"a/**` `/*.test.mjs"` correu tambem `a/sub/c.test.mjs`. A primeira
+ *      versao transformava o glob num directorio e perdia o filtro —
+ *      `unit-*.test.mjs` deixava de ver `unit-x.test.mjs` sozinho e passava a
+ *      cobrir `outro.test.mjs`;
+ *   c) `node --test` / `tsx --test` SEM ficheiros nem globs — a descoberta do
+ *      node apanha o directorio inteiro, recursivamente, pelo padrao dele
+ *      (`**` `/*.test.?(c|m)js`). E o que impede este contador de mentir ao
+ *      contrario: o `packages/mooter-bridge` corre `node --test` pelado, e
+ *      listar os ficheiros dele um a um daria "0 cobertos" para um pacote
+ *      inteiramente coberto. `node --test && echo done` tambem e pelado — o
+ *      comando acaba no `&&`, nao no fim da linha;
+ *   d) `vitest` — le o `vitest.config.{ts,js,mts,mjs}` do directorio e aplica
+ *      os globs de `include`; sem `include`, o default do vitest. A 2026-09-11
+ *      o `landing/vitest.config.ts` limita a `app/**`: um `landing/zz.test.ts`
+ *      fora de `app/` NAO corre, e a primeira versao contava-o como coberto
+ *      (474/667 com um ficheiro injectado — foi o adversario que o mediu);
+ *   e) `npm test` / `npm run x` expande-se no package.json DESTE directorio, e
+ *      `--cwd X -- <cmd>` corre `<cmd>` dentro de X.
+ *
+ * ── O QUE ESTE MATCHER NAO SEGUE (limitacoes escritas, nao corrigidas) ──────
+ *
+ *   · Execucao INDIRECTA: `wave-gate.yml` corre `node tools/wave-gate.mjs`, e
+ *     e esse script que chama `node --test` por dentro (`tools/wave-gate.mjs`,
+ *     `execFile(process.execPath, ['--test', ...])`). O matcher le YAML e
+ *     package.json; nao le JavaScript. O que so corre por dentro de um script
+ *     nao conta.
+ *   · Variaveis de ambiente nos caminhos (`"$HOME/.claude/.../x.test.js"`): o
+ *     caminho nao se resolve e nao casa com nenhum ficheiro. O ficheiro so
+ *     conta se OUTRO comando o nomear.
+ *   · `--test-reporter tap` (valor separado por espaco): o `tap` parece um
+ *     argumento posicional e o runner deixa de ser «pelado».
+ *
+ * Os erros que restam vao todos na mesma direccao: um ficheiro que corre e
+ * que o matcher nao ve fica orfao, nunca o contrario. E a direccao certa para
+ * um contador que alimenta uma catraca — o pior que faz e pedir uma
+ * justificacao a mais, nunca deixar passar um orfao a menos.
  */
+export const EXTENSOES_DE_TESTE = Object.freeze(['js', 'mjs', 'cjs', 'ts', 'tsx']);
+const RE_FICHEIRO_TESTE = /\.test\.(?:js|mjs|cjs|ts|tsx)$/;
+// `node_modules` nao e `node`: o runner tem de vir seguido de espaco ou fim.
+const RE_RUNNER = /(^|[\s/])(node|tsx|npx|vitest|jest)(\s|$)|(^|\s)--test(\s|$)/;
+const VITEST_INCLUDE_OMISSAO = Object.freeze(['**/*.{test,spec}.?(c|m)[jt]s?(x)']);
+// O que `node --test` pelado descobre (docs do node:test); com `tsx` a frente,
+// o loader deixa passar `.ts` tambem.
+const NODE_TEST_OMISSAO = '**/*.test.?(c|m)js';
+const TSX_TEST_OMISSAO = '**/*.test.?(c|m)[jt]s';
+const JEST_OMISSAO = '**/*.test.[jt]s?(x)';
+
+const escaparRe = (s) => String(s).replace(/[.+^$()|\\]/g, '\\$&');
+
+/**
+ * Um glob de caminho, nas regras do `node --test` / vitest, para RegExp
+ * ancorada. Nao e o minimatch inteiro — e o subconjunto que aparece em
+ * scripts deste repo, cada regra com um caso no teste:
+ *
+ *   `*`      um segmento (nao atravessa `/`)
+ *   `**` `/` zero ou mais directorios
+ *   `?`      um caracter
+ *   `{a,b}`  alternativa
+ *   `?(x|y)` opcional (extglob, usado no default do vitest)
+ *   `[jt]`   classe de caracteres, passa como esta
+ */
+export function globParaRegex(glob) {
+  const g = String(glob);
+  let re = '';
+  for (let i = 0; i < g.length; i++) {
+    const ch = g[i];
+    if (ch === '*') {
+      if (g[i + 1] === '*') {
+        if (g[i + 2] === '/') { re += '(?:.*/)?'; i += 2; } else { re += '.*'; i += 1; }
+      } else re += '[^/]*';
+    } else if (ch === '?' && g[i + 1] === '(') {
+      const fim = g.indexOf(')', i);
+      if (fim < 0) { re += '[^/]'; continue; }
+      re += '(?:' + g.slice(i + 2, fim).split('|').map(escaparRe).join('|') + ')?';
+      i = fim;
+    } else if (ch === '?') {
+      re += '[^/]';
+    } else if (ch === '{') {
+      const fim = g.indexOf('}', i);
+      if (fim < 0) { re += '\\{'; continue; }
+      re += '(?:' + g.slice(i + 1, fim).split(',').map(escaparRe).join('|') + ')';
+      i = fim;
+    } else if (ch === '[') {
+      const fim = g.indexOf(']', i);
+      if (fim < 0) { re += '\\['; continue; }
+      re += g.slice(i, fim + 1);
+      i = fim;
+    } else {
+      re += escaparRe(ch);
+    }
+  }
+  return new RegExp('^' + re + '$');
+}
+
+/**
+ * Um bloco `run:` partido nos comandos que a shell executa: por `&&`, `||`,
+ * `|`, `;`, `&` e fim de linha — FORA de aspas, porque o `test` do router
+ * leva `--test-skip-pattern="(a|b|c)"` e partir ai deixava 97 ficheiros num
+ * comando sem runner. Continuacoes de linha (`\` + newline) juntam-se antes.
+ */
+export function comandosDe(bloco) {
+  const s = String(bloco).replace(/\s*\\\r?\n\s*/g, ' ');
+  const out = [];
+  let cur = '';
+  let aspas = null;
+  for (const ch of s) {
+    if (aspas) { cur += ch; if (ch === aspas) aspas = null; continue; }
+    if (ch === '"' || ch === "'") { aspas = ch; cur += ch; continue; }
+    if (ch === '\n' || ch === ';' || ch === '|' || ch === '&') { out.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((c) => c.trim()).filter((c) => c && !c.startsWith('#'));
+}
+
+/** Os argumentos de um comando, com as aspas retiradas e o conteudo inteiro. */
+export function argumentosDe(comando) {
+  const out = [];
+  let cur = '';
+  let aspas = null;
+  let vazioEntreAspas = false;
+  for (const ch of String(comando)) {
+    if (aspas) { if (ch === aspas) aspas = null; else cur += ch; continue; }
+    if (ch === '"' || ch === "'") { aspas = ch; vazioEntreAspas = true; continue; }
+    if (/\s/.test(ch)) { if (cur || vazioEntreAspas) out.push(cur); cur = ''; vazioEntreAspas = false; continue; }
+    cur += ch;
+  }
+  if (cur || vazioEntreAspas) out.push(cur);
+  return out;
+}
+
 export function testesGateados({ raiz = RAIZ_REPO, runImpl = execFileSync, readImpl = fs.readFileSync, readdirImpl = fs.readdirSync } = {}) {
   const gitLs = (padroes) => {
     const out = String(runImpl('git', ['ls-files', '-z', ...padroes], {
@@ -106,7 +266,7 @@ export function testesGateados({ raiz = RAIZ_REPO, runImpl = execFileSync, readI
 
   let ficheiros;
   try {
-    ficheiros = gitLs(['*.test.js', '*.test.mjs', '*.test.ts', '*.test.cjs']);
+    ficheiros = gitLs(EXTENSOES_DE_TESTE.map((e) => `*.test.${e}`));
   } catch (e) {
     return parcela('testes_gateados', { porque: `git ls-files falhou: ${String(e && e.message).slice(0, 90)}` });
   }
@@ -132,12 +292,28 @@ export function testesGateados({ raiz = RAIZ_REPO, runImpl = execFileSync, readI
     } catch { /* package.json partido nao cobre nada */ }
   }
 
-  const cobertos = new Set();
-  const dirsDescoberta = new Set();
+  const cobertos = new Set();   // caminhos nomeados
+  const padroes = [];           // RegExp de globs, ja relativas a raiz
   const juntar = (base, rel) => path.posix.normalize(base ? `${base}/${rel}` : rel).replace(/^\.\//, '');
+  const cobrirGlob = (base, glob) => padroes.push(globParaRegex(juntar(base, glob)));
+
+  // O `include` do vitest do directorio onde ele corre; sem ficheiro de
+  // configuracao, ou sem `include` dentro de `test: {}`, o default do vitest.
+  const includeDoVitest = (base) => {
+    for (const nome of ['vitest.config.ts', 'vitest.config.js', 'vitest.config.mts', 'vitest.config.mjs']) {
+      let src;
+      try { src = String(readImpl(path.join(raiz, base, nome), 'utf8')); } catch { continue; }
+      const bloco = /\btest\s*:\s*\{/.exec(src);
+      const m = /\binclude\s*:\s*\[([^\]]*)\]/.exec(bloco ? src.slice(bloco.index) : '');
+      if (!m) return VITEST_INCLUDE_OMISSAO;
+      const globs = [...m[1].matchAll(/['"`]([^'"`]+)['"`]/g)].map((x) => x[1]);
+      return globs.length ? globs : VITEST_INCLUDE_OMISSAO;
+    }
+    return VITEST_INCLUDE_OMISSAO;
+  };
 
   /**
-   * Um comando do CI, resolvido no `working-directory` onde ele corre.
+   * Um bloco `run:` do CI, resolvido no `working-directory` onde ele corre.
    *
    * O `working-directory` nao e cosmetico: `npm test` em `packages/cli` e
    * `npm test` em `landing` sao dois comandos diferentes a correr dois
@@ -145,31 +321,53 @@ export function testesGateados({ raiz = RAIZ_REPO, runImpl = execFileSync, readI
    * em qualquer sitio do YAML, e dava por coberto o `test` de um pacote so
    * porque OUTRO pacote tinha um script com o mesmo nome.
    */
-  const analisarComando = (base, cmd, profundidade = 0) => {
-    const c = String(cmd).trim();
+  const analisarComando = (base, bloco, profundidade = 0) => {
     if (profundidade > 3) return; // scripts a chamarem-se uns aos outros
-    for (const m of c.matchAll(/[\w./@-]+\.test\.(?:mjs|js|ts|cjs)/g)) cobertos.add(juntar(base, m[0]));
-    const dirDo = (d) => dirsDescoberta.add(d ? juntar(base, d) : (base || '.'));
-    // Runners que DESCOBREM ficheiros sozinhos cobrem um directorio inteiro, e
-    // lista-los um a um daria zero para um pacote inteiramente coberto.
-    if (/(^|[\s/])(node|tsx) --test\s*$/.test(c)) dirDo('');
-    if (/\b(vitest|jest)\b/.test(c)) dirDo('');
-    for (const g of c.matchAll(/([\w./@-]*)\*[\w.*-]*\.test\.(?:mjs|js|ts|cjs)/g)) {
-      dirDo(String(g[1] || '').replace(/\/$/, ''));
-    }
-    // Um wrapper com `--cwd X -- <cmd>` corre `<cmd>` DENTRO de X. E o caso do
-    // `test:cli-guardado`, que corre o `npm test` do `packages/cli` a partir da
-    // raiz: sem isto, os 82 ficheiros de teste do CLI apareciam como orfaos por
-    // o analisador estar a procurar um script `test` na raiz, que nao existe.
-    const mCwd = /--cwd\s+([\w./@-]+)\s+--\s+(.+)$/.exec(c);
-    if (mCwd) { analisarComando(mCwd[1].replace(/\/$/, ''), mCwd[2], profundidade + 1); return; }
+    for (const c of comandosDe(bloco)) {
+      // Um wrapper com `--cwd X -- <cmd>` corre `<cmd>` DENTRO de X. E o caso
+      // do `test:cli-guardado`, que corre o `npm test` do `packages/cli` a
+      // partir da raiz: sem isto, os 82 ficheiros de teste do CLI apareciam
+      // como orfaos por o analisador procurar um script `test` na raiz.
+      const mCwd = /--cwd\s+(\S+)\s+--\s+(.+)$/.exec(c);
+      if (mCwd) { analisarComando(mCwd[1].replace(/\/$/, ''), mCwd[2], profundidade + 1); continue; }
 
-    // `npm test` / `npm run x` expande-se no package.json DESTE directorio.
-    const s = scriptsDe.get(base);
-    if (!s) return;
-    for (const m of c.matchAll(/npm (?:run )?([\w:@./-]+)/g)) {
-      const alvo = s[m[1]];
-      if (alvo) analisarComando(base, alvo, profundidade + 1);
+      // `npm test` / `npm run x` expande-se no package.json DESTE directorio.
+      const s = scriptsDe.get(base);
+      if (s) {
+        for (const m of c.matchAll(/(?:^|\s)npm\s+(?:run(?:\s+-\S+)*\s+(\S+)|(test))(?=\s|$)/g)) {
+          const alvo = s[m[1] || m[2]];
+          if (alvo) analisarComando(base, alvo, profundidade + 1);
+        }
+      }
+
+      // Sem runner, um nome de ficheiro e texto. `echo a.test.mjs` nao corre nada.
+      if (!RE_RUNNER.test(c)) continue;
+
+      if (/(^|[\s/])vitest(\s|$)/.test(c)) { for (const g of includeDoVitest(base)) cobrirGlob(base, g); continue; }
+      if (/(^|[\s/])jest(\s|$)/.test(c)) { cobrirGlob(base, JEST_OMISSAO); continue; }
+
+      const args = argumentosDe(c);
+      const iTest = args.indexOf('--test');
+      // Posicionais depois do `--test`: o que nao e flag nem redireccao.
+      const posicionais = [];
+      for (let i = iTest + 1; iTest >= 0 && i < args.length; i++) {
+        const a = args[i];
+        if (/^\d*[<>]/.test(a)) { if (!/[<>]./.test(a)) i += 1; continue; } // `> log` / `>log` / `2>&1`
+        if (a.startsWith('-')) continue;
+        posicionais.push(a);
+      }
+      if (iTest >= 0 && !posicionais.length) {
+        // Runner pelado: descobre sozinho, recursivamente, a partir do cwd.
+        // A raiz cobriria o repositorio inteiro, e nada corre `node --test`
+        // na raiz. Assumi-lo daria 100% a esta parcela sem ninguem correr um
+        // teste — por isso a raiz nao conta.
+        if (base) cobrirGlob(base, /(^|[\s/])tsx(\s|$)/.test(c) ? TSX_TEST_OMISSAO : NODE_TEST_OMISSAO);
+        continue;
+      }
+      for (const a of posicionais) {
+        if (/[*?{[]/.test(a)) cobrirGlob(base, a);
+        else if (RE_FICHEIRO_TESTE.test(a)) cobertos.add(juntar(base, a));
+      }
     }
   };
 
@@ -222,22 +420,13 @@ export function testesGateados({ raiz = RAIZ_REPO, runImpl = execFileSync, readI
     fecharRun();
   }
 
-  const estaCoberto = (rel) => {
-    if (cobertos.has(rel)) return true;
-    for (const d of dirsDescoberta) {
-      // A raiz cobriria o repositorio inteiro, e nada corre `node --test` na
-      // raiz. Assumi-lo daria 100% a esta parcela sem ninguem correr um teste.
-      if (d === '.' || d === '') continue;
-      if (rel.startsWith(d.endsWith('/') ? d : d + '/')) return true;
-    }
-    return false;
-  };
+  const estaCoberto = (rel) => cobertos.has(rel) || padroes.some((re) => re.test(rel));
 
   const orfaos = ficheiros.filter((f) => !estaCoberto(f));
   return parcela('testes_gateados', {
     num: ficheiros.length - orfaos.length,
     den: ficheiros.length,
-    fonte: 'git ls-files *.test.* × comandos dos workflows, resolvidos no working-directory de cada passo',
+    fonte: 'git ls-files *.test.{js,mjs,cjs,ts,tsx} × comandos com runner nos workflows, resolvidos no working-directory de cada passo',
     porque: orfaos.length
       ? `${orfaos.length} ficheiros de teste nao sao alcancados por nada que o CI invoque`
       : 'todos os ficheiros de teste versionados sao alcancados pelo CI',
@@ -390,8 +579,32 @@ export function devicesNoMesmoSha({ frota = null, shaAlvo = null, rejeitados = n
  *     den = turnos humanos com custo medido
  *
  * O que falta no numerador nao e «tokens em falta» — e custo REAL que nenhuma
- * recomendacao consegue reclamar. Medido a 2026-09-11 nesta maquina:
- * **81/1686** em 524 transcripts (4,8 %); nos 40 mais recentes, 53/240.
+ * recomendacao consegue reclamar.
+ *
+ * ── O QUE ESTA PARCELA MEDE, E O QUE NAO MEDE (limitacao escrita) ────────────
+ *
+ * O nome `cobertura_de_telemetria` fica por ser o id da parcela; a descricao
+ * passou a «turnos com custo casados com decisao», que e o que o numero e.
+ * Um adversario leu o `recibo.js` de main e mostrou tres coisas:
+ *
+ *   · o denominador nao e «todos os turnos»: `recibo.js` so cria um turno a
+ *     partir de chamadas que trazem `message.usage` (linha ~227). Um turno
+ *     sem `usage` nao existe para o recibo; uma chamada com `usage` mas sem
+ *     preco na tabela cria o turno na mesma (`semPreco`);
+ *   · o casamento decisao→turno e por janela de 30 s dentro da mesma sessao e
+ *     NAO CONSOME a decisao (`casar`, linha ~298): uma decisao em 100000 ms
+ *     foi atribuida a dois turnos, em 101000 e 120000 ms. `session_id`
+ *     restringe a sessao, nao prova causalidade. Logo o numerador pode contar
+ *     a mesma decisao duas vezes, e a parcela sobre-conta nessa medida;
+ *   · a fonte das decisoes e `~/.claude/tools/router/decisions.log` filtrado
+ *     por `event === 'classified'` — a interseccao entre transcripts do Claude
+ *     Code e esse historico. Nao mede a instrumentacao de todos os motores
+ *     (Codex, Kimi, Ollama nao passam por aqui), nem so deste projecto.
+ *
+ * O numero que aqui se escreve e DATADO e mexe-se sozinho: a 2026-09-11 esta
+ * maquina deu **81/1686** em 524 transcripts (4,8 %); nos 40 mais recentes,
+ * 53/240. Uma hora depois, o adversario obteve 81/1689 em 527 transcripts.
+ * Outra corrida da outro numero, e nenhum dos dois esta errado.
  *
  * O ramo `session_id` que existia num branch paralelo (`ab-audit/telemetria`)
  * foi abandonado: `recibo.js` documenta porque essa chave reconstruia o defeito
@@ -425,7 +638,7 @@ export function coberturaDeTelemetria({ reciboImpl = null, limite = 0 } = {}) {
     num,
     den: r.turnos,
     fonte: `recibo.js — ${r.transcriptsLidos}/${r.transcriptsTotais} transcripts, ${r.chamadas} chamadas com usage`,
-    porque: `${r.turnos - num} turnos com custo medido sem decisao do router casada (mesma sessao, janela 30 s) — custo real que nenhuma recomendacao reclama; o decisions_v2.jsonl traz tokens a 0 por construcao (o hook escreve antes de o modelo responder)`,
+    porque: `${r.turnos - num} turnos com custo medido sem decisao do router casada — custo real que nenhuma recomendacao reclama. Mede turnos com custo medido (so chamadas com usage) que casam com uma decisao do router (mesma sessao, janela 30 s, sem consumo: uma decisao pode casar com dois turnos) — nao mede instrumentacao de todos os motores. O decisions_v2.jsonl traz tokens a 0 por construcao (o hook escreve antes de o modelo responder)`,
   });
 }
 
@@ -555,7 +768,7 @@ export const NOMES = Object.freeze({
   recibos_de_censo: 'medicoes com recibo de censo',
   vereditos_publicados: 'vereditos adversariais publicados',
   devices_no_mesmo_sha: 'devices no mesmo sha',
-  cobertura_de_telemetria: 'cobertura de telemetria',
+  cobertura_de_telemetria: 'turnos com custo casados com decisao',
   higiene_de_prs: 'higiene de PRs abertos',
   limiares_medidos: 'limiares derivados de medicao',
 });
@@ -565,7 +778,16 @@ export function imprimir(r) {
   console.log(`INDICE DO ARNES  ${r.pontos.toFixed(2)} / ${r.total.toFixed(1)}  (${r.pct}%)`);
   // A data e o sha nao sao decoracao: sem eles este numero e uma afirmacao sem
   // data, e as parcelas leem estado vivo que se mexe entre duas corridas.
-  if (r.medido_em) console.log(`medido em ${r.medido_em}${r.sha ? ` · sha ${r.sha}` : ''} — as parcelas leem estado vivo, outra corrida da outro numero`);
+  // Dois shas, e nao um: C1 e C7 leem o checkout de HEAD (o codigo MEDIDO);
+  // C4 compara a frota com origin/main (a REFERENCIA). Um so `sha` estampava
+  // o origin/main e chamava-lhe o sha da medicao — um adversario apanhou.
+  if (r.medido_em) {
+    const shas = [
+      r.sha_head ? `codigo medido HEAD ${r.sha_head}` : 'HEAD n/d',
+      r.sha_origin_main ? `referencia da frota origin/main ${r.sha_origin_main}` : 'origin/main n/d',
+    ].join(' · ');
+    console.log(`medido em ${r.medido_em} · ${shas} — as parcelas leem estado vivo, outra corrida da outro numero`);
+  }
   if (r.peso_nao_medido > 0) {
     console.log(`⚠ ${r.peso_nao_medido.toFixed(1)} pontos de peso NAO FORAM MEDIDOS e valem zero: ${r.nao_medidas.join(', ')}`);
   }
@@ -615,8 +837,17 @@ export function recolherPrs({ raiz = RAIZ_REPO, runImpl = execFileSync } = {}) {
 
 /** O sha de referencia: o `origin/main` que a frota devia estar a correr. */
 export function shaDeReferencia({ raiz = RAIZ_REPO, runImpl = execFileSync } = {}) {
+  return revParse('origin/main', { raiz, runImpl });
+}
+
+/** O sha do checkout MEDIDO: o HEAD de onde C1 e C7 leram ficheiros. */
+export function shaDoHead({ raiz = RAIZ_REPO, runImpl = execFileSync } = {}) {
+  return revParse('HEAD', { raiz, runImpl });
+}
+
+function revParse(ref, { raiz, runImpl }) {
   try {
-    return String(runImpl('git', ['rev-parse', 'origin/main'], {
+    return String(runImpl('git', ['rev-parse', ref], {
       cwd: raiz, encoding: 'utf8', windowsHide: true,
     }) || '').trim() || null;
   } catch {
@@ -668,6 +899,7 @@ export async function calcular({ raiz = RAIZ_REPO, semRede = false, agora = Date
   const prs = semRede ? null : recolherPrs({ raiz });
   const { frota, rejeitados } = await recolherFrota();
   const shaAlvo = shaDeReferencia({ raiz });
+  const shaHead = shaDoHead({ raiz });
   const r = indice([
     testesGateados({ raiz }),
     recibosDeCenso({}),
@@ -680,9 +912,14 @@ export async function calcular({ raiz = RAIZ_REPO, semRede = false, agora = Date
   return {
     ...r,
     medido_em: new Date(agora).toISOString(),
-    // O sha do repo no momento da medicao: sem ele, duas corridas do mesmo
-    // numero em arvores diferentes sao indistinguiveis.
-    sha: shaAlvo ? String(shaAlvo).slice(0, 12) : null,
+    // DOIS shas, separados de proposito. `sha_head` e o checkout de onde C1
+    // (workflows, package.json) e C7 (limiares) leram — o codigo MEDIDO.
+    // `sha_origin_main` e a referencia contra a qual C4 compara a frota. A
+    // primeira versao estampava so o origin/main e chamava-lhe «o sha da
+    // medicao»: numa worktree com o branch a frente, o numero dizia ser de um
+    // codigo que ninguem tinha medido.
+    sha_head: shaHead ? String(shaHead).slice(0, 12) : null,
+    sha_origin_main: shaAlvo ? String(shaAlvo).slice(0, 12) : null,
   };
 }
 
@@ -709,15 +946,19 @@ export function escreverInstantaneo(r, { caminho = CAMINHO_INSTANTANEO, agoraIso
     // O carimbo vem do resultado quando ele o traz; o parametro continua a valer
     // para quem chama isto com um relogio injectado (os testes).
     ts: agoraIso || r.medido_em || null,
-    sha: r.sha || null,
+    sha_head: r.sha_head || null,
+    sha_origin_main: r.sha_origin_main || null,
     pontos: r.pontos,
     total: r.total,
     pct: r.pct,
     peso_nao_medido: r.peso_nao_medido,
     nao_medidas: r.nao_medidas,
-    // Sem os `porque` e sem os `orfaos`: o instantaneo e para o painel, e um
-    // painel nao precisa da lista dos 180 ficheiros para mostrar `419/599`.
-    parcelas: r.parcelas.map((p) => ({ id: p.id, peso: p.peso, num: p.num, den: p.den })),
+    // COM o `porque` de cada parcela: um `n/d` sem o porque e um numero mudo,
+    // e o painel tem de poder dizer «sem acesso ao GitHub» em vez de so «n/d».
+    // A primeira versao deitava-os fora aqui, e o leitor deitava fora o sha.
+    // Sem a lista dos `orfaos`: um painel nao precisa de 190 caminhos para
+    // mostrar `473/667`; a lista vive na catraca (`testes-orfaos.baseline.json`).
+    parcelas: r.parcelas.map((p) => ({ id: p.id, peso: p.peso, num: p.num, den: p.den, porque: p.porque ?? null })),
   };
   writeImpl(caminho, JSON.stringify(magro, null, 2) + '\n');
   return magro;
@@ -736,12 +977,22 @@ export function lerInstantaneo({ caminho = CAMINHO_INSTANTANEO, agora = Date.now
   if (!Number.isFinite(ts)) {
     return { presente: false, porque: 'instantaneo sem carimbo de tempo legivel — nao se publica um numero sem saber de quando e' };
   }
-  const idade_s = Math.max(0, Math.round((agora - ts) / 1000));
+  // SEM `Math.max(0, …)`: um carimbo no futuro dava `idade 0, fresco: true`,
+  // que e a leitura mais confiante possivel de um relogio que esta errado.
+  // Idade negativa e um sinal, nao um zero — publica-se como NAO fresco, com
+  // o porque, e com o numero negativo a vista para quem for ver o relogio.
+  const idade_s = Math.round((agora - ts) / 1000);
+  const noFuturo = idade_s < 0;
   return {
     presente: true,
-    fresco: idade_s <= IDADE_MAX_S,
+    fresco: !noFuturo && idade_s <= IDADE_MAX_S,
     idade_s,
+    ...(noFuturo ? { porque: `relogio no futuro: o carimbo do instantaneo esta ${-idade_s} s a frente do relogio de quem le — nao se publica como fresco um numero de um relogio errado` } : {}),
     ts: j.ts,
+    // Os dois shas viajam. Um instantaneo de antes de 2026-09-11 so tem `sha`,
+    // e esse era o origin/main — le-se como tal, nunca como o HEAD medido.
+    sha_head: typeof j.sha_head === 'string' ? j.sha_head : null,
+    sha_origin_main: typeof j.sha_origin_main === 'string' ? j.sha_origin_main : (typeof j.sha === 'string' ? j.sha : null),
     pontos: j.pontos,
     total: j.total,
     pct: j.pct,

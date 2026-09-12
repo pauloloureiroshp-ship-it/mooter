@@ -20,6 +20,7 @@ import {
   testesGateados, recibosDeCenso, veredictosPublicados, devicesNoMesmoSha,
   coberturaDeTelemetria, higieneDePrs, limiaresMedidos, limiaresNoCodigo,
   escreverInstantaneo, lerInstantaneo, IDADE_MAX_S, SUFIXOS_DE_LIMIAR, calcular,
+  globParaRegex, comandosDe, argumentosDe, NOMES,
 } from './indice-do-harness.mjs';
 
 // ── a regra-mae ─────────────────────────────────────────────────────────────
@@ -52,13 +53,54 @@ test('os pesos somam 10 — se alguem mexer num, o total tem de deixar de bater'
   assert.equal(TOTAL_PESOS, 10);
 });
 
+test('MORDIDA: somar os pesos a 10 nao limita o indice a 10 — `num > den` e uma fonte partida e NAO CONTA', () => {
+  // Um adversario reproduziu sete parcelas de `2/1`: **20/10**. O contrato e
+  // `num`/`den` inteiros >= 0 e `num <= den`; fora dele a parcela sai NAO
+  // MEDIDA com o porque, nunca lanca, e os numeros ficam a vista.
+  const ids = Object.keys(PESOS);
+  const r = indice(ids.map((id) => parcela(id, { num: 2, den: 1 })));
+  assert.equal(r.pontos, 0, 'sete parcelas de 2/1 davam 20/10');
+  assert.deepEqual(r.nao_medidas.sort(), [...ids].sort());
+  const p = parcela('testes_gateados', { num: 2, den: 1 });
+  assert.equal(p.valor, null);
+  assert.equal(p.pontos, 0);
+  assert.match(p.porque, /contrato violado: num=2 > den=1/);
+  assert.equal(p.num, 2, 'o numero que veio fica a vista para quem for ver a fonte');
+  assert.equal(p.den, 1);
+});
+
+test('MORDIDA: um numerador NEGATIVO nao conta — nem para baixo', () => {
+  // -3/10 dava valor -0,3 e pontos negativos: uma parcela a ROUBAR pontos as
+  // outras. Fora do contrato e n/d, como qualquer outra fonte partida.
+  const p = parcela('testes_gateados', { num: -3, den: 10 });
+  assert.equal(p.valor, null);
+  assert.equal(p.pontos, 0);
+  assert.match(p.porque, /contrato violado: num=-3 den=10 negativo/);
+  const d = parcela('testes_gateados', { num: 0, den: -1 });
+  assert.equal(d.valor, null);
+  assert.match(d.porque, /negativo/);
+});
+
+test('MORDIDA: um NAO-INTEIRO nao conta — 0,5/1 nao e uma contagem', () => {
+  const p = parcela('testes_gateados', { num: 0.5, den: 1 });
+  assert.equal(p.valor, null);
+  assert.equal(p.pontos, 0);
+  assert.match(p.porque, /contrato violado: num=0.5 den=1 nao sao inteiros/);
+  // O par: dentro do contrato continua a contar como sempre.
+  const ok = parcela('testes_gateados', { num: 1, den: 2, porque: 'metade' });
+  assert.equal(ok.valor, 0.5);
+  assert.equal(ok.pontos, 1);
+  assert.equal(ok.porque, 'metade', 'o porque da fonte fica quando nao ha violacao');
+});
+
 // ── C1 · testes gateados ────────────────────────────────────────────────────
 
-function ambienteC1({ ficheiros, workflows, pkgs = {} }) {
+function ambienteC1({ ficheiros, workflows, pkgs = {}, extra = {}, chamadasGit = null }) {
   return {
     raiz: '/repo',
     runImpl: (_c, args) => {
       // `git ls-files -z <padroes>`
+      if (chamadasGit) chamadasGit.push(args);
       const padroes = args.slice(2);
       if (padroes.some((p) => p.includes('package.json'))) return Object.keys(pkgs).join('\0');
       return ficheiros.join('\0');
@@ -70,10 +112,13 @@ function ambienteC1({ ficheiros, workflows, pkgs = {} }) {
       if (workflows[nome] !== undefined) return workflows[nome];
       const rel = String(p).replace(/\\/g, '/').replace('/repo/', '');
       if (pkgs[rel] !== undefined) return JSON.stringify({ scripts: pkgs[rel] });
+      if (extra[rel] !== undefined) return extra[rel];
       throw new Error('ENOENT ' + p);
     },
   };
 }
+// Um workflow de um passo, com o `run:` e o `working-directory` dados.
+const wf = (run, wd = '') => 'jobs:\n  x:\n    steps:\n      - name: t\n' + (wd ? '        working-directory: ' + wd + '\n' : '') + '        run: ' + run + '\n';
 
 test('C1: um teste nomeado num `node --test` do workflow conta como coberto', () => {
   const p = testesGateados(ambienteC1({
@@ -140,6 +185,136 @@ test('C1: git a falhar da uma parcela NAO MEDIDA, nao um zero de cobertura', () 
   });
   assert.equal(p.valor, null);
   assert.match(p.porque, /git ls-files/);
+});
+
+test('MORDIDA C1: o denominador pede `*.test.tsx` ao git — havia 2 no landing e nao os via', () => {
+  const chamadasGit = [];
+  testesGateados(ambienteC1({ ficheiros: ['a.test.js'], workflows: {}, chamadasGit }));
+  const padroes = chamadasGit[0].slice(2);
+  assert.ok(padroes.includes('*.test.tsx'), 'pediu: ' + padroes.join(' '));
+  for (const e of ['*.test.js', '*.test.mjs', '*.test.ts', '*.test.cjs']) assert.ok(padroes.includes(e), e);
+});
+
+test('MORDIDA C1: `vitest` cobre o que o `include` do vitest.config diz — nao o directorio inteiro', () => {
+  // O landing limita a `app/**`. Um adversario injectou `landing/zz.test.ts`
+  // fora de `app/` e C1 contou-o como coberto (474/667). A catraca herdaria
+  // esse falso negativo: um teste que o CI nunca corre a passar por gateado.
+  const config = "export default defineConfig({\n  test: {\n    environment: 'node',\n    include: ['app/**/*.test.ts', 'app/**/*.test.tsx'],\n  },\n});\n";
+  const base = {
+    ficheiros: ['landing/zz.test.ts', 'landing/app/x.test.ts', 'landing/app/_components/y.test.tsx', 'landing/lib/z.test.tsx'],
+    workflows: { 'landing.yml': wf('npm run test', 'landing') },
+    pkgs: { 'landing/package.json': { test: 'vitest run' } },
+  };
+  const p = testesGateados(ambienteC1({ ...base, extra: { 'landing/vitest.config.ts': config } }));
+  assert.deepEqual(p.orfaos, ['landing/zz.test.ts', 'landing/lib/z.test.tsx'], 'fora de app/ nao corre');
+  assert.equal(p.num, 2);
+  // Sem ficheiro de configuracao, vale o default do vitest, que apanha tudo.
+  const semConfig = testesGateados(ambienteC1(base));
+  assert.deepEqual(semConfig.orfaos, []);
+  assert.equal(semConfig.num, 4);
+});
+
+test('MORDIDA C1: um nome de ficheiro so conta com um RUNNER no mesmo comando — `echo a.test.mjs` nao corre nada', () => {
+  // A primeira versao recolhia nomes de qualquer sitio do texto: um `echo`
+  // cobria um teste. Reproduzido por um adversario.
+  const so = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs'], workflows: { 'ci.yml': wf('echo a.test.mjs') } }));
+  assert.deepEqual(so.orfaos, ['a.test.mjs'], 'echo nao e runner');
+  // O par: com o runner, conta.
+  const com = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs'], workflows: { 'ci.yml': wf('node --test a.test.mjs') } }));
+  assert.deepEqual(com.orfaos, []);
+  // E num bloco com os dois, cada comando e julgado sozinho: o runner do
+  // primeiro nao empresta cobertura ao segundo.
+  const bloco = 'jobs:\n  x:\n    steps:\n      - name: t\n        run: |\n          node --test a.test.mjs\n          echo b.test.mjs\n';
+  const ambos = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs', 'b.test.mjs'], workflows: { 'ci.yml': bloco } }));
+  assert.deepEqual(ambos.orfaos, ['b.test.mjs']);
+});
+
+test('MORDIDA C1: `unit-*.test.mjs` casa `unit-x.test.mjs` e NAO casa `outro.test.mjs` — o glob e um filtro, nao um directorio', () => {
+  // A primeira versao transformava o glob no directorio `tools/u` e perdia o
+  // filtro: `outro.test.mjs` contava como coberto e ninguem o corria.
+  const p = testesGateados(ambienteC1({
+    ficheiros: ['tools/u/unit-x.test.mjs', 'tools/u/unit-y.test.mjs', 'tools/u/outro.test.mjs'],
+    workflows: { 'ci.yml': wf('node --test "tools/u/unit-*.test.mjs"') },
+  }));
+  assert.deepEqual(p.orfaos, ['tools/u/outro.test.mjs']);
+  assert.equal(p.num, 2);
+});
+
+test('MORDIDA C1: `*` fica no nivel e `**` desce — confirmado por execucao em Node v24.14.0', () => {
+  // `node --test "a/*.test.mjs"` correu so `a/b.test.mjs`;
+  // `"a/**` `/*.test.mjs"` correu tambem `a/sub/c.test.mjs`.
+  const p = testesGateados(ambienteC1({
+    ficheiros: ['a/b.test.mjs', 'a/sub/c.test.mjs', 'd/e.test.mjs', 'd/sub/f.test.mjs', 'd/sub/mais/g.test.mjs'],
+    workflows: { 'ci.yml': wf('node --test "a/*.test.mjs" "d/**/*.test.mjs"') },
+  }));
+  assert.deepEqual(p.orfaos, ['a/sub/c.test.mjs'], 'so o `**` desce; o `*` fica no nivel');
+  assert.equal(p.num, 4);
+});
+
+test('MORDIDA C1: `{a,b}` e alternativa e `?` e UM caracter', () => {
+  const p = testesGateados(ambienteC1({
+    ficheiros: ['t/x/a.test.mjs', 't/y/b.test.mjs', 't/z/c.test.mjs', 'u/unit-1.test.mjs', 'u/unit-10.test.mjs'],
+    workflows: { 'ci.yml': wf('node --test "t/{x,y}/*.test.mjs" "u/unit-?.test.mjs"') },
+  }));
+  assert.deepEqual(p.orfaos, ['t/z/c.test.mjs', 'u/unit-10.test.mjs']);
+  assert.equal(p.num, 3);
+});
+
+test('MORDIDA C1: `node --test && echo done` e um runner PELADO — o comando acaba no `&&`, nao no fim da linha', () => {
+  // A ancora `\s*$` dava zero cobertura a qualquer coisa a seguir ao runner.
+  for (const run of ['node --test && echo done', 'node --test; echo done', 'node --test | tee log', 'node --test || true', 'node --test 2>&1 | tee log']) {
+    const p = testesGateados(ambienteC1({
+      ficheiros: ['packages/x/a.test.js', 'packages/x/sub/b.test.js', 'fora/c.test.js'],
+      workflows: { 'ci.yml': wf(run, 'packages/x') },
+    }));
+    assert.deepEqual(p.orfaos, ['fora/c.test.js'], run);
+  }
+  // E com um ficheiro nomeado deixa de ser pelado: so esse conta.
+  const nomeado = testesGateados(ambienteC1({
+    ficheiros: ['packages/x/a.test.js', 'packages/x/b.test.js'],
+    workflows: { 'ci.yml': wf('node --test a.test.js && echo done', 'packages/x') },
+  }));
+  assert.deepEqual(nomeado.orfaos, ['packages/x/b.test.js']);
+});
+
+test('C1: os comandos partem-se fora de aspas — o `--test-skip-pattern="(a|b)"` do router nao parte a lista em tres', () => {
+  // Partir no `|` de dentro das aspas deixava 97 ficheiros num comando sem
+  // runner. O par de `comandosDe` e `argumentosDe` tem de concordar nisto.
+  const c = comandosDe('node --test --test-skip-pattern="(a|b|c)" x.test.js y.test.js && echo fim');
+  assert.deepEqual(c, ['node --test --test-skip-pattern="(a|b|c)" x.test.js y.test.js', 'echo fim']);
+  assert.deepEqual(argumentosDe(c[0]), ['node', '--test', '--test-skip-pattern=(a|b|c)', 'x.test.js', 'y.test.js']);
+  // Continuacao de linha com barra: e o mesmo comando.
+  assert.deepEqual(comandosDe('node --test \\\n  a.test.js \\\n  b.test.js'), ['node --test a.test.js b.test.js']);
+  // Comentarios de shell nao sao comandos.
+  assert.deepEqual(comandosDe('# node --test a.test.js\nnode --test b.test.js'), ['node --test b.test.js']);
+});
+
+test('C1: `globParaRegex` — cada regra com o seu caso', () => {
+  const casa = (g, p) => globParaRegex(g).test(p);
+  assert.ok(casa('a/*.test.mjs', 'a/b.test.mjs'));
+  assert.ok(!casa('a/*.test.mjs', 'a/sub/b.test.mjs'), '`*` nao atravessa /');
+  assert.ok(casa('a/**/*.test.mjs', 'a/sub/b.test.mjs'));
+  assert.ok(casa('a/**/*.test.mjs', 'a/b.test.mjs'), '`**/` e zero ou mais directorios');
+  assert.ok(casa('u/unit-?.test.mjs', 'u/unit-1.test.mjs'));
+  assert.ok(!casa('u/unit-?.test.mjs', 'u/unit-10.test.mjs'));
+  assert.ok(casa('t/{x,y}/a.test.mjs', 't/y/a.test.mjs'));
+  assert.ok(!casa('t/{x,y}/a.test.mjs', 't/z/a.test.mjs'));
+  // O default do vitest, tal e qual.
+  const v = '**/*.{test,spec}.?(c|m)[jt]s?(x)';
+  for (const ok of ['a.test.ts', 'x/y/a.spec.tsx', 'a.test.mjs', 'a.test.cjs', 'a.test.js', 'a.test.mts']) assert.ok(casa(v, ok), ok);
+  for (const nao of ['a.tests.ts', 'a.test.json', 'a.test.tss']) assert.ok(!casa(v, nao), nao);
+  // O do node --test pelado: sem .ts.
+  assert.ok(casa('p/**/*.test.?(c|m)js', 'p/a.test.mjs'));
+  assert.ok(!casa('p/**/*.test.?(c|m)js', 'p/a.test.ts'));
+  // Um ponto e um ponto, nao «qualquer caracter».
+  assert.ok(!casa('a/*.test.mjs', 'a/xtestxmjs'));
+});
+
+test('C1: a descricao da parcela de telemetria diz o que ela mede', () => {
+  // O id `cobertura_de_telemetria` fica (e a chave da parcela); o nome
+  // mostrado e o que o numero E — turnos com custo casados com decisao —
+  // e nao «cobertura de telemetria», que prometia todos os motores.
+  assert.equal(NOMES.cobertura_de_telemetria, 'turnos com custo casados com decisao');
 });
 
 // ── C2 · recibos ────────────────────────────────────────────────────────────
@@ -361,17 +536,68 @@ test('o resultado leva SEMPRE o carimbo de quando foi medido e o sha', async () 
   // que apanhou; quem corresse o comando concluiria que o PR mentia.
   const r = await calcular({ semRede: true, agora: Date.parse('2026-08-26T12:00:00Z') });
   assert.equal(r.medido_em, '2026-08-26T12:00:00.000Z');
-  assert.ok(typeof r.sha === 'string' || r.sha === null);
+  assert.ok(typeof r.sha_head === 'string' || r.sha_head === null);
+  assert.ok(typeof r.sha_origin_main === 'string' || r.sha_origin_main === null);
   assert.ok(Number.isFinite(r.pontos));
+});
+
+test('MORDIDA: o resultado estampa DOIS shas — o HEAD medido e o origin/main de referencia — e nunca um so `sha`', async () => {
+  // A primeira versao estampava `sha: origin/main` e chamava-lhe o sha da
+  // medicao. C1 e C7 leem o checkout de HEAD; C4 compara com origin/main. Numa
+  // worktree com o branch a frente, o numero dizia ser de um codigo que ninguem
+  // tinha medido. Foi um adversario que apanhou.
+  const r = await calcular({ semRede: true, agora: Date.parse('2026-08-26T12:00:00Z') });
+  assert.ok('sha_head' in r, 'sha_head tem de existir no resultado');
+  assert.ok('sha_origin_main' in r, 'sha_origin_main tem de existir no resultado');
+  assert.ok(!('sha' in r), 'um `sha` sem dizer qual e a ambiguidade que se corrigiu');
 });
 
 test('o instantaneo herda o carimbo do resultado quando ninguem lho da', () => {
   let escrito = null;
   escreverInstantaneo(
-    { pontos: 3.2, total: 10, pct: 32, peso_nao_medido: 0, nao_medidas: [], parcelas: [], medido_em: '2026-08-26T12:00:00.000Z', sha: 'abcdef123456' },
+    { pontos: 3.2, total: 10, pct: 32, peso_nao_medido: 0, nao_medidas: [], parcelas: [], medido_em: '2026-08-26T12:00:00.000Z', sha_head: 'abcdef123456', sha_origin_main: '0123456789ab' },
     { writeImpl: (_p, c) => { escrito = c; } },
   );
   const j = JSON.parse(escrito);
   assert.equal(j.ts, '2026-08-26T12:00:00.000Z');
-  assert.equal(j.sha, 'abcdef123456');
+  assert.equal(j.sha_head, 'abcdef123456');
+  assert.equal(j.sha_origin_main, '0123456789ab');
+});
+
+test('MORDIDA: o escritor do instantaneo PRESERVA o porque de cada parcela', () => {
+  // Um `n/d` sem o porque e um numero mudo. O escritor deitava-os fora.
+  let escrito = null;
+  const r = indice([parcela('vereditos_publicados', { porque: 'sem acesso ao GitHub' }), parcela('testes_gateados', { num: 1, den: 2, porque: '1 orfao' })]);
+  escreverInstantaneo(r, { agoraIso: '2026-08-26T12:00:00.000Z', writeImpl: (_p, c) => { escrito = c; } });
+  const j = JSON.parse(escrito);
+  assert.equal(j.parcelas.find((p) => p.id === 'vereditos_publicados').porque, 'sem acesso ao GitHub');
+  assert.equal(j.parcelas.find((p) => p.id === 'testes_gateados').porque, '1 orfao');
+});
+
+test('MORDIDA: o leitor do instantaneo PRESERVA os dois shas, e le o `sha` antigo como origin/main', () => {
+  const agora = Date.parse('2026-08-26T12:00:00Z');
+  const ts = new Date(agora - 60_000).toISOString();
+  const r = lerInstantaneo({ agora, readImpl: () => JSON.stringify({ ts, pontos: 3.2, total: 10, pct: 32, sha_head: 'aaaaaaaaaaaa', sha_origin_main: 'bbbbbbbbbbbb' }) });
+  assert.equal(r.sha_head, 'aaaaaaaaaaaa', 'o leitor deitava fora o sha');
+  assert.equal(r.sha_origin_main, 'bbbbbbbbbbbb');
+  // Um instantaneo de antes de 2026-09-11 so trazia `sha`, e esse era o
+  // origin/main — nunca se le como o HEAD medido.
+  const velho = lerInstantaneo({ agora, readImpl: () => JSON.stringify({ ts, pontos: 3.2, total: 10, pct: 32, sha: 'cccccccccccc' }) });
+  assert.equal(velho.sha_origin_main, 'cccccccccccc');
+  assert.equal(velho.sha_head, null);
+});
+
+test('MORDIDA: um carimbo no FUTURO nao e fresco — idade zero era a leitura mais confiante de um relogio errado', () => {
+  // `Math.max(0, …)` transformava um timestamp de 2099 em `fresco: true,
+  // idade_s: 0`. Um adversario mediu-o.
+  const agora = Date.parse('2026-08-26T12:00:00Z');
+  const r = lerInstantaneo({ agora, readImpl: () => JSON.stringify({ ts: '2099-01-01T00:00:00.000Z', pontos: 3.2, total: 10, pct: 32 }) });
+  assert.equal(r.presente, true, 'presente: o ficheiro existe e le-se');
+  assert.equal(r.fresco, false, 'um relogio no futuro nao e fresco');
+  assert.ok(r.idade_s < 0, 'a idade negativa fica a vista, nao se recorta a zero (' + r.idade_s + ')');
+  assert.match(r.porque, /relogio no futuro/);
+  // O par: um carimbo de ha um minuto continua fresco e sem porque.
+  const ok = lerInstantaneo({ agora, readImpl: () => JSON.stringify({ ts: new Date(agora - 60_000).toISOString(), pontos: 1 }) });
+  assert.equal(ok.fresco, true);
+  assert.equal(ok.porque, undefined);
 });

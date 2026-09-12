@@ -1,10 +1,11 @@
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 import {
   safeDeviceName, beaconDir, writeBeacon, readBeacons, beaconFreshness, naTuaMao,
@@ -122,6 +123,59 @@ test('medirParidade le do disco e diz null ao que nao consegue ler — nunca inv
   assert.equal(medirParidade({ repoRoot: null }), null, 'sem repo nao ha paridade a medir');
   assert.equal(medirParidade({ repoRoot: '/r', shaImpl: () => { throw new Error('boom'); }, readImpl: () => { throw new Error('x'); } }).repo_sha, null,
     'um shaImpl que rebenta nao pode rebentar a ronda');
+});
+
+test('MORDIDA: o indice do arnes VIAJA no beacon — escrito NOUTRO PROCESSO, lido aqui pela mesma allowlist', () => {
+  // Ate 2026-09-11 o `moo-runner` entregava `indice` ao `writeBeacon` e o
+  // envelope, construido com chaves nomeadas, nao o tinha; a leitura tambem
+  // nao. O indice era lido do instantaneo e perdido duas linhas depois — nunca
+  // chegou a um beacon, nunca chegou a frota. Um adversario leu as duas
+  // funcoes lado a lado e viu-o. Esta mordida escreve num processo filho (como
+  // o runner) e le neste (como o painel de outro device).
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moo-indice-'));
+  const indice = {
+    presente: true, fresco: true, idade_s: 120, ts: '2026-09-11T10:00:00.000Z',
+    sha_head: 'aaaaaaaaaaaa', sha_origin_main: 'bbbbbbbbbbbb',
+    pontos: 2.58, total: 10, pct: 25.8, peso_nao_medido: 4, nao_medidas: ['vereditos_publicados'],
+    parcelas: [{ id: 'testes_gateados', peso: 2, num: 473, den: 667, porque: '194 orfaos' }, { id: 'vereditos_publicados', peso: 1.5, num: null, den: null, porque: 'sem acesso ao GitHub' }],
+    // O que NAO pode viajar: uma allowlist deixa passar so o que nomeia.
+    segredo: 'NAO-PUBLICAR', orfaos: ['uma', 'lista', 'de', '194'],
+  };
+  const mod = pathToFileURL(path.join(fileURLToPath(new URL('.', import.meta.url)), 'fleet-beacon.mjs')).href;
+  const script = 'import { writeBeacon } from ' + JSON.stringify(mod) + ';'
+    + 'const r = writeBeacon({ device: "pc-indice", running: true, indice: ' + JSON.stringify(indice) + ' }, { dir: ' + JSON.stringify(dir) + ' });'
+    + 'process.stdout.write(JSON.stringify(r));';
+  const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', windowsHide: true });
+  assert.equal(JSON.parse(out).ok, true, out);
+
+  const { frota } = readBeacons({ dir, selfDevice: 'pc-indice', now: Date.now() });
+  assert.equal(frota.length, 1);
+  const i = frota[0].indice;
+  assert.ok(i && i.presente === true, 'o indice nao chegou a frota: ' + JSON.stringify(i));
+  assert.equal(i.pontos, 2.58);
+  assert.equal(i.idade_s, 120, 'a idade do instantaneo no momento da escrita viaja');
+  assert.equal(i.sha_head, 'aaaaaaaaaaaa');
+  assert.equal(i.sha_origin_main, 'bbbbbbbbbbbb');
+  assert.equal(i.parcelas.length, 2);
+  assert.equal(i.parcelas[0].num, 473);
+  assert.equal(i.parcelas[0].den, 667);
+  assert.equal(i.parcelas[0].porque, '194 orfaos', 'o porque viaja — um n/d mudo nao serve ao painel');
+  assert.equal(i.parcelas[1].num, null);
+  assert.equal(i.parcelas[1].porque, 'sem acesso ao GitHub');
+  assert.deepEqual(i.nao_medidas, ['vereditos_publicados']);
+  assert.ok(!('segredo' in i), 'a allowlist deixou passar uma chave que nao nomeia');
+  assert.ok(!('orfaos' in i), '194 caminhos por ronda nao sao telemetria');
+
+  // Um instantaneo AUSENTE viaja como ausente com o porque — nunca como zero.
+  const script2 = 'import { writeBeacon } from ' + JSON.stringify(mod) + ';'
+    + 'writeBeacon({ device: "pc-sem-indice", running: true, indice: { presente: false, porque: "indice nunca calculado nesta maquina" } }, { dir: ' + JSON.stringify(dir) + ' });';
+  execFileSync(process.execPath, ['--input-type=module', '-e', script2], { encoding: 'utf8', windowsHide: true });
+  // Um beacon de ANTES do campo: null, e o painel diz-o.
+  fs.writeFileSync(path.join(dir, 'antigo.json'), JSON.stringify({ device: 'antigo', ts: new Date().toISOString() }));
+  const r2 = readBeacons({ dir, selfDevice: 'pc-indice', now: Date.now() });
+  const sem = r2.frota.find((d) => d.device === 'pc-sem-indice').indice;
+  assert.deepEqual(sem, { presente: false, porque: 'indice nunca calculado nesta maquina' });
+  assert.equal(r2.frota.find((d) => d.device === 'antigo').indice, null, 'beacon anterior ao campo: null, nunca um valor inventado');
 });
 
 test('a paridade viaja no beacon e volta pela mesma allowlist', () => {
