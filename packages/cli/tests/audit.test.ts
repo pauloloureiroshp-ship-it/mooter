@@ -467,3 +467,31 @@ test("ronda 2 · obj. 2 · a fonte conta-se no EXCERTO que vai ao worker, nao no
   io3.list = () => [];
   assert.equal(FACETS.install.gather("/r", io3).sources, 0);
 });
+
+test("ronda 3 · so pontuacao nao e achado: «...!!!» → ok:false, 0 chamadas cloud, exit 1 com --strict", async () => {
+  // Reproducao do adversario: install.sh = "x", so o facet install, worker
+  // ok:true com "...!!!" → antes: ok:true, 1 sintese, exit 0 com --strict.
+  for (const texto of ["...!!!", "\n\t— …", "   "]) {
+    let cloudCalls = 0;
+    const worker: WorkerFn = async (req) => {
+      if (req.backend === "claude-api") { cloudCalls++; return { text: FABRICATED, backend: req.backend, model: req.model, cost_usd: 0.01, ok: true }; }
+      return { text: texto, backend: req.backend, model: req.model, cost_usd: 0, ok: true };
+    };
+    const io = mockIO({ "install.sh": "x" });
+    io.exists = () => false;
+    io.list = () => [];
+    const cli = await runAudit(["fan-out", "--facets", "install", "--max-cost", "1", "--strict", "--json", "--no-write"], { root: "/r", nowMs: NOW, worker, io });
+    const j = JSON.parse(cli.output);
+    assert.equal(j.facets[0].ok, false, JSON.stringify(texto));
+    assert.equal(cloudCalls, 0, "sem achado, a sintese nao corre");
+    assert.equal(cli.exitCode, 1);
+  }
+  // Par positivo: uma letra chega — «ok.» e um achado (curto, mas achado).
+  const io = mockIO({ "install.sh": "x" });
+  io.exists = () => false;
+  io.list = () => [];
+  const ok: WorkerFn = async (req) => ({ text: req.backend === "claude-api" ? "sum" : "ok.", backend: req.backend, model: req.model, cost_usd: 0, ok: true });
+  const cli = await runAudit(["fan-out", "--facets", "install", "--strict", "--json", "--no-write"], { root: "/r", nowMs: NOW, worker: ok, io });
+  assert.equal(JSON.parse(cli.output).facets[0].ok, true);
+  assert.equal(cli.exitCode, 0);
+});

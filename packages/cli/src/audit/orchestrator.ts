@@ -184,7 +184,9 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
         // Transport success is not a finding. The Ollama worker returns
         // ok:true with an empty `response`; treating that as a finding let the
         // (paid) synthesis run over one blank section and five "no finding"s.
-        const blank = r.ok && String(r.text ?? "").trim().length === 0;
+        // "Blank" = no letter or digit at all: "   " and "...!!!" alike. A
+        // reply of pure punctuation was still counted as a finding (round 3).
+        const blank = r.ok && !/[\p{L}\p{N}]/u.test(String(r.text ?? ""));
         return {
           facet: f.name,
           sources: input.sources,
