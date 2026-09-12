@@ -77,12 +77,20 @@
  *
  * O prereg diz «estourar o tecto = não aceite». A análise (interpretação 19)
  * diz que `aceite: false` com todas as provas verdes é contraditório e
- * INVÁLIDA a corrida. Uma tentativa morta aos 900 s que deixou o worktree
- * verde cai nas duas: este controlador escreve a verdade (`aceite: false`,
- * provas como medidas, `tecto_estourado: true`) e a corrida sai INVÁLIDA se
- * isso acontecer. É raro (o CLI sai quando o teste passa) mas não impossível,
- * e a solução é uma interpretação 64 na análise ANTES da corrida — decisão do
- * dono, não deste ficheiro.
+ * INVÁLIDA a corrida. Uma claude-p SEM JSON (`usage`/`modelUsage` null) —
+ * morta aos 900 s, ou o CLI a sair ≠ 0 com o transcript a provar que correu
+ * — que deixou o worktree verde cai nas duas: este controlador escreve
+ * `aceite: false` («sem JSON = não aceite», a metade que lhe cabe; a 19 já
+ * afirma que `aceite: true` sem JSON é contraditório), as provas como
+ * medidas e `tecto_estourado`, e a corrida sai INVÁLIDA pela 19 se isso
+ * acontecer. O P7 mediu 872 s num braço em 46: não é raro o suficiente. A
+ * solução é uma interpretação 64 na análise ANTES da corrida (`aceite: false`
+ * com provas verdes não é contraditório numa claude-p sem JSON) — decisão do
+ * dono, registada por AMENDMENT, não deste ficheiro.
+ *
+ * Declarado também: `tokens_transcript` soma só o ficheiro do `session_id`;
+ * subagentes em Opus vivem noutro ficheiro e o JSON agrega-os — a
+ * `divergencia_json_vs_transcript` (só marca) vai disparar nessas linhas.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * Uso (na raiz do repositório, num terminal NORMAL — não dentro do Claude Code):
@@ -238,6 +246,39 @@ export async function ollamaTags(host) {
   } catch (e) { return { ok: false, motivo: `tags: ${e && e.message}` }; }
 }
 
+/**
+ * 139: depois de um tecto, `TerminateProcess` matou só o filho directo — um
+ * `node --test` ou um servidor lançado pelo agente pode continuar a escrever
+ * no worktree ou a segurar ficheiros. Mata os descendentes pelo
+ * `ParentProcessId` (que sobrevive à morte do pai). Só win32; nunca lança.
+ */
+export function matarArvore(pid, { spawnImpl = spawnSync, plataforma = process.platform } = {}) {
+  if (!Number.isInteger(pid) || plataforma !== 'win32') return { tentado: false };
+  const script = `$ErrorActionPreference='SilentlyContinue'; function K($p){ Get-CimInstance Win32_Process -Filter "ParentProcessId=$p" | ForEach-Object { K $_.ProcessId; Stop-Process -Id $_.ProcessId -Force } }; K ${pid}`;
+  const r = spawnImpl('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout: 60_000, input: '' });
+  return { tentado: true, ok: !r.error && r.status === 0 };
+}
+
+/** `/api/tags` com 3 tentativas (1 s entre elas): um `null` no `modelo_reportado` custa a validade da corrida (30), não se dá ao primeiro soluço. */
+export async function ollamaTagsComRetry(host, { tentativas = 3, esperaMs = 1000, tagsImpl = ollamaTags } = {}) {
+  let ultimo = null;
+  for (let i = 0; i < tentativas; i++) {
+    ultimo = await tagsImpl(host);
+    if (ultimo.ok) return ultimo;
+    if (i + 1 < tentativas) await new Promise((r) => setTimeout(r, esperaMs));
+  }
+  return ultimo;
+}
+
+/** 140: aquecer o modelo local ($0, 1 token) antes da primeira acção paga — o cold-load de 9 GB não cabe de certeza nos 240 s do pin. */
+export async function aquecerModeloLocal(host, modelo, { tectoMs = 300_000 } = {}) {
+  try {
+    const t0 = Date.now();
+    const r = await fetch(`${host}/api/generate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: modelo, prompt: 'OK', stream: false, options: { num_predict: 1 } }), signal: AbortSignal.timeout(tectoMs) });
+    return { ok: r.ok, ms: Date.now() - t0, http: r.status };
+  } catch (e) { return { ok: false, motivo: e && e.message }; }
+}
+
 /** `OLLAMA_HOST` com esquema (a mesma regra de `tools/router/ollama-host.js`, sem o importar: é CJS e este ficheiro é ESM). */
 export function ollamaHost(env = process.env) {
   const raw = String(env.OLLAMA_HOST || '').trim().replace(/\/+$/, '');
@@ -307,17 +348,19 @@ export function parseJsonDoCli(stdout) {
 // ───────────────────────────────────────────────────────────────────────────
 
 export class Ledger {
-  constructor(caminho) { this.caminho = caminho; this.fechado = false; this.n = 0; }
+  constructor(caminho) { this.caminho = caminho; this.fechado = false; this.n = 0; this.tarefasComLinha = new Set(); this.ultimaTarefa = null; }
   escrever(evento) {
     if (this.fechado) throw new Error(`ledger fechado por paragem — nada se escreve depois (76): ${evento.evento}`);
     fs.mkdirSync(path.dirname(this.caminho), { recursive: true });
     fs.appendFileSync(this.caminho, JSON.stringify(evento) + '\n', 'utf8');   // 61, 84: Node, sem BOM
     this.n++;
+    // 134: `paragem.n`/`ultima_tarefa` contam o que a análise conta — tarefas com QUALQUER tentativa_fim/par_invalido no disco
+    if ((evento.evento === 'tentativa_fim' || evento.evento === 'par_invalido') && typeof evento.task_id === 'string') { this.tarefasComLinha.add(evento.task_id); this.ultimaTarefa = evento.task_id; }
     return evento;
   }
   paragem(motivo, extra = {}) {
     if (this.fechado) return null;
-    const e = this.escrever({ evento: 'paragem', ts: agora(), motivo, ...extra });   // 116: sempre com motivo
+    const e = this.escrever({ evento: 'paragem', ts: agora(), motivo, ultima_tarefa: this.ultimaTarefa, n: this.tarefasComLinha.size, ...extra });   // 116: sempre com motivo
     this.fechado = true;
     return e;
   }
@@ -399,7 +442,7 @@ export function correrClaudeP({ caminhoClaude, prompt, cwd, sessionId, env, tect
   else if (r.error) motivo = `spawn:${r.error.code || r.error.message}`;
   else if (!json) motivo = `cli_morreu:${Number.isInteger(r.status) ? r.status : 'n/d'}`;
   return {
-    ts_inicio, ts_fim, json, motivo,
+    ts_inicio, ts_fim, json, motivo, pid: Number.isInteger(r.pid) ? r.pid : null,
     exit_status: Number.isInteger(r.status) ? r.status : null,
     sinal: r.signal || null,
     stdout: String(r.stdout || ''),
@@ -633,7 +676,7 @@ class Paragem extends Error { constructor(motivo) { super(motivo); this.name = '
 export function preVooDaTarefa(ctx, tarefa, prep, ledger) {
   const ts = agora();   // 90/51: antes de qualquer tentativa_inicio da tarefa
   const amb = ambienteDaLinha(ctx);
-  const prova = correrAceitacaoComProva({ cwd: path.join(prep.dirs.pv, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env });
+  const prova = correrAceitacaoComProva({ cwd: path.join(prep.dirs.pv, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl: ctx.spawnImpl || spawnSync });
   const ts_fim = agora();
   if (prova.erro) throw new Paragem(`pre_voo de ${tarefa.task_id}: o runner da aceitacao nao arranca (${prova.erro}) — ambiente partido (9.º/4)`);
   if (!prova.sumario_ok) throw new Paragem(`pre_voo de ${tarefa.task_id}: sem sumario do node --test (exit ${prova.exit_code}) — runner morto, nao «pre-voo falhou» (11.º/2)`);
@@ -660,7 +703,8 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   const listAntes = listagemSha(snapshot);
   const amb = ambienteDaLinha(ctx);
   ledger.escrever({ evento: 'tentativa_inicio', ts_inicio: agora(), task_id: tarefa.task_id, braco, tentativa, e_escalacao, executor: 'claude-p', session_id_pedido: sessionId });
-  const r = correrClaudeP({ caminhoClaude: ctx.claude.caminho, prompt: tarefa.prompt, cwd: snapshot, sessionId, env: ctx.env, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s, semSubagentes: ctx.overrides.sem_subagentes });
+  const spawnImpl = ctx.spawnImpl || spawnSync;
+  const r = correrClaudeP({ caminhoClaude: ctx.claude.caminho, prompt: tarefa.prompt, cwd: snapshot, sessionId, env: ctx.env, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s, semSubagentes: ctx.overrides.sem_subagentes, spawnImpl });
   fs.mkdirSync(ctx.saidas, { recursive: true });
   fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-${braco}-t${tentativa}.stdout.txt`), r.stdout, 'utf8');
   if (r.stderr_tail) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-${braco}-t${tentativa}.stderr-tail.txt`), r.stderr_tail, 'utf8');
@@ -675,6 +719,7 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   else if (tr && tr.total >= TRANSCRIPT_MINIMO) { arrancou = true; motivo_se_nao = null; session_id = sessionId; }
   else { arrancou = false; motivo_se_nao = r.motivo || 'sem_json_sem_transcript'; session_id = null; }   // 102: null quando não há evidência
   const tectoEstourado = r.sinal !== null || r.parede_ms >= ctx.prereg.aceitacao.tecto_por_tentativa_s * 1000;
+  if (r.sinal !== null) matarArvore(r.pid, { spawnImpl });   // 139: os descendentes do agente não podem tocar no worktree durante a aceitação
 
   // D5: o sha DEPOIS do agente e ANTES do reinstall (6.º); a aceitação corre sempre que o CLI chegou (8.º/1)
   const shaDepois = shaDoTestFile(snapshot, tarefa.test_file);
@@ -682,19 +727,20 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   const spawnPuro = !arrancou && typeof motivo_se_nao === 'string' && motivo_se_nao.startsWith('spawn:');
   if (!spawnPuro) {
     instalarTesteDeAceitacao({ snapshotDir: snapshot, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste });
-    prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env });
-    if (prova.erro) throw new Paragem(`${tarefa.task_id}/${braco}: o runner da aceitacao nao arranca (${prova.erro}) depois de um pre_voo que correu — ambiente mudado (9.º/4)`);
+    prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl });
   }
-  const aceite = decidirAceite({ prova, shaAntes, shaDepois, historico: tarefa.tests_total_historico, skipsBase, tectoEstourado });
+  // 138: sem JSON não há aceitação («estourar o tecto / morrer sem resultado = não aceite»; a 19 afirma o mesmo de `aceite: true` sem JSON)
+  const aceite = (spawnPuro || tectoEstourado || !j || (prova && prova.erro)) ? false : decidirAceite({ prova, shaAntes, shaDepois, historico: tarefa.tests_total_historico, skipsBase, tectoEstourado });
+  const chavesOpus = j && j.modelUsage && typeof j.modelUsage === 'object' ? Object.keys(j.modelUsage).filter((k) => /^claude-opus/i.test(k)) : [];
 
   const linha = {
     ...linhaVazia(), evento: 'tentativa_fim',
     ts_inicio: r.ts_inicio, ts_fim: r.ts_fim, task_id: tarefa.task_id, braco, tentativa, e_escalacao,
     tier_classificado: tarefa.tier_classificado, executor: 'claude-p', modelo_pedido: MODELO_OPUS,
-    modelo_reportado: j && j.modelUsage && typeof j.modelUsage === 'object' ? Object.keys(j.modelUsage).join(',') : null,
+    modelo_reportado: chavesOpus.length ? chavesOpus[0] : null,   // 137: UMA chave do modelUsage (a Opus); um subagente Haiku não entra aqui
     arrancou, motivo_se_nao,
-    aceite: spawnPuro ? false : aceite,
-    exit_code: prova ? prova.exit_code : null, tests_corridos: prova ? prova.tests_corridos : null, tests_passados: prova ? prova.tests_passados : null, skips: prova ? prova.skips : null,
+    aceite,
+    exit_code: prova && !prova.erro ? prova.exit_code : null, tests_corridos: prova && !prova.erro ? prova.tests_corridos : null, tests_passados: prova && !prova.erro ? prova.tests_passados : null, skips: prova && !prova.erro ? prova.skips : null,
     test_file_sha_antes: shaAntes, test_file_sha_depois: shaDepois,
     usage: j && j.usage && typeof j.usage === 'object' ? j.usage : null,          // 66: integral
     modelUsage: j && j.modelUsage && typeof j.modelUsage === 'object' ? j.modelUsage : null,
@@ -707,13 +753,14 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
     // extras (nenhuma é obrigatória; nenhuma substitui uma obrigatória)
     tokens_transcript, transcript: transcriptPath, num_turns: j && Number.isInteger(j.num_turns) ? j.num_turns : null,
     is_error: j ? j.is_error === true : null, subtype: j && typeof j.subtype === 'string' ? j.subtype : null, cli_exit: r.exit_status, cli_sinal: r.sinal,
-    tecto_estourado: tectoEstourado, aceitacao_sinal: prova ? prova.aceitacao_sinal : null, aceitacao_duration_ms: prova ? prova.aceitacao_duration_ms : null,
+    tecto_estourado: tectoEstourado, aceitacao_sinal: prova && !prova.erro ? prova.aceitacao_sinal : null, aceitacao_duration_ms: prova ? prova.aceitacao_duration_ms : null, aceitacao_erro: prova && prova.erro ? prova.erro : null,
     motivo_cli: j ? null : r.stderr_tail.slice(-200) || null,   // 86: distinguir crash de tecto
     tecto_por_tentativa_s: ctx.prereg.aceitacao.tecto_por_tentativa_s, worktree: snapshot,
   };
-  ledger.escrever(linha);
+  ledger.escrever(linha);   // 135: a linha com o consumo fica no ledger ANTES de qualquer paragem
   // 9.º/2: a saída (a) só para o spawn puro, depois da tentativa_fim, com braço e motivo copiados
   if (spawnPuro) ledger.escrever({ evento: 'par_invalido', ts: agora(), task_id: tarefa.task_id, braco, motivo: motivo_se_nao });
+  if (prova && prova.erro) throw new Paragem(`${tarefa.task_id}/${braco}: o runner da aceitacao nao arranca (${prova.erro}) depois de um pre_voo que correu — ambiente mudado (9.º/4)`);
   return linha;
 }
 
@@ -725,31 +772,30 @@ export async function tentativaLocal(ctx, { tarefa, snapshot, prep, skipsBase, l
   const listAntes = listagemSha(snapshot);
   const amb = ambienteDaLinha(ctx);
   ledger.escrever({ evento: 'tentativa_inicio', ts_inicio: agora(), task_id: tarefa.task_id, braco: 'B', tentativa: 1, e_escalacao: false, executor: 'router-execute', modelo_pedido: modelo });
-  const r = correrLocal({ routerExecute: ctx.routerExecutePath, prompt: tarefa.prompt, cwd: snapshot, env: ctx.env, modelo, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s });
+  const spawnImpl = ctx.spawnImpl || spawnSync;
+  const r = correrLocal({ routerExecute: ctx.routerExecutePath, prompt: tarefa.prompt, cwd: snapshot, env: ctx.env, modelo, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s, spawnImpl });
   fs.mkdirSync(ctx.saidas, { recursive: true });
   fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.json`), JSON.stringify({ ...(r.json || {}), motivo: r.motivo, stderr_tail: r.stderr_tail }, null, 2) + '\n', 'utf8');
   if (r.texto !== null) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.txt`), r.texto, 'utf8');   // nunca no ledger (prereg ledger.campos)
   const arrancou = r.texto !== null;
-  // prereg modelo_local: nome E digest lidos DEPOIS da chamada; digest diferente do manifesto → paragem
-  const tags = await ollamaTags(ctx.ollama);
+  // prereg modelo_local: nome E digest lidos DEPOIS da chamada, ARRANCADO OU NÃO (1.º revisor do controlador: um null aqui tira a validade à corrida inteira, 30 — e a 2 só é alcançável com o campo preenchido)
+  const tags = await ollamaTagsComRetry(ctx.ollama, { tagsImpl: ctx.tagsImpl || ollamaTags });
   const modeloUsado = r.json && r.json.ok === true ? String(r.json.model_used || modelo) : modelo;
   const digest = tags.ok && tags.modelos.has(modeloUsado) ? tags.modelos.get(modeloUsado) : null;
-  if (arrancou && digest === null) throw new Paragem(`${tarefa.task_id}/B local: sem digest para ${modeloUsado} no Ollama (${tags.ok ? 'modelo ausente' : tags.motivo}) — modelo_reportado nunca null (11.º/3)`);
-  if (arrancou && ctx.modelos.has(modeloUsado) && ctx.modelos.get(modeloUsado) !== digest) throw new Paragem(`${tarefa.task_id}/B local: o digest de ${modeloUsado} mudou a meio da corrida (${ctx.modelos.get(modeloUsado).slice(0, 12)} → ${String(digest).slice(0, 12)}) — INVALIDA (prereg modelo_local)`);
+  const digestMudou = arrancou && ctx.modelos.has(modeloUsado) && digest !== null && ctx.modelos.get(modeloUsado) !== digest;
   const shaDepois = shaDoTestFile(snapshot, tarefa.test_file);
   instalarTesteDeAceitacao({ snapshotDir: snapshot, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste });
-  const prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env });
-  if (prova.erro) throw new Paragem(`${tarefa.task_id}/B local: o runner da aceitacao nao arranca (${prova.erro}) — ambiente mudado (9.º/4)`);
-  const verde = decidirAceite({ prova, shaAntes, shaDepois, historico: tarefa.tests_total_historico, skipsBase, tectoEstourado: false });
-  if (verde) throw new Paragem(`${tarefa.task_id}/B local: a aceitacao saiu verde depois de um passo que nao edita — a tarefa estava verde apesar do pre_voo (65)`);
+  const prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl });
+  // 136: um local com a aceitação verde é `local_verde_rejeitado` (só marca na análise) e escala na mesma — um teste instável não mata a corrida única; fica registado e visível
+  const verde = !prova.erro && decidirAceite({ prova, shaAntes, shaDepois, historico: tarefa.tests_total_historico, skipsBase, tectoEstourado: false });
   const linha = {
     ...linhaVazia(), evento: 'tentativa_fim',
     ts_inicio: r.ts_inicio, ts_fim: r.ts_fim, task_id: tarefa.task_id, braco: 'B', tentativa: 1, e_escalacao: false,
     tier_classificado: tarefa.tier_classificado, executor: 'router-execute', modelo_pedido: modelo,
-    modelo_reportado: arrancou ? `${modeloUsado}@sha256:${digest}` : null,
+    modelo_reportado: digest !== null ? `${modeloUsado}@sha256:${digest}` : null,   // null SÓ sem /api/tags — aí o n/d é honesto
     arrancou, motivo_se_nao: arrancou ? null : (r.motivo || 'sem_texto'),   // 83: explícito
-    aceite: false,   // 12.º/2: booleano; por construção (DECLARACAO_DE_DEGENERESCENCIA)
-    exit_code: prova.exit_code, tests_corridos: prova.tests_corridos, tests_passados: prova.tests_passados, skips: prova.skips,
+    aceite: false,   // 12.º/2: booleano; por construção (DECLARACAO_DE_DEGENERESCENCIA); verde fica como `local_verde_rejeitado`
+    exit_code: prova.erro ? null : prova.exit_code, tests_corridos: prova.erro ? null : prova.tests_corridos, tests_passados: prova.erro ? null : prova.tests_passados, skips: prova.erro ? null : prova.skips,
     test_file_sha_antes: shaAntes, test_file_sha_depois: shaDepois,
     usage: null, modelUsage: null, total_cost_usd: null, session_id: null,   // 11.º/4, 121
     duration_ms: r.json && r.json.ok === true && Number.isFinite(r.json.duration_ms) ? r.json.duration_ms : r.parede_ms,
@@ -758,15 +804,19 @@ export async function tentativaLocal(ctx, { tarefa, snapshot, prep, skipsBase, l
     ...amb,
     worktree_listagem_sha_antes: listAntes, worktree_listagem_sha_depois: listagemSha(snapshot),
     tokens_locais_in: arrancou && Number.isInteger(r.json.tokens_in) ? r.json.tokens_in : null, texto_local_bytes: arrancou ? Buffer.byteLength(r.texto, 'utf8') : null,   // 92
-    aceitacao_sinal: prova.aceitacao_sinal, aceitacao_duration_ms: prova.aceitacao_duration_ms, ollama_host: ctx.ollama, worktree: snapshot,
+    aceitacao_sinal: prova.erro ? null : prova.aceitacao_sinal, aceitacao_duration_ms: prova.aceitacao_duration_ms, aceitacao_erro: prova.erro || null, aceitacao_verde: verde, ollama_host: ctx.ollama, ollama_tags_ok: tags.ok, worktree: snapshot,
   };
-  ledger.escrever(linha);
+  ledger.escrever(linha);   // 135: a linha fica no ledger ANTES de qualquer paragem
+  if (verde) ctx.log(`  · ${tarefa.task_id}/B local: aceitacao VERDE depois de um passo que nao edita (teste instavel ou ambiente) — registado, escala na mesma (136)`);
+  if (prova.erro) throw new Paragem(`${tarefa.task_id}/B local: o runner da aceitacao nao arranca (${prova.erro}) — ambiente mudado (9.º/4)`);
+  if (arrancou && digest === null) throw new Paragem(`${tarefa.task_id}/B local: sem digest para ${modeloUsado} no Ollama (${tags.ok ? 'modelo ausente' : tags.motivo}) — modelo_reportado nunca null numa chamada que correu (11.º/3)`);
+  if (digestMudou) throw new Paragem(`${tarefa.task_id}/B local: o digest de ${modeloUsado} mudou a meio da corrida (${ctx.modelos.get(modeloUsado).slice(0, 12)} → ${String(digest).slice(0, 12)}) — INVALIDA (prereg modelo_local)`);
   return linha;
 }
 
 /** Uma tarefa inteira: pré-voo, depois os braços pela `ordem_dos_bracos` (prereg bracos.ordem; 11.º/6; 13.º/3). */
 export async function correrTarefa(ctx, tarefa, ledger) {
-  const prep = prepararWorktrees(ctx, tarefa);
+  const prep = (ctx.prepararImpl || prepararWorktrees)(ctx, tarefa);
   if (!prep.ok) return { ok: false, motivo: `worktree:${prep.motivo}` };   // (a) do prereg: antes do pré-voo, suplente
   const pv = preVooDaTarefa(ctx, tarefa, prep, ledger);
   if (!pv.falhou) return { ok: false, motivo: 'ja verde', pre_voo: pv };   // (b) do prereg
@@ -776,7 +826,7 @@ export async function correrTarefa(ctx, tarefa, ledger) {
   for (const braco of ordem) {
     if (braco === 'A') { linhas.push(tentativaClaudeP(ctx, { tarefa, braco: 'A', tentativa: 1, snapshot: prep.dirs.A, prep, skipsBase, ledger, e_escalacao: false })); continue; }
     // B: o router como está — classify no ambiente da corrida, na altura (8; o pré-voo da corrida já conferiu os 25)
-    const c = classificar({ classifyPath: ctx.classifyPath, prompt: tarefa.prompt, env: ctx.env });
+    const c = classificar({ classifyPath: ctx.classifyPath, prompt: tarefa.prompt, env: ctx.env, spawnImpl: ctx.spawnImpl || spawnSync });
     if (!c.ok) throw new Paragem(`${tarefa.task_id}/B: ${c.motivo}`);
     if (c.tier !== tarefa.tier_classificado) throw new Paragem(`${tarefa.task_id}/B: classify diz ${c.tier} e o prereg pina ${tarefa.tier_classificado} — o tratamento mudou a meio (8, 13.º/1)`);
     if (c.tier === 'T0' || c.tier === 'T1') {
@@ -849,6 +899,7 @@ export async function correr(ctx) {
   const dirsNm = [...new Set([...ctx.prereg.corpus.tarefas, ...ctx.prereg.corpus.suplentes.map((s) => ({ task_id: s }))].map((t) => (ctx.tarefasPorId.get(t.task_id) || {}).acceptance_cwd).filter(Boolean).concat(['.']))];
   prepararCacheNodeModules({ repo: ctx.repo, cache: ctx.cache, dirs: dirsNm, log });
 
+  if (ctx.modeloLocal && !ctx.modeloLocal.startsWith('VARIOS:')) { const aq = await aquecerModeloLocal(ctx.ollama, ctx.modeloLocal); log(`aquecimento do modelo local ${ctx.modeloLocal}: ${aq.ok ? `ok em ${aq.ms} ms` : `FALHOU (${aq.motivo || aq.http})`}`); if (!aq.ok) return 2; }   // 140
   log('sonda paga (1 chamada)…');
   const sonda = sondar(ctx);
   for (const f of sonda.falhas) log(`  ✖ ${f}`);
@@ -865,10 +916,8 @@ export async function correr(ctx) {
   const alvo = ctx.so !== null ? tarefas.slice(0, ctx.so) : tarefas;
   const suplentes = ctx.prereg.corpus.suplentes.slice();   // pela ordem da lista (9.º/6)
   const excluidas = new Set();
-  let ultimaTarefa = null;
-  let comTentativa = 0;
   let terminouNormalmente = false;
-  const pararCom = (motivo) => { if (!ledger.fechado) ledger.paragem(motivo, { ultima_tarefa: ultimaTarefa, n: comTentativa }); };
+  const pararCom = (motivo) => { if (!ledger.fechado) ledger.paragem(motivo); };   // 134: n/ultima_tarefa vêm do que o Ledger escreveu
   const onSinal = () => { pararCom('sinal: interrompido pelo operador'); try { fs.rmSync(caminhoDoSentinela(ctx.routerDirVivo), { force: true }); } catch { /* n/d */ } process.exit(130); };
   process.on('SIGINT', onSinal); process.on('SIGTERM', onSinal);
   process.on('exit', () => { if (!terminouNormalmente) pararCom('processo terminou sem fim normal (exit handler, 75)'); });
@@ -882,7 +931,7 @@ export async function correr(ctx) {
         let motivo = null;
         if (ctx.overrides.excluir.includes(tarefa.task_id)) motivo = `emenda:${String(ctx.emendaSha).slice(0, 12)} (--excluir)`;
         let res = null;
-        if (!motivo) { log(`[${slot.ordem}/${tarefas.length}] ${tarefa.task_id} (${tarefa.tier_classificado}, ${tarefa.ordem_dos_bracos})${tarefa.suplente ? ' — suplente' : ''}`); res = await correrTarefa(ctx, tarefa, ledger); if (res.ok) { comTentativa++; ultimaTarefa = tarefa.task_id; break; } motivo = res.motivo; }
+        if (!motivo) { log(`[${slot.ordem}/${tarefas.length}] ${tarefa.task_id} (${tarefa.tier_classificado}, ${tarefa.ordem_dos_bracos})${tarefa.suplente ? ' — suplente' : ''}`); res = await correrTarefa(ctx, tarefa, ledger); if (res.ok) break; motivo = res.motivo; }
         excluidas.add(tarefa.task_id);
         const sup = suplentes.shift() || null;
         ledger.escrever({ evento: 'tarefa_excluida', ts: agora(), task_id: tarefa.task_id, motivo, suplente_usado: sup, slot: slot.task_id });

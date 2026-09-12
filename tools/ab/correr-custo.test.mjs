@@ -16,8 +16,9 @@ import {
   parseSumarioNodeTest, listagemSha, tectoDoOrcamento, encontrarTranscript, tokensDoTranscript, parseJsonDoCli,
   Ledger, linhaVazia, correrAceitacaoComProva, decidirAceite, argsClaudeP, correrClaudeP, correrLocal, classificar,
   construirContexto, carregarProtocolo, tarefaCompleta, ollamaHost, MODELO_OPUS, SENTINELA_CONTEUDO,
+  correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore,
 } from './correr-custo.mjs';
-import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS } from './custo-analise.mjs';
+import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS, analisar, lerLedger } from './custo-analise.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'correr-custo-'));
@@ -254,4 +255,198 @@ test('o executor de B local e o classify sao os do RUNTIME (~/.claude/tools/rout
   assert.match(src, /ctx\.routerExecutePath = path\.join\(ctx\.routerDirVivo, 'router-execute\.js'\)/);
   assert.match(src, /ctx\.classifyPath = path\.join\(ctx\.routerDirVivo, 'classify\.js'\)/);
   assert.equal(SENTINELA_CONTEUDO, 'custo-2026-09-10');
+});
+
+// ── ponta a ponta: o ledger que o controlador ESCREVE, passado pela análise REAL ──────────────
+//
+// O 1.º revisor do controlador virou o método das 24 rondas ao contrário: em vez de
+// perguntar que ledger desonesto a análise aceita, perguntou que ledger este código
+// produz em cada caminho de falha, e se a análise lhe dá o que o prereg manda.
+// Aqui fica o harness: spawn/tags/worktrees injectados, uma tarefa T0 REAL do prereg,
+// e `analisar()` a julgar o ficheiro que ficou no disco.
+
+const SONDA = JSON.parse(fs.readFileSync(path.join(AQUI, 'custo-fixture-sonda.json'), 'utf8'));
+const espera = (ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { /* 31: ts_fim tem de ser > ts_inicio */ } };
+
+/** Um contexto de corrida hermético para DUAS tarefas T0 do prereg real (t22 B primeiro, t21 A primeiro). `local`/`claudeA` aceitam um valor ou um mapa por task_id. */
+function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', tags = 'ok', claudeA = 'json' } = {}) {
+  const home = tmp();
+  const ctx = construirContexto([], { env: { PATH: 'x' }, home, log: () => {} });
+  carregarProtocolo(ctx);
+  const t22 = ctx.prereg.corpus.tarefas.find((x) => x.task_id === 't22-11f81c79b7');
+  const t21 = ctx.prereg.corpus.tarefas.find((x) => x.task_id === 't21-96171ef138');
+  ctx.prereg = { ...ctx.prereg, corpus: { ...ctx.prereg.corpus, tarefas: [t22, t21], suplentes: [] } };
+  const idDe = (cwd) => (String(cwd).includes('t21-') ? 't21-96171ef138' : 't22-11f81c79b7');
+  const opcao = (o, cwd) => (o && typeof o === 'object' ? (o[idDe(cwd)] || 'ok') : o);
+  ctx.routerDirVivo = path.join(home, '.claude', 'tools', 'router');
+  fs.mkdirSync(ctx.routerDirVivo, { recursive: true });
+  fs.writeFileSync(path.join(ctx.routerDirVivo, '.budget-cache.json'), JSON.stringify({ ts: 1, data: { five_hour: { utilization: 4 } } }));
+  fs.writeFileSync(path.join(ctx.routerDirVivo, '.budget-freeze'), SENTINELA_CONTEUDO);
+  ctx.claude = { caminho: 'claude.exe', versao: '2.1.224 (Claude Code)' };
+  ctx.routerExecutePath = 'RE.js'; ctx.classifyPath = 'CL.js'; ctx.ollama = 'http://o:11434';
+  const digest = '9ec8897f747e246e0000000000000000000000000000000000000000000000ab';
+  ctx.modelos = new Map([['qwen2.5-coder:14b', digest]]);
+  let ultimoCwdLocal = null;
+  ctx.tagsImpl = async () => (opcao(tags, ultimoCwdLocal) === 'ok' ? { ok: true, modelos: ctx.modelos } : { ok: false, motivo: 'tags: ECONNREFUSED' });
+  ctx.saidas = path.join(home, 'saidas'); ctx.snapshots = path.join(home, 'wt');
+  const conteudo = 'export {};\n';
+  const shaTeste = crypto.createHash('sha256').update(conteudo).digest('hex');
+  ctx.prepararImpl = (c, tarefa) => {
+    const dirs = {};
+    for (const n of ['pv', 'A', 'B']) { const d = path.join(ctx.snapshots, `${tarefa.task_id}-${n}`); fs.mkdirSync(path.join(d, path.dirname(tarefa.test_file)), { recursive: true }); fs.writeFileSync(path.join(d, tarefa.test_file), conteudo); dirs[n] = d; }
+    return { ok: true, dirs, sha_teste: shaTeste, conteudo_teste: conteudo, comando: 'node', args: ['--test', tarefa.test_file] };
+  };
+  const chamadas = [];
+  const sumario = (verde, hist) => (verde ? `ℹ tests ${hist}\nℹ pass ${hist}\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\n` : `ℹ tests ${hist}\nℹ pass ${hist - 1}\nℹ fail 1\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\n`);
+  const nB = {};
+  ctx.spawnImpl = (exe, args, opts) => {
+    chamadas.push({ exe, args: args.slice(0, 3), cwd: opts && opts.cwd });
+    espera(2);
+    if (exe === 'powershell') return { status: 0, signal: null, stdout: '', stderr: '' };
+    if (args[0] === 'CL.js') return { status: 0, signal: null, stdout: JSON.stringify({ tier: 'T0', recommended_model: 'qwen2.5-coder:14b', confidence: 0.6 }), stderr: '' };
+    if (args[1] === '--pin-provider=ollama') {
+      ultimoCwdLocal = opts.cwd;
+      const modo = opcao(local, opts.cwd);
+      if (modo === 'ok') return { status: 0, signal: null, stdout: JSON.stringify({ ok: true, text: 'Corre o teste e corrige a asserção.', model_used: 'qwen2.5-coder:14b', tokens_in: 900, tokens_out: 42, duration_ms: 1234 }) + '\n', stderr: '' };
+      if (modo === 'timeout') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, stdout: '', stderr: '' };
+      return { status: 0, signal: null, stdout: JSON.stringify({ ok: false, error: { code: 'no_output', message: 'provider returned no usable text (http 500)' } }) + '\n', stderr: '' };
+    }
+    if (args[0] === '-p') {
+      const sid = args[args.indexOf('--session-id') + 1];
+      const ehA = String(opts.cwd).endsWith('-A');
+      const modoA = opcao(claudeA, opts.cwd);
+      if (ehA && modoA === 'timeout') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: '', stderr: '' };
+      if (ehA && modoA === 'spawn') return { status: null, signal: null, error: { code: 'ENOENT' }, stdout: '', stderr: '' };
+      return { status: 0, signal: null, pid: 4242, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: sid, usage: SONDA.usage, modelUsage: SONDA.modelUsage, total_cost_usd: SONDA.total_cost_usd, duration_ms: SONDA.duration_ms + chamadas.length, num_turns: 4, result: 'ok' }), stderr: '[mooter] hook\n' };
+    }
+    if (args[0] === '--test') {
+      const cwd = String(opts.cwd);
+      const hist = (idDe(cwd) === 't21-96171ef138' ? t21 : t22).tests_total_historico;
+      if (cwd.includes('-pv')) return { status: 1, signal: null, stdout: sumario(false, hist), stderr: '' };
+      if (cwd.includes('-A')) return { status: aceitacaoA === 'verde' ? 0 : 1, signal: null, stdout: sumario(aceitacaoA === 'verde', hist), stderr: '' };
+      nB[idDe(cwd)] = (nB[idDe(cwd)] || 0) + 1;   // 1.ª chamada em B = depois do local (vermelha por construção), 2.ª = depois da escalação
+      const verde = nB[idDe(cwd)] >= 2 && aceitacaoEsc === 'verde';
+      return { status: verde ? 0 : 1, signal: null, stdout: sumario(verde, hist), stderr: '' };
+    }
+    throw new Error(`spawn inesperado: ${exe} ${args.join(' ')}`);
+  };
+  const ledger = new Ledger(path.join(home, 'ledger.jsonl'));
+  const tarefa = tarefaCompleta(ctx, 't22-11f81c79b7');
+  const tarefa2 = tarefaCompleta(ctx, 't21-96171ef138');
+  const julgar = () => { const { eventos, linhasInvalidas } = lerLedger(fs.readFileSync(ledger.caminho, 'utf8')); return analisar(ctx.prereg, eventos, { linhasInvalidas }); };
+  const correrAsDuas = async () => { await correrTarefa(ctx, tarefa, ledger); await correrTarefa(ctx, tarefa2, ledger); };
+  return { ctx, ledger, tarefa, tarefa2, chamadas, julgar, correrAsDuas, linhas: () => lerLedger(fs.readFileSync(ledger.caminho, 'utf8')).eventos };
+}
+
+test('ponta a ponta (honesto): duas T0 com local ok + escalacao aceite + A aceite -> a analise da «cumprido · valida · marcas 0»; a forma e a ordem sao as do prereg', async () => {
+  const h = harness();
+  const res = await correrTarefa(h.ctx, h.tarefa, h.ledger);
+  assert.equal(res.ok, true);
+  const res2 = await correrTarefa(h.ctx, h.tarefa2, h.ledger);
+  assert.equal(res2.ok, true);
+  const ev = h.linhas();
+  assert.deepEqual(ev.slice(0, 7).map((e) => `${e.evento}${e.braco ? ':' + e.braco + e.tentativa : ''}`), ['pre_voo', 'tentativa_inicio:B1', 'tentativa_fim:B1', 'tentativa_inicio:B2', 'tentativa_fim:B2', 'tentativa_inicio:A1', 'tentativa_fim:A1'], 'A-depois-B: B primeiro; local antes da escalacao; inicio antes de cada fim (67, 73, 85)');
+  assert.deepEqual(ev.slice(7).map((e) => `${e.evento}${e.braco ? ':' + e.braco + e.tentativa : ''}`), ['pre_voo', 'tentativa_inicio:A1', 'tentativa_fim:A1', 'tentativa_inicio:B1', 'tentativa_fim:B1', 'tentativa_inicio:B2', 'tentativa_fim:B2'], 'B-depois-A: A primeiro (13.º/3)');
+  assert.ok(Date.parse(ev[6].ts_fim) <= Date.parse(ev[7].ts), '14.º/5: a tarefa seguinte so depois do ultimo ts_fim');
+  const pv = ev[0];
+  assert.equal(pv.falhou, true); assert.equal(pv.exit_code, 1); assert.equal(pv.tests_corridos, 55); assert.equal(pv.skips, 0); assert.ok(pv.ts && pv.ts_inicio && pv.ts_fim); assert.equal(pv.test_file_sha, h.linhas()[2].test_file_sha_antes, '100');
+  const local = ev[2], esc = ev[4], A = ev[6];
+  for (const l of [local, esc, A]) for (const k of CHAVES_OBRIGATORIAS) assert.ok(k in l, `${l.braco}${l.tentativa}: ${k} presente`);
+  assert.equal(local.executor, 'router-execute'); assert.equal(local.aceite, false); assert.equal(local.arrancou, true); assert.equal(local.tokens_locais, 42); assert.match(local.modelo_reportado, /^qwen2\.5-coder:14b@sha256:9ec8897f/); assert.equal(local.modelo_pedido, 'qwen2.5-coder:14b'); assert.equal(local.usage, null); assert.equal(local.session_id, null); assert.equal(local.e_escalacao, false); assert.equal(local.tentativa, 1); assert.equal(local.exit_code, 1);
+  assert.equal(esc.executor, 'claude-p'); assert.equal(esc.e_escalacao, true); assert.equal(esc.tentativa, 2); assert.equal(esc.aceite, true); assert.equal(esc.modelo_pedido, MODELO_OPUS); assert.equal(esc.modelo_reportado, MODELO_OPUS); assert.equal(esc.arrancou, true); assert.deepEqual(esc.usage, SONDA.usage); assert.equal(esc.num_turns, 4); assert.equal(esc.tokens_transcript, 0, '99: procurado, nao encontrado'); assert.equal(esc.tecto_estourado, false);
+  assert.equal(A.braco, 'A'); assert.equal(A.tentativa, 1); assert.equal(A.aceite, true); assert.notEqual(A.session_id, esc.session_id, '22: session_id unico');
+  assert.ok(Date.parse(local.ts_fim) <= Date.parse(esc.ts_inicio) && Date.parse(esc.ts_fim) <= Date.parse(A.ts_inicio), '11.º/6: intervalos nao sobrepostos');
+  assert.ok(Date.parse(pv.ts) <= Date.parse(ev[1].ts_inicio), '51: pre_voo antes do primeiro inicio');
+  assert.equal(A.tecto_do_orcamento, 4); assert.equal(A.sentinela_presente, true); assert.ok(typeof A.estado_vivo_sha === 'string');
+  // o texto local nunca esta no ledger, mas o sha esta e bate com o ficheiro guardado fora
+  assert.ok(!JSON.stringify(ev).includes('Corre o teste e corrige'));
+  assert.equal(local.texto_local_sha256, crypto.createHash('sha256').update(fs.readFileSync(path.join(h.ctx.saidas, 't22-11f81c79b7-B-t1.local.txt'))).digest('hex'));
+  // a escalacao nao leva o texto local (prereg bracos.B.escalacao)
+  const chamadasClaude = h.chamadas.filter((c) => c.args[0] === '-p');
+  assert.equal(chamadasClaude.length, 4); for (const c of chamadasClaude.slice(0, 2)) assert.equal(c.args[1], h.tarefa.prompt);
+  const r = h.julgar();
+  assert.equal(r.corrida_valida, true); assert.equal(r.primaria.n_pares_validos, 2); assert.equal(r.primaria.aceites_A, 2); assert.equal(r.primaria.aceites_B, 2); assert.equal(r.primaria.limiar_descritivo_cumprido, true);
+  assert.deepEqual(r.marcas_por_tipo, {}, 'marcas 0 num caminho honesto');
+});
+
+test('ponta a ponta (achado 1 do 1.º revisor): local que NAO arrancou escreve modelo_reportado = nome@sha256:digest na mesma -> a analise da valida com local_nao_arrancou; sem /api/tags fica null e a validade e n/d (honesto)', async () => {
+  const h = harness({ local: { 't22-11f81c79b7': 'falha' } });
+  await h.correrAsDuas();
+  const local = h.linhas()[2];
+  assert.equal(local.arrancou, false); assert.match(local.motivo_se_nao, /^ollama:no_output/); assert.equal(local.tokens_locais, null); assert.equal(local.texto_local_sha256, null);
+  assert.match(local.modelo_reportado, /^qwen2\.5-coder:14b@sha256:9ec8897f/, 'o digest vem das tags, arrancado ou nao');
+  const r = h.julgar();
+  assert.equal(r.corrida_valida, true, 'a 2: o local que nao arrancou e escalou nao invalida o par');
+  assert.equal(r.primaria.n_pares_validos, 2); assert.equal(r.marcas_por_tipo.local_nao_arrancou, 1);
+  // sem tags NESSA tarefa: null honesto, e a analise diz n/d — e por isso que o retry existe
+  const h2 = harness({ local: { 't22-11f81c79b7': 'falha' }, tags: { 't22-11f81c79b7': 'falha' } });
+  await h2.correrAsDuas();
+  assert.equal(h2.linhas()[2].modelo_reportado, null); assert.equal(h2.linhas()[2].ollama_tags_ok, false);
+  assert.equal(h2.julgar().corrida_valida, null, '30: um null nao prova que o modelo local nao mudou');
+  // um local que CORREU sem tags: a linha fica no ledger (135) e SO DEPOIS a paragem (11.º/3)
+  const h2b = harness({ tags: { 't22-11f81c79b7': 'falha' } });
+  await assert.rejects(() => correrTarefa(h2b.ctx, h2b.tarefa, h2b.ledger), /sem digest para qwen2\.5-coder:14b/);
+  const l2b = h2b.linhas()[2];
+  assert.equal(l2b.evento, 'tentativa_fim'); assert.equal(l2b.arrancou, true); assert.equal(l2b.tokens_locais, 42); assert.equal(l2b.modelo_reportado, null);
+  // um local em timeout (240 s do pin, 900 s do tecto) e a mesma classe
+  const h3 = harness({ local: { 't22-11f81c79b7': 'timeout' } });
+  await h3.correrAsDuas();
+  assert.equal(h3.linhas()[2].motivo_se_nao, 'timeout'); assert.equal(h3.julgar().corrida_valida, true);
+  // e TODOS os locais a falhar e a 45: INVALIDA — B nunca foi aplicado
+  const h4 = harness({ local: 'falha' });
+  await h4.correrAsDuas();
+  const r4 = h4.julgar();
+  assert.equal(r4.corrida_valida, false); assert.ok(r4.corrida_invalida_por.some((x) => /nenhum passo local arrancou/.test(x.motivo)));
+});
+
+test('ponta a ponta (NOTA DO TECTO, declarada): A morta aos 900 s que deixa o worktree verde escreve aceite:false com provas verdes -> a analise (19) INVALIDA; A morta com o worktree vermelho e um tecto honesto (27c so se faltar prova)', async () => {
+  const h = harness({ claudeA: { 't22-11f81c79b7': 'timeout' }, aceitacaoA: 'verde' });
+  await correrTarefa(h.ctx, h.tarefa, h.ledger);
+  const A = h.linhas()[6];
+  assert.equal(A.arrancou, false, 'sem JSON e sem transcript encontravel'); assert.equal(A.motivo_se_nao, 'timeout'); assert.equal(A.tecto_estourado, true); assert.equal(A.aceite, false, '138: sem JSON = nao aceite'); assert.equal(A.exit_code, 0); assert.equal(A.session_id, null, '102'); assert.equal(A.tokens_transcript, 0);
+  assert.ok(h.chamadas.some((c) => c.exe === 'powershell'), '139: a arvore do processo e morta depois do tecto');
+  const r = h.julgar();
+  assert.equal(r.corrida_valida, false, 'a lacuna declarada no cabecalho: precisa da interpretacao 64');
+  // o mesmo tecto com o worktree vermelho: aceite:false com provas vermelhas — a linha e honesta; sem transcript a 22 invalida na mesma (brief 7.º/1: «e o correcto»)
+  const h2 = harness({ claudeA: { 't22-11f81c79b7': 'timeout' }, aceitacaoA: 'vermelha' });
+  await correrTarefa(h2.ctx, h2.tarefa, h2.ledger);
+  const A2 = h2.linhas()[6];
+  assert.equal(A2.aceite, false); assert.equal(A2.exit_code, 1);
+  assert.equal(h2.julgar().corrida_valida, false, '22: timeout sem transcript esta fora da definicao de nao-arrancou');
+});
+
+test('ponta a ponta (spawn puro em A): linha com envelope null + par_invalido a seguir, com braco e motivo copiados (9.º/2, 28); a analise trata-o como saida (a)', async () => {
+  const h = harness({ claudeA: { 't22-11f81c79b7': 'spawn' } });
+  await h.correrAsDuas();
+  const ev = h.linhas();
+  const A = ev.find((e) => e.evento === 'tentativa_fim' && e.braco === 'A');
+  const pi = ev.find((e) => e.evento === 'par_invalido');
+  assert.equal(A.arrancou, false); assert.equal(A.motivo_se_nao, 'spawn:ENOENT'); assert.equal(A.session_id, null); assert.equal(A.usage, null); assert.equal(A.total_cost_usd, null); assert.equal(A.exit_code, null, 'sem aceitacao num spawn puro'); assert.equal(A.aceite, false);
+  assert.ok(pi && pi.braco === 'A' && pi.motivo === 'spawn:ENOENT'); assert.ok(ev.indexOf(pi) > ev.indexOf(A), 'depois da tentativa_fim');
+  const r = h.julgar();
+  assert.equal(r.primaria.n_pares_validos, 1, 'o par de t22 sai pela saida (a); t21 conta'); assert.ok(r.fiabilidade.pares_invalidos.some((x) => x.task_id === 't22-11f81c79b7' && /spawn:ENOENT/.test(x.motivo)));
+  assert.equal(r.corrida_valida, true, '28: a saida (a) e verificavel — spawn puro, curto, sem evidencia');
+});
+
+test('Ledger.paragem: n e ultima_tarefa vem do que ficou no disco (134) — a analise nao marca paragem_incoerente', async () => {
+  const h = harness();
+  await correrTarefa(h.ctx, h.tarefa, h.ledger);
+  h.ledger.paragem('teste de paragem a meio');
+  const p = h.linhas().at(-1);
+  assert.equal(p.evento, 'paragem'); assert.equal(p.n, 1); assert.equal(p.ultima_tarefa, 't22-11f81c79b7'); assert.equal(p.motivo, 'teste de paragem a meio');
+  const r = h.julgar();
+  assert.equal(r.marcas_por_tipo.paragem_incoerente, undefined);
+});
+
+test('ollamaTagsComRetry: 3 tentativas antes de desistir; matarArvore so em win32 e nunca lanca', async () => {
+  let n = 0;
+  const r = await ollamaTagsComRetry('h', { esperaMs: 1, tagsImpl: async () => { n++; return n < 3 ? { ok: false, motivo: 'x' } : { ok: true, modelos: new Map() }; } });
+  assert.equal(r.ok, true); assert.equal(n, 3);
+  n = 0;
+  assert.equal((await ollamaTagsComRetry('h', { esperaMs: 1, tagsImpl: async () => { n++; return { ok: false, motivo: 'x' }; } })).ok, false); assert.equal(n, 3);
+  assert.deepEqual(matarArvore(123, { plataforma: 'linux' }), { tentado: false });
+  assert.deepEqual(matarArvore(null), { tentado: false });
+  let visto = null;
+  assert.deepEqual(matarArvore(123, { plataforma: 'win32', spawnImpl: (exe, args) => { visto = { exe, args }; return { status: 0 }; } }), { tentado: true, ok: true });
+  assert.equal(visto.exe, 'powershell'); assert.match(visto.args.at(-1), /ParentProcessId=\$p.*K 123$/);
 });
