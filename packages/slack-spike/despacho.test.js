@@ -24,6 +24,9 @@ function comSync(conteudo) {
   return p;
 }
 const DESTRAVADO = () => comSync('# SYNC\n\n' + gate.LINHA_DESTRAVE + '\n');
+/** Spike destravado E o kimi readmitido — as DUAS linhas, que sao independentes. */
+const KIMI_READMITIDO = () => comSync(
+  '# SYNC\n\n' + gate.LINHA_DESTRAVE + '\n' + gate.LINHA_KIMI + '\n');
 const TRANCADO = () => comSync('# SYNC\n\na kimi-egress ainda manda.\n');
 
 const PEDIDO = { goal: 'arruma os testes', agent: 'cc', wave: 'slack-spike',
@@ -116,26 +119,71 @@ test('criarDespachador · sem toolWork ou sem syncPath nao se monta', () => {
 // O ALTO de CODIGO aberto da kimi-egress vive so no caminho kimi/Moonshot. A
 // condicao do GO e que o spike o exclua POR CONSTRUCAO, com prova. Estes testes
 // SAO essa prova: se alguem tirar a barreira, a suite fica vermelha.
-const { MOTORES_PERMITIDOS, MOTORES_EXCLUIDOS, validarMotor } = require('./despacho.js');
+const { MOTORES_PERMITIDOS, MOTORES_EXCLUIDOS, MOTORES_CONDICIONADOS,
+  validarMotor } = require('./despacho.js');
 
-test('GO · agent:"kimi" e RECUSADO na porta e o motor NUNCA e chamado', async () => {
+test('A6a · agent:"kimi" e recusado enquanto a CONDICAO nao estiver escrita, e o motor NUNCA e chamado', async () => {
+  // A barreira mudou de forma, nao desapareceu. A linha de destrave do spike
+  // esta no SYNC (`DESTRAVADO`) e NAO chega: sao condicoes independentes, e
+  // reutilizar aquela seria chamar condicional a uma aceitacao incondicional.
   let chamou = false;
   const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
     toolWork: async () => { chamou = true; return { job_id: 'job-kimi' }; } });
   const r = await despachar(Object.assign({}, PEDIDO, { agent: 'kimi' }));
   assert.equal(r.job_id, null);
   assert.equal(chamou, false, 'o kimi nao pode chegar ao toolWork — o ALTO vive la dentro');
-  assert.match(r.porque_local, /EXCLUIDO POR CONSTRUCAO/);
+  assert.match(r.porque_local, /CONDICIONADO/);
   assert.match(r.porque_local, /kimi-egress/);
+  assert.match(r.porque_local, /veto em main/i, 'a recusa tem de NOMEAR o gesto que a levanta');
 });
 
-test('GO · a exclusao nao se contorna com maiusculas nem espacos', async () => {
-  const { despachar } = criarDespachador({ syncPath: DESTRAVADO(),
+test('A6a · ACEITACAO: com a linha de readmissao no SYNC, o kimi passa e chega ao motor', async () => {
+  // Este e o teste que faltava. Sem ele, "aceitacao condicionada" seria so uma
+  // recusa com prosa nova — e nada provaria que a condicao alguma vez abre.
+  const vistos = [];
+  const { despachar } = criarDespachador({ syncPath: KIMI_READMITIDO(),
+    toolWork: async (a) => { vistos.push(a); return { job_id: 'job-kimi' }; } });
+  const r = await despachar(Object.assign({}, PEDIDO, { agent: 'kimi' }));
+  assert.equal(r.job_id, 'job-kimi');
+  assert.equal(vistos.length, 1);
+  assert.equal(vistos[0].agent, 'kimi');
+});
+
+test('A6a · as duas condicoes sao INDEPENDENTES nos dois sentidos', async () => {
+  // So a linha do kimi, sem o destrave do spike: o gate do MODO VIVO manda
+  // primeiro e o despacho morre la — fechar uma frente nao destrava a outra.
+  const soKimi = comSync('# SYNC\n\n' + gate.LINHA_KIMI + '\n');
+  const { despachar } = criarDespachador({ syncPath: soKimi,
+    toolWork: async () => { throw new Error('nunca devia ser chamado'); } });
+  const r = await despachar(Object.assign({}, PEDIDO, { agent: 'kimi' }));
+  assert.equal(r.job_id, null);
+  assert.match(r.porque_local, /MODO VIVO trancado/);
+});
+
+test('A6a · fail-closed: sem gate/syncPath, ou com a condicao a rebentar, o kimi fica fora', () => {
+  assert.equal(validarMotor('kimi').ok, false, 'sem contexto nao ha como verificar — recusa');
+  const rebenta = { kimiReadmitido: () => { throw new Error('boom'); } };
+  const r = validarMotor('kimi', { gate: rebenta, syncPath: '/qualquer' });
+  assert.equal(r.ok, false);
+  assert.match(r.porque, /rebentou/, 'uma condicao que rebenta e uma condicao NAO cumprida');
+  // Um motor sem condicao nao paga o preco de existir condicoes.
+  assert.equal(validarMotor('cc').ok, true);
+});
+
+test('A6a · a condicao nao se contorna com maiusculas nem espacos — nos dois sentidos', async () => {
+  const trancado = criarDespachador({ syncPath: DESTRAVADO(),
     toolWork: async () => { throw new Error('nunca devia ser chamado'); } });
   for (const v of ['KIMI', ' kimi ', 'Kimi', 'kImI']) {
-    const r = await despachar(Object.assign({}, PEDIDO, { agent: v }));
-    assert.equal(r.job_id, null, 'passou: ' + JSON.stringify(v));
-    assert.match(r.porque_local, /EXCLUIDO POR CONSTRUCAO/);
+    const r = await trancado.despachar(Object.assign({}, PEDIDO, { agent: v }));
+    assert.equal(r.job_id, null, 'passou sem condicao: ' + JSON.stringify(v));
+    assert.match(r.porque_local, /CONDICIONADO/);
+  }
+  // E com a condicao cumprida, a normalizacao tambem nao pode inventar recusas.
+  const aberto = criarDespachador({ syncPath: KIMI_READMITIDO(),
+    toolWork: async () => ({ job_id: 'job-kimi' }) });
+  for (const v of ['KIMI', ' kimi ', 'Kimi', 'kImI']) {
+    const r = await aberto.despachar(Object.assign({}, PEDIDO, { agent: v }));
+    assert.equal(r.job_id, 'job-kimi', 'recusou com condicao cumprida: ' + JSON.stringify(v));
   }
 });
 
@@ -165,13 +213,23 @@ test('GO · o motor que a demo usa (cc) passa, e chega normalizado ao nucleo', a
   assert.equal(vistos[0].agent, 'cc');
 });
 
-test('GO · "kimi" NAO esta na allowlist — o invariante e codigo, nao um comentario', () => {
-  assert.ok(!MOTORES_PERMITIDOS.includes('kimi'));
-  assert.ok(Object.prototype.hasOwnProperty.call(MOTORES_EXCLUIDOS, 'kimi'),
-    'a exclusao tem de estar declarada COM a razao datada, nao apenas ausente');
-  assert.match(MOTORES_EXCLUIDOS.kimi, /main/, 'a razao tem de dizer o que faz o kimi voltar');
-  assert.equal(validarMotor('kimi').ok, false);
+test('A6a · "kimi" e CONDICIONADO em codigo, nao num comentario', () => {
+  assert.ok(MOTORES_PERMITIDOS.includes('kimi'), 'foi readmitido na allowlist por decisao do dono');
+  assert.ok(!Object.prototype.hasOwnProperty.call(MOTORES_EXCLUIDOS, 'kimi'),
+    'deixou de ser exclusao dura — se voltasse aqui, a condicao nunca chegaria a ser lida');
+  const c = MOTORES_CONDICIONADOS.kimi;
+  assert.ok(c && typeof c.verificar === 'function', 'a condicao tem de ser codigo executavel');
+  assert.match(c.contexto, /kimi-egress/, 'a condicao tem de dizer o que a levanta');
   assert.equal(validarMotor('cc').ok, true);
+});
+
+test('A6a · a mecanica de exclusao DURA continua de pe para o proximo vendor', () => {
+  // O `MOTORES_EXCLUIDOS` ficou vazio. Um objecto vazio e indistinguivel de um
+  // mecanismo apagado, e o proximo vendor que precise dele merece encontra-lo a
+  // funcionar — nao descobri-lo partido no dia em que for preciso.
+  assert.deepEqual(Object.keys(MOTORES_EXCLUIDOS), [], 'nenhum motor esta hoje excluido a duro');
+  assert.equal(validarMotor('vendor-desconhecido').ok, false,
+    'a allowlist continua a recusar quem nao esta la — e isso nao depende do MOTORES_EXCLUIDOS');
 });
 
 // ── onde o agente escreve ─────────────────────────────────────────────────
