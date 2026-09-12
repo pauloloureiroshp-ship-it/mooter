@@ -107,6 +107,25 @@ test('encontrarTranscript + tokensDoTranscript: só o ficheiro do session_id, s�
   assert.equal(tokensDoTranscript(path.join(home, 'nao-existe.jsonl')), null);
 });
 
+test('tokensDoTranscript: a 1.ª linha de uma resposta traz o output em streaming — vence o máximo por campo, não a 1.ª (final-reviewer do #509)', () => {
+  // A forma REAL de um subagente (trio de `agent-a1e48c918b5d5a121.jsonl` desta máquina a 2026-09-12, conteúdo retirado): o mesmo message.id em 3 linhas, output_tokens 7 / 7 / 275 — só a última tem o total; input e cache iguais nas três
+  const d = tmp();
+  const f = path.join(d, 'agent-x.jsonl');
+  const u = (out) => ({ input_tokens: 2, cache_creation_input_tokens: 40901, cache_read_input_tokens: 0, output_tokens: out, cache_creation: { ephemeral_5m_input_tokens: 40901, ephemeral_1h_input_tokens: 0 } });
+  const linha = (uuid, parentUuid, bloco, i, out) => JSON.stringify({ type: 'assistant', uuid, parentUuid, apiBlockIndex: i, requestId: 'req_011CeyNBcmQ4LQNEeYjV52j8', message: { id: 'msg_011CeyNBdYGzvuwZh8FzuzVP', model: 'claude-opus-5', content: [{ type: bloco }], usage: u(out) } });
+  fs.writeFileSync(f, [
+    JSON.stringify({ type: 'user', uuid: 'u1', message: { role: 'user', content: 'x' } }),
+    linha('a1', 'u1', 'thinking', 0, 7),
+    linha('a2', 'a1', 'text', 1, 7),
+    linha('a3', 'a2', 'tool_use', 2, 275),
+  ].join('\n') + '\n');
+  const t = tokensDoTranscript(f);
+  assert.equal(t.respostas_opus, 1); assert.equal(t.linhas_repetidas, 2);
+  assert.equal(t.output, 275, 'a 1.ª linha diz 7; o total está na última');
+  assert.equal(t.cache_creation, 40901, 'os campos iguais não se somam entre linhas');
+  assert.equal(t.total, 2 + 275 + 40901);
+});
+
 test('parseJsonDoCli: o stdout inteiro, ou a ultima linha JSON (ruido de hooks); nunca um array', () => {
   assert.deepEqual(parseJsonDoCli('{"a":1}'), { a: 1 });
   assert.deepEqual(parseJsonDoCli('ruido\n[mooter] x\n{"session_id":"s","usage":{}}\n'), { session_id: 's', usage: {} });
