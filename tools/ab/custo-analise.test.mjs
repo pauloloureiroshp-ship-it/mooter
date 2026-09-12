@@ -21,7 +21,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, tsCanonico, TRANSCRIPT_MINIMO, consumoNoJson, SONDA_TOTAL_OPUS, SONDA_CACHE_OPUS, SHA256_VAZIO, localSemSaida, localComSaida, ehModeloCloud, SUPLENTES_ESPERADOS, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO } from './custo-analise.mjs';
+import { analisar, lerLedger, tokensOpusDaTentativa, reconciliar, valorizar, arrancouDaTentativa, aceiteContraditorio, problemasDoModelUsage, violacoesDeTipo, evidenciaDeArranque, pecasDeEvidencia, pecasDeEvidenciaBruta, naoArrancouPuro, foiCurta, motivoSpawnPuro, problemasDoPreVoo, tsCanonico, TRANSCRIPT_MINIMO, consumoNoJson, SONDA_TOTAL_OPUS, SONDA_CACHE_OPUS, SHA256_VAZIO, localSemSaida, localComSaida, ehModeloCloud, SUPLENTES_ESPERADOS, CURTO_S, PREREG_SHA256_ESPERADO, EVENTOS_DO_PREREG, CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, PROVAS_DA_ACEITACAO, rejeicaoSemJsonVerde, temJsonDoCli, tectoOuMorteSemJson, leituraDoTecto, TOLERANCIA_DO_TECTO_S } from './custo-analise.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SONDA = JSON.parse(fs.readFileSync(path.join(HERE, 'custo-fixture-sonda.json'), 'utf8'));
@@ -1202,6 +1202,72 @@ test('analise · 4.o NO-SHIP (P7H): aceite:true com prova contraditoria (exit 1,
   assert.equal(aceiteContraditorio(tentativa('t1', 'A', { aceite: false }), 10), null, 'sem base de skips nao se pode dizer que a rejeicao e contraditoria');
   assert.equal(aceiteContraditorio(tentativa('t1', 'A', { aceite: false, skips: null }), 10, 0), null, 'sem skips na linha a prova nao esta completa');
   assert.equal(aceiteContraditorio(tentativa('t1', 'A', { aceite: false, exit_code: 1, tests_passados: 9 }), 10, 0), null);   // 55: exit 1 pede uma falha real
+  // 64: sem JSON nenhum, aceite=false verde e a regra («estourar o tecto = nao aceite») SO no tecto (impressao digital SIGTERM/exit null + relogio) e na morte (exit != 0 sem sinal, abaixo do tecto) de uma linha que chegou; tudo o resto sem JSON continua a 19, e a 65 invalida o impossivel
+  const aos = (segs, over = {}) => ({ duration_ms: Math.round(segs * 1000), ts_inicio: '2026-09-11T00:00:00Z', ts_fim: new Date(Date.parse('2026-09-11T00:00:00Z') + Math.round(segs * 1000)).toISOString(), ...over });   // sem JSON o duration_ms E a parede (65)
+  const semJson = { aceite: false, usage: null, modelUsage: null, total_cost_usd: null, tokens_transcript: 60000, cli_exit: null, cli_sinal: 'SIGTERM', ...aos(900.015) };   // o tecto real: SIGTERM do spawnSync aos 900 s (+15 ms medidos), exit null
+  assert.equal(aceiteContraditorio(tentativa('t1', 'A', semJson), 10, 0, 900), null, '64: aceite=false verde sem JSON nenhum, no tecto, nao e contraditorio');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', semJson), 10, 0), /aceite=false com exit_code 0/, 'sem tecto no prereg (NaN) o relogio nao le tecto -> 19');
+  assert.equal(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(899.5) }), 10, 0, 900), null, 'tolerancia: SIGTERM a 899,5 s (um slew do relogio de parede) ainda e o tecto');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(898.9) }), 10, 0, 900), /aceite=false com exit_code 0/, 'abaixo da tolerancia (1 s) o SIGTERM e um kill precoce -> 19');
+  assert.equal(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: 1, cli_sinal: null }), 10, 0, 900), null, '64: morte (exit 1 sem sinal) antes do tecto');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: null, cli_sinal: 'SIGKILL' }), 10, 0, 900), /aceite=false com exit_code 0/, 'um sinal que nao e o do protocolo nao e morte (65 invalida)');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: 0, cli_sinal: null }), 10, 0, 900), /aceite=false com exit_code 0/, 'C1: cli_exit 0 sem JSON — o CLI imprime o envelope quando sai 0; o controlador deixou-o cair -> 19');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(903), cli_exit: 0, cli_sinal: null }), 10, 0, 900), /aceite=false com exit_code 0/, 'X3: cli_exit 0 aos 903 s sem sinal nao e tecto (o spawnSync teria matado) -> 19');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(903), cli_exit: null, cli_sinal: null }), 10, 0, 900), /aceite=false com exit_code 0/, 'X4: exit e sinal ambos null aos 903 s -> 19');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(0.002) }), 10, 0, 900), /aceite=false com exit_code 0/, 'C2: SIGTERM aos 2 ms e o kill precoce -> 19');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: null, cli_sinal: null }), 10, 0, 900), /aceite=false com exit_code 0/, 'exit e sinal ambos null: ninguem sabe o que aconteceu -> 19');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(40), duration_ms: 900000 }), 10, 0, 900), /aceite=false com exit_code 0/, 'X1: duration_ms inflado com ts de 40 s — a parede e uma so medicao; nao e tecto -> 19 (e a 65 invalida)');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, ...aos(40), duration_ms: 900000, cli_exit: 0, cli_sinal: null }), 10, 0, 900), /aceite=false com exit_code 0/, 'X2: idem com cli_exit 0');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, tokens_transcript: 0, ...aos(0.05) }), 10, 0, 900), /aceite=false com exit_code 0/, 'C14: uma linha que nao chegou nao e tecto nem morte -> 19');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, usage: SONDA.usage }), 10, 0, 900), /aceite=false com exit_code 0/, '64: usage sem modelUsage e JSON parcial (20/60), nao «sem JSON»');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, modelUsage: SONDA.modelUsage }), 10, 0, 900), /aceite=false com exit_code 0/, '64: modelUsage sem usage idem');
+  assert.match(aceiteContraditorio(tentativa('t1', 'A', { ...semJson, aceite: true }), 10, 0, 900), /sem JSON/, '19 fica: aceite=true sem JSON e contraditorio');
+  // tectoOuMorteSemJson e leituraDoTecto
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', semJson), 900), 'tecto');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, duration_ms: null }), 900), 'tecto', 'o tecto tambem so pelos ts');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(899.5) }), 900), 'tecto', 'tolerancia de 1 s');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(898.9) }), 900), null, 'abaixo da tolerancia');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(903), cli_sinal: null }), 900), null, 'sem a impressao digital nao e tecto, mesmo aos 903 s');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(903), cli_exit: 1 }), 900), null, 'SIGTERM com exit 1 nao e a impressao digital do spawnSync (status null)');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: 1, cli_sinal: null }), 900), 'morte');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(903), cli_exit: 1, cli_sinal: null }), 900), null, 'exit 1 aos 903 s sem sinal e sem ETIMEDOUT: o spawnSync teria matado — nao e morte');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(900.5), cli_exit: 1, cli_sinal: null }), 900), 'morte', 'H9: a morte natural na janela dos +11–20 ms (parede 900,5 s) e morte — a tolerancia vale dos dois lados');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(900.015), cli_exit: 1, cli_sinal: null, cli_erro: 'ETIMEDOUT' }), 900), 'morte', 'H8: o pipe segurou a parede ate ao tecto e o CLI tinha saido 1 — morte (dentro da tolerancia)');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(901.5), cli_exit: 1, cli_sinal: null, cli_erro: 'ETIMEDOUT' }), 900), null, 'o pipe nao estica a tolerancia: 901,5 s e impossivel com ou sem ETIMEDOUT');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(900.015), cli_exit: 0, cli_sinal: null, cli_erro: 'ETIMEDOUT' }), 900), null, 'H8 com exit 0: o CLI que sai 0 imprime o envelope -> 19');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: 0, cli_sinal: null }), 900), null);
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: null, cli_sinal: 'SIGKILL' }), 900), null, 'outro sinal e fora do protocolo');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, cli_sinal: 'SIGKILL' }), 900), null, 'SIGKILL ao tecto tambem nao e a impressao digital (M500)');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(0.002) }), 900), null, 'SIGTERM aos 2 ms nao e o SIGTERM do protocolo');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, ...aos(40), duration_ms: 900000 }), 900), null, 'parede incoerente nunca e tecto nem morte');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, arrancou: false, session_id: null }), 900), null, 'nao chegou');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, arrancou: false, session_id: 'sess-x' }), 900), 'tecto', 'chegou por evidencia (session_id) — a 22 trata a flag');
+  assert.equal(tectoOuMorteSemJson(tentativa('t1', 'A', { ...semJson, usage: SONDA.usage }), 900), null, 'com JSON nao e desta');
+  assert.equal(tectoOuMorteSemJson(passoLocal('t1'), 900), null);
+  assert.equal(tectoOuMorteSemJson(passoLocal('t1', { ...aos(900.015), arrancou: true, cli_sinal: 'SIGTERM', cli_exit: null }), 900), null, 'M483: um passo local nunca');
+  assert.equal(TOLERANCIA_DO_TECTO_S, 1);
+  assert.deepEqual(leituraDoTecto(tentativa('t1', 'A', semJson), 900), { seg: 900.015, dur: 900.015, maior: 900.015, impressao: true, pipeAteAoTecto: false, aoTecto: true, alemDoTecto: false, paredeIncoerente: false });
+  assert.deepEqual(leituraDoTecto(tentativa('t1', 'A', { ...semJson, ...aos(899.5) }), 900), { seg: 899.5, dur: 899.5, maior: 899.5, impressao: true, pipeAteAoTecto: false, aoTecto: true, alemDoTecto: false, paredeIncoerente: false });
+  assert.equal(leituraDoTecto(tentativa('t1', 'A', { ...semJson, ...aos(901.5) }), 900).alemDoTecto, true, 'alem do tecto so a partir de tecto + 1 s (a parede leva 11–20 ms sobre o timer)');
+  assert.equal(leituraDoTecto(tentativa('t1', 'A', { ...semJson, cli_sinal: null, cli_exit: 1, cli_erro: 'ETIMEDOUT' }), 900).pipeAteAoTecto, true, 'H8 do 3.o revisor: exit inteiro + sinal null + ETIMEDOUT = um descendente segurou o pipe ate ao tecto');
+  assert.equal(leituraDoTecto(tentativa('t1', 'A', { ...semJson, cli_exit: 1, cli_erro: 'ETIMEDOUT' }), 900).pipeAteAoTecto, false, 'com sinal nao e o pipe');
+  assert.equal(leituraDoTecto(tentativa('t1', 'A', { ...semJson, duration_ms: null, ts_fim: null }), 900).maior, NaN);
+  assert.equal(leituraDoTecto(tentativa('t1', 'A', { ...semJson, ...aos(40), duration_ms: 41500 }), 900).paredeIncoerente, true, '1,5 s de diferenca e incoerente');
+  assert.equal(leituraDoTecto(tentativa('t1', 'A', { ...semJson, ...aos(40), duration_ms: 40900 }), 900).paredeIncoerente, false, '0,9 s ainda e a mesma medicao');
+  // rejeicaoSemJsonVerde
+  assert.match(rejeicaoSemJsonVerde(tentativa('t1', 'A', semJson), 10, 0, 900), /aceite=false sem JSON .* tecto sem resultado .* conta contra o braco A \(64\) · tecto \(SIGTERM do protocolo; duration_ms 900015, ts 900\.015s >= 900s - 1s\)/);
+  assert.match(rejeicaoSemJsonVerde(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: 1, cli_sinal: null }), 10, 0, 900), /morte sem resultado .* \(64\) · morte ANTES do tecto \(duration_ms 40000, ts 40s, tecto 900s, cli_exit 1, cli_sinal null\)/);
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', semJson), 10, 0), null, 'sem tecto no prereg e sem morte: nao e 64');
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', semJson), 10, null, 900), null, '64 pede o mesmo `completo` da 19: sem base de skips nao ha 64');
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', { ...semJson, exit_code: 1, tests_passados: 9 }), 10, 0, 900), null, 'uma prova vermelha e uma rejeicao normal');
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', { ...semJson, tests_passados: 99 }), 10, 0, 900), null, 'aritmetica impossivel nao e 64 (41)');
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', { ...semJson, tests_corridos: 12, skips: 0 }), 10, 0, 900), null, '49 com as provas todas verdes (exit 0, passados 10 + skips 0 != corridos 12) nao e 64 — a 41 vem antes');
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', { ...semJson, aceite: true }), 10, 0, 900), null);
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', { ...semJson, usage: SONDA.usage }), 10, 0, 900), null);
+  assert.equal(rejeicaoSemJsonVerde(tentativa('t1', 'A', { ...semJson, ...aos(40), cli_exit: 0, cli_sinal: null }), 10, 0, 900), null, 'C1 nao e 64');
+  assert.equal(rejeicaoSemJsonVerde(passoLocal('t1', { usage: null, modelUsage: null, exit_code: 0, tests_passados: 10 }), 10, 0, 900), null, 'um passo local nunca e 64');
+  assert.equal(rejeicaoSemJsonVerde(passoLocal('t1', { usage: null, modelUsage: null, exit_code: 0, tests_passados: 10, ...aos(900.015), arrancou: true, cli_sinal: 'SIGTERM', cli_exit: null }), 10, 0, 900), null, 'um passo local ao tecto tambem nao (M468)');
+  assert.equal(temJsonDoCli({ usage: null, modelUsage: null }), false); assert.equal(temJsonDoCli({ usage: {} }), true); assert.equal(temJsonDoCli({ modelUsage: {} }), true); assert.equal(temJsonDoCli({ usage: 'x' }), false);
   // 29 (E3/E4/E5 do 10.o): a segunda metade da condicao 3 — skips nao aumentou face ao pre-voo; e passados + skips <= corridos
   assert.equal(aceiteContraditorio(tentativa('t1', 'A', { aceite: false, skips: 1, tests_corridos: 11 }), 10, 0), null, 'E3: rejeicao legitima por skip a mais — NAO e contraditoria (a fixture antiga tinha 10 + 1 > 10: aritmetica impossivel, 41)');
   assert.match(aceiteContraditorio(tentativa('t1', 'A', { aceite: false, skips: 1 }), 10, 0), /sumario de testes impossivel/, '41: passados 10 + skips 1 > corridos 10 numa rejeicao');
@@ -3313,7 +3379,7 @@ test('analise · 20.o NO-SHIP (A1/A1b/A16, 56): arrancou:true numa claude-p sem 
   assert.equal(soSessao.corrida_valida, false, '58: session_id string com tokens_transcript 0 («procurado, nao encontrado») nao e evidencia');
   assert.ok(soSessao.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia' && /nao prova: pode ser pre-gerado/.test(m.motivo)));
   assert.equal(correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, session_id: 'sess-pre-gerado', aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 180000 })]).corrida_valida, false, 'A1b: crash com session_id e sem a chave tokens_transcript');
-  const comTranscript = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, tokens_transcript: 123456, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000 })]);
+  const comTranscript = correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, tokens_transcript: 123456, aceite: false, exit_code: 1, tests_passados: 9, duration_ms: 900000, ts_inicio: '2026-09-11T00:00:00Z', ts_fim: '2026-09-11T00:15:00Z' })]);   // 65: sem JSON o duration_ms E a parede — os ts batem
   assert.equal(comTranscript.corrida_valida, true);
   assert.ok(!comTranscript.marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'));
   assert.ok(correr(p, [tentativa('t1', 'A'), tentativa('t1', 'B', { ...semNada, tokens_transcript: 999, aceite: false, exit_code: 1, tests_passados: 9 })]).marcas.some((m) => m.tipo === 'arrancou_sem_evidencia'), 'abaixo do piso do transcript nao e evidencia');
@@ -3645,6 +3711,148 @@ test('analise · 23.o NO-SHIP (X2e/X2d, 63): uma linha ilegivel no ledger invali
   // sem passar as linhas (o que o main fazia ate ao 22.o) a mesma corrida dava «cumprido · valida» — a mordida
   const cego = analisar(PREREG, eventos);
   assert.equal(cego.corrida_valida, true); assert.equal(cego.primaria.limiar_descritivo_cumprido, true); assert.equal(cego.marcas.length, 0);
+});
+
+test('analise · 24.o (AMENDMENT-1 #4, 64/65): a claude-p morta aos 900 s SEM JSON que deixou o worktree verde e uma rejeicao, nao uma contradicao — marca rejeicao_sem_json_verde, o braco perde o par, a corrida fica VALIDA com a sensibilidade na primaria; a 64 e estreita (C1/C2/C3/C4/C14 do 1.o revisor, X1–X8 do 2.o, JSON parcial, aceite:true, sem transcript, arrancou:false ficam INVALIDAS); a 65 nao invalida um tecto honesto com 15 ms de desvio nem um slew de 0,5 s', () => {
+  const T = PREREG.corpus.tarefas;
+  const t0 = T[0];
+  const h = t0.tests_total_historico;
+  const aos = (segs, over = {}) => ({ duration_ms: Math.round(segs * 1000), ts_inicio: '2026-09-11T00:00:00Z', ts_fim: new Date(Date.parse('2026-09-11T00:00:00Z') + Math.round(segs * 1000)).toISOString(), ...over });
+  // a linha que o controlador escreve (NOTA DO TECTO): sem JSON, duration_ms = parede >= tecto (+15 ms medidos), SIGTERM do spawnSync com status null, transcript encontrado, aceite:false, provas verdes
+  const tectoVerde = (over = {}) => tentativa(t0.task_id, 'A', { tier_classificado: t0.tier_classificado, arrancou: true, motivo_se_nao: null, aceite: false, exit_code: 0, tests_corridos: h, tests_passados: h, skips: 0,
+    usage: null, modelUsage: null, total_cost_usd: null, modelo_reportado: null, session_id: 'sess-tecto-64', tokens_transcript: 60000, tecto_estourado: true, cli_exit: null, cli_sinal: 'SIGTERM', num_turns: null, subtype: null, is_error: null,
+    ...aos(900.015), ...over });
+  const resto = T.slice(1).flatMap((t) => parReal(t));
+  const parT0 = (A) => [preVoo(t0.task_id, { tests_corridos: h, tests_passados: h - 1 }), A, ...(t0.tier_classificado === 'T0' ? [passoLocal(t0.task_id, { tier_classificado: 'T0' }), escalacao(t0.task_id, { tier_classificado: 'T0', tests_corridos: h, tests_passados: h, exit_code: 0 })] : [tentativa(t0.task_id, 'B', { tier_classificado: t0.tier_classificado, tests_corridos: h, tests_passados: h, exit_code: 0 })])];
+  const invalidaPor = (r, re) => r.corrida_invalida_por.some((x) => re.test(x.motivo) || (x.valores || []).some((v) => re.test(String(v))));
+  // antes da 64 (a NOTA DO TECTO): «aceite contraditorio» -> INVALIDA a corrida inteira por um tecto honesto
+  const r = analisarReal([...parT0(tectoVerde()), ...resto]);
+  assert.equal(r.corrida_valida, true, JSON.stringify(r.corrida_invalida_por));
+  assert.equal(r.marcas.filter((m) => m.tipo === 'aceite_contraditorio').length, 0);
+  assert.equal(r.marcas_por_tipo.rejeicao_sem_json_verde, 1);
+  const m64 = r.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde');
+  assert.equal(m64.task_id, t0.task_id); assert.equal(m64.braco, 'A');
+  assert.match(m64.motivo, /tecto sem resultado .*conta contra o braco A \(64\) · tecto \(SIGTERM do protocolo; duration_ms 900015, ts 900\.015s >= 900s - 1s\) · arrancou=true · tokens_transcript=60000 · tecto_estourado=true/);
+  assert.equal(r.marcas_por_tipo.tecto_aparente, 1, 'a 19 continua a marcar o tecto');
+  assert.equal(r.marcas_por_tipo.consumo_do_transcript, 1, '58: o consumo vem do transcript');
+  assert.equal(r.primaria.n_pares_validos, 20); assert.equal(r.primaria.aceites_A, 19, 'R3: a perda de A fica no numero'); assert.equal(r.primaria.aceites_B, 20);
+  assert.equal(r.por_tarefa.find((x) => x.task_id === t0.task_id).A.aceite, false);
+  // a sensibilidade na primaria: sem esse par, 19 pares A 19 B 19
+  assert.deepEqual(r.primaria.sensibilidade_64, { pares: [t0.task_id], por_braco: { A: 1, B: 0 }, por_classe: { A: { tecto: 1, morte: 0 }, B: { tecto: 0, morte: 0 } }, sem_esses_pares: { n_pares_validos: 19, aceites_A: 19, aceites_B: 19, limiar_descritivo_cumprido: true } });
+  assert.match(r.primaria.AVISO_64, /1 par\(es\) decidido\(s\) pela 64 \(sem JSON com o worktree verde — A: 1 tecto\(s\) 0 morte\(s\); B: 0 tecto\(s\) 0 morte\(s\); «morte» e confianca no cli_exit\) — sem eles: 19 pares, A 19 B 19, limiar cumprido/);
+  // 65 nao invalida o honesto: X8 do 2.o revisor — o tecto com provas VERMELHAS e um slew de 0,5 s (parede 899,5 s, SIGTERM) e uma linha honesta e desfavoravel: VALIDA, sem 64 (nao e verde), sem 65
+  const rX8 = analisarReal([...parT0(tectoVerde({ ...aos(899.5), exit_code: 1, tests_passados: h - 1 })), ...resto]);
+  assert.equal(rX8.corrida_valida, true, JSON.stringify(rX8.corrida_invalida_por)); assert.equal(rX8.marcas_por_tipo.rejeicao_sem_json_verde, undefined); assert.equal(rX8.marcas_por_tipo.tecto_estourado_incoerente, undefined); assert.equal(rX8.marcas_por_tipo.linha_impossivel_sem_json, undefined);
+  // e o mesmo slew com provas verdes e 64 (X7 corrigido)
+  const rX7 = analisarReal([...parT0(tectoVerde(aos(899.5))), ...resto]);
+  assert.equal(rX7.corrida_valida, true, JSON.stringify(rX7.corrida_invalida_por)); assert.equal(rX7.marcas_por_tipo.rejeicao_sem_json_verde, 1);
+  // a morte ANTES do tecto (CLI saiu 1 aos 40 s sem JSON, worktree verde): tambem 64, mas o motivo diz «morte ANTES do tecto» com o exit
+  const rM = analisarReal([...parT0(tectoVerde({ ...aos(40), tecto_estourado: false, cli_exit: 1, cli_sinal: null })), ...resto]);
+  assert.equal(rM.corrida_valida, true, JSON.stringify(rM.corrida_invalida_por));
+  assert.match(rM.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /morte sem resultado .*morte ANTES do tecto \(duration_ms 40000, ts 40s, tecto 900s, cli_exit 1, cli_sinal null\)/);
+  assert.equal(rM.marcas_por_tipo.tecto_aparente, undefined);
+  assert.deepEqual(rM.primaria.sensibilidade_64.por_classe, { A: { tecto: 0, morte: 1 }, B: { tecto: 0, morte: 0 } }, 'a classe por braco: o leitor ve que e uma morte, nao um tecto');
+  // H8 (3.o revisor): o CLI saiu 1 sem JSON, um descendente segurou o pipe ate ao tecto (parede 900,015 s, sinal null, cli_erro ETIMEDOUT, tecto_estourado:true pela regra do controlador) — morte, VALIDA, verde ou vermelha
+  const rH8 = analisarReal([...parT0(tectoVerde({ cli_exit: 1, cli_sinal: null, cli_erro: 'ETIMEDOUT' })), ...resto]);
+  assert.equal(rH8.corrida_valida, true, JSON.stringify(rH8.corrida_invalida_por)); assert.match(rH8.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /morte ANTES do tecto .*cli_exit 1, cli_sinal null/); assert.equal(rH8.marcas_por_tipo.linha_impossivel_sem_json, undefined); assert.equal(rH8.marcas_por_tipo.tecto_estourado_incoerente, undefined);
+  const rH8b = analisarReal([...parT0(tectoVerde({ cli_exit: 1, cli_sinal: null, cli_erro: 'ETIMEDOUT', exit_code: 1, tests_passados: h - 1 })), ...resto]);
+  assert.equal(rH8b.corrida_valida, true, JSON.stringify(rH8b.corrida_invalida_por)); assert.equal(rH8b.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  assert.equal(analisarReal([...parT0(tectoVerde({ cli_exit: 1, cli_sinal: null, tecto_estourado: false })), ...resto]).corrida_valida, true, 'H9: exit 1 a 900,015 s sem sinal e sem ETIMEDOUT esta na janela de tolerancia (< 901 s) — morte, VALIDA (o controlador escreve tecto_estourado:false: o timer nao disparou)');
+  assert.equal(analisarReal([...parT0(tectoVerde({ cli_exit: 1, cli_sinal: null })), ...resto]).corrida_valida, false, 'e com tecto_estourado:true sem timer nenhum a flag contradiz-se (65)');
+  // a morte dentro da zona de tolerancia (exit 1 sem sinal aos 899,5 s, tecto_estourado:false): morte, VALIDA — a flag e coerente porque nao ha impressao digital (65 nao le «ao tecto» sem SIGTERM)
+  const rM2 = analisarReal([...parT0(tectoVerde({ ...aos(899.5), tecto_estourado: false, cli_exit: 1, cli_sinal: null })), ...resto]);
+  assert.equal(rM2.corrida_valida, true, JSON.stringify(rM2.corrida_invalida_por)); assert.match(rM2.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /morte ANTES do tecto/);
+  // o tecto so pelos ts (duration_ms null): continua a ler-se como tecto, como a 22 o le
+  assert.match(analisarReal([...parT0(tectoVerde({ duration_ms: null })), ...resto]).marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /tecto \(SIGTERM do protocolo; duration_ms null, ts 900\.015s >= 900s - 1s\)/);
+  // a base de skips e a do pre-voo DA TAREFA (29): pre-voo com 2 skips e a linha com 2 skips e verde (skips nao aumentou) -> 64; com base 0 seria uma rejeicao normal
+  const rK = analisarReal([preVoo(t0.task_id, { tests_corridos: h + 2, tests_passados: h - 1, skips: 2 }), ...parT0(tectoVerde({ tests_corridos: h + 2, tests_passados: h, skips: 2 })).slice(1), ...resto]);
+  assert.equal(rK.corrida_valida, true, JSON.stringify(rK.corrida_invalida_por)); assert.equal(rK.marcas_por_tipo.rejeicao_sem_json_verde, 1, '29/64: a base dos skips e a do pre-voo');
+  // a 64 e estreita — cada uma destas fica INVALIDA:
+  // (i) aceite:true sem JSON -> 19
+  const rT = analisarReal([...parT0(tectoVerde({ aceite: true })), ...resto]);
+  assert.equal(rT.corrida_valida, false); assert.ok(rT.marcas.some((m) => m.tipo === 'aceite_contraditorio' && /sem JSON/.test(m.motivo))); assert.equal(rT.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  // (ii) JSON parcial (usage presente, modelUsage null) com aceite:false verde -> 19 (e a 20/60 tratam o JSON)
+  const rP = analisarReal([...parT0(tectoVerde({ usage: SONDA.usage })), ...resto]);
+  assert.equal(rP.corrida_valida, false); assert.ok(rP.marcas.some((m) => m.tipo === 'aceite_contraditorio' && /aceite=false com exit_code 0/.test(m.motivo))); assert.equal(rP.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  // (iii) sem transcript (tokens_transcript 0) com arrancou:true -> 56/58
+  const rS = analisarReal([...parT0(tectoVerde({ tokens_transcript: 0 })), ...resto]);
+  assert.equal(rS.corrida_valida, false); assert.ok(rS.corrida_invalida_por.some((x) => /interpretacoes 56, 58/.test(x.motivo))); assert.equal(rS.primaria.sensibilidade_64, null, 'a sensibilidade so conta pares VALIDOS (o par caiu pela 56/58, a marca 64 ficou na linha)');
+  // (iv) arrancou:false com motivo timeout e sem transcript -> 22 (um timeout tem transcript); e a 19 volta a chamar-lhe contradicao (nao chegou -> nem tecto nem morte)
+  const rF = analisarReal([...parT0(tectoVerde({ arrancou: false, motivo_se_nao: 'timeout', session_id: null, tokens_transcript: 0 })), ...resto]);
+  assert.equal(rF.corrida_valida, false); assert.ok(rF.marcas.some((m) => m.tipo === 'nao_arrancou_fora_da_definicao')); assert.ok(rF.marcas.some((m) => m.tipo === 'aceite_contraditorio')); assert.equal(rF.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  // C1 (1.o revisor): cli_exit 0 sem sinal e sem JSON aos 40 s — o CLI que sai 0 imprime o envelope; o controlador deixou-o cair -> 19, INVALIDA
+  const rC1 = analisarReal([...parT0(tectoVerde({ ...aos(40), tecto_estourado: false, cli_exit: 0, cli_sinal: null })), ...resto]);
+  assert.equal(rC1.corrida_valida, false); assert.ok(rC1.marcas.some((m) => m.tipo === 'aceite_contraditorio')); assert.equal(rC1.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  // C2: SIGTERM aos 40 s com tecto_estourado:true — o kill precoce: 19 (nao e o SIGTERM do protocolo) E 65 (impossivel neste protocolo)
+  const rC2 = analisarReal([...parT0(tectoVerde({ ...aos(40), tecto_estourado: true, cli_exit: null, cli_sinal: 'SIGTERM' })), ...resto]);
+  assert.equal(rC2.corrida_valida, false); assert.ok(rC2.marcas.some((m) => m.tipo === 'aceite_contraditorio')); assert.ok(rC2.marcas.some((m) => m.tipo === 'linha_impossivel_sem_json' && /SIGTERM aos 40s, abaixo do tecto 900s - 1s/.test(m.motivo))); assert.equal(rC2.marcas_por_tipo.rejeicao_sem_json_verde, undefined); assert.equal(rC2.marcas_por_tipo.tecto_estourado_incoerente, undefined, 'uma causa, uma marca: a flag nao se verifica numa linha ja impossivel');
+  assert.equal(analisarReal([...parT0(tectoVerde({ ...aos(40), exit_code: 1, tests_passados: h - 1, cli_sinal: 'SIGTERM' })), ...resto]).corrida_valida, false, 'C2 vermelho: o kill precoce e impossivel neste protocolo seja qual for a prova (65)');
+  // C3 (65): num_turns/subtype/is_error nao-null sem JSON — so o envelope os traz
+  const rC3 = analisarReal([...parT0(tectoVerde({ num_turns: 4 })), ...resto]);
+  assert.equal(rC3.corrida_valida, false); assert.ok(rC3.marcas.some((m) => m.tipo === 'campo_do_json_sem_json' && /num_turns=4/.test(m.motivo))); assert.ok(rC3.corrida_invalida_por.some((x) => /interpretacoes 58, 65/.test(x.motivo)));
+  assert.equal(analisarReal([...parT0(tectoVerde({ is_error: false })), ...resto]).corrida_valida, false, 'is_error false tambem so existe com envelope');
+  // C4 (65): tecto_estourado:false com a impressao digital do tecto — a flag contradiz o relogio e o sinal
+  const rC4 = analisarReal([...parT0(tectoVerde({ tecto_estourado: false })), ...resto]);
+  assert.equal(rC4.corrida_valida, false); assert.ok(rC4.marcas.some((m) => m.tipo === 'tecto_estourado_incoerente' && /tecto_estourado=false com cli_sinal "SIGTERM"/.test(m.motivo)));
+  assert.equal(analisarReal([...parT0(tectoVerde({ tecto_estourado: null })), ...resto]).corrida_valida, true, 'tecto_estourado ausente/null: a 65 nao inventa a flag');
+  assert.equal(analisarReal([...parT0(tectoVerde({ ...aos(40), tecto_estourado: true, cli_exit: 1, cli_sinal: null })), ...resto]).corrida_valida, false, 'tecto_estourado:true numa morte aos 40 s — a flag nao manda (65)');
+  // X1/X2 (2.o revisor): duration_ms inflado (900 000) com ts de 40 s — sem JSON sao a MESMA medicao: 65 INVALIDA (e a 19, porque nao e tecto)
+  const rX1 = analisarReal([...parT0(tectoVerde({ ...aos(40), duration_ms: 900000 })), ...resto]);
+  assert.equal(rX1.corrida_valida, false); assert.ok(rX1.marcas.some((m) => m.tipo === 'linha_impossivel_sem_json' && /sao a MESMA medicao sem JSON/.test(m.motivo))); assert.equal(rX1.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  const rX2 = analisarReal([...parT0(tectoVerde({ ...aos(40), duration_ms: 900000, cli_exit: 0, cli_sinal: null, tecto_estourado: true })), ...resto]);
+  assert.equal(rX2.corrida_valida, false); assert.equal(rX2.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  // X3/X4: aos 903 s sem sinal (exit 0, ou exit/sinal null) — o spawnSync teria matado: 65 INVALIDA, nao e tecto
+  const rX3 = analisarReal([...parT0(tectoVerde({ ...aos(903), cli_exit: 0, cli_sinal: null })), ...resto]);
+  assert.equal(rX3.corrida_valida, false); assert.ok(rX3.marcas.some((m) => m.tipo === 'linha_impossivel_sem_json' && /parede 903s >= tecto 900s \+ 1s sem sinal/.test(m.motivo))); assert.equal(rX3.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  assert.equal(analisarReal([...parT0(tectoVerde({ ...aos(903), cli_exit: 1, cli_sinal: null, cli_erro: 'ETIMEDOUT' })), ...resto]).corrida_valida, false, 'X3 com ETIMEDOUT aos 903 s: o pipe nao estica a tolerancia — impossivel (65)');
+  // um sinal com exit inteiro nao existe no Node (achado 8 do 3.o revisor)
+  const rS8 = analisarReal([...parT0(tectoVerde({ cli_exit: 1, exit_code: 1, tests_passados: h - 1, tecto_estourado: null })), ...resto]);
+  assert.equal(rS8.corrida_valida, false); assert.ok(rS8.marcas.some((m) => m.tipo === 'linha_impossivel_sem_json' && /com cli_exit 1 — no Node um sinal deixa o status a null/.test(m.motivo)));
+  const rX4 = analisarReal([...parT0(tectoVerde({ ...aos(903), cli_exit: null, cli_sinal: null })), ...resto]);
+  assert.equal(rX4.corrida_valida, false); assert.equal(rX4.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  // X5/X6: um sinal que nao e o do protocolo (SIGKILL aos 40 s) e impossivel neste protocolo — INVALIDA, com ou sem tecto_estourado
+  const rX5 = analisarReal([...parT0(tectoVerde({ ...aos(40), cli_sinal: 'SIGKILL', tecto_estourado: false })), ...resto]);
+  assert.equal(rX5.corrida_valida, false); assert.ok(rX5.marcas.some((m) => m.tipo === 'linha_impossivel_sem_json' && /cli_sinal "SIGKILL"/.test(m.motivo))); assert.equal(rX5.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  assert.equal(analisarReal([...parT0(tectoVerde({ ...aos(40), cli_sinal: 'SIGKILL', tecto_estourado: true })), ...resto]).corrida_valida, false, 'X6');
+  // C14: um spawn:ENOENT com provas verdes nao e tecto nem morte -> 19 como antes (e a 65 nao le a parede de uma linha que nao chegou)
+  const rC14 = analisarReal([...parT0(tectoVerde({ arrancou: false, motivo_se_nao: 'spawn:ENOENT', session_id: null, tokens_transcript: 0, ...aos(0.05), tecto_estourado: false, cli_sinal: null })), ...resto]);
+  assert.equal(rC14.corrida_valida, false); assert.ok(rC14.marcas.some((m) => m.tipo === 'aceite_contraditorio')); assert.equal(rC14.marcas_por_tipo.rejeicao_sem_json_verde, undefined); assert.equal(rC14.marcas_por_tipo.linha_impossivel_sem_json, undefined);
+  // C6: A ao tecto em 20/20 (B 20/20) — VALIDA, mas a sensibilidade diz tudo: sem esses pares nao ha pares
+  const evC6 = T.flatMap((t) => { const hh = t.tests_total_historico; const ev = parReal(t); const A = ev.find((e) => e.evento === 'tentativa_fim' && e.braco === 'A'); Object.assign(A, tectoVerde({ task_id: t.task_id, tier_classificado: t.tier_classificado, tests_corridos: hh, tests_passados: hh, session_id: `sess-tecto-${t.task_id}` }), { task_id: t.task_id }); return ev; });
+  const rC6 = analisarReal(evC6);
+  assert.equal(rC6.corrida_valida, true, JSON.stringify(rC6.corrida_invalida_por)); assert.equal(rC6.primaria.aceites_A, 0); assert.equal(rC6.primaria.aceites_B, 20); assert.equal(rC6.primaria.limiar_descritivo_cumprido, true); assert.equal(rC6.primaria.veredicto_vacuo, true, 'A - 2 <= 0: vacuo (ja o era)');
+  assert.equal(rC6.marcas_por_tipo.rejeicao_sem_json_verde, 20);
+  assert.deepEqual(rC6.primaria.sensibilidade_64.por_braco, { A: 20, B: 0 }); assert.deepEqual(rC6.primaria.sensibilidade_64.sem_esses_pares, { n_pares_validos: 0, aceites_A: 0, aceites_B: 0, limiar_descritivo_cumprido: null });
+  assert.match(rC6.primaria.AVISO_64, /20 par\(es\) decidido\(s\) pela 64 \(sem JSON com o worktree verde — A: 20 tecto\(s\) 0 morte\(s\); B: 0 tecto\(s\) 0 morte\(s\)/); assert.match(rC6.primaria.AVISO_64, /sem eles: 0 pares, A 0 B 0, limiar n\/d/);
+  // (v) a mesma linha em B (escalacao ou T3): a perda e de B, e a corrida fica valida
+  const bLinha = t0.tier_classificado === 'T0' ? escalacao(t0.task_id, { tier_classificado: 'T0', ...tectoVerde(), braco: 'B', tentativa: 2, e_escalacao: true }) : tentativa(t0.task_id, 'B', { tier_classificado: t0.tier_classificado, ...tectoVerde(), braco: 'B' });
+  const rB = analisarReal([preVoo(t0.task_id, { tests_corridos: h, tests_passados: h - 1 }), tentativa(t0.task_id, 'A', { tier_classificado: t0.tier_classificado, tests_corridos: h, tests_passados: h, exit_code: 0 }), ...(t0.tier_classificado === 'T0' ? [passoLocal(t0.task_id, { tier_classificado: 'T0' })] : []), bLinha, ...resto]);
+  assert.equal(rB.corrida_valida, true, JSON.stringify(rB.corrida_invalida_por)); assert.equal(rB.primaria.aceites_B, 19); assert.equal(rB.primaria.aceites_A, 20);
+  assert.match(rB.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /conta contra o braco B \(64\)/);
+  assert.deepEqual(rB.primaria.sensibilidade_64.por_braco, { A: 0, B: 1 });
+  // o honesto nao mexe: sem 64 a sensibilidade e null; e com JSON os campos do envelope (num_turns, subtype, is_error) sao normais — a 65 so olha para o sem JSON
+  const hon = analisarReal(T.flatMap((t) => parReal(t)).map((e) => (e.evento === 'tentativa_fim' && e.executor === 'claude-p' ? { ...e, num_turns: 4, subtype: 'success', is_error: false } : e)));
+  assert.equal(hon.corrida_valida, true, JSON.stringify(hon.corrida_invalida_por)); assert.equal(hon.marcas.length, 0); assert.equal(hon.primaria.sensibilidade_64, null); assert.equal(hon.primaria.AVISO_64, null);
+  // um passo local ao tecto (timeout do router-execute: sem JSON por construcao, arrancou, parede 900 s) NUNCA e 64 — o local e sempre aceite:false e a 64 e so claude-p (M468/M483)
+  const rL = analisarReal([...parT0(tentativa(t0.task_id, 'A', { tier_classificado: t0.tier_classificado, tests_corridos: h, tests_passados: h, exit_code: 0 })).map((e) => (e.executor === 'router-execute' ? { ...e, ...aos(900.015), exit_code: 0, tests_passados: h, tests_corridos: h, cli_sinal: 'SIGTERM', cli_exit: null } : e)), ...resto]);
+  assert.equal(rL.marcas_por_tipo.rejeicao_sem_json_verde, undefined, 'sem marca 64 num passo local');
+  assert.equal(rL.primaria.sensibilidade_64, null);
+  // e o AVISO_64 chega a consola pelo main (a impressao e a unica leitura que o dono faz sem abrir o JSON)
+  const cli64 = path.join(HERE, 'custo-analise.mjs');
+  const dir64 = fs.mkdtempSync(path.join(os.tmpdir(), 'custo-64-'));
+  try {
+    const ledger64 = path.join(dir64, 'l.jsonl');
+    fs.writeFileSync(ledger64, ordenar([...parT0(tectoVerde()), ...resto]).map((e) => JSON.stringify(e)).join('\n') + '\n');
+    const out64 = spawnSync(process.execPath, [cli64, '--ledger', ledger64, '--out', path.join(dir64, 'o.json')], { encoding: 'utf8' });
+    assert.equal(out64.status, 0, out64.stderr);
+    assert.match(out64.stdout, /limiar descritivo cumprido .*1 par\(es\) decidido\(s\) pela 64 \(sem JSON com o worktree verde — A: 1 tecto\(s\) 0 morte\(s\); B: 0 tecto\(s\) 0 morte\(s\); «morte» e confianca no cli_exit\) — sem eles: 19 pares, A 19 B 19, limiar cumprido/);
+    // e imprime-se tambem sem veredicto (limiar null): a mesma corrida com uma linha ilegivel
+    fs.appendFileSync(ledger64, '{lixo\n');
+    const out64b = spawnSync(process.execPath, [cli64, '--ledger', ledger64, '--out', path.join(dir64, 'o2.json')], { encoding: 'utf8' });
+    assert.match(out64b.stdout, /limiar descritivo n\/d .*1 par\(es\) decidido\(s\) pela 64/, 'o AVISO_64 sai com ou sem veredicto (7 do 3.o revisor)');
+    assert.match(out64.stdout, /rejeicao_sem_json_verde 1/);
+  } finally { fs.rmSync(dir64, { recursive: true, force: true }); }
+  void invalidaPor;
 });
 
 test('lerLedger · linhas invalidas sao contadas, nao engolidas', () => {

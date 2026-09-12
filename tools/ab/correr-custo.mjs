@@ -7,7 +7,7 @@
  *
  * O pré-registo (`custo-prereg.json`, congelado em main via #495) é a
  * INTENÇÃO. A análise (`custo-analise.mjs`, congelada em main via #502,
- * 63 interpretações) é o JUIZ. Este ficheiro é o TRATAMENTO: prepara os
+ * 65 interpretações desde a AMENDMENT-1) é o JUIZ. Este ficheiro é o TRATAMENTO: prepara os
  * worktrees, chama os executores, escreve o ledger. Não decide nada sobre o
  * resultado — nem sequer o lê. O que escreve é o que a análise julga, e a
  * análise foi construída durante 24 rondas adversariais a partir de ledgers
@@ -41,7 +41,9 @@
  * 4. O TECTO É 900 s POR TENTATIVA e «estourar o tecto = não aceite» (prereg
  *    `aceitacao.tecto_e_criterio`): o processo é morto, a aceitação corre na
  *    mesma para haver prova (8.º/1), e `aceite := false` com
- *    `tecto_estourado: true`. Ver a NOTA DO TECTO no fim deste cabeçalho.
+ *    `tecto_estourado: true` — e, sem JSON, com o worktree verde, no tecto
+ *    ou na morte que o protocolo produz numa linha que chegou, a análise lê
+ *    isso como a regra (64), não como contradição. Ver a NOTA DO TECTO.
  *
  * 5. O TRATAMENTO É O DO PRÉ-REGISTO, byte a byte. A: o executor literal do
  *    prereg mais `--session-id <uuid>` (instrumentação de evidência, não
@@ -79,20 +81,54 @@
  *    (`d30ce17c…`), portanto a corrida NÃO arranca sem uma decisão escrita.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * NOTA DO TECTO (uma lacuna DECLARADA entre o prereg e a análise)
+ * NOTA DO TECTO (era uma lacuna DECLARADA; fechada pela AMENDMENT-1 #4)
  *
  * O prereg diz «estourar o tecto = não aceite». A análise (interpretação 19)
- * diz que `aceite: false` com todas as provas verdes é contraditório e
- * INVÁLIDA a corrida. Uma claude-p SEM JSON (`usage`/`modelUsage` null) —
+ * dizia que `aceite: false` com todas as provas verdes é contraditório e
+ * INVALIDAVA a corrida. Uma claude-p SEM JSON (`usage`/`modelUsage` null) —
  * morta aos 900 s, ou o CLI a sair ≠ 0 com o transcript a provar que correu
- * — que deixou o worktree verde cai nas duas: este controlador escreve
- * `aceite: false` («sem JSON = não aceite», a metade que lhe cabe; a 19 já
+ * — que deixou o worktree verde caía nas duas: este controlador escreve
+ * `aceite: false` («sem JSON = não aceite», a metade que lhe cabe; a 19
  * afirma que `aceite: true` sem JSON é contraditório), as provas como
- * medidas e `tecto_estourado`, e a corrida sai INVÁLIDA pela 19 se isso
- * acontecer. O P7 mediu 872 s num braço em 46: não é raro o suficiente. A
- * solução é uma interpretação 64 na análise ANTES da corrida (`aceite: false`
- * com provas verdes não é contraditório numa claude-p sem JSON) — decisão do
- * dono, registada por AMENDMENT, não deste ficheiro.
+ * medidas e `tecto_estourado`. O P7 mediu 872 s num braço em 46: não era
+ * raro o suficiente. Desde a AMENDMENT-1 (#4, 2026-09-12) a análise traz a
+ * interpretação 64: `aceite: false` sem JSON nenhum com as provas verdes,
+ * numa linha que CHEGOU e que é o TECTO do protocolo (a impressão digital
+ * do `spawnSync` aos 900 s: `cli_sinal 'SIGTERM'`, `cli_exit null`, e a
+ * parede ≥ 900 s − 1 s de tolerância — a flag daqui vem do timer
+ * monotónico do libuv, a parede do relógio de parede, 11–20 ms de desvio
+ * medidos) ou uma MORTE (o CLI saiu ≠ 0 sem sinal, abaixo do tecto + 1 s;
+ * o pipe segurado até ao timer, ETIMEDOUT, cai aqui) — pelo
+ * relógio e pelo sinal, nunca pela flag —, é a regra aplicada: marca
+ * `rejeicao_sem_json_verde` (a perda fica impressa), o braço perde o par,
+ * a corrida fica VÁLIDA e a primária traz a sensibilidade sem esses pares.
+ * O que continua a invalidar: um timeout SEM transcript encontrável (22: um
+ * timeout tem transcript), `arrancou: true` sem JSON nem transcript ≥ piso
+ * (56/58), `aceite: true` sem JSON (19), sem JSON com `cli_exit 0` (o CLI
+ * que sai 0 imprime o envelope — este controlador deixou-o cair), e — 65,
+ * verde ou vermelho — o que é impossível neste protocolo: `duration_ms` a
+ * divergir dos ts (sem JSON são a MESMA medição, `parede_ms`), um sinal que
+ * não é `SIGTERM`, um `SIGTERM` abaixo do tecto (este controlador a matar
+ * cedo), uma parede ≥ 901 s sem sinal (o `Kill()` do `spawnSync` não
+ * envia sinal a um filho que já saiu: um descendente a segurar o pipe
+ * deixa o timer disparar aos 900 s com exit inteiro — `cli_erro`
+ * ETIMEDOUT, parede 900,0xx s, dentro da tolerância),
+ * `num_turns`/`subtype`/`is_error` não-null sem JSON, ou `tecto_estourado`
+ * a contradizer o sinal e o relógio (a flag daqui é «o timer do `spawnSync`
+ * disparou»: o sinal, ou ETIMEDOUT com o pipe — nunca a parede sozinha; e
+ * só é coerente porque o único sinal do protocolo chega aos 900 s). Duas
+ * linhas do tratamento mudaram por isto: a flag (era «sinal ou parede ≥
+ * tecto»), e
+ * «JSON chegou» passou a ser o da análise (`usage` OU `modelUsage`
+ * objecto) — um envelope parseado sem os dois é «sem JSON» para os dois
+ * lados (campos do envelope null, `duration_ms` = parede, `aceite: false`,
+ * o envelope descrito em `motivo_cli`). O resto já se escrevia assim
+ * (`cli_exit`, `cli_sinal`, `parede_ms` como `duration_ms`). Declarado: com
+ * ETIMEDOUT sem sinal o `matarArvore` corre para um pid que pode ter saído
+ * há até 900 s — em win32 o pid é reutilizável e um processo novo com filhos
+ * que o ocupasse entretanto teria os filhos mortos (com SIGTERM a janela era
+ * de milissegundos). Não toca a validade da corrida; toca a máquina — fica
+ * para o dono decidir se o script filtra por `CreationDate ≥ ts_inicio`.
  *
  * Da mesma classe, declarado: uma aceitação de A morta pelo tecto de 600 s
  * (`aceitacao_sinal: SIGTERM`, contagens null) é 27c na análise («aceite:
@@ -154,7 +190,9 @@ export const SO_MAXIMO = 2;                             // 4.º revisor: um fumo
 
 export const sha256 = (dados) => crypto.createHash('sha256').update(dados).digest('hex');
 export const sha256Ficheiro = (p) => sha256(fs.readFileSync(p));
-export const agora = () => new Date().toISOString();   // 11.º/1, 12.º/1: sempre esta forma
+/** O relógio de TODOS os `agora()` deste ficheiro. Substituível pelo harness (o teste da NOTA DO TECTO avança-o 900 s dentro do spawn do timeout para que a linha real tenha `parede_ms` ≥ tecto — a 64/65 lêem o relógio, não a flag). Em produção é sempre `new Date()`. */
+export const relogio = { agora: () => new Date().toISOString() };
+export const agora = () => relogio.agora();   // 11.º/1, 12.º/1: sempre esta forma
 export const lerJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
 /**
@@ -476,12 +514,15 @@ export function correrClaudeP({ caminhoClaude, prompt, cwd, sessionId, env, tect
   });
   const ts_fim = agora();
   const json = parseJsonDoCli(r.stdout);
+  const erro = r.error ? String(r.error.code || r.error.message) : null;
   let motivo = null;
   if (r.signal) motivo = 'timeout';
-  else if (r.error) motivo = `spawn:${r.error.code || r.error.message}`;
+  // 3.º revisor da v25: o SyncProcessRunner::Kill() do Node NAO envia sinal a um filho que ja saiu — se o CLI sair e um descendente segurar o pipe herdado, o spawnSync espera ate ao timeout e devolve status N, signal null, error ETIMEDOUT. Nao e um spawn falhado: o CLI correu e saiu N.
+  else if (Number.isInteger(r.status) && erro === 'ETIMEDOUT') motivo = json ? null : `pipe_timeout:${r.status}`;
+  else if (r.error) motivo = `spawn:${erro}`;
   else if (!json) motivo = `cli_morreu:${Number.isInteger(r.status) ? r.status : 'n/d'}`;
   return {
-    ts_inicio, ts_fim, json, motivo, pid: Number.isInteger(r.pid) ? r.pid : null,
+    ts_inicio, ts_fim, json, motivo, erro, pid: Number.isInteger(r.pid) ? r.pid : null,
     exit_status: Number.isInteger(r.status) ? r.status : null,
     sinal: r.signal || null,
     stdout: String(r.stdout || ''),
@@ -587,6 +628,22 @@ export function tarefaCompleta(ctx, taskId, { slot = null } = {}) {
 // O pré-voo da corrida ($0): tudo o que tem de estar certo ANTES da primeira chamada.
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * 3b: a emenda tem a mesma âncora do prereg e da análise — dentro do repo, byte a byte igual a `origin/main:<caminho>`, e sem
+ * alterações por commitar. Devolve as falhas (vazio = anterior). Testado com um repo git temporário (mordida real, não regex).
+ */
+export function anterioridadeDaEmenda({ repo, emendaPath, emendaSha, spawnImpl = spawnSync }) {
+  const falhas = [];
+  const rel = path.relative(repo, emendaPath).split(path.sep).join('/');
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) { falhas.push(`--emenda ${emendaPath} está fora do repo ${repo} — a emenda tem de estar commitada em origin/main (anterioridade)`); return falhas; }
+  const omEm = spawnImpl('git', ['show', `origin/main:${rel}`], { cwd: repo, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (omEm.status !== 0) falhas.push(`git show origin/main:${rel} falhou: ${String(omEm.stderr || '').trim().slice(0, 120)} — a emenda tem de estar em origin/main antes da corrida`);
+  else if (sha256(omEm.stdout) !== emendaSha) falhas.push(`${rel} em disco (${emendaSha.slice(0, 12)}) != origin/main (${sha256(omEm.stdout).slice(0, 12)})`);
+  const stEm = spawnImpl('git', ['status', '--porcelain', '--', rel], { cwd: repo, encoding: 'utf8' });
+  if (stEm.status === 0 && String(stEm.stdout).trim()) falhas.push(`emenda com alterações por commitar:\n${String(stEm.stdout).trim()}`);
+  return falhas;
+}
+
 export async function preVooDaCorrida(ctx, { comModelo = true } = {}) {
   const log = ctx.log;
   const falhas = [];
@@ -613,6 +670,8 @@ export async function preVooDaCorrida(ctx, { comModelo = true } = {}) {
   const temOverride = ctx.overrides.router_execute_sha || ctx.overrides.modelo_local || ctx.overrides.excluir.length || ctx.overrides.sem_subagentes;
   if (temOverride && !ctx.emendaPath) falhas.push('overrides (--router-execute-sha/--modelo-local/--excluir/--sem-subagentes) exigem --emenda <AMENDMENT-n.md>');
   if (ctx.emendaPath) { try { ctx.emendaSha = sha256Ficheiro(ctx.emendaPath); } catch { falhas.push(`--emenda ${ctx.emendaPath} ilegível`); } }
+  // 3b. anterioridade da emenda: a mesma âncora do prereg — em disco == origin/main e sem alterações por commitar (uma emenda editável a meio da corrida não é anterior a nada)
+  if (ctx.emendaPath && ctx.emendaSha) falhas.push(...anterioridadeDaEmenda({ repo: ctx.repo, emendaPath: ctx.emendaPath, emendaSha: ctx.emendaSha }));
   for (const id of ctx.overrides.excluir) if (!ctx.prereg.corpus.tarefas.some((t) => t.task_id === id) && !ctx.prereg.corpus.suplentes.includes(id)) falhas.push(`--excluir ${id}: não é tarefa do corpus nem suplente`);   // 159: um suplente morto no filho exclui-se por emenda
   // 4. anterioridade: o prereg em disco é o de origin/main (prereg anterioridade.ancora_externa)
   const om = spawnSync('git', ['show', 'origin/main:tools/ab/custo-prereg.json'], { cwd: ctx.repo, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
@@ -754,7 +813,10 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
     if (r.stderr_tail) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-${braco}-t${tentativa}.stderr-tail.txt`), r.stderr_tail, 'utf8');
   } catch (e) { saidaErro = `saidas:${e.code || e.message}`; }
 
-  const j = r.json;
+  const envelope = r.json;
+  // 65 (2.º revisor da v25, achado 6): «JSON chegou» é o da análise — `usage` OU `modelUsage` objecto. Um envelope parseado sem os dois é, para os dois lados, «sem JSON»: os campos do envelope ficam null, o `duration_ms` é a parede, o tecto lê-se pelo sinal/parede, e `aceite` é false. O envelope fica descrito em `motivo_cli`.
+  const j = envelope && ((envelope.usage && typeof envelope.usage === 'object') || (envelope.modelUsage && typeof envelope.modelUsage === 'object')) ? envelope : null;
+  const envelopeSemUso = envelope && !j ? `envelope sem usage/modelUsage: subtype=${JSON.stringify(envelope.subtype ?? null)} is_error=${JSON.stringify(envelope.is_error ?? null)} session_id=${JSON.stringify(envelope.session_id ?? null)}` : null;
   // 3 do cabeçalho: arrancou por evidência; se o CLI ignorou o --session-id, procura-se tambem pelo id do JSON (165) e fica registado
   const sessionIdDivergente = !!(j && typeof j.session_id === 'string' && j.session_id !== sessionId);
   const transcriptPath = encontrarTranscript(sessionId, ctx.home) || (sessionIdDivergente ? encontrarTranscript(j.session_id, ctx.home) : null);
@@ -766,8 +828,8 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   else { arrancou = false; motivo_se_nao = r.motivo || 'sem_json_sem_transcript'; session_id = null; }   // 102: null quando não há evidência
   // 2.º revisor: com JSON, o CLI provou quando acabou — o tecto mede-se pelo `duration_ms` do JSON (48); um sinal DEPOIS do JSON e o pipe herdado por um descendente, nao a tentativa. Sem JSON, o sinal ou a parede.
   const tectoMs = ctx.prereg.aceitacao.tecto_por_tentativa_s * 1000;
-  const tectoEstourado = j ? (Number.isFinite(j.duration_ms) && j.duration_ms >= tectoMs) : (r.sinal !== null || r.parede_ms >= tectoMs);
-  const arvoreMorta = r.sinal !== null ? matarArvore(r.pid, { spawnImpl }) : null;   // 139: os descendentes do agente não podem tocar no worktree durante a aceitação
+  const tectoEstourado = j ? (Number.isFinite(j.duration_ms) && j.duration_ms >= tectoMs) : (r.sinal !== null || r.erro === 'ETIMEDOUT');   // sem JSON: «o timer do spawnSync disparou» (o sinal, ou ETIMEDOUT com o pipe segurado) — nunca a parede sozinha: uma morte natural 15 ms antes do timer le-se com parede >= tecto e NAO e um tecto (65, 3.º revisor)
+  const arvoreMorta = (r.sinal !== null || r.erro === 'ETIMEDOUT') ? matarArvore(r.pid, { spawnImpl }) : null;   // 139: os descendentes do agente não podem tocar no worktree durante a aceitação; com ETIMEDOUT sem sinal ha um descendente provadamente vivo a segurar o pipe (3.º revisor)
 
   // D5: o sha DEPOIS do agente e ANTES do reinstall (6.º); a aceitação corre sempre que o CLI chegou (8.º/1)
   const shaDepois = shaDoTestFile(snapshot, tarefa.test_file);
@@ -800,9 +862,9 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
     worktree_listagem_sha_antes: listAntes, worktree_listagem_sha_depois: listagemSha(snapshot),
     // extras (nenhuma é obrigatória; nenhuma substitui uma obrigatória)
     tokens_transcript, transcript: transcriptPath, session_id_pedido: sessionId, session_id_divergente: sessionIdDivergente, num_turns: j && Number.isInteger(j.num_turns) ? j.num_turns : null,
-    is_error: j ? j.is_error === true : null, subtype: j && typeof j.subtype === 'string' ? j.subtype : null, cli_exit: r.exit_status, cli_sinal: r.sinal,
+    is_error: j ? j.is_error === true : null, subtype: j && typeof j.subtype === 'string' ? j.subtype : null, cli_exit: r.exit_status, cli_sinal: r.sinal, cli_erro: r.erro,   // cli_erro: o error.code do spawnSync (ETIMEDOUT com exit inteiro = o pipe herdado segurou a parede ate ao tecto; 65)
     tecto_estourado: tectoEstourado, parede_ms: r.parede_ms, sinal_depois_do_json: !!(j && r.sinal), arvore_morta: arvoreMorta, aceitacao_sinal: prova && !prova.erro ? prova.aceitacao_sinal : null, aceitacao_duration_ms: prova ? prova.aceitacao_duration_ms : null, aceitacao_erro: prova && prova.erro ? prova.erro : null,
-    motivo_cli: j ? null : r.stderr_tail.slice(-200) || null,   // 86: distinguir crash de tecto
+    motivo_cli: j ? null : [envelopeSemUso, r.stderr_tail.slice(-200) || null].filter(Boolean).join(' · ') || null,   // 86: distinguir crash de tecto; 65: o envelope sem uso fica descrito
     tecto_por_tentativa_s: ctx.prereg.aceitacao.tecto_por_tentativa_s, worktree: snapshot, saidas_erro: saidaErro,
     estado_vivo_sha_depois: estadoVivo(ctx.routerDirVivo).sha, sentinela_presente_depois: sentinelaPresente(ctx.routerDirVivo),   // 153: uma mudanca DURANTE a ultima tentativa nao escapa
   };
@@ -916,7 +978,7 @@ export function escreverManifesto(ctx, { sonda = null } = {}) {
     listagem_semantica: 'sha256 das linhas "<caminho relativo>\\t<bytes>" ordenadas, sem node_modules nem .git; não inclui conteúdo nem mtime',
     tecto_do_orcamento_semantica: '.budget-cache.json data.five_hour.utilization (0-100) do cache congelado; «null=sem tecto» sem cache utilizável',
     so: ctx.so, ledger: ctx.ledgerPath, raiz: ctx.raiz, sonda,
-    nota_do_tecto: 'estourar o tecto = aceite:false com as provas como medidas e tecto_estourado:true; se as provas saírem verdes a análise (19) invalida — lacuna declarada no cabeçalho do controlador',
+    nota_do_tecto: 'estourar o tecto = aceite:false com as provas como medidas e tecto_estourado:true (= o timer do spawnSync disparou: sinal, ou ETIMEDOUT com o pipe segurado); sem JSON e com as provas verdes, no tecto do protocolo (SIGTERM do spawnSync, exit null, parede >= 900 s - 1 s) ou na morte (cli_exit != 0 sem sinal, abaixo do tecto + 1 s — o pipe segurado ate ao timer, ETIMEDOUT, cai aqui) de uma linha que chegou, a análise lê a regra, não uma contradição (64, AMENDMENT-1 #4) — marca rejeicao_sem_json_verde, o braço perde o par, a primária traz a sensibilidade; cli_exit 0 sem JSON continua contraditório (19) e a linha sem JSON tem de ser possível neste protocolo (65: parede = ts, só SIGTERM e só ao tecto, campos do envelope null, tecto_estourado coerente com o sinal e o relógio)',
   };
   fs.mkdirSync(path.dirname(ctx.manifestoPath), { recursive: true });
   fs.writeFileSync(ctx.manifestoPath, JSON.stringify(m, null, 2) + '\n', 'utf8');

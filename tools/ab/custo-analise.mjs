@@ -191,7 +191,9 @@
  *     = não aceite» (`aceitacao.tecto_e_criterio`) — `aceite: true` aí é
  *     contraditório (B1 do 6.º revisor: o `correr-r24.mjs` corre a
  *     aceitação DEPOIS do timeout). `aceite: false` com TODAS as provas
- *     satisfeitas é o inverso. Qualquer dos dois → marca
+ *     satisfeitas é o inverso — SALVO no tecto ou na morte que o protocolo
+ *     produz sem JSON, numa linha que chegou (64; só isso).
+ *     Qualquer dos dois → marca
  *     `aceite_contraditorio`, par INVÁLIDO, corrida INVÁLIDA. Prova em falta
  *     → 12. `ts_fim − ts_inicio ≥ tecto_por_tentativa_s` com `aceite: true`
  *     marca `tecto_aparente` (só marca: o intervalo pode incluir a aceitação).
@@ -691,6 +693,98 @@
  *     marca `linha_ilegivel` (número da linha e erro) + corrida INVÁLIDA;
  *     `main` passa as de `lerLedger`. Uma linha truncada obriga a fechar a
  *     corrida — nunca se retoma por cima (brief 123).
+ * 64. SEM JSON, `aceite: false` COM O WORKTREE VERDE É A REGRA, NÃO UMA
+ *     CONTRADIÇÃO — MAS SÓ NO TECTO E NA MORTE QUE O PROTOCOLO PRODUZ
+ *     (AMENDMENT-1 #4, 2026-09-12; a NOTA DO TECTO do controlador). O
+ *     prereg diz «estourar o tecto = não aceite» (`aceitacao.tecto_e_criterio`)
+ *     e o controlador escreve `aceite: false` em toda a claude-p que chega
+ *     SEM JSON (`usage` e `modelUsage` null), com as provas como medidas.
+ *     Quando essas provas saem verdes — o Opus acabou o trabalho e o tecto
+ *     apanhou-o a fechar —, a 19 chamava-lhe contradição e INVALIDAVA a
+ *     corrida inteira (o P7 mediu 872 s num braço em 46). A 19 passa a
+ *     eximir esse caso e só esse. `tectoOuMorteSemJson(t, tectoS)` diz o
+ *     que a linha É, pelo relógio e pela impressão digital do CLI, nunca
+ *     pela flag: «tecto» = `cli_sinal 'SIGTERM'` com `cli_exit null` (a
+ *     única forma que o `spawnSync` produz aos 900 s) E o relógio
+ *     (`duration_ms`, que sem JSON é a parede, ou `ts_fim − ts_inicio`) ≥
+ *     tecto − 1 s (`TOLERANCIA_DO_TECTO_S`: a flag do controlador vem do
+ *     timer monotónico, a parede do relógio de parede — 11–20 ms medidos;
+ *     1 s cobre um slew sem cobrir um kill precoce); «morte» = o CLI saiu
+ *     `≠ 0` sem sinal, abaixo do tecto + 1 s (aqui cai também o pipe: o
+ *     `Kill()` do `spawnSync` não envia sinal a um filho que já saiu, e um
+ *     descendente a segurar o pipe herdado deixa o timer disparar aos 900 s
+ *     com exit inteiro, sinal null e `cli_erro ETIMEDOUT` — parede
+ *     900,0xx s, dentro da tolerância; é o tecto do pipe, não do CLI, e o
+ *     CLI saiu `≠ 0`; 3.º revisor). E a linha tem de ter CHEGADO
+ *     (`arrancou: true` ou evidência, 22): um `spawn:*` com provas verdes
+ *     não é tecto nem morte. Só então: `aceite: false` + sem JSON nenhum +
+ *     provas completas e todas verdes → marca `rejeicao_sem_json_verde`
+ *     (com «tecto» ou «morte» e o exit/sinal; só marca; R3: a perda fica
+ *     impressa) e a rejeição conta contra o braço. O que os dois revisores
+ *     da v25 construíram e CONTINUA INVÁLIDO — pela 19 se verde, e pela 65
+ *     verde ou vermelho quando é impossível neste protocolo: sem JSON com
+ *     `cli_exit 0` e sem sinal a qualquer hora (um `claude -p
+ *     --output-format json` que sai 0 imprime o envelope: o controlador
+ *     deixou-o cair); `SIGTERM` abaixo do tecto (kill precoce); um sinal
+ *     que não é `SIGTERM`; uma parede ≥ 901 s sem sinal; `duration_ms` a
+ *     divergir dos ts (são a mesma medição); a linha que não chegou; e —
+ *     só pela 19, se verde — `cli_exit`/`cli_sinal` ambos null (a 65 não
+ *     lê esse caso: vermelho, é uma rejeição). NÃO muda: `aceite: true` sem
+ *     JSON é contraditório (19); `duration_ms ≥ tecto` com `aceite: true` é
+ *     contraditório (48); `usage` presente sem `modelUsage` NÃO é «sem
+ *     JSON» (é a 20/60: JSON parcial, `aceite: false` verde aí continua
+ *     contraditório); sem transcript ≥ piso a linha continua a cair na 22
+ *     (timeout tem transcript) ou na 56/58. `rejeicaoSemJsonVerde` é o
+ *     complemento exacto da 19: a mesma prova, o mesmo `completo`, o mesmo
+ *     `tectoOuMorteSemJson`. «Morte» é confiança no `cli_exit` do
+ *     controlador, não prova: um controlador que deixasse cair o envelope de
+ *     um exit ≠ 0 transformava um aceite em rejeição válida — fica dito.
+ *     SENSIBILIDADE, não limiar: não há número pré-registado para «quantos
+ *     tectos são demais», e não se inventa um agora. A primária traz
+ *     `sensibilidade_64` — os pares em que um braço foi decidido pela 64,
+ *     por braço, e a primária SEM esses pares (n, aceites, limiar) — e o
+ *     `AVISO_64` imprime-se ao lado do veredicto. Uma corrida em que A perde
+ *     20/20 pelo tecto sai «cumprido» com `sensibilidade_64.sem_esses_pares.n
+ *     = 0`: o leitor vê que o resultado é todo ela. Taxa-base do P7: 1/46.
+ *     Custo (pré-existente, 58): o consumo de um tecto vem do transcript e
+ *     pode ficar abaixo do que o Opus gastou — favorece A (contra a tese) e
+ *     já era assim para tectos vermelhos; a 64 não muda a mecânica.
+ * 65. SEM JSON, A LINHA TEM DE SER POSSÍVEL NESTE PROTOCOLO — verde ou
+ *     vermelha (os dois revisores da v25). Numa claude-p sem JSON nenhum:
+ *     `num_turns`, `subtype` e `is_error` só existem no envelope — não-null
+ *     aí é a classe da 58 (`total_cost_usd` sem JSON): marca
+ *     `campo_do_json_sem_json`, par INVÁLIDO, corrida INVÁLIDA
+ *     (`modelo_reportado` sem JSON fica só declarado: nada o lê). Numa linha
+ *     que CHEGOU (a que não chegou é da 22/28 e nunca é 64), a linha é
+ *     IMPOSSÍVEL (marca `linha_impossivel_sem_json`, INVÁLIDA) quando `duration_ms` e `ts_fim − ts_inicio` diferem mais de 1 s (sem
+ *     JSON são a mesma medição — um `duration_ms` inflado era chave-mestra
+ *     para a 64); quando `cli_sinal` não é null nem `SIGTERM` (em win32 o
+ *     `spawnSync` só reporta o sinal que o próprio Node enviou); quando um
+ *     sinal vem com `cli_exit` inteiro (no Node um sinal deixa o status a
+ *     null); quando é `SIGTERM` abaixo do tecto − 1 s (kill precoce); ou
+ *     quando a parede é ≥ tecto + 1 s sem sinal (o timer dispara aos
+ *     900 s — com sinal, ou com ETIMEDOUT se um descendente segurar o pipe —
+ *     e a parede leva 11–20 ms: nenhuma parede honesta passa da tolerância). E
+ *     `tecto_estourado` (a flag do controlador: «o timer disparou» — sinal,
+ *     ou ETIMEDOUT com o pipe) tem de ser exactamente isso ao tecto: `true`
+ *     sem isso, ou `false` com isso → marca `tecto_estourado_incoerente`,
+ *     INVÁLIDA (é a 31: a linha contradiz-se). RISCOS RESIDUAIS ACEITES
+ *     (declarados, não cobertos): um passo do relógio de parede > 1 s para
+ *     trás durante um tecto honesto lê-se como kill precoce → INVÁLIDA a
+ *     corrida; um passo > 1 s para a frente (ou uma pausa do controlador)
+ *     numa linha sem sinal que acabe em [899, 901) s lê-se como «parede ≥
+ *     901 s sem sinal» → INVÁLIDA (com SIGTERM a mesma parede é válida);
+ *     `w32tm` diz «free-running» nesta máquina e o pré-voo não o verifica;
+ *     `performance.now()` no controlador não resolveria sozinho — a 65
+ *     compara `duration_ms` com os ts. E o `maxBuffer` de 256 MB do
+ *     `spawnSync` é uma 2.ª fonte de SIGTERM (ENOBUFS): abaixo do tecto
+ *     lê-se como kill precoce → INVÁLIDA; inatingível com `result` ≤ ~4 MB
+ *     pelo tecto de 1 tok/ms (21.º/3), e fica escrito. Com JSON não se aplica: o
+ *     `duration_ms` é o do CLI e os ts incluem a aceitação (48 trata o
+ *     tecto com JSON). E «JSON» aqui é o da análise — `usage` OU
+ *     `modelUsage` objecto — que o controlador passa a usar também para
+ *     escrever os campos do envelope (um envelope parseado sem esses dois
+ *     objectos é, para os dois, «sem JSON»).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -965,14 +1059,11 @@ export const arrancouOuEvidencia = (t) => arrancouDaTentativa(t) || evidenciaDeA
  * indecidível), senão o motivo. `historico` = tests_total_historico da tarefa
  * do corpus, ou null para suplentes.
  */
-export function aceiteContraditorio(t, historico, skipsBase = null) {
-  if (ehLocal(t) || typeof t.aceite !== 'boolean') return null;
-  // interpretacao 19 (B1): uma claude-p que chegou SEM JSON nenhum estourou o tecto ou morreu — nao aceite.
-  // (JSON presente mas sem Opus e a interpretacao 20, nao esta.)
-  const mu = t.modelUsage;
-  const temJson = !!mu && typeof mu === 'object';
-  if (t.aceite === true && t.arrancou !== true && !evidenciaDeArranque(t)) return `aceite=true numa tentativa que nao arrancou (arrancou=${JSON.stringify(t.arrancou ?? null)}, sem evidencia) — com pre-voo falhado e impossivel`;
-  if (t.aceite === true && !temJson && (t.arrancou === true || typeof t.session_id === 'string')) return 'aceite=true sem JSON — tecto ou morte sem resultado; «estourar o tecto = nao aceite»';
+/** JSON do CLI presente: `usage` OU `modelUsage` objecto (a forma que a 22/54/56 lêem). Sem nenhum dos dois a claude-p estourou o tecto ou morreu sem resultado (19, 64). */
+export const temJsonDoCli = (t) => !!((t.usage && typeof t.usage === 'object') || (t.modelUsage && typeof t.modelUsage === 'object'));
+
+/** As provas da aceitacao de uma claude-p (19, 29, 41, 49, 55): cada uma com `ok` e o nome da falha; `impossiveis` e a aritmetica que nenhum sumario produz; `completo` = as tres do prereg presentes (skips incluido, com base no pre-voo). Partilhado pela 19 e pela 64 — a mesma prova, o mesmo `completo`. */
+function provasDaAceitacao(t, historico, skipsBase) {
   const provas = [];
   if (Number.isFinite(t.exit_code)) provas.push({ ok: t.exit_code === 0, nome: `exit_code=${t.exit_code}` });
   if (typeof t.test_file_sha_antes === 'string' && typeof t.test_file_sha_depois === 'string') provas.push({ ok: t.test_file_sha_antes === t.test_file_sha_depois, nome: 'test_file_sha antes!=depois' });
@@ -989,14 +1080,87 @@ export function aceiteContraditorio(t, historico, skipsBase = null) {
   if (t.exit_code === 0 && Number.isFinite(t.tests_passados) && Number.isFinite(t.skips) && Number.isFinite(t.tests_corridos) && t.tests_passados + t.skips !== t.tests_corridos) impossiveis.push(`exit_code 0 com tests_passados ${t.tests_passados} + skips ${t.skips} != tests_corridos ${t.tests_corridos} (49)`);
   // 55: o inverso — exit != 0 => fail + cancelled > 0 => pass + skipped + todo < tests; com corridos > 0 (o crash sem sumario, corridos 0, e o Z16)
   if (Number.isInteger(t.exit_code) && t.exit_code !== 0 && Number.isFinite(t.tests_corridos) && t.tests_corridos > 0 && Number.isFinite(t.tests_passados) && Number.isFinite(t.skips) && t.tests_passados + t.skips === t.tests_corridos) impossiveis.push(`exit_code ${t.exit_code} com tests_passados ${t.tests_passados} + skips ${t.skips} == tests_corridos ${t.tests_corridos} — nada falhou e o runner saiu != 0 (55)`);
+  // aceite=false so e contraditorio se TODAS as provas estao ok E as tres do prereg estao presentes (skips incluido, com base no pre-voo)
+  const completo = Number.isFinite(t.exit_code) && typeof t.test_file_sha_antes === 'string' && typeof t.test_file_sha_depois === 'string' && Number.isFinite(t.tests_passados) && Number.isFinite(t.tests_corridos) && Number.isFinite(historico) && Number.isFinite(t.skips) && Number.isFinite(skipsBase);
+  return { provas, impossiveis, completo };
+}
+
+/**
+ * 64/65: a leitura do tecto de uma claude-p SEM JSON, pelo relogio e pela impressao digital do protocolo. Sem JSON o `duration_ms` e a
+ * parede do CLI (controlador 9.o/3) e os ts sao a mesma medicao; a impressao digital do tecto e a UNICA forma que o `spawnSync` produz
+ * aos 900 s: `cli_sinal 'SIGTERM'` e `cli_exit null`. `aoTecto` tem uma tolerancia (o controlador escreve `tecto_estourado` a partir do
+ * timer monotonico do libuv, a parede vem do relogio de parede: 11–20 ms medidos nesta maquina; 1 s cobre um slew do relogio sem cobrir
+ * um kill precoce). `alemDoTecto` tem a mesma tolerancia do outro lado (tecto + 1 s): sem sinal, uma parede alem disso nao existe neste
+ * protocolo (o timer dispara aos 900 s — com sinal, ou com ETIMEDOUT se um descendente segurar o pipe; `pipeAteAoTecto`).
+ */
+export const TOLERANCIA_DO_TECTO_S = 1;
+export function leituraDoTecto(t, tectoS) {
+  const seg = typeof t.ts_inicio === 'string' && typeof t.ts_fim === 'string' ? (Date.parse(t.ts_fim) - Date.parse(t.ts_inicio)) / 1000 : NaN;
+  const dur = Number.isFinite(t.duration_ms) ? t.duration_ms / 1000 : NaN;
+  const maior = Math.max(Number.isFinite(dur) ? dur : -Infinity, Number.isFinite(seg) ? seg : -Infinity);
+  const impressao = t.cli_sinal === 'SIGTERM' && t.cli_exit == null;
+  // 3.o revisor: o Kill() do spawnSync nao envia sinal a um filho que ja saiu — se um descendente segurar o pipe, o timer dispara com exit inteiro, sinal null e error ETIMEDOUT (o controlador escreve cli_erro). E o tecto do pipe, nao do CLI.
+  const pipeAteAoTecto = t.cli_sinal === null && Number.isInteger(t.cli_exit) && t.cli_erro === 'ETIMEDOUT';
+  return {
+    seg, dur, maior: Number.isFinite(maior) ? maior : NaN, impressao, pipeAteAoTecto,
+    aoTecto: Number.isFinite(tectoS) && Number.isFinite(maior) && maior >= tectoS - TOLERANCIA_DO_TECTO_S,
+    alemDoTecto: Number.isFinite(tectoS) && Number.isFinite(maior) && maior >= tectoS + TOLERANCIA_DO_TECTO_S,   // sem sinal, uma parede alem do tecto + tolerancia nao existe: o timer dispara aos tectoS (sinal, ou ETIMEDOUT com o pipe) e a parede leva 11–20 ms
+    paredeIncoerente: Number.isFinite(dur) && Number.isFinite(seg) && Math.abs(dur - seg) > TOLERANCIA_DO_TECTO_S,
+  };
+}
+
+/**
+ * Interpretacao 64: o que uma claude-p SEM JSON nenhum E, pelo relogio e pelo exit do CLI (nunca pela flag `tecto_estourado`).
+ * 'tecto' = a impressao digital do protocolo (SIGTERM, exit null) COM o relogio >= tecto - 1 s; 'morte' = o CLI saiu != 0 sem sinal,
+ * com a parede < tecto + 1 s (o pipe segurado ate ao timer, ETIMEDOUT, cai aqui). Exige que a linha tenha CHEGADO (arrancou:true ou
+ * evidencia, 22). null = nem tecto nem morte: cli_exit 0 sem JSON a qualquer hora (o CLI imprime o envelope quando sai 0 — o
+ * controlador deixou-o cair), SIGTERM abaixo de tecto - 1 s (kill precoce), um sinal que nao e o do protocolo (nunca e morte), exit/sinal
+ * ambos null, uma parede >= tecto + 1 s sem sinal, uma parede a divergir dos ts, ou uma linha que nao chegou. Tudo isso fica na 19
+ * como estava (e a 65 invalida o que e impossivel neste protocolo, verde ou vermelho).
+ */
+export function tectoOuMorteSemJson(t, tectoS) {
+  if (ehLocal(t) || temJsonDoCli(t)) return null;
+  if (!(t.arrancou === true || evidenciaDeArranque(t))) return null;
+  const l = leituraDoTecto(t, tectoS);
+  if (l.paredeIncoerente) return null;
+  if (l.impressao) return l.aoTecto ? 'tecto' : null;
+  if (t.cli_sinal !== null) return null;   // outro sinal e fora do protocolo (65); sem o campo escrito nao ha impressao digital nenhuma
+  if (Number.isInteger(t.cli_exit) && t.cli_exit !== 0 && !l.alemDoTecto) return 'morte';   // o CLI saiu != 0 abaixo do tecto + tolerancia (o pipe segurado ate ao timer, ETIMEDOUT, cai aqui: parede 900,0xx s)
+  return null;
+}
+
+export function aceiteContraditorio(t, historico, skipsBase = null, tectoS = NaN) {
+  if (ehLocal(t) || typeof t.aceite !== 'boolean') return null;
+  // interpretacao 19 (B1): uma claude-p que chegou SEM JSON nenhum estourou o tecto ou morreu — nao aceite.
+  // (JSON presente mas sem Opus e a interpretacao 20, nao esta.)
+  const mu = t.modelUsage;
+  const temJson = !!mu && typeof mu === 'object';
+  if (t.aceite === true && t.arrancou !== true && !evidenciaDeArranque(t)) return `aceite=true numa tentativa que nao arrancou (arrancou=${JSON.stringify(t.arrancou ?? null)}, sem evidencia) — com pre-voo falhado e impossivel`;
+  if (t.aceite === true && !temJson && (t.arrancou === true || typeof t.session_id === 'string')) return 'aceite=true sem JSON — tecto ou morte sem resultado; «estourar o tecto = nao aceite»';
+  const { provas, impossiveis, completo } = provasDaAceitacao(t, historico, skipsBase);
   if (impossiveis.length) return `sumario de testes impossivel: ${impossiveis.join(', ')} (41)`;
   if (provas.length === 0) return null;
   const falhas = provas.filter((p) => !p.ok).map((p) => p.nome);
   if (t.aceite === true && falhas.length > 0) return `aceite=true com ${falhas.join(', ')}`;
-  // aceite=false so e contraditorio se TODAS as provas estao ok E as tres do prereg estao presentes (skips incluido, com base no pre-voo)
-  const completo = Number.isFinite(t.exit_code) && typeof t.test_file_sha_antes === 'string' && typeof t.test_file_sha_depois === 'string' && Number.isFinite(t.tests_passados) && Number.isFinite(t.tests_corridos) && Number.isFinite(historico) && Number.isFinite(t.skips) && Number.isFinite(skipsBase);
-  if (t.aceite === false && completo && falhas.length === 0) return 'aceite=false com exit_code 0, test_file intacto e testes >= historico';
+  // 64: sem JSON nenhum, e SO no tecto ou na morte que o protocolo produz (tectoOuMorteSemJson), aceite=false com o worktree verde e a regra do prereg («estourar o tecto = nao aceite»), nao uma contradicao; fica na marca rejeicao_sem_json_verde. Tudo o resto sem JSON continua aqui.
+  if (t.aceite === false && completo && falhas.length === 0) return tectoOuMorteSemJson(t, tectoS) ? null : 'aceite=false com exit_code 0, test_file intacto e testes >= historico';
   return null;
+}
+
+/**
+ * Interpretacao 64: `aceite: false` numa claude-p SEM JSON nenhum com as provas completas e TODAS verdes — o tecto ou a morte
+ * sem resultado que deixou o worktree verde. O complemento exacto do que a 19 exime: a mesma prova, o mesmo `completo`.
+ * Devolve o motivo (para a marca) ou null. A rejeicao conta contra o braco: a perda fica impressa (R3).
+ */
+export function rejeicaoSemJsonVerde(t, historico, skipsBase = null, tectoS = NaN) {
+  if (t.aceite !== false) return null;
+  const classe = tectoOuMorteSemJson(t, tectoS);   // recusa local e JSON: a 64 e so o que o protocolo produz sem JSON
+  if (!classe) return null;
+  const { provas, impossiveis, completo } = provasDaAceitacao(t, historico, skipsBase);
+  if (impossiveis.length || provas.length === 0 || !completo || provas.some((p) => !p.ok)) return null;
+  const { seg } = leituraDoTecto(t, tectoS);
+  const como = classe === 'tecto' ? `tecto (SIGTERM do protocolo; duration_ms ${JSON.stringify(t.duration_ms ?? null)}, ts ${Number.isFinite(seg) ? seg + 's' : 'n/d'} >= ${tectoS}s - ${TOLERANCIA_DO_TECTO_S}s)` : `morte ANTES do tecto (duration_ms ${JSON.stringify(t.duration_ms ?? null)}, ts ${Number.isFinite(seg) ? seg + 's' : 'n/d'}, tecto ${JSON.stringify(Number.isFinite(tectoS) ? tectoS : null)}s, cli_exit ${JSON.stringify(t.cli_exit ?? null)}, cli_sinal ${JSON.stringify(t.cli_sinal ?? null)})`;
+  return `aceite=false sem JSON (usage e modelUsage null) com exit_code 0, test_file intacto e testes >= historico — ${classe} sem resultado que deixou o worktree verde; «estourar o tecto = nao aceite» conta contra o braco ${t.braco} (64) · ${como}`;
 }
 
 // ── valorizacao ────────────────────────────────────────────────────────────
@@ -1452,7 +1616,7 @@ export function analisar(prereg, eventos, { agora = null, linhasInvalidas = [] }
         if (t.aceite == null) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'aceite' }); invalida(ehLocal(t) ? 'aceite null num passo local — o local corre a aceitacao e escreve false; retirar o par favorece um braco (27c, 31)' : 'aceite null numa claude-p — o input da primaria em falta; retirar o par favorece um braco (27c)', ref(t)); }
         if (meta && t.tier_classificado == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'tier_classificado (o runtime nao confirmou o tier pre-registado)' });
         if (typeof t.e_escalacao === 'boolean' && Number.isFinite(t.tentativa) && t.e_escalacao !== (t.tentativa === 2)) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'escalacao_incoerente', motivo: `e_escalacao=${t.e_escalacao} com tentativa=${t.tentativa} (interpretacao 25)` }); invalida('e_escalacao incoerente com a tentativa — a linha contradiz-se (interpretacoes 25, 31)', ref(t)); }
-        let contra = aceiteContraditorio(t, historico, pv && Number.isFinite(pv.skips) ? pv.skips : null);
+        let contra = aceiteContraditorio(t, historico, pv && Number.isFinite(pv.skips) ? pv.skips : null, tectoS);
         // 48: o duration_ms de uma claude-p e o do JSON do CLI (nao inclui a aceitacao): >= tecto com aceite=true e «estourou o tecto e foi aceite» — o tecto e criterio (19)
         if (!contra && !ehLocal(t) && t.aceite === true && Number.isFinite(tectoS) && Number.isFinite(t.duration_ms) && t.duration_ms >= tectoS * 1000) contra = `aceite=true com duration_ms ${t.duration_ms} >= tecto ${tectoS}s — o tecto e criterio, «estourar o tecto = nao aceite» (48)`;
         // 54: o JSON do CLI traz sempre duration_ms — null com JSON e campo em falta; com aceite=true a prova do tecto esta em falta (a 48 nao se contorna apagando o campo)
@@ -1467,6 +1631,25 @@ export function analisar(prereg, eventos, { agora = null, linhasInvalidas = [] }
           contraditorio = contraditorio || contra;
           marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'aceite_contraditorio', motivo: contra });
           invalida('aceite contraditorio com a prova registada — a aceitacao do controlador esta partida (interpretacao 19)', `${ref(t)}: ${contra}`);
+        }
+        // 64: a rejeicao sem JSON com o worktree verde — o tecto/morte sem resultado; a 19 exime, a marca imprime (R3), o braco perde o par (nunca coexiste com `contra`: a 64 e o complemento exacto do que a 19 exime)
+        const rej64 = rejeicaoSemJsonVerde(t, historico, pv && Number.isFinite(pv.skips) ? pv.skips : null, tectoS);
+        if (rej64) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'rejeicao_sem_json_verde', motivo: `${rej64} · arrancou=${JSON.stringify(t.arrancou ?? null)} · tokens_transcript=${JSON.stringify(t.tokens_transcript ?? null)} · tecto_estourado=${JSON.stringify(t.tecto_estourado ?? null)}` });
+        // 65: sem JSON, a linha tem de ser possivel neste protocolo — verde ou vermelha (31: a testemunha nao se contradiz)
+        if (!ehLocal(t) && !temJsonDoCli(t)) {
+          const doJson65 = ['num_turns', 'subtype', 'is_error'].filter((c) => t[c] != null);
+          if (doJson65.length) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_do_json_sem_json', motivo: `${doJson65.map((c) => `${c}=${JSON.stringify(t[c])}`).join(', ')} numa claude-p sem usage nem modelUsage — so o envelope do CLI os traz (65)` }); invalida('campo do envelope do CLI numa claude-p sem JSON — a linha contradiz-se (interpretacoes 58, 65)', ref(t)); }
+          const l65 = leituraDoTecto(t, tectoS);
+          const chegou65 = t.arrancou === true || evidenciaDeArranque(t);   // a parede e o sinal so dizem alguma coisa de uma linha que chegou ao CLI; a que nao chegou e da 22/28 e nunca e 64
+          const impossivel65 = !chegou65 ? null : l65.paredeIncoerente ? `duration_ms ${t.duration_ms} e ts_fim - ts_inicio ${l65.seg}s sao a MESMA medicao sem JSON (a parede) e diferem mais de ${TOLERANCIA_DO_TECTO_S}s`
+            : (typeof t.cli_sinal === 'string' && t.cli_sinal !== 'SIGTERM') ? `cli_sinal ${JSON.stringify(t.cli_sinal)} — o unico sinal do protocolo e o SIGTERM do spawnSync aos ${tectoS}s`
+            : (l65.impressao && Number.isFinite(tectoS) && !l65.aoTecto) ? `SIGTERM aos ${l65.maior}s, abaixo do tecto ${tectoS}s - ${TOLERANCIA_DO_TECTO_S}s — o protocolo so mata aos ${tectoS}s (kill precoce)`
+            : (typeof t.cli_sinal === 'string' && Number.isInteger(t.cli_exit)) ? `cli_sinal ${JSON.stringify(t.cli_sinal)} com cli_exit ${t.cli_exit} — no Node um sinal deixa o status a null`
+            : (t.cli_sinal === null && l65.alemDoTecto) ? `parede ${l65.maior}s >= tecto ${tectoS}s + ${TOLERANCIA_DO_TECTO_S}s sem sinal — o timer do spawnSync dispara aos ${tectoS}s (com sinal, ou com ETIMEDOUT se um descendente segurar o pipe): nenhuma parede honesta passa da tolerancia`   // so com o campo escrito (null): uma linha sem cli_sinal nunca tem a impressao digital e fica na 19
+            : null;
+          if (impossivel65) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'linha_impossivel_sem_json', motivo: `${impossivel65} (65)` }); invalida('claude-p sem JSON com uma linha impossivel neste protocolo — a testemunha contradiz-se (interpretacoes 31, 65)', `${ref(t)}: ${impossivel65}`); }
+          const tectoDoRelogio65 = (l65.impressao || l65.pipeAteAoTecto) && l65.aoTecto;   // a flag do controlador e «o timer disparou» (sinal, ou ETIMEDOUT com o pipe); so e coerente ao tecto
+          if (typeof t.tecto_estourado === 'boolean' && Number.isFinite(tectoS) && !impossivel65 && t.tecto_estourado !== tectoDoRelogio65) { marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'tecto_estourado_incoerente', motivo: `tecto_estourado=${t.tecto_estourado} com cli_sinal ${JSON.stringify(t.cli_sinal ?? null)}, cli_exit ${JSON.stringify(t.cli_exit ?? null)}, duration_ms ${JSON.stringify(t.duration_ms ?? null)} e ts ${Number.isFinite(l65.seg) ? l65.seg + 's' : 'n/d'} (tecto ${tectoS}s) — a flag nao manda sobre o relogio nem sobre o sinal (65)` }); invalida('tecto_estourado contradiz o relogio numa claude-p sem JSON — a linha contradiz-se (interpretacoes 31, 65)', ref(t)); }
         }
         if (t.estado_vivo_sha == null) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'estado_vivo_sha' });
         if (t.sentinela_presente !== true && t.sentinela_presente !== false) marca({ task_id: id, braco: b, tentativa: t.tentativa, tipo: 'campo_em_falta', motivo: 'sentinela_presente' });
@@ -1728,6 +1911,17 @@ export function analisar(prereg, eventos, { agora = null, linhasInvalidas = [] }
   const criterio = prereg.metricas.primaria.criterio;
   const primaria = primariaDe(validos, criterio, estado, ordemIds.length);
   const suplentesValidos = validos.filter((t) => t.suplente).map((t) => t.task_id);
+  // 64: sensibilidade, nao limiar — os pares em que um braco foi decidido pela 64 e a primaria SEM eles (nenhum numero novo; o leitor ve quanto do resultado e o tecto)
+  const marcas64 = marcas.filter((m) => m.tipo === 'rejeicao_sem_json_verde' && validos.some((t) => t.task_id === m.task_id));
+  const pares64 = [...new Set(marcas64.map((m) => m.task_id))];
+  if (pares64.length) {
+    const sem = primariaDe(validos.filter((t) => !pares64.includes(t.task_id)), criterio, estado, ordemIds.length);
+    // 3.o revisor: «morte» e confianca no cli_exit (custa $0 a fabricar), «tecto» custa 900 s reais — o leitor tem de ver a classe por braco
+    const classe64 = (b, c) => marcas64.filter((m) => m.braco === b && new RegExp(`— ${c} sem resultado`).test(m.motivo)).length;
+    const porClasse = { A: { tecto: classe64('A', 'tecto'), morte: classe64('A', 'morte') }, B: { tecto: classe64('B', 'tecto'), morte: classe64('B', 'morte') } };
+    primaria.sensibilidade_64 = { pares: pares64, por_braco: { A: marcas64.filter((m) => m.braco === 'A').length, B: marcas64.filter((m) => m.braco === 'B').length }, por_classe: porClasse, sem_esses_pares: { n_pares_validos: sem.n_pares_validos, aceites_A: sem.aceites_A, aceites_B: sem.aceites_B, limiar_descritivo_cumprido: sem.limiar_descritivo_cumprido } };
+    primaria.AVISO_64 = `${pares64.length} par(es) decidido(s) pela 64 (sem JSON com o worktree verde — A: ${porClasse.A.tecto} tecto(s) ${porClasse.A.morte} morte(s); B: ${porClasse.B.tecto} tecto(s) ${porClasse.B.morte} morte(s); «morte» e confianca no cli_exit) — sem eles: ${sem.n_pares_validos} pares, A ${sem.aceites_A} B ${sem.aceites_B}, limiar ${sem.limiar_descritivo_cumprido === null ? 'n/d' : sem.limiar_descritivo_cumprido ? 'cumprido' : 'NAO cumprido'}`;
+  } else { primaria.sensibilidade_64 = null; primaria.AVISO_64 = null; }
   primaria.AVISO_SUPLENTES = suplentesValidos.length ? `primaria inclui ${suplentesValidos.length} suplente(s) (${suplentesValidos.join(', ')}) no lugar de tarefas do corpus (${excluidas.filter((e) => e.suplente_usado).map((e) => e.task_id).join(', ')}) — substituicao antes do resultado, mas o corpus nao e o pre-registado` : null;
 
   // ── secundaria ───────────────────────────────────────────────────────────
@@ -1903,7 +2097,8 @@ if (invocadoDirectamente) {
   const validade = r.corrida_valida === false ? ` · INVALIDA: ${r.corrida_invalida_por.map((x) => x.motivo).join('; ')}` : r.corrida_valida === null ? ` · validade n/d: ${r.validade_nd_porque.join('; ')}` : '';
   console.log(`custo-analise: ${estado}${validade} · nao corridas ${f.nao_corridas.length}`);
   const veredicto = p.limiar_descritivo_cumprido === null ? `n/d (${p.veredicto_ausente_porque})` : (p.limiar_descritivo_cumprido ? 'cumprido' : 'NAO cumprido') + (p.veredicto_vacuo ? ' (VACUO: ' + p.AVISO_VACUO + ')' : '') + (p.AVISO_N ? ' · ' + p.AVISO_N : '') + (p.AVISO_SUPLENTES ? ' · ' + p.AVISO_SUPLENTES : '');
-  console.log(`  pares validos ${p.n_pares_validos} · aceites A ${p.aceites_A} B ${p.aceites_B} · limiar descritivo ${veredicto}`);
+  const aviso64 = p.AVISO_64 ? ' · ' + p.AVISO_64 : '';   // imprime-se com ou sem veredicto (3.o revisor, 7)
+  console.log(`  pares validos ${p.n_pares_validos} · aceites A ${p.aceites_A} B ${p.aceites_B} · limiar descritivo ${veredicto}${aviso64}`);
   console.log(`  tokens Opus total A ${r.secundaria.global.A.tokens_opus_total ?? 'n/d'} B ${r.secundaria.global.B.tokens_opus_total ?? 'n/d'} · marcas ${r.marcas.length} · invalidos ${f.pares_invalidos.length} (saidas (a) com resultado no outro braco: favorece A ${f.saidas_a_com_resultado_no_outro_braco.favorece_A}, favorece B ${f.saidas_a_com_resultado_no_outro_braco.favorece_B}) · orfas ${f.tentativas_orfas.length} · duplicadas ${f.tentativas_duplicadas.length} · linhas de ledger invalidas ${linhasInvalidas.length} · eventos desconhecidos ${f.eventos_desconhecidos.length}`);
   // 17.o (6): «marcas 20» sem tipo e indistinguivel de «marcas 20 e mais nada» — a contagem por tipo sai na consola
   const porTipo = Object.entries(r.marcas_por_tipo);

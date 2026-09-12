@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -18,7 +19,8 @@ import {
   construirContexto, carregarProtocolo, tarefaCompleta, ollamaHost, MODELO_OPUS, SENTINELA_CONTEUDO,
   correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore, modeloLocalDoPrereg, MODELO_LOCAL_DEFAULT, correr, sondar, caminhoDoSentinela, SO_MAXIMO,
 } from './correr-custo.mjs';
-import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS, analisar, lerLedger } from './custo-analise.mjs';
+import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS, analisar, lerLedger, TRANSCRIPT_MINIMO } from './custo-analise.mjs';
+import { relogio, anterioridadeDaEmenda } from './correr-custo.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const criados = [];
@@ -217,7 +219,12 @@ test('correrClaudeP: ts antes/depois do spawn, sinal antes de erro, envelope sem
   const sp = correrClaudeP({ caminhoClaude: 'c', prompt: 'P', cwd: 'w', sessionId: 's', env: {}, tectoS: 1, spawnImpl: () => ({ status: null, signal: null, error: { code: 'ENOENT' }, stdout: '', stderr: '' }) });
   assert.equal(sp.motivo, 'spawn:ENOENT');
   const morreu = correrClaudeP({ caminhoClaude: 'c', prompt: 'P', cwd: 'w', sessionId: 's', env: {}, tectoS: 1, spawnImpl: () => ({ status: 1, signal: null, stdout: 'nao e json', stderr: 'boom' }) });
-  assert.equal(morreu.motivo, 'cli_morreu:1'); assert.equal(morreu.stderr_tail, 'boom');
+  assert.equal(morreu.motivo, 'cli_morreu:1'); assert.equal(morreu.stderr_tail, 'boom'); assert.equal(morreu.erro, null);
+  // 3.o revisor da v25: o Kill() do spawnSync nao envia sinal a um filho que ja saiu — status N + signal null + error ETIMEDOUT e o pipe herdado por um descendente a segurar a parede; nao e um spawn falhado
+  const pipe = correrClaudeP({ caminhoClaude: 'c', prompt: 'P', cwd: 'w', sessionId: 's', env: {}, tectoS: 1, spawnImpl: () => ({ status: 1, signal: null, error: { code: 'ETIMEDOUT' }, stdout: '', stderr: 'x' }) });
+  assert.equal(pipe.motivo, 'pipe_timeout:1'); assert.equal(pipe.erro, 'ETIMEDOUT'); assert.equal(pipe.exit_status, 1); assert.equal(pipe.sinal, null);
+  assert.equal(correrClaudeP({ caminhoClaude: 'c', prompt: 'P', cwd: 'w', sessionId: 's', env: {}, tectoS: 1, spawnImpl: () => ({ status: 0, signal: null, error: { code: 'ETIMEDOUT' }, stdout: JSON.stringify(json), stderr: '' }) }).motivo, null, 'com JSON o pipe segurado depois do envelope nao e motivo nenhum (o 2.o revisor do controlador)');
+  assert.equal(to.erro, 'ETIMEDOUT'); assert.equal(sp.erro, 'ENOENT');
 });
 
 test('correrLocal: o executor literal do prereg (--pin-provider=ollama A SECO); --pin-model so com a emenda; texto so com ok:true; motivos por classe', () => {
@@ -304,6 +311,9 @@ test('o executor de B local e o classify sao os do RUNTIME (~/.claude/tools/rout
 
 const SONDA = JSON.parse(fs.readFileSync(path.join(AQUI, 'custo-fixture-sonda.json'), 'utf8'));
 const espera = (ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { /* 31: ts_fim tem de ser > ts_inicio */ } };
+// o relogio do controlador, com um desvio que o harness avanca dentro do spawn do timeout (so no modo 'timeout'); monotono para todos os agora() do ficheiro
+const desvioDoRelogio = { ms: 0 };
+relogio.agora = () => new Date(Date.now() + desvioDoRelogio.ms).toISOString();
 
 /** Um contexto de corrida hermético para DUAS tarefas T0 do prereg real (t22 B primeiro, t21 A primeiro). `local`/`claudeA` aceitam um valor ou um mapa por task_id. */
 function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', tags = 'ok', claudeA = 'json', argv = [], env = {} } = {}) {
@@ -354,7 +364,11 @@ function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', t
       const sid = args[args.indexOf('--session-id') + 1];
       const ehA = path.basename(String(opts.cwd)).endsWith('-A');
       const modoA = opcao(claudeA, opts.cwd);
-      if (ehA && modoA === 'timeout') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: '', stderr: '' };
+      if (ehA && modoA === 'timeout') { desvioDoRelogio.ms += ctx.prereg.aceitacao.tecto_por_tentativa_s * 1000; return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: '', stderr: '' }; }   // o tecto REAL: o spawnSync so devolve SIGTERM depois de `timeout` ms — o relogio avanca o mesmo
+      if (ehA && modoA === 'kill-cedo') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: '', stderr: '' };   // a impressao digital do controlador que mata cedo: SIGTERM aos 2 ms
+      if (ehA && modoA === 'morte') return { status: 1, signal: null, pid: 4242, stdout: 'nao e json', stderr: 'boom' };
+      if (ehA && modoA === 'pipe-timeout') { desvioDoRelogio.ms += ctx.prereg.aceitacao.tecto_por_tentativa_s * 1000; return { status: 1, signal: null, error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: '', stderr: 'crash' }; }   // H8 do 3.o revisor: o CLI saiu 1, um descendente segurou o pipe ate ao tecto
+      if (ehA && modoA === 'envelope-sem-uso') return { status: 0, signal: null, pid: 4242, stdout: JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, session_id: sid, num_turns: 0, result: 'x' }), stderr: '' };   // 65/achado 6: parseia, mas nao tem usage nem modelUsage
       if (ehA && modoA === 'spawn') return { status: null, signal: null, error: { code: 'ENOENT' }, stdout: '', stderr: '' };
       if (ehA && modoA === 'json-e-sinal') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: sid, usage: SONDA.usage, modelUsage: SONDA.modelUsage, total_cost_usd: SONDA.total_cost_usd, duration_ms: 120000, num_turns: 4, result: 'ok' }), stderr: '' };
       return { status: 0, signal: null, pid: 4242, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: sid, usage: SONDA.usage, modelUsage: SONDA.modelUsage, total_cost_usd: SONDA.total_cost_usd, duration_ms: SONDA.duration_ms + chamadas.length, num_turns: 4, result: 'ok' }), stderr: '[mooter] hook\n' };
@@ -441,7 +455,70 @@ test('ponta a ponta (achado 1 do 1.º revisor): local que NAO arrancou escreve m
   assert.equal(r4.corrida_valida, false); assert.ok(r4.corrida_invalida_por.some((x) => /nenhum passo local arrancou/.test(x.motivo)));
 });
 
-test('ponta a ponta (NOTA DO TECTO, declarada): A morta aos 900 s que deixa o worktree verde escreve aceite:false com provas verdes -> a analise (19) INVALIDA; A morta com o worktree vermelho e um tecto honesto (27c so se faltar prova)', async () => {
+test('ponta a ponta (NOTA DO TECTO, fechada pela 64): A morta aos 900 s COM transcript que deixa o worktree verde escreve aceite:false com provas verdes -> a analise marca rejeicao_sem_json_verde, A perde o par, corrida VALIDA; sem transcript e a 22 (timeout tem transcript); A morta com o worktree vermelho e um tecto honesto (27c so se faltar prova)', async () => {
+  // o caso real da NOTA: o CLI escreveu o transcript do --session-id antes de ser morto -> arrancou por evidencia, sem JSON
+  const h64 = harness({ claudeA: { 't22-11f81c79b7': 'timeout' }, aceitacaoA: 'verde' });
+  const inner64 = h64.ctx.spawnImpl;
+  h64.ctx.spawnImpl = (exe, args, opts) => { if (args[0] === '-p') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(h64.ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), JSON.stringify({ type: 'assistant', uuid: 'a', message: { id: 'msg_64', model: 'claude-opus-5', usage: SONDA.usage } }) + '\n'); } return inner64(exe, args, opts); };
+  await correrTarefa(h64.ctx, h64.tarefa, h64.ledger);
+  const A64 = h64.linhas()[6];
+  assert.equal(A64.arrancou, true, 'arrancou por evidencia (transcript >= piso)'); assert.equal(A64.motivo_se_nao, null); assert.equal(A64.tecto_estourado, true); assert.equal(A64.aceite, false, '138: sem JSON = nao aceite'); assert.equal(A64.exit_code, 0); assert.equal(A64.usage, null); assert.equal(A64.modelUsage, null); assert.ok(A64.tokens_transcript >= TRANSCRIPT_MINIMO); assert.equal(A64.session_id, A64.session_id_pedido);
+  assert.ok(A64.parede_ms >= 900000 && A64.duration_ms === A64.parede_ms, `o tecto real pelo relogio: parede ${A64.parede_ms} ms (9.o/3: sem JSON o duration_ms e a parede)`); assert.equal(A64.cli_sinal, 'SIGTERM'); assert.equal(A64.cli_exit, null);
+  const r64 = h64.julgar();
+  assert.equal(r64.corrida_valida, true, JSON.stringify(r64.corrida_invalida_por));
+  assert.equal(r64.marcas_por_tipo.rejeicao_sem_json_verde, 1); assert.equal(r64.marcas_por_tipo.aceite_contraditorio, undefined); assert.equal(r64.marcas_por_tipo.tecto_estourado_incoerente, undefined, '65: a flag concorda com o relogio'); assert.equal(r64.marcas_por_tipo.campo_do_json_sem_json, undefined, '65: num_turns/subtype/is_error null sem JSON');
+  assert.match(r64.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /tecto sem resultado .*conta contra o braco A \(64\) · tecto \(SIGTERM do protocolo; duration_ms 90\d{4}, ts 90\d(\.\d+)?s >= 900s - 1s\)/, 'o ramo TECTO, ponta a ponta');
+  assert.equal(r64.marcas_por_tipo.linha_impossivel_sem_json, undefined, '65: a linha real do tecto e possivel (SIGTERM, exit null, parede = ts)');
+  assert.equal(r64.por_tarefa.find((x) => x.task_id === 't22-11f81c79b7').A.aceite, false, 'R3: A perde o par');
+  assert.deepEqual(r64.primaria.sensibilidade_64.por_braco, { A: 1, B: 0 });
+  // o kill precoce (SIGTERM aos 2 ms, tecto_estourado:true pela regra do controlador «o timer disparou» (sinal)): o relogio desmente — 19 (nao e o SIGTERM do protocolo) e 65 (a flag contradiz o relogio), INVALIDA
+  const hK = harness({ claudeA: { 't22-11f81c79b7': 'kill-cedo' }, aceitacaoA: 'verde' });
+  const innerK = hK.ctx.spawnImpl;
+  hK.ctx.spawnImpl = (exe, args, opts) => { if (args[0] === '-p') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(hK.ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), JSON.stringify({ type: 'assistant', uuid: 'a', message: { id: 'msg_k', model: 'claude-opus-5', usage: SONDA.usage } }) + '\n'); } return innerK(exe, args, opts); };
+  await correrTarefa(hK.ctx, hK.tarefa, hK.ledger);
+  const AK = hK.linhas()[6];
+  assert.equal(AK.tecto_estourado, true, 'a regra do controlador: o timer disparou (sinal)'); assert.ok(AK.parede_ms < 900000); assert.equal(AK.aceite, false);
+  const rK = hK.julgar();
+  assert.equal(rK.corrida_valida, false, 'C2 do 1.o revisor da v25: o kill precoce nao passa');
+  assert.ok(rK.marcas.some((m) => m.tipo === 'aceite_contraditorio')); assert.ok(rK.marcas.some((m) => m.tipo === 'linha_impossivel_sem_json' && /kill precoce/.test(m.motivo))); assert.equal(rK.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
+  // a morte: o CLI sai 1 sem JSON (cli_morreu:1), transcript encontrado, worktree verde -> 64 «morte ANTES do tecto», VALIDA, A perde
+  const hM = harness({ claudeA: { 't22-11f81c79b7': 'morte' }, aceitacaoA: 'verde' });
+  const innerM = hM.ctx.spawnImpl;
+  hM.ctx.spawnImpl = (exe, args, opts) => { if (args[0] === '-p') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(hM.ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), JSON.stringify({ type: 'assistant', uuid: 'a', message: { id: 'msg_m', model: 'claude-opus-5', usage: SONDA.usage } }) + '\n'); } return innerM(exe, args, opts); };
+  await correrTarefa(hM.ctx, hM.tarefa, hM.ledger);
+  const AM = hM.linhas()[6];
+  assert.equal(AM.arrancou, true); assert.equal(AM.cli_exit, 1); assert.equal(AM.cli_sinal, null); assert.equal(AM.tecto_estourado, false); assert.equal(AM.aceite, false); assert.equal(AM.motivo_cli, 'boom', '86: distinguir crash de tecto');
+  const rM = hM.julgar();
+  assert.equal(rM.corrida_valida, true, JSON.stringify(rM.corrida_invalida_por));
+  assert.match(rM.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /morte sem resultado .*morte ANTES do tecto \(duration_ms \d+, ts [\d.]+s, tecto 900s, cli_exit 1, cli_sinal null\)/, 'o ramo MORTE, ponta a ponta');
+  assert.equal(rM.primaria.aceites_A, 0, 'R3: A perde o par'); assert.equal(rM.primaria.aceites_B, 1); assert.equal(rM.primaria.n_pares_validos, 1);
+  // H8 (3.o revisor): o CLI saiu 1 sem JSON e um descendente segurou o pipe ate ao tecto — status 1, signal null, ETIMEDOUT, parede >= 900 s: a linha leva cli_erro, a arvore e morta (ha um descendente vivo), a analise le morte (64), VALIDA
+  const hP = harness({ claudeA: { 't22-11f81c79b7': 'pipe-timeout' }, aceitacaoA: 'verde' });
+  const innerP = hP.ctx.spawnImpl;
+  hP.ctx.spawnImpl = (exe, args, opts) => { if (args[0] === '-p') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(hP.ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), JSON.stringify({ type: 'assistant', uuid: 'a', message: { id: 'msg_p', model: 'claude-opus-5', usage: SONDA.usage } }) + '\n'); } return innerP(exe, args, opts); };
+  await correrTarefa(hP.ctx, hP.tarefa, hP.ledger);
+  const AP = hP.linhas()[6];
+  assert.equal(AP.cli_exit, 1); assert.equal(AP.cli_sinal, null); assert.equal(AP.cli_erro, 'ETIMEDOUT'); assert.ok(AP.parede_ms >= 900000); assert.equal(AP.tecto_estourado, true, 'a regra do controlador: o timer disparou (ETIMEDOUT com o pipe)'); assert.equal(AP.aceite, false); assert.equal(AP.arrancou, true); assert.equal(AP.motivo_se_nao, null);
+  if (process.platform === 'win32') assert.ok(hP.chamadas.some((c) => c.exe === 'powershell'), 'a arvore e morta tambem com ETIMEDOUT sem sinal (ha um descendente vivo a segurar o pipe)');
+  const rP = hP.julgar();
+  assert.equal(rP.corrida_valida, true, JSON.stringify(rP.corrida_invalida_por));
+  assert.match(rP.marcas.find((m) => m.tipo === 'rejeicao_sem_json_verde').motivo, /morte sem resultado .*cli_exit 1, cli_sinal null/); assert.equal(rP.marcas_por_tipo.linha_impossivel_sem_json, undefined); assert.equal(rP.marcas_por_tipo.tecto_estourado_incoerente, undefined);
+  assert.deepEqual(rP.primaria.sensibilidade_64.por_classe, { A: { tecto: 0, morte: 1 }, B: { tecto: 0, morte: 0 } });
+  // e sem transcript: pipe_timeout:1 com arrancou:false nao e spawn puro (nao ha par_invalido) e a 22 invalida — o CLI correu e ninguem sabe quanto custou
+  const hP2 = harness({ claudeA: { 't22-11f81c79b7': 'pipe-timeout' }, aceitacaoA: 'verde' });
+  await correrTarefa(hP2.ctx, hP2.tarefa, hP2.ledger);
+  const AP2 = hP2.linhas()[6];
+  assert.equal(AP2.arrancou, false); assert.equal(AP2.motivo_se_nao, 'pipe_timeout:1'); assert.equal(hP2.linhas().filter((e) => e.evento === 'par_invalido').length, 0, 'nao e spawn puro');
+  assert.equal(hP2.julgar().corrida_valida, false);
+  // 65/achado 6 do 2.o revisor: um envelope que parseia SEM usage nem modelUsage e «sem JSON» para o controlador tambem — campos do envelope null, duration_ms = parede, aceite:false, o envelope descrito em motivo_cli; sem transcript nao ha evidencia (arrancou:false, sem_json_sem_transcript) e a 22 invalida
+  const hE = harness({ claudeA: { 't22-11f81c79b7': 'envelope-sem-uso' }, aceitacaoA: 'verde' });
+  await correrTarefa(hE.ctx, hE.tarefa, hE.ledger);
+  const AE = hE.linhas()[6];
+  assert.equal(AE.usage, null); assert.equal(AE.modelUsage, null); assert.equal(AE.num_turns, null); assert.equal(AE.subtype, null); assert.equal(AE.is_error, null); assert.equal(AE.aceite, false); assert.equal(AE.tecto_estourado, false); assert.equal(AE.duration_ms, AE.parede_ms); assert.equal(AE.cli_exit, 0);
+  assert.match(AE.motivo_cli, /envelope sem usage\/modelUsage: subtype="error_during_execution" is_error=true session_id="[0-9a-f-]{36}"/);
+  assert.equal(AE.arrancou, false, 'sem usage e sem transcript nao ha evidencia'); assert.equal(AE.motivo_se_nao, 'sem_json_sem_transcript');
+  assert.equal(hE.julgar().corrida_valida, false, '22: nao-arrancou fora da definicao — o CLI respondeu e ninguem sabe quanto custou');
+  // o mesmo tecto SEM transcript encontravel: arrancou:false com motivo timeout -> 22 (um timeout tem transcript) — INVALIDA, como antes
   const h = harness({ claudeA: { 't22-11f81c79b7': 'timeout' }, aceitacaoA: 'verde' });
   await correrTarefa(h.ctx, h.tarefa, h.ledger);
   const A = h.linhas()[6];
@@ -449,7 +526,8 @@ test('ponta a ponta (NOTA DO TECTO, declarada): A morta aos 900 s que deixa o wo
   if (process.platform === 'win32') assert.ok(h.chamadas.some((c) => c.exe === 'powershell'), '139: a arvore do processo e morta depois do tecto');
   else assert.deepEqual(A.arvore_morta, { tentado: false }, '139: matarArvore e win32 por desenho (CI corre em ubuntu)');
   const r = h.julgar();
-  assert.equal(r.corrida_valida, false, 'a lacuna declarada no cabecalho: precisa da interpretacao 64');
+  assert.equal(r.corrida_valida, false, '22: timeout sem transcript esta fora da definicao de nao-arrancou — a 64 nao toca nisto');
+  assert.ok(r.marcas.some((m) => m.tipo === 'nao_arrancou_fora_da_definicao')); assert.equal(r.marcas_por_tipo.aceite_contraditorio, 1, 'e a 19 fica: uma linha que nao chegou nao e tecto nem morte (64 estreita)'); assert.equal(r.marcas_por_tipo.rejeicao_sem_json_verde, undefined);
   // o mesmo tecto com o worktree vermelho: aceite:false com provas vermelhas — a linha e honesta; sem transcript a 22 invalida na mesma (brief 7.º/1: «e o correcto»)
   const h2 = harness({ claudeA: { 't22-11f81c79b7': 'timeout' }, aceitacaoA: 'vermelha' });
   await correrTarefa(h2.ctx, h2.tarefa, h2.ledger);
@@ -607,9 +685,49 @@ test('pre-voo da corrida (regras 9, sem git/CLI/rede): --so acima de SO_MAXIMO, 
   assert.match(src, /if \(sentinelaPresente\(ctx\.routerDirVivo\)\) \{/, 'sentinela orfao e falha, nunca apagado em silencio');
   assert.match(src, /if \(fs\.existsSync\(ctx\.ledgerPath\)\) falhas\.push/, 'UMA corrida');
   assert.match(src, /flag: 'wx'/, '154: o sentinela e a tranca');
+  // 3b: a emenda tem a mesma ancora do prereg — o pre-voo chama anterioridadeDaEmenda (mordida real no teste seguinte)
+  assert.match(src, /if \(ctx\.emendaPath && ctx\.emendaSha\) falhas\.push\(\.\.\.anterioridadeDaEmenda\(/, 'o pre-voo confronta a emenda com origin/main');
   // e a exclusao de um suplente por emenda retira-o do CONTROLO do filho, mas NAO da lista: fica registada no ledger quando seria consumido (5.º revisor)
   assert.match(src, /const suplentes = ctx\.prereg\.corpus\.suplentes\.slice\(\)/);
   assert.match(src, /\.filter\(\(id\) => !ctx\.overrides\.excluir\.includes\(id\)\);\n  const fc = /, 'o controlo do filho salta o excluido');
+});
+
+test('anterioridadeDaEmenda (3b): num repo git temporario com origin/main — commitada e igual passa; so em HEAD (nao empurrada), editada por commitar, commitada mas nao empurrada, fora do repo, e um sha que nao e o do disco reprovam', () => {
+  const git = (cwd, ...args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'x', GIT_AUTHOR_EMAIL: 'x@x', GIT_COMMITTER_NAME: 'x', GIT_COMMITTER_EMAIL: 'x@x' } }); if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`); return r.stdout; };
+  const base = tmp();
+  const bare = path.join(base, 'origin.git'); const repo = path.join(base, 'repo');
+  git(base, 'init', '-q', '--bare', '-b', 'main', bare);
+  git(base, 'clone', '-q', bare, repo);
+  git(repo, 'checkout', '-q', '-B', 'main');
+  fs.mkdirSync(path.join(repo, 'tools', 'ab'), { recursive: true });
+  const em = path.join(repo, 'tools', 'ab', 'AMENDMENT-1.md');
+  fs.writeFileSync(em, '# emenda\n');
+  git(repo, 'add', 'tools/ab/AMENDMENT-1.md'); git(repo, 'commit', '-q', '-m', 'emenda');
+  const shaDe = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+  // so em HEAD, ainda nao em origin/main: falha (nao empurrada)
+  let f = anterioridadeDaEmenda({ repo, emendaPath: em, emendaSha: shaDe(em) });
+  assert.equal(f.length, 1, f.join(' | ')); assert.match(f[0], /git show origin\/main:tools\/ab\/AMENDMENT-1\.md falhou/);
+  git(repo, 'push', '-q', '-u', 'origin', 'main');
+  // empurrada e igual: passa — com caminho absoluto e com o relativo resolvido da raiz (o comando documentado corre da raiz)
+  assert.deepEqual(anterioridadeDaEmenda({ repo, emendaPath: em, emendaSha: shaDe(em) }), []);
+  assert.deepEqual(anterioridadeDaEmenda({ repo, emendaPath: path.resolve(repo, 'tools/ab/AMENDMENT-1.md'), emendaSha: shaDe(em) }), []);
+  // editada em disco (por commitar): duas falhas — sha != origin/main e alteracoes por commitar
+  fs.writeFileSync(em, '# emenda editada a meio\n');
+  f = anterioridadeDaEmenda({ repo, emendaPath: em, emendaSha: shaDe(em) });
+  assert.equal(f.length, 2, f.join(' | ')); assert.match(f[0], /em disco \(\w{12}\) != origin\/main/); assert.match(f[1], /emenda com altera/);
+  // editada e commitada mas nao empurrada: origin/main tem a antiga -> sha != origin/main (uma so falha)
+  git(repo, 'commit', '-q', '-am', 'edita');
+  f = anterioridadeDaEmenda({ repo, emendaPath: em, emendaSha: shaDe(em) });
+  assert.equal(f.length, 1, f.join(' | ')); assert.match(f[0], /!= origin\/main/);
+  git(repo, 'push', '-q', 'origin', 'main');
+  assert.deepEqual(anterioridadeDaEmenda({ repo, emendaPath: em, emendaSha: shaDe(em) }), []);
+  // fora do repo: falha fechada, sem chamar o git
+  const fora = path.join(base, 'AMENDMENT-1.md'); fs.writeFileSync(fora, '# fora\n');
+  f = anterioridadeDaEmenda({ repo, emendaPath: fora, emendaSha: shaDe(fora), spawnImpl: () => { throw new Error('nao devia chamar o git'); } });
+  assert.equal(f.length, 1); assert.match(f[0], /fora do repo/);
+  // o sha passado e o que se confronta: um sha que nao e o do ficheiro em disco reprova (o pre-voo passa o do ficheiro)
+  f = anterioridadeDaEmenda({ repo, emendaPath: em, emendaSha: 'f'.repeat(64) });
+  assert.equal(f.length, 1); assert.match(f[0], /!= origin\/main/);
 });
 
 /** Um `correr()` hermetico: tudo injectado, so o loop de tarefas/suplentes e real. */
