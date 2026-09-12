@@ -47,14 +47,20 @@
  *    prereg mais `--session-id <uuid>` (instrumentação de evidência, não
  *    tratamento — ver 3). B: `classify.js` do RUNTIME (`~/.claude/tools/router`,
  *    sha congelado 427d8c0b…) sobre o prompt; T0/T1 → `router-execute
- *    --pin-provider=ollama --pin-model=<recommended_model do classify>`, texto
- *    guardado fora do worktree, aceitação corrida, `aceite: false` com prova
- *    (7.º/5), depois UMA escalação com o executor de A no MESMO worktree, sem
- *    passar o texto (prereg `bracos.B.escalacao`); T2/T3 → o executor de A.
- *    O modelo local é o que o classify recomendou («o router como está»);
- *    `modelo_reportado` = nome@sha256:digest do `/api/tags` do Ollama, lido
- *    depois de cada chamada; se o digest mudar a meio, `paragem` (prereg
- *    `modelo_local`).
+ *    --pin-provider=ollama` A SECO — o executor literal do prereg, com o
+ *    modelo «resolvido em tempo de corrida por router-execute
+ *    (OLLAMA_OPTION_A_MODEL, senão qwen2.5:3b)», que é exactamente a regra
+ *    de `providers/ollama-api.js` — texto guardado fora do worktree, aceitação
+ *    corrida, `aceite: false` com prova (7.º/5), depois UMA escalação com o
+ *    executor de A no MESMO worktree, sem passar o texto (prereg
+ *    `bracos.B.escalacao`); T2/T3 → o executor de A. O `recommended_model`
+ *    do classify (qwen2.5-coder:14b nesta máquina) NÃO é o default: é o que
+ *    o hook do produto escolheria, mas o prereg pinou o router-execute a
+ *    seco, e trocar isso é AMENDMENT (`--modelo-local` + `--emenda`), não
+ *    um default do código (2.º revisor do controlador). O classify fica
+ *    registado no manifesto para a decisão. `modelo_reportado` =
+ *    nome@sha256:digest do `/api/tags` do Ollama, lido depois de cada
+ *    chamada; se o digest mudar a meio, `paragem` (prereg `modelo_local`).
  *
  * 6. O AMBIENTE É O DO PRÉ-REGISTO: sem `ANTHROPIC_*` (R7 — com a chave o
  *    tier muda e a corrida é INVÁLIDA por `tier_divergente`, 13.º/1), sem
@@ -199,6 +205,10 @@ export function listagemSha(raiz) {
 }
 
 export const shaDoTestFile = (snapshot, testFile) => { try { return sha256Ficheiro(path.join(snapshot, testFile)); } catch { return null; } };
+
+/** O modelo local do prereg (`pre_condicoes.modelo_local`): a regra de `providers/ollama-api.js:73` — `OLLAMA_OPTION_A_MODEL`, senão `qwen2.5:3b`. Com `--modelo-local` (emenda) é esse. */
+export const MODELO_LOCAL_DEFAULT = 'qwen2.5:3b';
+export const modeloLocalDoPrereg = (env, override = null) => override || (typeof env.OLLAMA_OPTION_A_MODEL === 'string' && env.OLLAMA_OPTION_A_MODEL.trim()) || MODELO_LOCAL_DEFAULT;
 
 /** O sentinela D15 (prereg pre_condicoes.D15): `~/.claude/tools/router/.budget-freeze`. */
 export const caminhoDoSentinela = (routerDirVivo) => path.join(routerDirVivo, '.budget-freeze');
@@ -451,10 +461,10 @@ export function correrClaudeP({ caminhoClaude, prompt, cwd, sessionId, env, tect
   };
 }
 
-/** O passo local: `router-execute --pin-provider=ollama --pin-model=<modelo>` do RUNTIME. O texto NUNCA vai para o ledger (prereg ledger.campos). */
-export function correrLocal({ routerExecute, prompt, cwd, env, modelo, tectoS, spawnImpl = spawnSync }) {
+/** O passo local: `router-execute --pin-provider=ollama` do RUNTIME, a seco (o executor literal do prereg); `--pin-model` SÓ com a emenda `--modelo-local`. O texto NUNCA vai para o ledger (prereg ledger.campos). */
+export function correrLocal({ routerExecute, prompt, cwd, env, pinModel = null, tectoS, spawnImpl = spawnSync }) {
   const ts_inicio = agora();
-  const r = spawnImpl(process.execPath, [routerExecute, `--pin-provider=ollama`, `--pin-model=${modelo}`, prompt], {
+  const r = spawnImpl(process.execPath, [routerExecute, `--pin-provider=ollama`, ...(pinModel ? [`--pin-model=${pinModel}`] : []), prompt], {
     cwd, env, encoding: 'utf8', timeout: tectoS * 1000, killSignal: 'SIGTERM', maxBuffer: 64 * 1024 * 1024, input: '',
   });
   const ts_fim = agora();
@@ -488,7 +498,7 @@ export function construirContexto(argv, { env = process.env, home = os.homedir()
   const preregPath = path.join(repo, 'tools', 'ab', 'custo-prereg.json');
   const manifestPath = path.join(repo, 'tools', 'ab', 'r24-manifest.json');
   const analisePath = path.join(repo, 'tools', 'ab', 'custo-analise.mjs');
-  const so = flag(argv, 'so') !== undefined ? Number(flag(argv, 'so')) : null;
+  const so = flag(argv, 'so') !== undefined ? (flag(argv, 'so') === true ? NaN : Number(flag(argv, 'so'))) : null;   // 151: `--so` sem valor nao e 1
   const ledgerFlag = flag(argv, 'ledger');
   const ledgerPath = ledgerFlag ? path.resolve(String(ledgerFlag)) : path.join(repo, 'tools', 'ab', 'custo-ledger.jsonl');
   const manifestoPath = ledgerFlag ? ledgerPath.replace(/\.jsonl$/i, '') + '-manifesto-de-execucao.json' : path.join(repo, 'tools', 'ab', 'custo-manifesto-de-execucao.json');
@@ -614,16 +624,14 @@ export async function preVooDaCorrida(ctx, { comModelo = true } = {}) {
     ctx.classificacoes[id] = c;
     if (!c.ok) { falhas.push(`${id}: ${c.motivo}`); continue; }
     if (c.tier !== t.tier_classificado) falhas.push(`${id}: classify diz ${c.tier}, o prereg pina ${t.tier_classificado} — a corrida seria INVÁLIDA por tier_divergente`);
-    if ((c.tier === 'T0' || c.tier === 'T1')) {
-      const modelo = ctx.overrides.modelo_local || c.recommended_model;
-      if (!modelo) falhas.push(`${id}: classify sem recommended_model para ${c.tier}`);
-      else if (tags.ok && !ctx.modelos.has(modelo)) falhas.push(`${id}: o modelo local ${modelo} não está no Ollama (${[...ctx.modelos.keys()].join(', ')})`);
-    }
   }
-  const locais = new Set(Object.entries(ctx.classificacoes).filter(([, c]) => c.ok && (c.tier === 'T0' || c.tier === 'T1')).map(([, c]) => ctx.overrides.modelo_local || c.recommended_model));
-  ctx.modeloLocal = locais.size === 1 ? [...locais][0] : (locais.size === 0 ? null : `VARIOS:${[...locais].join(',')}`);
-  if (locais.size > 1) avisos.push(`o classify recomenda modelos locais diferentes (${[...locais].join(', ')}) — o ledger regista cada um; a 5 exige unanimidade ENTRE PASSOS de uma tarefa, não entre tarefas`);
-  ctx.modeloLocalDigest = ctx.modeloLocal && ctx.modelos.has(ctx.modeloLocal) ? ctx.modelos.get(ctx.modeloLocal) : null;
+  // o modelo local e o do prereg (router-execute a seco), UM para a corrida inteira (a 5 exige unanimidade entre todos os locais); o classify fica registado para a decisao do dono
+  ctx.modeloLocal = modeloLocalDoPrereg(ctx.env, ctx.overrides.modelo_local);
+  ctx.modeloLocalDigest = ctx.modelos.has(ctx.modeloLocal) ? ctx.modelos.get(ctx.modeloLocal) : null;
+  if (tags.ok && !ctx.modeloLocalDigest) falhas.push(`o modelo local ${ctx.modeloLocal} (${ctx.overrides.modelo_local ? 'emenda' : 'prereg: OLLAMA_OPTION_A_MODEL || qwen2.5:3b'}) não está no Ollama (${[...ctx.modelos.keys()].join(', ')})`);
+  const recomendados = new Set(Object.values(ctx.classificacoes).filter((c) => c.ok && (c.tier === 'T0' || c.tier === 'T1')).map((c) => c.recommended_model));
+  ctx.classifyRecomenda = [...recomendados];
+  if (recomendados.size && !recomendados.has(ctx.modeloLocal)) avisos.push(`o classify recomendaria ${[...recomendados].join(', ')} para o passo local; o prereg pina o router-execute a seco (${ctx.modeloLocal}) — trocar e AMENDMENT (--modelo-local + --emenda)`);
   // 9. sentinela e ledger: uma corrida
   if (sentinelaPresente(ctx.routerDirVivo)) { let c = ''; try { c = fs.readFileSync(caminhoDoSentinela(ctx.routerDirVivo), 'utf8').trim(); } catch { /* n/d */ } falhas.push(`o sentinela ${caminhoDoSentinela(ctx.routerDirVivo)} já existe («${c}») — outra corrida, ou uma que morreu; o prereg diz «não é retomado». Retira-o à mão se tiveres a certeza.`); }
   if (fs.existsSync(ctx.ledgerPath)) falhas.push(`o ledger ${ctx.ledgerPath} já existe — UMA corrida (prereg regra_de_paragem); um fumo usa --ledger <caminho novo>`);
@@ -718,8 +726,10 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   if (j) { arrancou = true; motivo_se_nao = null; session_id = typeof j.session_id === 'string' ? j.session_id : sessionId; }
   else if (tr && tr.total >= TRANSCRIPT_MINIMO) { arrancou = true; motivo_se_nao = null; session_id = sessionId; }
   else { arrancou = false; motivo_se_nao = r.motivo || 'sem_json_sem_transcript'; session_id = null; }   // 102: null quando não há evidência
-  const tectoEstourado = r.sinal !== null || r.parede_ms >= ctx.prereg.aceitacao.tecto_por_tentativa_s * 1000;
-  if (r.sinal !== null) matarArvore(r.pid, { spawnImpl });   // 139: os descendentes do agente não podem tocar no worktree durante a aceitação
+  // 2.º revisor: com JSON, o CLI provou quando acabou — o tecto mede-se pelo `duration_ms` do JSON (48); um sinal DEPOIS do JSON e o pipe herdado por um descendente, nao a tentativa. Sem JSON, o sinal ou a parede.
+  const tectoMs = ctx.prereg.aceitacao.tecto_por_tentativa_s * 1000;
+  const tectoEstourado = j ? (Number.isFinite(j.duration_ms) && j.duration_ms >= tectoMs) : (r.sinal !== null || r.parede_ms >= tectoMs);
+  const arvoreMorta = r.sinal !== null ? matarArvore(r.pid, { spawnImpl }) : null;   // 139: os descendentes do agente não podem tocar no worktree durante a aceitação
 
   // D5: o sha DEPOIS do agente e ANTES do reinstall (6.º); a aceitação corre sempre que o CLI chegou (8.º/1)
   const shaDepois = shaDoTestFile(snapshot, tarefa.test_file);
@@ -753,7 +763,7 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
     // extras (nenhuma é obrigatória; nenhuma substitui uma obrigatória)
     tokens_transcript, transcript: transcriptPath, num_turns: j && Number.isInteger(j.num_turns) ? j.num_turns : null,
     is_error: j ? j.is_error === true : null, subtype: j && typeof j.subtype === 'string' ? j.subtype : null, cli_exit: r.exit_status, cli_sinal: r.sinal,
-    tecto_estourado: tectoEstourado, aceitacao_sinal: prova && !prova.erro ? prova.aceitacao_sinal : null, aceitacao_duration_ms: prova ? prova.aceitacao_duration_ms : null, aceitacao_erro: prova && prova.erro ? prova.erro : null,
+    tecto_estourado: tectoEstourado, parede_ms: r.parede_ms, sinal_depois_do_json: !!(j && r.sinal), arvore_morta: arvoreMorta, aceitacao_sinal: prova && !prova.erro ? prova.aceitacao_sinal : null, aceitacao_duration_ms: prova ? prova.aceitacao_duration_ms : null, aceitacao_erro: prova && prova.erro ? prova.erro : null,
     motivo_cli: j ? null : r.stderr_tail.slice(-200) || null,   // 86: distinguir crash de tecto
     tecto_por_tentativa_s: ctx.prereg.aceitacao.tecto_por_tentativa_s, worktree: snapshot,
   };
@@ -766,14 +776,15 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
 
 /** O passo local de B em T0/T1 (prereg bracos.B.passo_2_T0_T1): texto guardado FORA do worktree, aceitação corrida, `aceite: false` com prova (7.º/5, 82, 83, 85, 97). */
 export async function tentativaLocal(ctx, { tarefa, snapshot, prep, skipsBase, ledger, classificacao }) {
-  const modelo = ctx.overrides.modelo_local || classificacao.recommended_model;
+  const modelo = ctx.modeloLocal;   // prereg: OLLAMA_OPTION_A_MODEL || qwen2.5:3b; com emenda, o --modelo-local
+  void classificacao;   // o classify decidiu o TIER; o modelo do passo local e o do prereg, e o que o classify recomendaria esta no manifesto
   const shaAntes = shaDoTestFile(snapshot, tarefa.test_file);
   if (shaAntes !== prep.sha_teste) throw new Paragem(`${tarefa.task_id}/B local: test_file_sha_antes ${shaAntes} != instalado ${prep.sha_teste} (10.º/5)`);
   const listAntes = listagemSha(snapshot);
   const amb = ambienteDaLinha(ctx);
   ledger.escrever({ evento: 'tentativa_inicio', ts_inicio: agora(), task_id: tarefa.task_id, braco: 'B', tentativa: 1, e_escalacao: false, executor: 'router-execute', modelo_pedido: modelo });
   const spawnImpl = ctx.spawnImpl || spawnSync;
-  const r = correrLocal({ routerExecute: ctx.routerExecutePath, prompt: tarefa.prompt, cwd: snapshot, env: ctx.env, modelo, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s, spawnImpl });
+  const r = correrLocal({ routerExecute: ctx.routerExecutePath, prompt: tarefa.prompt, cwd: snapshot, env: ctx.env, pinModel: ctx.overrides.modelo_local || null, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s, spawnImpl });
   fs.mkdirSync(ctx.saidas, { recursive: true });
   fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.json`), JSON.stringify({ ...(r.json || {}), motivo: r.motivo, stderr_tail: r.stderr_tail }, null, 2) + '\n', 'utf8');
   if (r.texto !== null) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.txt`), r.texto, 'utf8');   // nunca no ledger (prereg ledger.campos)
@@ -849,14 +860,14 @@ export function escreverManifesto(ctx, { sonda = null } = {}) {
     emenda: ctx.emendaPath ? { caminho: ctx.emendaPath, sha256: ctx.emendaSha, overrides: ctx.overrides } : null,
     cli: { caminho: ctx.claude.caminho, versao: ctx.claude.versao }, node: process.version, plataforma: `${process.platform} ${os.release()}`,
     runtime: { dir: ctx.routerDirVivo, ...ctx.runtime, classify_sha256: sha256Ficheiro(ctx.classifyPath), patterns_sha256: sha256Ficheiro(path.join(ctx.routerDirVivo, 'patterns.js')) },
-    modelo_local: { nome: ctx.modeloLocal, digest: ctx.modeloLocalDigest, origem: ctx.overrides.modelo_local ? 'emenda (--modelo-local)' : 'recommended_model do classify.js congelado, por tarefa («o router como está»); a fixture do prereg cita qwen2.5:3b, que é o fallback do router-execute a seco' },
+    modelo_local: { nome: ctx.modeloLocal, digest: ctx.modeloLocalDigest, origem: ctx.overrides.modelo_local ? 'emenda (--modelo-local, --pin-model no router-execute)' : 'prereg pre_condicoes.modelo_local: router-execute a seco — OLLAMA_OPTION_A_MODEL, senao qwen2.5:3b (providers/ollama-api.js:73)', OLLAMA_OPTION_A_MODEL_no_ambiente: ctx.env.OLLAMA_OPTION_A_MODEL ?? null, classify_recomendaria: ctx.classifyRecomenda || [] },
     ollama_host: ctx.ollama, modelos_no_ollama: Object.fromEntries(ctx.modelos),
     context_bridge: contextBridge(ctx.home),   // «o router como está»: com isto ligado o router-execute prefixa contexto de sessão ao prompt local
     classificacoes: ctx.classificacoes,
     estado_vivo: { sentinela: caminhoDoSentinela(ctx.routerDirVivo), sentinela_conteudo: SENTINELA_CONTEUDO, sentinela_presente: sentinelaPresente(ctx.routerDirVivo), ...estadoVivo(ctx.routerDirVivo), tecto_do_orcamento: tectoDoOrcamento(ctx.routerDirVivo), derivacao_estado_vivo_sha: `sha256 de "<nome> <sha256 do ficheiro | ausente>" por linha, na ordem ${FICHEIROS_DE_ESTADO.join(', ')} (shaDoEstadoVivo do R-24)` },
     ambiente: { env_keys_sha256: shaDoEnv(ctx.env), removidos: 'ANTHROPIC_*, CLAUDE_CODE_*, MOOTER_*, CLAUDECODE', anthropic_api_key_no_terminal: !!ctx.envBruto.ANTHROPIC_API_KEY },
-    executor_A: `claude ${argsClaudeP('<prompt>', '<uuid>', { semSubagentes: ctx.overrides.sem_subagentes }).slice(1).join(' ')}`,
-    executor_B_local: `node ${ctx.routerExecutePath} --pin-provider=ollama --pin-model=<recommended_model> <prompt>`,
+    executor_A: `claude ${argsClaudeP('<prompt>', '<uuid>', { semSubagentes: ctx.overrides.sem_subagentes }).join(' ')}`,
+    executor_B_local: `node ${ctx.routerExecutePath} --pin-provider=ollama${ctx.overrides.modelo_local ? ` --pin-model=${ctx.overrides.modelo_local}` : ''} <prompt>`,
     tecto_por_tentativa_s: ctx.prereg.aceitacao.tecto_por_tentativa_s, tecto_aceitacao_s: TECTO_ACEITACAO_S,
     listagem_semantica: 'sha256 das linhas "<caminho relativo>\\t<bytes>" ordenadas, sem node_modules nem .git; não inclui conteúdo nem mtime',
     tecto_do_orcamento_semantica: '.budget-cache.json data.five_hour.utilization (0-100) do cache congelado; «null=sem tecto» sem cache utilizável',
@@ -871,7 +882,7 @@ export function escreverManifesto(ctx, { sonda = null } = {}) {
 /** A sonda paga (62, 78, 101): a chave do modelUsage tem de ser literalmente `claude-opus-5` e o transcript do `--session-id` tem de aparecer. */
 export function sondar(ctx) {
   const sessionId = crypto.randomUUID();
-  const r = correrClaudeP({ caminhoClaude: ctx.claude.caminho, prompt: SONDA_PROMPT, cwd: ctx.raiz, sessionId, env: ctx.env, tectoS: 180, semSubagentes: ctx.overrides.sem_subagentes });
+  const r = correrClaudeP({ caminhoClaude: ctx.claude.caminho, prompt: SONDA_PROMPT, cwd: ctx.raiz, sessionId, env: ctx.env, tectoS: 180, semSubagentes: ctx.overrides.sem_subagentes, spawnImpl: ctx.spawnImpl || spawnSync });
   const j = r.json;
   const falhas = [];
   if (!j) falhas.push(`a sonda não devolveu JSON (${r.motivo}; stderr: ${r.stderr_tail.slice(-200)})`);
@@ -893,22 +904,25 @@ export function sondar(ctx) {
 export async function correr(ctx) {
   const log = ctx.log;
   const ledger = new Ledger(ctx.ledgerPath);
-  const pv = await preVooDaCorrida(ctx);
+  const pv = await (ctx.preVooImpl || preVooDaCorrida)(ctx);
   if (!pv.ok) { log(`pre-voo da corrida: ${pv.falhas.length} falha(s) — nao arranca`); return 2; }
   fs.mkdirSync(ctx.raiz, { recursive: true });
   const dirsNm = [...new Set([...ctx.prereg.corpus.tarefas, ...ctx.prereg.corpus.suplentes.map((s) => ({ task_id: s }))].map((t) => (ctx.tarefasPorId.get(t.task_id) || {}).acceptance_cwd).filter(Boolean).concat(['.']))];
-  prepararCacheNodeModules({ repo: ctx.repo, cache: ctx.cache, dirs: dirsNm, log });
+  (ctx.cacheNmImpl || prepararCacheNodeModules)({ repo: ctx.repo, cache: ctx.cache, dirs: dirsNm, log });
 
-  if (ctx.modeloLocal && !ctx.modeloLocal.startsWith('VARIOS:')) { const aq = await aquecerModeloLocal(ctx.ollama, ctx.modeloLocal); log(`aquecimento do modelo local ${ctx.modeloLocal}: ${aq.ok ? `ok em ${aq.ms} ms` : `FALHOU (${aq.motivo || aq.http})`}`); if (!aq.ok) return 2; }   // 140
+  // D15: o sentinela ANTES de qualquer chamada — o hook da sonda pode lançar o refresh do cache (145); retirado em qualquer saída
+  const tirarSentinela = () => { try { fs.rmSync(caminhoDoSentinela(ctx.routerDirVivo), { force: true }); } catch { /* n/d */ } };
+  fs.writeFileSync(caminhoDoSentinela(ctx.routerDirVivo), SENTINELA_CONTEUDO, 'utf8');
+  const aq = await (ctx.aquecerImpl || aquecerModeloLocal)(ctx.ollama, ctx.modeloLocal);   // 140
+  log(`aquecimento do modelo local ${ctx.modeloLocal}: ${aq.ok ? `ok em ${aq.ms} ms` : `FALHOU (${aq.motivo || aq.http})`}`);
+  if (!aq.ok) { tirarSentinela(); return 2; }
   log('sonda paga (1 chamada)…');
   const sonda = sondar(ctx);
   for (const f of sonda.falhas) log(`  ✖ ${f}`);
   if (sonda.aviso) log(`  · ${sonda.aviso}`);
-  if (!sonda.ok) return 2;
+  if (!sonda.ok) { tirarSentinela(); return 2; }
   log(`  sonda ok: ${sonda.json.modelUsage[MODELO_OPUS].inputTokens}+${sonda.json.modelUsage[MODELO_OPUS].outputTokens}+cache ${sonda.cache_opus} tokens, ${sonda.json.total_cost_usd} USD, transcript ${sonda.tokens_transcript} tokens`);
 
-  // D15: o sentinela ANTES da primeira tentativa (prereg pre_condicoes.D15)
-  fs.writeFileSync(caminhoDoSentinela(ctx.routerDirVivo), SENTINELA_CONTEUDO, 'utf8');
   const manifesto = escreverManifesto(ctx, { sonda: { session_id: sonda.session_id, ts_inicio: sonda.ts_inicio, ts_fim: sonda.ts_fim, usage: sonda.json.usage, modelUsage: sonda.json.modelUsage, total_cost_usd: sonda.json.total_cost_usd ?? null, duration_ms: sonda.json.duration_ms ?? null, num_turns: sonda.json.num_turns ?? null, transcript: sonda.transcript, tokens_transcript: sonda.tokens_transcript, cache_opus: sonda.cache_opus, aviso: sonda.aviso } });
   log(`manifesto de execucao: ${ctx.manifestoPath} (modelo local ${manifesto.modelo_local.nome} @ ${String(manifesto.modelo_local.digest).slice(0, 12)})`);
 
@@ -918,7 +932,7 @@ export async function correr(ctx) {
   const excluidas = new Set();
   let terminouNormalmente = false;
   const pararCom = (motivo) => { if (!ledger.fechado) ledger.paragem(motivo); };   // 134: n/ultima_tarefa vêm do que o Ledger escreveu
-  const onSinal = () => { pararCom('sinal: interrompido pelo operador'); try { fs.rmSync(caminhoDoSentinela(ctx.routerDirVivo), { force: true }); } catch { /* n/d */ } process.exit(130); };
+  const onSinal = () => { pararCom('sinal: interrompido pelo operador'); tirarSentinela(); process.exit(130); };
   process.on('SIGINT', onSinal); process.on('SIGTERM', onSinal);
   process.on('exit', () => { if (!terminouNormalmente) pararCom('processo terminou sem fim normal (exit handler, 75)'); });
   try {
@@ -946,12 +960,12 @@ export async function correr(ctx) {
     pararCom(e instanceof Paragem ? e.message : `excepcao: ${e && e.stack ? e.stack.slice(0, 600) : e}`);
     log(`PARAGEM: ${e && e.message}`);
   } finally {
-    try { fs.rmSync(caminhoDoSentinela(ctx.routerDirVivo), { force: true }); } catch { /* n/d */ }   // D15: retirado DEPOIS da última
+    tirarSentinela();   // D15: retirado DEPOIS da última
     process.removeListener('SIGINT', onSinal); process.removeListener('SIGTERM', onSinal);
   }
   if (!terminouNormalmente) return 3;
   log(`corrida terminada: ${ledger.n} eventos em ${ctx.ledgerPath}`);
-  const an = spawnSync(process.execPath, [ctx.analisePath, '--prereg', ctx.preregPath, '--ledger', ctx.ledgerPath, '--out', ctx.analysisPath], { cwd: ctx.repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const an = (ctx.spawnImpl || spawnSync)(process.execPath, [ctx.analisePath, '--prereg', ctx.preregPath, '--ledger', ctx.ledgerPath, '--out', ctx.analysisPath], { cwd: ctx.repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   log(String(an.stdout || '')); if (an.stderr) log(String(an.stderr));
   return an.status === 0 ? 0 : 4;
 }
@@ -962,7 +976,7 @@ export async function verificar(ctx, { semControlo = false } = {}) {
   const pv = await preVooDaCorrida(ctx, { comModelo: false });
   log(pv.ok ? 'pre-voo da corrida: ok' : `pre-voo da corrida: ${pv.falhas.length} falha(s)`);
   const porTier = {}; for (const [id, c] of Object.entries(ctx.classificacoes)) if (c.ok) (porTier[c.tier] = porTier[c.tier] || []).push(id);
-  log(`classify (runtime, ambiente da corrida): ${Object.entries(porTier).map(([t, ids]) => `${t} ${ids.length}`).join(' · ')} · modelo local ${ctx.modeloLocal || 'n/d'} @ ${ctx.modeloLocalDigest ? ctx.modeloLocalDigest.slice(0, 12) : 'n/d'}${ctx.overrides.modelo_local ? ' (emenda)' : ' (recommended_model do classify)'}`);
+  log(`classify (runtime, ambiente da corrida): ${Object.entries(porTier).map(([t, ids]) => `${t} ${ids.length}`).join(' · ')} · modelo local ${ctx.modeloLocal || 'n/d'} @ ${ctx.modeloLocalDigest ? ctx.modeloLocalDigest.slice(0, 12) : 'n/d'}${ctx.overrides.modelo_local ? ' (emenda)' : ' (prereg: OLLAMA_OPTION_A_MODEL || qwen2.5:3b)'}${ctx.classifyRecomenda && ctx.classifyRecomenda.length ? ` · o classify recomendaria ${ctx.classifyRecomenda.join(', ')}` : ''}`);
   fs.mkdirSync(ctx.raiz, { recursive: true });
   const ids = [...ctx.prereg.corpus.tarefas.map((t) => t.task_id), ...ctx.prereg.corpus.suplentes];
   const dirsNm = [...new Set(ids.map((id) => ctx.tarefasPorId.get(id).acceptance_cwd).concat(['.']))];

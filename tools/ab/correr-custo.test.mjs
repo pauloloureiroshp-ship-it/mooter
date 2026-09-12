@@ -16,7 +16,7 @@ import {
   parseSumarioNodeTest, listagemSha, tectoDoOrcamento, encontrarTranscript, tokensDoTranscript, parseJsonDoCli,
   Ledger, linhaVazia, correrAceitacaoComProva, decidirAceite, argsClaudeP, correrClaudeP, correrLocal, classificar,
   construirContexto, carregarProtocolo, tarefaCompleta, ollamaHost, MODELO_OPUS, SENTINELA_CONTEUDO,
-  correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore,
+  correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore, modeloLocalDoPrereg, MODELO_LOCAL_DEFAULT, correr, sondar, caminhoDoSentinela,
 } from './correr-custo.mjs';
 import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS, analisar, lerLedger } from './custo-analise.mjs';
 
@@ -193,16 +193,21 @@ test('correrClaudeP: ts antes/depois do spawn, sinal antes de erro, envelope sem
   assert.equal(morreu.motivo, 'cli_morreu:1'); assert.equal(morreu.stderr_tail, 'boom');
 });
 
-test('correrLocal: pin do runtime com --pin-model, texto so com ok:true, motivos por classe', () => {
+test('correrLocal: o executor literal do prereg (--pin-provider=ollama A SECO); --pin-model so com a emenda; texto so com ok:true; motivos por classe', () => {
   let visto = null;
-  const okJson = { ok: true, text: 'resposta', model_used: 'qwen2.5-coder:14b', tokens_in: 100, tokens_out: 42, duration_ms: 1234 };
-  const r = correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, modelo: 'qwen2.5-coder:14b', tectoS: 900, spawnImpl: (exe, args, opts) => { visto = { exe, args, opts }; return { status: 0, signal: null, stdout: JSON.stringify(okJson) + '\n', stderr: '' }; } });
-  assert.equal(visto.exe, process.execPath); assert.deepEqual(visto.args, ['R', '--pin-provider=ollama', '--pin-model=qwen2.5-coder:14b', 'P']);
+  const okJson = { ok: true, text: 'resposta', model_used: 'qwen2.5:3b', tokens_in: 100, tokens_out: 42, duration_ms: 1234 };
+  const r = correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, tectoS: 900, spawnImpl: (exe, args, opts) => { visto = { exe, args, opts }; return { status: 0, signal: null, stdout: JSON.stringify(okJson) + '\n', stderr: '' }; } });
+  assert.equal(visto.exe, process.execPath); assert.deepEqual(visto.args, ['R', '--pin-provider=ollama', 'P'], '2.º revisor: o prereg pina o router-execute a seco — o modelo e resolvido por ele (OLLAMA_OPTION_A_MODEL || qwen2.5:3b)');
   assert.equal(r.texto, 'resposta'); assert.equal(r.motivo, null); assert.equal(r.json.tokens_out, 42);
-  const semQuota = correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, modelo: 'm', tectoS: 1, spawnImpl: () => ({ status: 0, signal: null, stdout: JSON.stringify({ ok: false, error: { code: 'no_quota', message: 'ollama is not available' } }), stderr: '' }) });
+  correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, pinModel: 'qwen2.5-coder:14b', tectoS: 900, spawnImpl: (exe, args) => { visto = { args }; return { status: 0, signal: null, stdout: JSON.stringify(okJson), stderr: '' }; } });
+  assert.deepEqual(visto.args, ['R', '--pin-provider=ollama', '--pin-model=qwen2.5-coder:14b', 'P'], 'com --modelo-local (emenda) o pin e explicito');
+  const semQuota = correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, tectoS: 1, spawnImpl: () => ({ status: 0, signal: null, stdout: JSON.stringify({ ok: false, error: { code: 'no_quota', message: 'ollama is not available' } }), stderr: '' }) });
   assert.equal(semQuota.texto, null); assert.match(semQuota.motivo, /^ollama:no_quota/);
-  assert.equal(correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, modelo: 'm', tectoS: 1, spawnImpl: () => ({ status: null, signal: 'SIGTERM', stdout: '', stderr: '' }) }).motivo, 'timeout');
-  assert.equal(correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, modelo: 'm', tectoS: 1, spawnImpl: () => ({ status: 2, signal: null, stdout: '', stderr: '' }) }).motivo, 'router_execute_morreu:2');
+  assert.equal(correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, tectoS: 1, spawnImpl: () => ({ status: null, signal: 'SIGTERM', stdout: '', stderr: '' }) }).motivo, 'timeout');
+  assert.equal(correrLocal({ routerExecute: 'R', prompt: 'P', cwd: 'w', env: {}, tectoS: 1, spawnImpl: () => ({ status: 2, signal: null, stdout: '', stderr: '' }) }).motivo, 'router_execute_morreu:2');
+  // a regra do modelo e a do providers/ollama-api.js:73
+  assert.equal(MODELO_LOCAL_DEFAULT, 'qwen2.5:3b');
+  assert.equal(modeloLocalDoPrereg({}), 'qwen2.5:3b'); assert.equal(modeloLocalDoPrereg({ OLLAMA_OPTION_A_MODEL: 'gemma3:12b' }), 'gemma3:12b'); assert.equal(modeloLocalDoPrereg({ OLLAMA_OPTION_A_MODEL: ' ' }), 'qwen2.5:3b'); assert.equal(modeloLocalDoPrereg({ OLLAMA_OPTION_A_MODEL: 'x' }, 'emenda:14b'), 'emenda:14b');
 });
 
 test('classificar: tier e recommended_model do JSON do classify; sem tier e falha', () => {
@@ -269,9 +274,9 @@ const SONDA = JSON.parse(fs.readFileSync(path.join(AQUI, 'custo-fixture-sonda.js
 const espera = (ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { /* 31: ts_fim tem de ser > ts_inicio */ } };
 
 /** Um contexto de corrida hermético para DUAS tarefas T0 do prereg real (t22 B primeiro, t21 A primeiro). `local`/`claudeA` aceitam um valor ou um mapa por task_id. */
-function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', tags = 'ok', claudeA = 'json' } = {}) {
+function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', tags = 'ok', claudeA = 'json', argv = [], env = {} } = {}) {
   const home = tmp();
-  const ctx = construirContexto([], { env: { PATH: 'x' }, home, log: () => {} });
+  const ctx = construirContexto(argv, { env: { PATH: 'x', ...env }, home, log: () => {} });
   carregarProtocolo(ctx);
   const t22 = ctx.prereg.corpus.tarefas.find((x) => x.task_id === 't22-11f81c79b7');
   const t21 = ctx.prereg.corpus.tarefas.find((x) => x.task_id === 't21-96171ef138');
@@ -284,8 +289,9 @@ function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', t
   fs.writeFileSync(path.join(ctx.routerDirVivo, '.budget-freeze'), SENTINELA_CONTEUDO);
   ctx.claude = { caminho: 'claude.exe', versao: '2.1.224 (Claude Code)' };
   ctx.routerExecutePath = 'RE.js'; ctx.classifyPath = 'CL.js'; ctx.ollama = 'http://o:11434';
-  const digest = '9ec8897f747e246e0000000000000000000000000000000000000000000000ab';
-  ctx.modelos = new Map([['qwen2.5-coder:14b', digest]]);
+  const digest = '357c53fb659c50760000000000000000000000000000000000000000000000ab';
+  ctx.modelos = new Map([['qwen2.5:3b', digest], ['qwen2.5-coder:14b', '9ec8897f747e246e0000000000000000000000000000000000000000000000ab']]);
+  ctx.modeloLocal = modeloLocalDoPrereg(ctx.env, ctx.overrides.modelo_local); ctx.modeloLocalDigest = ctx.modelos.get(ctx.modeloLocal) || null;
   let ultimoCwdLocal = null;
   ctx.tagsImpl = async () => (opcao(tags, ultimoCwdLocal) === 'ok' ? { ok: true, modelos: ctx.modelos } : { ok: false, motivo: 'tags: ECONNREFUSED' });
   ctx.saidas = path.join(home, 'saidas'); ctx.snapshots = path.join(home, 'wt');
@@ -303,11 +309,12 @@ function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', t
     chamadas.push({ exe, args: args.slice(0, 3), cwd: opts && opts.cwd });
     espera(2);
     if (exe === 'powershell') return { status: 0, signal: null, stdout: '', stderr: '' };
-    if (args[0] === 'CL.js') return { status: 0, signal: null, stdout: JSON.stringify({ tier: 'T0', recommended_model: 'qwen2.5-coder:14b', confidence: 0.6 }), stderr: '' };
+    if (args[0] === 'CL.js' || String(args[0]).endsWith('classify.js')) { const tm = ctx.manifest.tarefas.find((x) => x.prompt === args[1]); const tier = tm ? tarefaCompleta(ctx, tm.task_id).tier_classificado : 'T0'; return { status: 0, signal: null, stdout: JSON.stringify({ tier, recommended_model: tier === 'T0' ? 'qwen2.5-coder:14b' : 'claude-opus-4-6', confidence: 0.6 }), stderr: '' }; }
     if (args[1] === '--pin-provider=ollama') {
       ultimoCwdLocal = opts.cwd;
       const modo = opcao(local, opts.cwd);
-      if (modo === 'ok') return { status: 0, signal: null, stdout: JSON.stringify({ ok: true, text: 'Corre o teste e corrige a asserção.', model_used: 'qwen2.5-coder:14b', tokens_in: 900, tokens_out: 42, duration_ms: 1234 }) + '\n', stderr: '' };
+      const modeloPedido = (args.find((a) => a.startsWith('--pin-model=')) || '').slice('--pin-model='.length) || 'qwen2.5:3b';   // como o router-execute: o pin, senao o default do provider
+      if (modo === 'ok') return { status: 0, signal: null, stdout: JSON.stringify({ ok: true, text: 'Corre o teste e corrige a asserção.', model_used: modeloPedido, tokens_in: 900, tokens_out: 42, duration_ms: 1234 }) + '\n', stderr: '' };
       if (modo === 'timeout') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, stdout: '', stderr: '' };
       return { status: 0, signal: null, stdout: JSON.stringify({ ok: false, error: { code: 'no_output', message: 'provider returned no usable text (http 500)' } }) + '\n', stderr: '' };
     }
@@ -317,6 +324,7 @@ function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', t
       const modoA = opcao(claudeA, opts.cwd);
       if (ehA && modoA === 'timeout') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: '', stderr: '' };
       if (ehA && modoA === 'spawn') return { status: null, signal: null, error: { code: 'ENOENT' }, stdout: '', stderr: '' };
+      if (ehA && modoA === 'json-e-sinal') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: sid, usage: SONDA.usage, modelUsage: SONDA.modelUsage, total_cost_usd: SONDA.total_cost_usd, duration_ms: 120000, num_turns: 4, result: 'ok' }), stderr: '' };
       return { status: 0, signal: null, pid: 4242, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: sid, usage: SONDA.usage, modelUsage: SONDA.modelUsage, total_cost_usd: SONDA.total_cost_usd, duration_ms: SONDA.duration_ms + chamadas.length, num_turns: 4, result: 'ok' }), stderr: '[mooter] hook\n' };
     }
     if (args[0] === '--test') {
@@ -352,7 +360,8 @@ test('ponta a ponta (honesto): duas T0 com local ok + escalacao aceite + A aceit
   assert.equal(pv.falhou, true); assert.equal(pv.exit_code, 1); assert.equal(pv.tests_corridos, 55); assert.equal(pv.skips, 0); assert.ok(pv.ts && pv.ts_inicio && pv.ts_fim); assert.equal(pv.test_file_sha, h.linhas()[2].test_file_sha_antes, '100');
   const local = ev[2], esc = ev[4], A = ev[6];
   for (const l of [local, esc, A]) for (const k of CHAVES_OBRIGATORIAS) assert.ok(k in l, `${l.braco}${l.tentativa}: ${k} presente`);
-  assert.equal(local.executor, 'router-execute'); assert.equal(local.aceite, false); assert.equal(local.arrancou, true); assert.equal(local.tokens_locais, 42); assert.match(local.modelo_reportado, /^qwen2\.5-coder:14b@sha256:9ec8897f/); assert.equal(local.modelo_pedido, 'qwen2.5-coder:14b'); assert.equal(local.usage, null); assert.equal(local.session_id, null); assert.equal(local.e_escalacao, false); assert.equal(local.tentativa, 1); assert.equal(local.exit_code, 1);
+  assert.equal(local.executor, 'router-execute'); assert.equal(local.aceite, false); assert.equal(local.arrancou, true); assert.equal(local.tokens_locais, 42); assert.match(local.modelo_reportado, /^qwen2\.5:3b@sha256:357c53fb/); assert.equal(local.modelo_pedido, 'qwen2.5:3b', 'o prereg: router-execute a seco');
+  assert.deepEqual(h.chamadas.filter((c) => c.args[1] === '--pin-provider=ollama').map((c) => c.args.length), [3, 3], 'sem --pin-model'); assert.equal(local.usage, null); assert.equal(local.session_id, null); assert.equal(local.e_escalacao, false); assert.equal(local.tentativa, 1); assert.equal(local.exit_code, 1);
   assert.equal(esc.executor, 'claude-p'); assert.equal(esc.e_escalacao, true); assert.equal(esc.tentativa, 2); assert.equal(esc.aceite, true); assert.equal(esc.modelo_pedido, MODELO_OPUS); assert.equal(esc.modelo_reportado, MODELO_OPUS); assert.equal(esc.arrancou, true); assert.deepEqual(esc.usage, SONDA.usage); assert.equal(esc.num_turns, 4); assert.equal(esc.tokens_transcript, 0, '99: procurado, nao encontrado'); assert.equal(esc.tecto_estourado, false);
   assert.equal(A.braco, 'A'); assert.equal(A.tentativa, 1); assert.equal(A.aceite, true); assert.notEqual(A.session_id, esc.session_id, '22: session_id unico');
   assert.ok(Date.parse(local.ts_fim) <= Date.parse(esc.ts_inicio) && Date.parse(esc.ts_fim) <= Date.parse(A.ts_inicio), '11.º/6: intervalos nao sobrepostos');
@@ -374,7 +383,7 @@ test('ponta a ponta (achado 1 do 1.º revisor): local que NAO arrancou escreve m
   await h.correrAsDuas();
   const local = h.linhas()[2];
   assert.equal(local.arrancou, false); assert.match(local.motivo_se_nao, /^ollama:no_output/); assert.equal(local.tokens_locais, null); assert.equal(local.texto_local_sha256, null);
-  assert.match(local.modelo_reportado, /^qwen2\.5-coder:14b@sha256:9ec8897f/, 'o digest vem das tags, arrancado ou nao');
+  assert.match(local.modelo_reportado, /^qwen2\.5:3b@sha256:357c53fb/, 'o digest vem das tags, arrancado ou nao');
   const r = h.julgar();
   assert.equal(r.corrida_valida, true, 'a 2: o local que nao arrancou e escalou nao invalida o par');
   assert.equal(r.primaria.n_pares_validos, 2); assert.equal(r.marcas_por_tipo.local_nao_arrancou, 1);
@@ -385,7 +394,7 @@ test('ponta a ponta (achado 1 do 1.º revisor): local que NAO arrancou escreve m
   assert.equal(h2.julgar().corrida_valida, null, '30: um null nao prova que o modelo local nao mudou');
   // um local que CORREU sem tags: a linha fica no ledger (135) e SO DEPOIS a paragem (11.º/3)
   const h2b = harness({ tags: { 't22-11f81c79b7': 'falha' } });
-  await assert.rejects(() => correrTarefa(h2b.ctx, h2b.tarefa, h2b.ledger), /sem digest para qwen2\.5-coder:14b/);
+  await assert.rejects(() => correrTarefa(h2b.ctx, h2b.tarefa, h2b.ledger), /sem digest para qwen2\.5:3b/);
   const l2b = h2b.linhas()[2];
   assert.equal(l2b.evento, 'tentativa_fim'); assert.equal(l2b.arrancou, true); assert.equal(l2b.tokens_locais, 42); assert.equal(l2b.modelo_reportado, null);
   // um local em timeout (240 s do pin, 900 s do tecto) e a mesma classe
@@ -449,4 +458,94 @@ test('ollamaTagsComRetry: 3 tentativas antes de desistir; matarArvore so em win3
   let visto = null;
   assert.deepEqual(matarArvore(123, { plataforma: 'win32', spawnImpl: (exe, args) => { visto = { exe, args }; return { status: 0 }; } }), { tentado: true, ok: true });
   assert.equal(visto.exe, 'powershell'); assert.match(visto.args.at(-1), /ParentProcessId=\$p.*K 123$/);
+});
+
+test('ponta a ponta (emenda --modelo-local): com --emenda o pin e explicito e o modelo_pedido e o da emenda; sem --emenda a flag e recusada no pre-voo (nao aqui: o contexto so a regista)', async () => {
+  const h = harness({ argv: ['--modelo-local', 'qwen2.5-coder:14b', '--emenda', 'C:/x/AMENDMENT-1.md'] });
+  await h.correrAsDuas();
+  const local = h.linhas()[2];
+  assert.equal(local.modelo_pedido, 'qwen2.5-coder:14b'); assert.match(local.modelo_reportado, /^qwen2\.5-coder:14b@sha256:9ec8897f/);
+  assert.deepEqual(h.chamadas.find((c) => c.args[1] === '--pin-provider=ollama').args, ['RE.js', '--pin-provider=ollama', '--pin-model=qwen2.5-coder:14b']);
+  assert.equal(h.julgar().corrida_valida, true);
+  // e OLLAMA_OPTION_A_MODEL no ambiente e a regra do prereg sem emenda
+  const h2 = harness({ env: { OLLAMA_OPTION_A_MODEL: 'qwen2.5-coder:14b' } });
+  await h2.correrAsDuas();
+  assert.equal(h2.linhas()[2].modelo_pedido, 'qwen2.5-coder:14b'); assert.equal(h2.chamadas.find((c) => c.args[1] === '--pin-provider=ollama').args.length, 3, 'a seco: e o router-execute que le a env');
+});
+
+test('ponta a ponta (achado 2 do 2.º revisor): JSON completo + sinal do spawnSync (pipe herdado por um descendente) NAO e tecto — o CLI provou que acabou; a analise da valida', async () => {
+  const h = harness({ claudeA: { 't22-11f81c79b7': 'json-e-sinal' }, aceitacaoA: 'verde' });
+  await h.correrAsDuas();
+  const A = h.linhas()[6];
+  assert.equal(A.arrancou, true); assert.equal(A.tecto_estourado, false, 'o tecto mede-se pelo duration_ms do JSON (48)'); assert.equal(A.duration_ms, 120000); assert.equal(A.sinal_depois_do_json, true); assert.equal(A.cli_sinal, 'SIGTERM'); assert.equal(A.aceite, true);
+  assert.ok(A.arvore_morta && A.arvore_morta.tentado === true, '139: a arvore e morta na mesma');
+  const r = h.julgar();
+  assert.equal(r.corrida_valida, true); assert.equal(r.primaria.aceites_A, 2);
+  // e um JSON cujo proprio duration_ms diz >= 900 s e tecto (48), com ou sem sinal
+  const h2 = harness();
+  h2.ctx.spawnImpl = ((orig) => (exe, args, opts) => { const r = orig(exe, args, opts); if (args[0] === '-p' && String(opts.cwd).endsWith('t22-11f81c79b7-A')) { const j = JSON.parse(r.stdout); j.duration_ms = 900000; return { ...r, stdout: JSON.stringify(j) }; } return r; })(h2.ctx.spawnImpl);
+  await correrTarefa(h2.ctx, h2.tarefa, h2.ledger);
+  assert.equal(h2.linhas()[6].tecto_estourado, true); assert.equal(h2.linhas()[6].aceite, false);
+});
+
+test('correr(): ponta a ponta com tudo injectado — sentinela posto antes da sonda e retirado no fim, manifesto escrito, 2 tarefas + suplente, analise chamada; sonda a falhar retira o sentinela sem ledger', async () => {
+  const h = harness();
+  const ctx = h.ctx;
+  ctx.raiz = path.join(ctx.home, 'raiz'); ctx.cache = path.join(ctx.raiz, 'cache');
+  ctx.ledgerPath = path.join(ctx.home, 'custo-ledger.jsonl'); ctx.manifestoPath = path.join(ctx.home, 'manifesto.json'); ctx.analysisPath = path.join(ctx.home, 'analysis.json');
+  ctx.preregSha = 'p'.repeat(64); ctx.analiseSha = 'a'.repeat(64); ctx.controladorSha = 'c'.repeat(64); ctx.head = 'h'; ctx.originMain = 'o'; ctx.runtime = { router_execute_sha256: 'r', inject_context_sha256: 'i' }; ctx.classificacoes = {}; ctx.classifyRecomenda = ['qwen2.5-coder:14b'];
+  fs.rmSync(path.join(ctx.routerDirVivo, '.budget-freeze'), { force: true });
+  fs.writeFileSync(path.join(ctx.routerDirVivo, 'classify.js'), ''); fs.writeFileSync(path.join(ctx.routerDirVivo, 'patterns.js'), ''); ctx.classifyPath = path.join(ctx.routerDirVivo, 'classify.js');
+  ctx.preVooImpl = async () => ({ ok: true, falhas: [], avisos: [] });
+  ctx.cacheNmImpl = () => [];
+  const sentinelaVisto = [];
+  ctx.aquecerImpl = async () => { sentinelaVisto.push(fs.existsSync(caminhoDoSentinela(ctx.routerDirVivo))); return { ok: true, ms: 1 }; };
+  // a sonda passa pelo spawn injectado do harness (args[0] === '-p'); a analise no fim tambem (args[0] termina em custo-analise.mjs)
+  const spawnHarness = ctx.spawnImpl;
+  const analises = [];
+  ctx.spawnImpl = (exe, args, opts) => { if (String(args[0]).endsWith('custo-analise.mjs')) { analises.push(args); return { status: 0, stdout: 'analise ok', stderr: '' }; } return spawnHarness(exe, args, opts); };
+  // o 2.º slot (t21) falha o worktree -> suplente t02 (T3)
+  ctx.prereg = { ...ctx.prereg, corpus: { ...ctx.prereg.corpus, suplentes: ['t02-7bb45751d8'] } };
+  const prepOrig = ctx.prepararImpl;
+  ctx.prepararImpl = (c, tarefa) => (tarefa.task_id === 't21-96171ef138' ? { ok: false, motivo: 'A:git_archive:128' } : prepOrig(c, tarefa));
+  // transcript da sonda encontravel: o harness nao escreve transcripts -> a sonda falharia; escrevemos um para o session_id que a sonda pedir
+  const sondaOrig = spawnHarness;
+  ctx.spawnImpl = ((inner) => (exe, args, opts) => { const r = inner(exe, args, opts); if (args[0] === '-p' && args[1] === 'Responde apenas: OK') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), JSON.stringify({ type: 'assistant', uuid: 'a', message: { model: 'claude-opus-5', usage: SONDA.usage } }) + '\n'); } return r; })(ctx.spawnImpl);
+  void sondaOrig;
+  const logs = []; ctx.log = (m) => logs.push(String(m));
+  const codigo = await correr(ctx);
+  assert.equal(codigo, 0, logs.join(' | '));
+  assert.deepEqual(sentinelaVisto, [true], '145: o sentinela ja esta posto quando o modelo aquece (antes da sonda)');
+  assert.equal(fs.existsSync(caminhoDoSentinela(ctx.routerDirVivo)), false, 'retirado no fim');
+  const m = JSON.parse(fs.readFileSync(ctx.manifestoPath, 'utf8'));
+  assert.equal(m.modelo_local.nome, 'qwen2.5:3b'); assert.deepEqual(m.modelo_local.classify_recomendaria, ['qwen2.5-coder:14b']); assert.equal(m.sonda.tokens_transcript, SONDA.usage.input_tokens + SONDA.usage.output_tokens + SONDA.usage.cache_creation_input_tokens + SONDA.usage.cache_read_input_tokens); assert.equal(m.estado_vivo.sentinela_presente, true); assert.ok(m.executor_A.startsWith('claude -p <prompt> --output-format json --model claude-opus-5'));
+  const ev = lerLedger(fs.readFileSync(ctx.ledgerPath, 'utf8')).eventos;   // correr() escreve no ledger da corrida, nao no do harness
+  const tipos = ev.map((e) => e.evento);
+  assert.equal(tipos.filter((x) => x === 'paragem').length, 0, '58 do brief: sem paragem num fim normal');
+  const ex = ev.find((e) => e.evento === 'tarefa_excluida');
+  assert.equal(ex.task_id, 't21-96171ef138'); assert.equal(ex.suplente_usado, 't02-7bb45751d8'); assert.match(ex.motivo, /^worktree:A:git_archive/);
+  assert.ok(ev.some((e) => e.evento === 'tentativa_fim' && e.task_id === 't02-7bb45751d8' && e.braco === 'A'), 'o suplente correu');
+  assert.deepEqual(analises[0].slice(1), ['--prereg', ctx.preregPath, '--ledger', ctx.ledgerPath, '--out', ctx.analysisPath]);
+  // a sonda a falhar (sem modelUsage Opus): nada no ledger, sentinela retirado, codigo 2
+  const h2 = harness();
+  const c2 = h2.ctx;
+  c2.raiz = path.join(c2.home, 'raiz'); c2.ledgerPath = path.join(c2.home, 'l.jsonl'); c2.manifestoPath = path.join(c2.home, 'm.json'); c2.analysisPath = path.join(c2.home, 'a.json');
+  fs.rmSync(path.join(c2.routerDirVivo, '.budget-freeze'), { force: true });
+  c2.preVooImpl = async () => ({ ok: true, falhas: [], avisos: [] }); c2.cacheNmImpl = () => []; c2.aquecerImpl = async () => ({ ok: true, ms: 1 });
+  const inner2 = c2.spawnImpl;
+  c2.spawnImpl = (exe, args, opts) => { if (args[0] === '-p') return { status: 0, signal: null, stdout: JSON.stringify({ session_id: 's', usage: SONDA.usage, modelUsage: { 'claude-opus-4-1': SONDA.modelUsage['claude-opus-5'] } }), stderr: '' }; return inner2(exe, args, opts); };
+  assert.equal(await correr(c2), 2);
+  assert.equal(fs.existsSync(c2.ledgerPath), false); assert.equal(fs.existsSync(caminhoDoSentinela(c2.routerDirVivo)), false);
+});
+
+test('sondar: exige a chave literal claude-opus-5, usage, e o transcript do session_id; avisa abaixo da cache da fixture', () => {
+  const h = harness();
+  const ctx = h.ctx; ctx.raiz = ctx.home;
+  const inner = ctx.spawnImpl;
+  ctx.spawnImpl = (exe, args, opts) => { const r = inner(exe, args, opts); if (args[0] === '-p') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), JSON.stringify({ message: { model: 'claude-opus-5', usage: SONDA.usage } }) + '\n'); } return r; };
+  const s = sondar(ctx);
+  assert.equal(s.ok, true); assert.equal(s.aviso, null); assert.equal(s.cache_opus, 58964); assert.ok(s.transcript);
+  const semTranscript = harness(); semTranscript.ctx.raiz = semTranscript.ctx.home;
+  const s2 = sondar(semTranscript.ctx);
+  assert.equal(s2.ok, false); assert.ok(s2.falhas.some((f) => /transcript da sonda/.test(f)));
 });
