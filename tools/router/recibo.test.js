@@ -156,7 +156,7 @@ test('MORDIDA · num subagente a 1.ª linha traz o output em streaming — vence
   });
   const linha = (uuid, parentUuid, bloco, i, out) => ({
     parentUuid, uuid, type: 'assistant', apiBlockIndex: i, timestamp: `2026-09-12T10:0${i}:00.000Z`,
-    requestId: 'req_011CeyNBcQ5vX4oJ1jZ9mTkY',
+    requestId: 'req_011CeyNBcmQ4LQNEeYjV52j8',
     message: { model: 'claude-opus-5', id: 'msg_011CeyNBdYGzvuwZh8FzuzVP', type: 'message', role: 'assistant', content: [{ type: bloco }], usage: u(out) },
   });
   const d = tmp();

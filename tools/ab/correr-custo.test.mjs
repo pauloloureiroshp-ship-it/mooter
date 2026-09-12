@@ -112,7 +112,7 @@ test('tokensDoTranscript: a 1.ª linha de uma resposta traz o output em streamin
   const d = tmp();
   const f = path.join(d, 'agent-x.jsonl');
   const u = (out) => ({ input_tokens: 2, cache_creation_input_tokens: 40901, cache_read_input_tokens: 0, output_tokens: out, cache_creation: { ephemeral_5m_input_tokens: 40901, ephemeral_1h_input_tokens: 0 } });
-  const linha = (uuid, parentUuid, bloco, i, out) => JSON.stringify({ type: 'assistant', uuid, parentUuid, apiBlockIndex: i, requestId: 'req_011CeyNBcQ5vX4oJ1jZ9mTkY', message: { id: 'msg_011CeyNBdYGzvuwZh8FzuzVP', model: 'claude-opus-5', content: [{ type: bloco }], usage: u(out) } });
+  const linha = (uuid, parentUuid, bloco, i, out) => JSON.stringify({ type: 'assistant', uuid, parentUuid, apiBlockIndex: i, requestId: 'req_011CeyNBcmQ4LQNEeYjV52j8', message: { id: 'msg_011CeyNBdYGzvuwZh8FzuzVP', model: 'claude-opus-5', content: [{ type: bloco }], usage: u(out) } });
   fs.writeFileSync(f, [
     JSON.stringify({ type: 'user', uuid: 'u1', message: { role: 'user', content: 'x' } }),
     linha('a1', 'u1', 'thinking', 0, 7),
