@@ -20,6 +20,66 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-11-um-pr-parado-16-dias-mediu-tres-coisas-que-um-pr-fundido-nao-media
+
+**Contexto:** os cinco PRs do A/B do Moo Audit (#411-#415) ficaram parados de
+26/08 a 11/09 à espera da decisão de IP, com o `main` a andar ~90 PRs. Ao
+retomá-los, o simples acto de os fundir com o `main` de hoje e correr os
+guardas produziu três medições que um merge no dia teria escondido.
+
+**Observado:**
+
+1. **A catraca mediu o que a sua ausência custa.** `teste-fora-do-ci.mjs`
+   contra a árvore de hoje: 180 → **193 órfãos** (666 testes versionados). Em
+   16 dias entraram 15 ficheiros de teste que nenhum workflow corre, 5 deles em
+   `tools/router/` (motor), incluindo `budget-cap.test.js` — o teste do D1 das
+   provas-v1 (o `applyBudgetCap` que mandava HIGH-RISK para T0). A lista de
+   `test` desse pacote continua escrita à mão, com 97 ficheiros.
+
+2. **A mordida da catraca morreu debaixo da premissa, não do guarda.** A
+   mordida plantava o ficheiro em `tools/cockpit/runner/`; entretanto o
+   `test:cockpit-runner` de main trocou a lista por um glob e o ficheiro
+   plantado passou a ser *coberto*. O teste deu vermelho e a leitura óbvia
+   («a catraca partiu») estava errada. Um teste de mordida depende do mundo
+   tanto como o guarda que testa — e um mundo que muda em 16 dias muda a
+   mordida sem tocar no guarda.
+
+3. **A parcela de telemetria media a coisa errada, e o número parecia
+   verdadeiro porque era.** `0/4830` decisões com `tokens_in > 0` — verdadeiro
+   e sem significado: o hook escreve essa linha *antes* de o modelo responder.
+   Um contador que só pode dar zero não mede cobertura. O `recibo.js` que
+   entrou em main a 28/08 (a58b8c49) lê os tokens dos transcripts e casa-os
+   com a decisão pela cadeia `parentUuid`; a parcela passou a medir isso:
+   **81/1686** turnos com custo medido casam com uma decisão (4,8 %). O branch
+   paralelo `ab-audit/telemetria`, que publicava tokens por `session_id`,
+   morreu sem ser empurrado — o próprio `recibo.js` explica que essa chave
+   reconstrói o defeito dos «25 por prompt».
+
+4. **O adversário noutro motor bloqueou todos os PRs de código à primeira.**
+   `codex` (OpenAI) sobre #413, #414, #415, #505, #506: 5 × BLOQUEIA, todas com
+   reprodução. A mais grave: **o braço A do A/B varreu S1 fora do sha
+   pré-registado** (`2d5fd762` em vez de `97ad846b`; ficheiros que não existem
+   no sha entraram na corrida) — uma violação do §10.2 que o manifesto declarava
+   (`no_sha_preregistado: false`) e que ninguém tinha lido como violação. A
+   segunda: a prova de rede da F1 caiu pela 3.ª vez (`process.binding`, worker
+   sem `NODE_OPTIONS`, UDP entre amostras) — uma sentinela dentro do processo
+   não prova zero rede; só um namespace do SO prova.
+
+5. **O sandbox do codex não cria processos nesta máquina**
+   (`CreateProcessAsUserW … 5 Access is denied`, em `read-only` e
+   `workspace-write`). Correu com o sandbox desligado em worktrees limpas com
+   tudo commitado, `git status` vazio verificado no fim de cada ronda.
+
+**Hipótese:** um PR de guarda que espera mais de uma semana por merge deve ser
+re-corrido contra o `main` do dia *antes* de o dono decidir — o número que ele
+dá nesse dia é o argumento para o merge, e o número de 16 dias antes já não
+descreve nada. **Experimento:** ao abrir um PR de guarda, anotar no corpo o
+número do dia; ao pedir merge, re-correr e anotar o novo; se diferirem, o delta
+vai para o corpo do PR. Critério: em 3 PRs de guarda seguidos, o delta aparecer
+escrito antes do merge.
+
+---
+
 ### 2026-09-01-o-instrumento-errava-cinco-vezes-e-so-a-quinta-nos-favorecia
 
 **Contexto:** o dono pediu um A/B «Mooter vs sem Mooter». Não existia nenhum.
