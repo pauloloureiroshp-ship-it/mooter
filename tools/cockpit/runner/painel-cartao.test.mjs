@@ -385,3 +385,77 @@ test('as duas vias concordam: o recurso do painel diz o mesmo que o rotulo servi
       `${nome}: o recurso do painel pinta outra cor que o rotulo servido`);
   }
 });
+
+// ── A PROCEDENCIA DO ACHADO NO CARTAO DA FILA (2026-08-26) ──────────────────
+//
+// Lente adversarial, com a fila real da F1 (104 itens) replicada pelo bloco
+// literal do painel:
+//
+//     50 x jscpd    -> chip1="GPU · model"  chip2="—"
+//     50 x knip     -> chip1="GPU · model"  chip2="—"
+//      4 x semgrep  -> chip1="GPU · model"  chip2="—"
+//
+// Num produto cuja tese e «o loop corre a $0 na tua GPU e nunca inventa», o
+// cockpit afirmava ao dono que 104 achados de tres linters de CPU — zero GPU,
+// zero modelo, zero rondas — vinham da GPU e do modelo. E o chip da `regra`, o
+// unico sitio do ecra onde `jscpd/duplicate:yaml` se distinguia de
+// `knip/devDependencies`, so era desenhado no ramo do detector.
+//
+// Estes testes levantam o painel a serio e LEEM os chips renderizados. Um teste
+// que so procurasse a string no ficheiro nao teria apanhado nada disto — o texto
+// "GPU · model" esta la, e sempre esteve, e continua a estar para o modelo.
+
+const ACHADO = (extra = {}) => Object.assign({
+  chave: 'detector:ancora:abc', ts: '2026-08-25T19:00:00Z', ficheiro: 'src/a.ts', janela: '10',
+  evidencia: 'src/a.ts:10', resumo: 'x', pilar: null, regra: null,
+  sev: { k: 'med', n: 2, porque: 'needs your judgment' },
+}, extra);
+
+const ESTADO = (fila) => ({
+  por_triar: fila,
+  triagem: { por_triar: fila.length, motivos: [], detector: { estado: 'ok' } },
+});
+
+test('MORDIDA · um achado de linter NAO pode ser rotulado GPU no cartao', () => {
+  const p = levantarPainel();
+  p.ctx.renderTriagem(ESTADO([
+    ACHADO({ chave: 'k1', origem: 'jscpd', regra: 'jscpd/duplicate:yaml' }),
+    ACHADO({ chave: 'k2', origem: 'knip', regra: 'knip/devDependencies' }),
+    ACHADO({ chave: 'k3', origem: 'semgrep', regra: 'semgrep/xss' }),
+  ]));
+  const chips = porClasse(p.no('triagem-fila'), 'chip').map((c) => c.textContent);
+  for (const c of chips) {
+    assert.notEqual(c, 'GPU · model', 'um linter de CPU nao produziu nada numa GPU');
+  }
+  assert.ok(chips.includes('jscpd · linter'), 'o instrumento verdadeiro tem de aparecer');
+  assert.ok(chips.includes('knip · linter'));
+  assert.ok(chips.includes('semgrep · linter'));
+  // E a regra, que e o unico sitio onde as tres origens se distinguem umas das
+  // outras dentro do mesmo produtor.
+  assert.ok(chips.includes('jscpd/duplicate:yaml'), 'a regra so era desenhada no ramo do detector');
+  assert.ok(chips.includes('knip/devDependencies'));
+});
+
+test('o achado do MODELO continua a dizer GPU · model, e o do detector regex', () => {
+  // A correcção nao pode ter partido as duas origens que ja estavam certas.
+  const p = levantarPainel();
+  p.ctx.renderTriagem(ESTADO([
+    ACHADO({ chave: 'm1', origem: 'modelo-local', pilar: 'P6' }),
+    ACHADO({ chave: 'd1', origem: 'detector-deterministico', regra: 'ancora/preco' }),
+  ]));
+  const chips = porClasse(p.no('triagem-fila'), 'chip').map((c) => c.textContent);
+  assert.ok(chips.includes('GPU · model'));
+  assert.ok(chips.includes('P6'), 'o pilar continua a ser o segundo chip do achado de modelo');
+  assert.ok(chips.includes('detector · regex'));
+  assert.ok(chips.includes('ancora/preco'));
+});
+
+test('MORDIDA · uma origem que o painel nao conhece nao herda o rotulo do modelo', () => {
+  // A causa-raiz era o ternario: tudo o que nao fosse o detector caia em GPU.
+  // Uma origem futura tem de sair identificada como desconhecida, nunca como GPU.
+  const p = levantarPainel();
+  p.ctx.renderTriagem(ESTADO([ACHADO({ chave: 'x1', origem: 'eslint', regra: 'eslint/no-var' })]));
+  const chips = porClasse(p.no('triagem-fila'), 'chip').map((c) => c.textContent);
+  assert.ok(!chips.includes('GPU · model'));
+  assert.ok(chips.some((c) => c.includes('eslint')), 'a origem desconhecida diz o proprio nome');
+});
