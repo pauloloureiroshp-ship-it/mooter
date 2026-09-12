@@ -31,7 +31,8 @@
  * **Deixou de ser verdade.** `tools/router/recibo.js` mede os tokens reais sem
  * API nenhuma: o Claude Code escreve `message.usage` completo em cada linha de
  * `~/.claude/projects/**\/*.jsonl`, e a atribuição faz-se pela cadeia
- * `parentUuid` até ao turno humano — 318 turnos, 9.420 chamadas, 0 órfãs.
+ * `parentUuid` até ao turno humano — medido a 2026-09-12 nos 25 transcripts
+ * mais recentes: 223 turnos, 3.813 respostas (uma por `message.id`), 0 órfãs.
  *
  * Ou seja: o número modelado deixou de ser o melhor que se consegue. Passou a
  * ser o **pior** dos dois que existem. E a razão de ele ficar não é técnica — é

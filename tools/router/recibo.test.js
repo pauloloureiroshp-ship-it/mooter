@@ -4,12 +4,24 @@
 // neste repositório:
 //
 //  1 · ATRIBUIR POR CO-RESIDÊNCIA. A primeira versão do plano juntava tokens ao
-//      `decisions.log` por `session_id`. Medido: 387 prompts → 9.692 chamadas,
-//      25 por prompt. É o defeito que matou o `0%` deste projecto («o
-//      denominador eram chamadas Bash, não prompts (26 por prompt)»).
+//      `decisions.log` por `session_id`. Medido a 2026-09-12: 970 prompts →
+//      11.878 respostas, 12,2 por prompt. É o defeito que matou o `0%` deste
+//      projecto («o denominador eram chamadas Bash, não prompts (26 por
+//      prompt)»).
 //
 //  2 · SOMAR O QUE NÃO SE SABE. Um modelo fora da tabela de preços tem de
 //      aparecer como buraco, não diluído num total que parece completo.
+//
+//  3 · SOMAR LINHAS COMO SE FOSSEM CHAMADAS. O Claude Code escreve uma linha
+//      por bloco de conteúdo da mesma resposta, com o mesmo `message.id`. A
+//      primeira versão deste recibo somava-as todas: ~1,8× o facturado
+//      (2026-09-11, brief 164 da revisão do `correr-custo.mjs`).
+//
+//  4 · FICAR COM A PRIMEIRA LINHA. Nos transcripts de subagentes o `usage`
+//      NÃO é igual em todas as linhas do mesmo id: `output_tokens` vem em
+//      streaming e só a última linha traz o total. First-wins subcontava o
+//      output em 18,3% na janela dos 40 (2026-09-12, final-reviewer). A
+//      resposta é o máximo por campo.
 
 const { test } = require('node:test');
 const assert   = require('node:assert/strict');
@@ -79,6 +91,107 @@ test('MORDIDA · toda a cadeia sobe ao turno humano — zero órfãs', () => {
     assert.equal(turnos.length, 1, 'três chamadas de um só prompt são UM turno');
     assert.equal(turnos[0].chamadas, 3);
     assert.equal(turnos[0].tokens.output, 600);
+  } finally { limpar(d); }
+});
+
+test('MORDIDA · duas linhas do mesmo message.id são UMA resposta, não duas', () => {
+  // A forma REAL do Claude Code (par extraído de um transcript desta máquina a
+  // 2026-09-12, conteúdo retirado): a MESMA resposta da API chega como uma
+  // linha por bloco de conteúdo — thinking em `apiBlockIndex: 0`, text em
+  // `apiBlockIndex: 1` —, a 2.ª encadeada na 1.ª por `parentUuid`, ambas a
+  // repetir o mesmo `message.id`, o mesmo `requestId` e o `usage` completo.
+  // Somar linhas dava ~1,8× o facturado (2026-09-11: 294/495/99 linhas para
+  // 162/278/54 ids, 0 desvios de usage em 336 ids multi-linha — nos transcripts
+  // PRINCIPAIS; nos de subagentes o output difere, ver o teste seguinte).
+  const u = {
+    input_tokens: 2,
+    cache_creation_input_tokens: 59723,
+    cache_read_input_tokens: 47395,
+    output_tokens: 1280,
+    output_tokens_details: { thinking_tokens: 1018 },
+    cache_creation: { ephemeral_1h_input_tokens: 59723, ephemeral_5m_input_tokens: 0 },
+  };
+  const resposta = (uuid, parentUuid, bloco, i) => ({
+    parentUuid, uuid, type: 'assistant', apiBlockIndex: i, timestamp: `2026-09-12T09:47:4${5 + i}.000Z`,
+    requestId: 'req_011CeyLM3rHXp21ocFCr9Wp8',
+    message: { model: 'claude-opus-5', id: 'msg_011CeyLM4toEznbrKFi29mD3', type: 'message', role: 'assistant', content: [{ type: bloco }], stop_reason: 'tool_use', usage: u },
+  });
+  const d = tmp();
+  try {
+    const f = escreverTranscript(path.join(d, '.claude', 'projects', 'p'), 'sessao-dup', [
+      { uuid: 'u1', parentUuid: null, type: 'user', timestamp: '2026-09-12T09:47:00.000Z', message: { role: 'user', content: 'x' } },
+      resposta('a1', 'u1', 'thinking', 0),
+      resposta('a2', 'a1', 'text', 1),
+    ]);
+    const { turnos, orfas, linhas_repetidas } = R.lerTranscript(f);
+    assert.equal(orfas, 0);
+    assert.equal(linhas_repetidas, 1, 'a 2.ª linha do mesmo message.id é repetida, não nova');
+    assert.equal(turnos.length, 1);
+    assert.equal(turnos[0].chamadas, 1, 'uma resposta da API é UMA chamada');
+    assert.equal(turnos[0].tokens.output, 1280, 'somar linhas daria 2560');
+    assert.equal(turnos[0].tokens.cacheLer, 47395);
+    assert.equal(turnos[0].tokens.cacheEscr, 59723);
+    const c = R.custoDe('claude-opus-5', u);
+    assert.equal(turnos[0].custo, c.total, 'o preço de tabela de uma resposta, não de duas');
+
+    // E o impresso diz quantas linhas não somou — o denominador colado ao número.
+    const r = R.recibo({ home: d });
+    assert.equal(r.chamadas, 1);
+    assert.equal(r.linhasRepetidas, 1);
+    assert.match(R.imprimir(r), /1 resposta por message\.id · 1 linha\(s\) repetida\(s\)/);
+  } finally { limpar(d); }
+});
+
+test('MORDIDA · num subagente a 1.ª linha traz o output em streaming — vence o máximo, não a 1.ª', () => {
+  // A forma REAL de `<sessão>/subagents/agent-*.jsonl` (trio extraído de
+  // `agent-a1e48c918b5d5a121.jsonl` desta máquina a 2026-09-12, conteúdo
+  // retirado): a MESMA resposta em 3 linhas — thinking, text, tool_use —, o
+  // mesmo `message.id`, mas `output_tokens` 7 / 7 / 275: as duas primeiras
+  // trazem o contador em streaming e só a última o total. Ficar com a 1.ª
+  // subcontava o output em 18,3% na janela dos 40 (4,58M vs 5,61M) — apanhado
+  // pelo final-reviewer a 2026-09-12. `input` e cache são iguais nas três.
+  const u = (out) => ({
+    input_tokens: 2, cache_creation_input_tokens: 40901, cache_read_input_tokens: 0, output_tokens: out,
+    cache_creation: { ephemeral_5m_input_tokens: 40901, ephemeral_1h_input_tokens: 0 },
+  });
+  const linha = (uuid, parentUuid, bloco, i, out) => ({
+    parentUuid, uuid, type: 'assistant', apiBlockIndex: i, timestamp: `2026-09-12T10:0${i}:00.000Z`,
+    requestId: 'req_011CeyNBcmQ4LQNEeYjV52j8',
+    message: { model: 'claude-opus-5', id: 'msg_011CeyNBdYGzvuwZh8FzuzVP', type: 'message', role: 'assistant', content: [{ type: bloco }], usage: u(out) },
+  });
+  const d = tmp();
+  try {
+    const f = escreverTranscript(d, 'agent-a1e48c918b5d5a121', [
+      { uuid: 'u1', parentUuid: null, type: 'user', timestamp: '2026-09-12T10:00:00.000Z', message: { role: 'user', content: 'x' } },
+      linha('a1', 'u1', 'thinking', 0, 7),
+      linha('a2', 'a1', 'text',     1, 7),
+      linha('a3', 'a2', 'tool_use', 2, 275),
+    ]);
+    const { turnos, linhas_repetidas } = R.lerTranscript(f);
+    assert.equal(linhas_repetidas, 2);
+    assert.equal(turnos[0].chamadas, 1);
+    assert.equal(turnos[0].tokens.output, 275, 'a 1.ª linha diz 7; o total está na última');
+    assert.equal(turnos[0].tokens.cacheEscr, 40901, 'os campos iguais não se somam entre linhas');
+    assert.equal(turnos[0].custo, R.custoDe('claude-opus-5', u(275)).total);
+  } finally { limpar(d); }
+});
+
+test('MORDIDA · dois message.id distintos com o mesmo usage são DUAS respostas', () => {
+  // O dedup é pela identidade da resposta, não pelo valor do usage: duas
+  // respostas iguais em tokens continuam a ser duas. Sem `message.id` nem
+  // `requestId`, o `uuid` (sempre único) garante que nada se perde.
+  const d = tmp();
+  try {
+    const f = escreverTranscript(d, 'sessao-e', [
+      { uuid: 'u1', parentUuid: null, type: 'user',      timestamp: '2026-09-12T10:00:00Z', message: { content: 'x' } },
+      { uuid: 'a1', parentUuid: 'u1', type: 'assistant', timestamp: '2026-09-12T10:00:01Z', requestId: 'req_1', message: { id: 'msg_A', model: 'claude-opus-5', usage: usage({ o: 100 }) } },
+      { uuid: 'a2', parentUuid: 'a1', type: 'assistant', timestamp: '2026-09-12T10:00:02Z', requestId: 'req_2', message: { id: 'msg_B', model: 'claude-opus-5', usage: usage({ o: 100 }) } },
+      { uuid: 'a3', parentUuid: 'a2', type: 'assistant', timestamp: '2026-09-12T10:00:03Z', message: { model: 'claude-opus-5', usage: usage({ o: 100 }) } },
+    ]);
+    const { turnos, linhas_repetidas } = R.lerTranscript(f);
+    assert.equal(linhas_repetidas, 0);
+    assert.equal(turnos[0].chamadas, 3);
+    assert.equal(turnos[0].tokens.output, 300);
   } finally { limpar(d); }
 });
 
