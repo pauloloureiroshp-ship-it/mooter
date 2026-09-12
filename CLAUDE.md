@@ -240,6 +240,26 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   skipped — as 3 são as mesmas pré-existentes de ambiente do #489, conjunto
   comparado nome a nome. `packs/` fica de fora — tem `js-yaml` 4.1.1 (HIGH) e
   `esbuild` (low), não está na matriz, e é o próximo do mesmo tipo.
+  **2026-09-12 · um achado sem fonte é invenção** allowlists **modificações** a
+  `packages/cli/src/audit/facets.ts`, `packages/cli/src/audit/orchestrator.ts` e
+  `packages/cli/src/commands/audit.ts`, e os testes em `packages/cli/tests/audit.test.ts`
+  (autorizado pelo dono nesta data, a pedido explícito: «Faz merge dos 7 PRs na ordem
+  sugerida» — o #506 é um deles). É o fan-out de `mooter audit` da onda 34. Medido a
+  2026-08-26 e outra vez a 2026-09-11 contra um repo que não é o Mooter (fastify): os 6
+  facets leram **0** ficheiros, o prompt foi na mesma ao worker, e o worker devolveu
+  achados a citar `install.sh` / `classify.js` / `isolated-vm` que não existem lá — com
+  `ok:true`, exit 0 e, com `--max-cost 1`, uma síntese paga por cima. Acrescentado: a
+  fonte conta-se no excerto que o worker vê (`clip()` devolve `(absent)`/`(empty)`,
+  `countSources()` conta o resto), um facet com 0 fontes nunca chama o worker, uma
+  resposta `ok:true` sem letra nem dígito não é achado, a síntese só corre com ≥1 facet
+  ok, e `--facets` que resolve para lista vazia sai 1 antes de correr ou escrever.
+  **Muda a semântica pública do CLI:** todos os facets a 0 fontes ⇒ **exit 1 mesmo sem
+  `--strict`** (antes: exit 0, «auditado, tudo bem»); um run parcial mantém exit 0 com ⚠
+  nas linhas. Zero alterações aos prompts, aos modelos por omissão ou ao custo de um run
+  com fontes. Provado por `packages/cli/tests/audit.test.ts` (20/20, `node --import tsx
+  --test tests/audit.test.ts`) e por 3 rondas do adversário (codex) publicadas no #506,
+  6 objecções fechadas com reprodução. Fica registado porque a regra o exige — foi o gate
+  de pré-merge de 2026-09-12 que apanhou o PR sem entrada.
   **2026-09-12 · a guarda do T5 cobre o Fable 5.1** allowlists **uma linha** de
   `packages/router/src/decide-agent.ts` — `OPT_IN_ONLY_MODELS` passa de
   `["claude-fable-5"]` a `["claude-fable-5", "claude-fable-5-1"]` — e o teste novo
