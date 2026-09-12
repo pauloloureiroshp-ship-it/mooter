@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 
@@ -267,4 +267,153 @@ test("runAudit CLI: unknown facet → exit 1 + lists valid facets; help → exit
 
   const unknownSub = await runAudit(["bogus"], {});
   assert.equal(unknownSub.exitCode, 1);
+});
+
+// ── Contra-exemplos do adversario (PR #506, 2026-09-11) ─────────────────────
+//
+// Tres reproducoes contra e63af6d3 em que a guarda «0 fontes → 0 worker»
+// ainda deixava passar invencao. Cada teste abaixo FALHA nesse commit e
+// passa no seguinte; a prova esta na mensagem do commit que os traz.
+
+// IO parametrizavel: `content` e o que TODAS as leituras devolvem; `list`
+// devolve `pkgs` para packages/; `exists` e sempre verdadeiro.
+function uniformIO(content: string | null, pkgs: string[] = ["cli", "workflow"]): FacetIO & { reads: string[] } {
+  const reads: string[] = [];
+  return {
+    reads,
+    read: (p: string) => { reads.push(p); return content; },
+    list: (d: string) => (d.endsWith("packages") ? pkgs : []),
+    exists: () => true,
+  };
+}
+
+test("objeccao 1a · packages: package.json que existe mas nao se le → sources 0, worker nao corre", async () => {
+  // `dirs` contava existencia; a leitura devolvia null e era descartada, mas
+  // `sources` recebia `dirs.length` → 2 fontes, evidencia so com cabecalho,
+  // 1 chamada Ollama, ok:true.
+  const io = uniformIO(null);
+  const input = FACETS.packages.gather("/repo", io);
+  assert.equal(input.sources, 0, "existir nao e fonte: nenhum package.json foi lido");
+  assert.ok(io.reads.length >= 2, "as leituras foram tentadas (e falharam)");
+  assert.doesNotMatch(input.evidence, /^- /m, "nenhuma linha de evidencia por pacote");
+
+  const worker = inventingWorker();
+  const report = await runFanOut({ root: "/repo", facets: [FACETS.packages], io, worker: worker.fn, nowMs: NOW });
+  assert.equal(worker.calls(), 0, "evidencia sem conteudo nunca chega ao LLM");
+  assert.equal(report.facets[0].ok, false);
+  assert.equal(report.facets[0].sources, 0);
+  assert.doesNotMatch(report.facets[0].text, /FABRICATED/);
+});
+
+test("objeccao 1b · ficheiro vazio (ou so whitespace) nao e fonte, em TODOS os facets", async () => {
+  for (const blank of ["", "  \n\t\n"]) {
+    const io = uniformIO(blank);
+    for (const name of FACET_NAMES) {
+      const input = FACETS[name].gather("/repo", io);
+      assert.equal(input.sources, 0, `${name}: conteudo ${JSON.stringify(blank)} contou como fonte`);
+    }
+    const worker = inventingWorker();
+    const report = await runFanOut({ root: "/repo", facets: FACET_NAMES.map((n) => FACETS[n]), io, worker: worker.fn, nowMs: NOW });
+    assert.equal(worker.calls(), 0, `conteudo ${JSON.stringify(blank)}: worker chamado`);
+    assert.ok(report.facets.every((f) => f.ok === false && f.sources === 0));
+    assert.equal(report.localCount, 0);
+  }
+});
+
+test("objeccao 1c · misto: so o ficheiro com conteudo conta — sources e o que entrou na evidencia", () => {
+  // install.sh com conteudo, install.ps1 vazio → 1, nao 2.
+  const half = FACETS.install.gather("/repo", mockIO({ "install.sh": "#!/bin/sh\nset -eu\n", "install.ps1": "   " }));
+  assert.equal(half.sources, 1);
+  assert.match(half.evidence, /# install\.ps1\n\(empty\)/, "a evidencia diz (empty), nao um cabecalho vazio");
+
+  // packages: um package.json legivel, outro ilegivel → 1, nao 2.
+  const reads: string[] = [];
+  const io: FacetIO = {
+    read: (p: string) => { reads.push(p); return p.split(sep).join("/").endsWith("packages/cli/package.json") ? '{"name":"@mooter/cli"}' : null; },
+    list: (d: string) => (d.endsWith("packages") ? ["cli", "workflow"] : []),
+    exists: () => true,
+  };
+  const pk = FACETS.packages.gather("/repo", io);
+  assert.equal(pk.sources, 1, "so o package.json lido conta");
+  assert.equal((pk.evidence.match(/^- /gm) ?? []).length, 1, "uma linha de evidencia por fonte contada");
+  assert.match(pk.summary, /1 of 2/);
+
+  // package.json com conteudo mas JSON invalido: foi lido, entra na evidencia
+  // como «unparseable» — e fonte (o auditor deve ve-lo).
+  const bad = FACETS.packages.gather("/repo", uniformIO("{not json", ["cli"]));
+  assert.equal(bad.sources, 1);
+  assert.match(bad.evidence, /unparseable/);
+});
+
+test("objeccao 2 · todos os facets a 0 fontes + --max-cost 1: ZERO chamadas cloud, custo 0, sintese saltada", async () => {
+  // Antes: `if (maxCost > 0)` ignorava os achados; com tudo a 0 fontes fazia
+  // 0 chamadas locais e 1 cloud (paga), e a sintese inventada ia para o md.
+  let cloudCalls = 0;
+  const worker: WorkerFn = async (req) => {
+    if (req.backend === "claude-api") cloudCalls++;
+    return { text: FABRICATED, backend: req.backend, model: req.model, cost_usd: req.backend === "claude-api" ? 0.01 : 0, ok: true };
+  };
+  const io = emptyIO();
+  const report = await runFanOut({ root: "/not-mooter", facets: FACET_NAMES.map((n) => FACETS[n]), io, worker, maxCostUsd: 1, nowMs: NOW });
+  assert.equal(cloudCalls, 0, "sintese sem achados nao e chamada");
+  assert.equal(report.cloudCount, 0);
+  assert.equal(report.totalCostUsd, 0);
+  assert.equal(report.synthesis, "(synthesis skipped — no facet produced a finding)");
+  const md = renderMarkdown(report, { facetsRequested: FACET_NAMES });
+  assert.match(md, /## Synthesis\n\n\(synthesis skipped — no facet produced a finding\)/);
+  assert.doesNotMatch(md, /FABRICATED/);
+
+  // Pela CLI, com --strict e --json: exit 1, cloud 0, «(free)».
+  const cli = await runAudit(["fan-out", "--no-write", "--max-cost", "1", "--strict"], { root: "/not-mooter", nowMs: NOW, worker, io });
+  assert.equal(cloudCalls, 0);
+  assert.equal(cli.exitCode, 1);
+  assert.match(cli.output, /local 0 · cloud 0 · \$0\.0000 \(free\)/);
+
+  // Mesma regra quando ha fontes mas TODOS os workers locais falharam
+  // (ex.: Ollama em baixo): nada para sintetizar → nao se paga a sintese.
+  cloudCalls = 0;
+  const downWorker: WorkerFn = async (req) => {
+    if (req.backend === "claude-api") cloudCalls++;
+    return { text: "", backend: req.backend, model: req.model, cost_usd: 0, ok: false, error: "ollama unreachable" };
+  };
+  const down = await runFanOut({ root: "/repo", facets: [FACETS.install], io: mockIO({ "install.sh": "x" }), worker: downWorker, maxCostUsd: 1, nowMs: NOW });
+  assert.equal(cloudCalls, 0, "worker local falhou em tudo → sintese nao corre");
+  assert.equal(down.cloudCount, 0);
+  assert.equal(down.synthesis, "(synthesis skipped — no facet produced a finding)");
+
+  // Par positivo: basta UM facet ok para a sintese correr (1 chamada cloud).
+  cloudCalls = 0;
+  const one = await runFanOut({ root: "/repo", facets: [FACETS.install, FACETS.classify], io: mockIO({ "install.sh": "x" }), worker, maxCostUsd: 1, nowMs: NOW });
+  assert.equal(cloudCalls, 1);
+  assert.equal(one.cloudCount, 1);
+  assert.equal(one.synthesis, FABRICATED);
+});
+
+test("objeccao 3 · --facets que resolve para lista vazia → exit 1 «no facets selected», nada corre, nada se escreve", async () => {
+  // Antes: `--facets ","` → [] → `nothingAudited` exigia length > 0 → exit 0
+  // mesmo com --strict; e com --max-cost 1 ainda pagava a sintese.
+  // O caso literal do adversario (",") vai primeiro: e nele que e63af6d3 morde.
+  const dir = mkdtempSync(join(tmpdir(), "mooter-audit-empty-"));
+  try {
+    const out = join(dir, "should-not-exist.md");
+    for (const csv of [",", " , ,", ""]) {
+      const worker = inventingWorker();
+      const res = await runAudit(["fan-out", "--facets", csv, "--strict", "--max-cost", "1", "--out", out], { root: "/repo", nowMs: NOW, worker: worker.fn, io: mockIO({ "install.sh": "x" }) });
+      assert.equal(res.exitCode, 1, `--facets ${JSON.stringify(csv)} devolveu exit ${res.exitCode}`);
+      assert.match(res.output, /no facets selected/);
+      assert.match(res.output, /install/, "lista os validos");
+      assert.equal(worker.calls(), 0, "nem local nem cloud");
+      assert.equal(existsSync(out), false, "relatorio nao e escrito");
+      assert.doesNotMatch(res.output, /audit fan-out —/, "nao ha cabecalho de run");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  // Unidade: so a flag AUSENTE expande para «todos»; um csv explicito e lido
+  // como esta — "" incluido (antes, "" expandia para os 6 em silencio).
+  assert.deepEqual(selectFacets(","), { facets: [], unknown: [] });
+  assert.deepEqual(selectFacets(" , ,"), { facets: [], unknown: [] });
+  assert.deepEqual(selectFacets(""), { facets: [], unknown: [] }, "\"\" explicito nao expande para «todos»");
+  assert.equal(selectFacets(undefined).facets.length, FACET_NAMES.length, "flag ausente continua a ser «todos»");
 });

@@ -14,7 +14,12 @@ export interface FacetInput {
   summary: string;
   /** Evidence text fed to the worker (file excerpts + counts). */
   evidence: string;
-  /** Number of sources actually found and read. */
+  /**
+   * Number of sources that entered the evidence: files READ with non-empty
+   * content (after trim). Existence is not a source; a file that exists but
+   * cannot be read, or reads as empty, contributes nothing to audit — so it
+   * is not counted, and a facet whose count is 0 never reaches the worker.
+   */
   sources: number;
 }
 
@@ -45,7 +50,18 @@ export function realIO(): FacetIO {
 
 function clip(s: string | null, max = 3500): string {
   if (s === null) return "(absent)";
+  if (!hasContent(s)) return "(empty)";
   return s.length > max ? `${s.slice(0, max)}\n…(${s.length - max} more chars)` : s;
+}
+
+/** True only for a read that carries content — the single definition of "source". */
+function hasContent(s: string | null): s is string {
+  return s !== null && s.trim().length > 0;
+}
+
+/** Count what actually entered the evidence: read AND non-empty. */
+function countSources(...reads: Array<string | null>): number {
+  return reads.filter(hasContent).length;
 }
 
 /** Read the first candidate that exists; returns its path + content (or nulls). */
@@ -67,7 +83,7 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const sh = io.read(join(root, "install.sh"));
       const ps = io.read(join(root, "install.ps1"));
-      const sources = [sh, ps].filter((x) => x !== null).length;
+      const sources = countSources(sh, ps);
       const evidence = `# install.sh\n${clip(sh)}\n\n# install.ps1\n${clip(ps, 1500)}`;
       return { summary: "installer scripts (sh + ps1)", evidence, sources };
     },
@@ -81,7 +97,7 @@ export const FACETS: Record<string, Facet> = {
       // READ ONLY — classify.js is sha-locked; this facet must never write it.
       const js = io.read(join(root, "tools/router/classify.js"));
       const sha = io.read(join(root, "tools/router/classify.js.sha256"));
-      const sources = [js].filter((x) => x !== null).length;
+      const sources = countSources(js);
       const evidence = `# tools/router/classify.js (head)\n${clip(js)}\n\n# tools/router/classify.js.sha256\n${clip(sha, 200)}`;
       return { summary: "classify.js + recorded sha", evidence, sources };
     },
@@ -94,7 +110,7 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const multi = io.read(join(root, "tools/router/statusline-multi.js"));
       const modes = io.read(join(root, "tools/router/statusline-modes.js"));
-      const sources = [multi, modes].filter((x) => x !== null).length;
+      const sources = countSources(multi, modes);
       const evidence = `# statusline-multi.js (head)\n${clip(multi)}\n\n# statusline-modes.js (head)\n${clip(modes, 1500)}`;
       return { summary: "statusline renderer + modes", evidence, sources };
     },
@@ -107,7 +123,7 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const status = io.read(join(root, "tools/router/mlwr-status.js"));
       const bench = io.read(join(root, "packages/validation/src/benchmark/mlwr.ts"));
-      const sources = [status, bench].filter((x) => x !== null).length;
+      const sources = countSources(status, bench);
       const evidence = `# tools/router/mlwr-status.js (head)\n${clip(status, 1500)}\n\n# packages/validation/src/benchmark/mlwr.ts (head)\n${clip(bench)}`;
       return { summary: "MLWR status + benchmark", evidence, sources };
     },
@@ -120,7 +136,7 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const patterns = io.read(join(root, "tools/router/patterns.js"));
       const resolver = io.read(join(root, "tools/router/_model-resolver.js"));
-      const sources = [patterns, resolver].filter((x) => x !== null).length;
+      const sources = countSources(patterns, resolver);
       const evidence = `# tools/router/patterns.js (head)\n${clip(patterns)}\n\n# tools/router/_model-resolver.js (head)\n${clip(resolver, 1800)}`;
       return { summary: "routing patterns + model resolver", evidence, sources };
     },
@@ -135,7 +151,9 @@ export const FACETS: Record<string, Facet> = {
       const lines: string[] = [];
       for (const d of dirs) {
         const pj = io.read(join(root, "packages", d, "package.json"));
-        if (!pj) continue;
+        // Existir nao e fonte: um package.json que nao se le (ou esta vazio)
+        // nao entra na evidencia, logo nao conta.
+        if (!hasContent(pj)) continue;
         try {
           const j = JSON.parse(pj) as { name?: string; dependencies?: Record<string, string> };
           const deps = Object.keys(j.dependencies ?? {});
@@ -145,7 +163,13 @@ export const FACETS: Record<string, Facet> = {
           lines.push(`- ${d}: (unparseable package.json)`);
         }
       }
-      return { summary: `${dirs.length} packages`, evidence: `# packages/*/package.json\n${lines.join("\n")}`, sources: dirs.length };
+      // `sources` = package.json efectivamente lidos (uma linha de evidencia
+      // cada), nao os directorios que existem.
+      return {
+        summary: `${lines.length} of ${dirs.length} package.json read`,
+        evidence: `# packages/*/package.json\n${lines.join("\n")}`,
+        sources: lines.length,
+      };
     },
     prompt: (i) =>
       `Audit the monorepo package boundaries: which packages carry native deps (isolated-vm/better-sqlite3/ink), and is the zero-runtime-deps CLI at risk of bundling them? Flag any package that should stay lazy-imported. Evidence:\n\n${i.evidence}`,
@@ -154,9 +178,13 @@ export const FACETS: Record<string, Facet> = {
 
 export const FACET_NAMES = Object.keys(FACETS);
 
+/**
+ * `undefined` (flag absent) → all facets. An explicit csv is parsed as given:
+ * `","`, `""` or `" , "` resolve to an EMPTY list, which the caller must refuse —
+ * an explicit empty selection must not silently expand to "all six".
+ */
 export function selectFacets(csv: string | undefined): { facets: Facet[]; unknown: string[] } {
-  const names =
-    csv && csv.trim() ? csv.split(",").map((s) => s.trim()).filter(Boolean) : FACET_NAMES;
+  const names = csv === undefined ? FACET_NAMES : csv.split(",").map((s) => s.trim()).filter(Boolean);
   const facets: Facet[] = [];
   const unknown: string[] = [];
   for (const n of names) {

@@ -198,7 +198,13 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
   let synthesis: string | null = null;
   let synthCost = 0;
   let synthDidRun = false;
-  if (maxCost > 0) {
+  // A sintese resume achados; sem nenhum facet ok:true nao ha nada para
+  // resumir e a chamada cloud (paga) devolveria um sumario de erros — ou, com
+  // `--max-cost 1` num repo sem fontes, um sumario inventado. Nao se chama.
+  const anyFinding = findings.some((f) => f.ok);
+  if (maxCost > 0 && !anyFinding) {
+    synthesis = "(synthesis skipped — no facet produced a finding)";
+  } else if (maxCost > 0) {
     const synthModel = opts.synthModel ?? DEFAULT_SYNTH_MODEL;
     const joined = findings
       .map((f) => `## ${f.facet}\n${f.ok ? f.text : `(no finding — ${f.error})`}`)

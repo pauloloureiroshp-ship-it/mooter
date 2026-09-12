@@ -74,6 +74,16 @@ export async function runAudit(args: string[], deps: AuditDeps = {}): Promise<Cm
   if (unknown.length) {
     return { exitCode: 1, output: `Unknown facet(s): ${unknown.join(", ")}. Valid: ${FACET_NAMES.join(", ")}` };
   }
+  // `--facets ","` (ou "") resolve para lista vazia. Antes, 0 facets passava
+  // pelo `nothingAudited` (que exige length > 0), nao corria worker nenhum,
+  // podia ainda pagar a sintese, e saia 0 mesmo com --strict. Recusa-se aqui,
+  // antes de correr ou escrever seja o que for.
+  if (facets.length === 0) {
+    return {
+      exitCode: 1,
+      output: `no facets selected (--facets ${JSON.stringify(flags.facets)} resolved to an empty list). Valid: ${FACET_NAMES.join(", ")}`,
+    };
+  }
 
   const root = deps.root ?? process.cwd();
   const nowMs = deps.nowMs ?? Date.now();
