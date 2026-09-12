@@ -65,7 +65,7 @@ PRs. Todos fundidos hoje com `origin/main` a346230c **por merge, não rebase**
 | #413 C4 | frota no mesmo sha | n/d: **3 beacons, os 3 expirados** (desktop 27/08, mac 26/08, paulo-desktop 03/09) |
 | #414 F0.3 | catraca | 180 → **193** ao retomar (+15 em 16 dias, 5 do motor) → **186/668** depois de ligar 8 ao CI e justificar 8 |
 | #415 F1 | prova de rede, 4.ª ronda | `true` **só por construção** (namespace); sentinela = evidência; jscpd/knip em Windows nativo ⇒ `null`, exit 3 |
-| #505 F2 | braço A | S1 **re-corrido no sha pré-registado** (a corrida de 26/08 violava o §10.2); 28 achados · 1247 varridos · $0 por construção · §3 ⇒ **INCONCLUSIVO** |
+| #505 F2 | braço A + **F2 publicada** (12/09, decisão do dono: sem emendar a amostragem) | **FALHA por INCONCLUSIVO nos 3 sujeitos** (§7.3 + §7.1): calibração do §3 consome 22/22, 2/2, 4/4 ⇒ n = 0; 0 rótulos; B e C não corridos; S2/S3 re-corridos no sha (idênticos); codex `PASSA-COM-RESSALVAS` — `_handoff/AB_MOO_AUDIT_F2.md` |
 | #506 | `mooter audit fan-out` noutro repo | 0 fontes × 6 facets: antes `exit 0` com achados inventados; agora o LLM não é chamado e sai 1 |
 
 **Adversário.** `codex` (OpenAI) voltou a ter créditos; o sandbox não cria
@@ -81,7 +81,7 @@ como recurso, com o peso baixo escrito.
 preciso. Worktree `~/frugal-ab-tokens` pode ser removida.
 
 **Só o dono:** merge dos 7 (ordem sugerida #411 → #412 → #413 → #414 → #506 → #415 → #505);
-F2 — emendar a amostragem do §3 com zero rótulos feitos ou publicar o inconclusivo;
+F2 — **decidido a 12/09: publicado o INCONCLUSIVO sem emendar**; um resultado conclusivo exige outro pré-registo;
 fan-out — probes genéricos ou auto-auditoria assumida; `git pull` no mac e no paulo-desktop.
 
 ## 2026-09-10 · MATRIZ 12 — o Mooter contra a escolha real do utilizador, e perdeu
