@@ -15,12 +15,17 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import {
   parcela, indice, PESOS, TOTAL_PESOS,
   testesGateados, recibosDeCenso, veredictosPublicados, devicesNoMesmoSha,
   coberturaDeTelemetria, higieneDePrs, limiaresMedidos, limiaresNoCodigo,
   escreverInstantaneo, lerInstantaneo, IDADE_MAX_S, SUFIXOS_DE_LIMIAR, calcular,
-  globParaRegex, comandosDe, argumentosDe, NOMES,
+  globParaRegex, comandosDe, argumentosDe, NOMES, RAIZ_REPO,
 } from './indice-do-harness.mjs';
 
 // ── a regra-mae ─────────────────────────────────────────────────────────────
@@ -308,6 +313,186 @@ test('C1: `globParaRegex` — cada regra com o seu caso', () => {
   assert.ok(!casa('p/**/*.test.?(c|m)js', 'p/a.test.ts'));
   // Um ponto e um ponto, nao «qualquer caracter».
   assert.ok(!casa('a/*.test.mjs', 'a/xtestxmjs'));
+});
+
+// ── MORDIDAS da 2.ª ronda adversarial (2026-09-12) ─────────────────────────
+//
+// Cada uma reproduz um caso que o adversario executou de verdade (node --test,
+// bash, vitest) e que C1 contava ao contrario. As que podem correr o executor
+// real, correm-no: uma mordida que compara o matcher com a ideia que o autor
+// tem do matcher e tautologica.
+
+/** Ficheiros de teste num directorio temporario; devolve a raiz. */
+function arvoreTemporaria(ficheiros) {
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'indice-c1-'));
+  for (const f of ficheiros) {
+    const p = path.join(raiz, f);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, "import test from 'node:test'; test(" + JSON.stringify('EXEC:' + f) + ', () => {});\n');
+  }
+  return raiz;
+}
+
+/** O que o `node --test` REAL executa para um padrao, a partir de `raiz`. */
+function nodeExecuta(raiz, padrao) {
+  // Sem o `NODE_TEST_CONTEXT` herdado: com ele, o filho ve-se «dentro de um
+  // teste» e salta os ficheiros (aviso «run() is being called recursively»)
+  // — e a mordida media zero sem medir nada.
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', padrao], { cwd: raiz, env, encoding: 'utf8', windowsHide: true, timeout: 30000 });
+  return [...r.stdout.matchAll(/^# Subtest: EXEC:(.+)$/gm)].map((m) => m[1]).sort();
+}
+
+test('MORDIDA C1 (a): `*`, `?` e `**` NAO casam dotfiles — comparado com o `node --test` REAL num directorio temporario', () => {
+  // Um adversario correu cinco padroes no node e comparou com `globParaRegex`:
+  // `tests/**/*.test.mjs` dava 9 no matcher contra 6 executados — os tres a
+  // mais eram `.test.mjs`, `.hidden.test.mjs` e `.hidden/d.test.mjs`. Um
+  // dotfile a contar como coberto sem ninguem o correr e um orfao escondido.
+  const ficheiros = ['a.test.mjs', 'b.test.mjs', 'x.test.mjs', 'y.test.mjs', '.test.mjs', 'xy.test.mjs', 'a.test.js', 'a.test.ts',
+    'sub/c.test.mjs', '.hidden.test.mjs', '.hidden/d.test.mjs', 'sub/.h/e.test.mjs', '.hidden/sub/f.test.mjs', 'sub/.g.test.mjs'].map((f) => 'tests/' + f);
+  const raiz = arvoreTemporaria(ficheiros);
+  try {
+    // Os cinco do adversario, e mais os que separam «o ponto esta escrito no
+    // padrao» de «o ponto veio de um wildcard».
+    for (const padrao of ['tests/{a,b}.test.mjs', 'tests/?(x|y).test.mjs', 'tests/a.test.[jt]s', 'tests/**/*.test.mjs', 'tests/a.test.*',
+      'tests/*.test.mjs', 'tests/*/*.test.mjs', 'tests/.hidden/*.test.mjs', 'tests/.*.test.mjs', 'tests/**/.g.test.mjs', 'tests/**', 'tests/sub/**/*.test.mjs', 'tests/{.hidden,sub}/*.test.mjs']) {
+      const real = nodeExecuta(raiz, padrao);
+      assert.ok(real.length, `o node nao correu nada para ${padrao} — a mordida nao mediu`);
+      const previsto = ficheiros.filter((f) => globParaRegex(padrao).test(f)).sort();
+      assert.deepEqual(previsto, real, padrao);
+    }
+  } finally {
+    fs.rmSync(raiz, { recursive: true, force: true });
+  }
+});
+
+test('MORDIDA C1 (b1): o corpo de um heredoc e TEXTO — `cat <<EOF … node --test … EOF` nao corre nada', () => {
+  // Reproduzido por um adversario: codigo 0, zero testes, C1 a contar 1/11.
+  const bloco = (corpo) => 'jobs:\n  x:\n    steps:\n      - name: t\n        run: |\n' + corpo.split('\n').map((l) => '          ' + l).join('\n') + '\n';
+  const so = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs', 'b.test.mjs'], workflows: { 'ci.yml': bloco("cat <<'EOF'\nnode --test a.test.mjs\nEOF") } }));
+  assert.deepEqual(so.orfaos, ['a.test.mjs', 'b.test.mjs'], 'dentro do heredoc nao corre');
+  // O par: o comando DEPOIS do delimitador corre — e so ele.
+  const depois = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs', 'b.test.mjs'], workflows: { 'ci.yml': bloco('cat <<EOF\nnode --test a.test.mjs\nEOF\nnode --test b.test.mjs') } }));
+  assert.deepEqual(depois.orfaos, ['a.test.mjs']);
+  // `<<-` com tabs, e `<<<` (here-string) que NAO e heredoc.
+  const tabs = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs', 'b.test.mjs'], workflows: { 'ci.yml': bloco('cat <<-EOF\n\tnode --test a.test.mjs\n\tEOF\nnode --test b.test.mjs') } }));
+  assert.deepEqual(tabs.orfaos, ['a.test.mjs']);
+  const herestring = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs'], workflows: { 'ci.yml': bloco("cat <<< 'x'\nnode --test a.test.mjs") } }));
+  assert.deepEqual(herestring.orfaos, [], 'uma here-string nao engole a linha seguinte');
+});
+
+test('MORDIDA C1 (b2): o runner tem de ser o EXECUTAVEL — `echo node --test a.test.mjs` imprime e nao corre', () => {
+  // A versao anterior aceitava `node` em qualquer posicao do comando.
+  const eco = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs'], workflows: { 'ci.yml': wf('echo node --test a.test.mjs') } }));
+  assert.deepEqual(eco.orfaos, ['a.test.mjs'], 'o executavel e o echo');
+  const ecoNpm = testesGateados(ambienteC1({ ficheiros: ['p/a.test.mjs'], workflows: { 'ci.yml': wf('echo npm test', 'p') }, pkgs: { 'p/package.json': { test: 'node --test' } } }));
+  assert.deepEqual(ecoNpm.orfaos, ['p/a.test.mjs'], 'o executavel e o echo, mesmo com `npm test` atras');
+  // O par: atribuicoes e envoltorios que EXECUTAM o resto da linha nao
+  // escondem o runner. O `c8` esta aqui por medicao — sem ele, os 96 testes
+  // do `tools/router` (`c8 … npm test`) iam para orfaos sem ninguem ter
+  // deixado de os correr (473 → 377/667 na primeira tentativa desta regra).
+  for (const run of ['CI=1 node --test a.test.mjs', 'env CI=1 node --test a.test.mjs', 'npx tsx --test a.test.mjs', 'npx --yes tsx --test a.test.mjs', 'timeout 60 node --test a.test.mjs', './node_modules/.bin/tsx --test a.test.mjs']) {
+    const p = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs'], workflows: { 'ci.yml': wf(run) } }));
+    assert.deepEqual(p.orfaos, [], run);
+  }
+  const c8 = testesGateados(ambienteC1({
+    ficheiros: ['tools/router/a.test.js', 'tools/router/b.test.js'],
+    workflows: { 'ci.yml': wf('npm run test:coverage', 'tools/router') },
+    pkgs: { 'tools/router/package.json': { 'test:coverage': 'c8 --reporter=text --reporter=lcov --check-coverage npm test', test: 'node --test a.test.js' } },
+  }));
+  assert.deepEqual(c8.orfaos, ['tools/router/b.test.js'], 'o c8 executa o `npm test` que vem a seguir as flags');
+});
+
+test('MORDIDA C1 (b4): aspas por fechar recusam o bloco INTEIRO — e o que o bash faz (codigo 2, zero comandos)', () => {
+  // Reproduzido por um adversario: `node --test a.test.mjs "unterminated`
+  // termina com «unexpected EOF while looking for matching `"'» e C1 contava
+  // 1/11. Subconta, nunca sobreconta.
+  assert.deepEqual(comandosDe('node --test a.test.mjs "unterminated'), []);
+  assert.deepEqual(comandosDe('echo "oops && node --test a.test.mjs'), []);
+  const p = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs'], workflows: { 'ci.yml': wf('node --test a.test.mjs "unterminated') } }));
+  assert.deepEqual(p.orfaos, ['a.test.mjs']);
+  // O par: um apostrofo num COMENTARIO nao e uma aspa por fechar. Sem isto, a
+  // regra nova apagava blocos legitimos por causa de um `# don't`.
+  const bloco = 'jobs:\n  x:\n    steps:\n      - name: t\n        run: |\n          # don\'t run this by hand\n          node --test a.test.mjs # it\'s fine\n';
+  const c = testesGateados(ambienteC1({ ficheiros: ['a.test.mjs'], workflows: { 'ci.yml': bloco } }));
+  assert.deepEqual(c.orfaos, [], 'o comentario sai antes de contar aspas');
+  assert.deepEqual(comandosDe("# don't\nnode --test a.test.mjs # it's fine"), ['node --test a.test.mjs']);
+  // E `$#`, `a#b` nao sao comentarios.
+  assert.deepEqual(comandosDe('echo $# a#b; node --test a.test.mjs'), ['echo $# a#b', 'node --test a.test.mjs']);
+});
+
+test('MORDIDA C1 (c): o `include` do vitest le-se no objecto `test` a profundidade 1, por atribuicao, e `[]` cobre NADA', () => {
+  // Tres casos reproduzidos por um adversario contra o Vitest 2.1.9 real:
+  //   · `coverage: { include: [other] }` ANTES de `include: [app]` → C1 dava
+  //     `other` (trocava a identidade do orfao); o vitest corre `app`;
+  //   · `test.include = [app]` por atribuicao → C1 dava 2/2; o vitest 1/2;
+  //   · `include: []` → C1 dava 2/2; o vitest sai com codigo 1, 0 testes.
+  const base = {
+    ficheiros: ['landing/app/in.test.js', 'landing/other/out.test.js'],
+    workflows: { 'landing.yml': wf('npm test', 'landing') },
+    pkgs: { 'landing/package.json': { test: 'vitest run' } },
+  };
+  const casos = {
+    'nested-coverage': ["export default defineConfig({test:{globals:true,coverage:{include:['other/**/*.test.js']},include:['app/**/*.test.js']}});", ['landing/other/out.test.js']],
+    'function-computed': ["export default defineConfig(() => {const test={globals:true}; test.include=['app/**/*.test.js']; return {test};});", ['landing/other/out.test.js']],
+    'empty-include': ['export default defineConfig({test:{globals:true,include:[]}});', ['landing/app/in.test.js', 'landing/other/out.test.js']],
+    'function-literal': ["export default defineConfig(() => ({test:{globals:true,include:['app/**/*.test.js']}}));", ['landing/other/out.test.js']],
+    'coverage-only': ["export default defineConfig({test:{globals:true,coverage:{include:['other/**/*.test.js']}}});", []],
+    'comment-trap': ["// test: { include: ['other/**'] }\nexport default defineConfig({test:{ /* include: ['other/**'] */ include:['app/**/*.test.js'] }});", ['landing/other/out.test.js']],
+  };
+  for (const [nome, [config, orfaos]] of Object.entries(casos)) {
+    const p = testesGateados(ambienteC1({ ...base, extra: { 'landing/vitest.config.mjs': config } }));
+    assert.deepEqual(p.orfaos, orfaos, nome);
+  }
+});
+
+test('C1 (c): contra o vitest REAL, quando esta instalado em landing/node_modules', (t) => {
+  // A mordida acima e contra a LEITURA do config. Esta corre o vitest de
+  // verdade, se houver um — no worktree de auditoria nao ha, e diz-se. A
+  // 2026-09-12 os seis casos bateram contra o Vitest 2.1.9 do checkout
+  // principal (`frugal/landing/node_modules`), com o mesmo procedimento.
+  const vitest = path.join(RAIZ_REPO, 'landing', 'node_modules', 'vitest', 'vitest.mjs');
+  const config = path.join(RAIZ_REPO, 'landing', 'node_modules', 'vitest', 'dist', 'config.js');
+  if (!fs.existsSync(vitest) || !fs.existsSync(config)) {
+    t.diagnostic(`vitest nao instalado em ${vitest} — mordida (c) so contra a leitura do config`);
+    return;
+  }
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'indice-vitest-'));
+  try {
+    const escrever = (rel, s) => { const f = path.join(raiz, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); };
+    escrever('package.json', JSON.stringify({ type: 'module', scripts: { test: 'vitest run' } }));
+    escrever('.github/workflows/test.yml', wf('npm test'));
+    for (const f of ['app/in.test.js', 'other/out.test.js']) escrever(f, "test('EXEC:" + f + "', () => { expect(1).toBe(1); });\n");
+    spawnSync('git', ['init', '--quiet'], { cwd: raiz, windowsHide: true });
+    spawnSync('git', ['add', '--', 'package.json', 'app', 'other', '.github'], { cwd: raiz, windowsHide: true });
+    for (const corpo of [
+      "defineConfig({test:{globals:true,coverage:{include:['other/**/*.test.js']},include:['app/**/*.test.js']}})",
+      "defineConfig(() => {const test={globals:true}; test.include=['app/**/*.test.js']; return {test};})",
+      'defineConfig({test:{globals:true,include:[]}})',
+      "defineConfig({test:{globals:true,coverage:{include:['other/**/*.test.js']}}})",
+    ]) {
+      escrever('vitest.config.mjs', 'import { defineConfig } from ' + JSON.stringify(pathToFileURL(config).href) + ';\nexport default ' + corpo + ';\n');
+      const p = testesGateados({ raiz });
+      const r = spawnSync(process.execPath, [vitest, 'run', '--reporter=json', '--maxWorkers=1', '--minWorkers=1', '--no-file-parallelism'], { cwd: raiz, encoding: 'utf8', windowsHide: true, timeout: 120000 });
+      let saida = null;
+      try { saida = JSON.parse(r.stdout); } catch { /* «No test files found» nao e JSON */ }
+      const real = ((saida && saida.testResults) || []).map((x) => path.relative(raiz, x.name).split(path.sep).join('/')).sort();
+      const previsto = ['app/in.test.js', 'other/out.test.js'].filter((f) => !p.orfaos.includes(f)).sort();
+      assert.deepEqual(previsto, real, corpo);
+    }
+  } finally {
+    fs.rmSync(raiz, { recursive: true, force: true });
+  }
+});
+
+test('MORDIDA parcela: `num`/`den` em string nao contam E dizem porque', () => {
+  // Um adversario mediu `parcela(...,{num:'1',den:'2'})` → tudo a null, sem
+  // porque. Nao aumentava o indice, mas rejeitava sem explicar.
+  const p = parcela('testes_gateados', { num: '1', den: '2' });
+  assert.equal(p.valor, null);
+  assert.equal(p.pontos, 0);
+  assert.match(p.porque, /contrato violado: num="1" den="2" nao numericos/);
 });
 
 test('C1: a descricao da parcela de telemetria diz o que ela mede', () => {
