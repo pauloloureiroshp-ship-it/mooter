@@ -37,7 +37,7 @@ function shaDoRunner(statePath) {
 }
 import {
   registarTriagem, registarVarias, DECISOES, AUTORES, MOTIVOS, menuDeMotores,
-  lerTriagem, porTriar, contarTriagem, ORIGEM_DETECTOR,
+  lerTriagem, porTriar, contarTriagem, ORIGEM_DETECTOR, ORIGEM_MODELO,
 } from './triagem.mjs';
 import { escolherModelo, perguntar, validarMensagem, MAX_MENSAGEM } from './assist.mjs';
 import { estadoDaActualizacao } from './actualizacao.mjs';
@@ -174,6 +174,50 @@ export function hostAllowed(host) {
   if (!host) return false;
   const name = String(host).replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
   return name === '127.0.0.1' || name === 'localhost' || name === '::1';
+}
+
+/**
+ * A severidade e o suporte da citacao, calculados UMA vez, no servidor.
+ *
+ * ⚠️ O GUARDA ESTAVA VIRADO AO CONTRARIO, e custou 1038 achados mal rotulados.
+ *
+ * `severidade()` e `suporteDaCitacao()` (autopilot.mjs) foram escritas para
+ * RECIBOS DE MODELO: pontuam alegacoes numericas em codigo enviado e comparam a
+ * citacao com a linha que esta no disco. Um achado que nao vem do modelo nao
+ * tem citacao nenhuma para comparar.
+ *
+ * A versao anterior listava quem ESCAPA (`if (a.origem === ORIGEM_DETECTOR)`).
+ * Uma lista de excepcoes envelhece mal: qualquer origem nova cai no ramo errado
+ * no dia em que nasce. Foi o que aconteceu com os tres produtores da F1 —
+ * medido sobre a corrida real:
+ *
+ *     itens totais                                  : 1038
+ *     protegidos pelo ramo origem===ORIGEM_DETECTOR :    0
+ *     RECALCULADOS pela regra dos recibos de MODELO : 1038
+ *
+ * O esquema dava `med` / «needs your judgment»; o painel recebia `low` /
+ * «no claim, and not customer-facing» — uma frase falsa sobre, entre outros, um
+ * XSS do semgrep em codigo enviado — e `.tri.sev-low{opacity:.72}` desbotava-o.
+ *
+ * Agora e a lista de quem ENTRA: so o recibo de modelo e re-pontuado. Uma
+ * origem futura fica com a severidade que o seu proprio esquema lhe deu, que e
+ * o comportamento seguro.
+ *
+ * Exportada para poder ser mordida por um teste sem levantar um servidor.
+ */
+export function pontuarFila(fila) {
+  if (!Array.isArray(fila)) return fila;
+  return fila.map((a) => {
+    if (!a || a.origem !== ORIGEM_MODELO) {
+      const instrumento = a && a.origem === ORIGEM_DETECTOR
+        ? 'a regex pointer'
+        : `a ${(a && a.origem) || 'non-model'} finding`;
+      return { ...a, suporte: null, suporte_porque: `not applicable — ${instrumento} has no model citation` };
+    }
+    const s = severidade(a);
+    const sup = suporteDaCitacao(a);
+    return { ...a, sev: { k: s.k, n: s.n, porque: s.porque }, suporte: sup.ok, suporte_porque: sup.porque };
+  });
 }
 
 async function engineAlive(fetchImpl = fetch) {
@@ -558,20 +602,8 @@ export function createServer({
       // `citacao-ok` diz que a linha existe no disco; isto diz se a linha
       // contem o numero que o achado afirma. Sao coisas diferentes, e a
       // diferenca chegava a fila do dono marcada HIGH.
-      if (Array.isArray(estado.por_triar)) {
-        estado.por_triar = estado.por_triar.map((a) => {
-          if (a.origem === ORIGEM_DETECTOR) {
-            return {
-              ...a,
-              suporte: null,
-              suporte_porque: 'not applicable — a regex pointer has no model citation',
-            };
-          }
-          const s = severidade(a);
-          const sup = suporteDaCitacao(a);
-          return { ...a, sev: { k: s.k, n: s.n, porque: s.porque }, suporte: sup.ok, suporte_porque: sup.porque };
-        });
-      }
+      // A regra vive em `pontuarFila` (acima), e o guarda dela lista quem ENTRA.
+      estado.por_triar = pontuarFila(estado.por_triar);
       // O autopilot viaja com os PORTOES ja medidos: o painel nunca calcula se
       // um nivel pode abrir, so mostra o numero que o abre e o numero que ha.
       const pedido = lerAutopilot();
