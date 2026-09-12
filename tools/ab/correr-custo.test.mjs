@@ -81,19 +81,25 @@ test('encontrarTranscript + tokensDoTranscript: só o ficheiro do session_id, s�
   const sid = crypto.randomUUID();
   const dir = path.join(home, '.claude', 'projects', 'C--x-y');
   fs.mkdirSync(dir, { recursive: true });
+  // a forma REAL do Claude Code: uma linha por bloco de conteudo (thinking + text) da MESMA resposta, com o mesmo message.id e o mesmo usage completo — conta UMA vez (3.º revisor do controlador; medido 1,75x em transcripts reais)
+  const u1 = { input_tokens: 2, output_tokens: 4, cache_creation_input_tokens: 58964, cache_read_input_tokens: 0 };
+  const u3 = { input_tokens: 10, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 58964 };
   const linhas = [
     JSON.stringify({ type: 'user', uuid: 'u1', message: { role: 'user', content: 'x' } }),
-    JSON.stringify({ type: 'assistant', uuid: 'a1', parentUuid: 'u1', message: { model: 'claude-opus-5', usage: { input_tokens: 2, output_tokens: 4, cache_creation_input_tokens: 58964, cache_read_input_tokens: 0 } } }),
-    JSON.stringify({ type: 'assistant', uuid: 'a2', parentUuid: 'a1', message: { model: 'claude-haiku-4-5', usage: { input_tokens: 1000, output_tokens: 10 } } }),
-    JSON.stringify({ type: 'assistant', uuid: 'a3', parentUuid: 'a2', message: { model: 'claude-opus-5', usage: { input_tokens: 10, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 58964 } } }),
+    JSON.stringify({ type: 'assistant', uuid: 'a1', parentUuid: 'u1', requestId: 'req_1', message: { id: 'msg_01A', model: 'claude-opus-5', content: [{ type: 'thinking', thinking: '…' }], usage: u1 } }),
+    JSON.stringify({ type: 'assistant', uuid: 'a1b', parentUuid: 'a1', requestId: 'req_1', message: { id: 'msg_01A', model: 'claude-opus-5', content: [{ type: 'text', text: 'ok' }], usage: u1 } }),
+    JSON.stringify({ type: 'assistant', uuid: 'a2', parentUuid: 'a1b', requestId: 'req_2', message: { id: 'msg_01B', model: 'claude-haiku-4-5', usage: { input_tokens: 1000, output_tokens: 10 } } }),
+    JSON.stringify({ type: 'assistant', uuid: 'a3', parentUuid: 'a2', requestId: 'req_3', message: { id: 'msg_01C', model: 'claude-opus-5', content: [{ type: 'text', text: 'a' }], usage: u3 } }),
+    JSON.stringify({ type: 'assistant', uuid: 'a3b', parentUuid: 'a3', requestId: 'req_3', message: { id: 'msg_01C', model: 'claude-opus-5', content: [{ type: 'tool_use', name: 'Bash' }], usage: u3 } }),
+    JSON.stringify({ type: 'assistant', uuid: 'a4', parentUuid: 'a3b', message: { model: 'claude-opus-5', usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } }),   // sem id nem requestId: conta pelo uuid
     '{ truncada',
   ];
   fs.writeFileSync(path.join(dir, `${sid}.jsonl`), linhas.join('\n') + '\n');
   const p = encontrarTranscript(sid, home);
   assert.equal(p, path.join(dir, `${sid}.jsonl`));
   const t = tokensDoTranscript(p);
-  assert.equal(t.total, 2 + 4 + 58964 + 10 + 20 + 58964);
-  assert.equal(t.registos, 3); assert.equal(t.registos_opus, 2); assert.equal(t.linhas_ilegiveis, 1);
+  assert.equal(t.total, 2 + 4 + 58964 + 10 + 20 + 58964 + 2, 'cada resposta uma vez; somar linhas daria o dobro');
+  assert.equal(t.registos, 6); assert.equal(t.registos_opus, 5); assert.equal(t.respostas_opus, 3); assert.equal(t.linhas_repetidas, 2); assert.equal(t.linhas_ilegiveis, 1);
   assert.equal(encontrarTranscript(crypto.randomUUID(), home), null, 'nao encontrado -> null (o chamador escreve tokens_transcript 0)');
   assert.equal(encontrarTranscript('nao-e-uuid', home), null);
   assert.equal(tokensDoTranscript(path.join(home, 'nao-existe.jsonl')), null);
@@ -320,7 +326,7 @@ function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', t
     }
     if (args[0] === '-p') {
       const sid = args[args.indexOf('--session-id') + 1];
-      const ehA = String(opts.cwd).endsWith('-A');
+      const ehA = path.basename(String(opts.cwd)).endsWith('-A');
       const modoA = opcao(claudeA, opts.cwd);
       if (ehA && modoA === 'timeout') return { status: null, signal: 'SIGTERM', error: { code: 'ETIMEDOUT' }, pid: 4242, stdout: '', stderr: '' };
       if (ehA && modoA === 'spawn') return { status: null, signal: null, error: { code: 'ENOENT' }, stdout: '', stderr: '' };
@@ -330,8 +336,9 @@ function harness({ local = 'ok', aceitacaoA = 'verde', aceitacaoEsc = 'verde', t
     if (args[0] === '--test') {
       const cwd = String(opts.cwd);
       const hist = (idDe(cwd) === 't21-96171ef138' ? t21 : t22).tests_total_historico;
-      if (cwd.includes('-pv')) return { status: 1, signal: null, stdout: sumario(false, hist), stderr: '' };
-      if (cwd.includes('-A')) return { status: aceitacaoA === 'verde' ? 0 : 1, signal: null, stdout: sumario(aceitacaoA === 'verde', hist), stderr: '' };
+      const wt = path.basename(path.relative(ctx.snapshots, cwd).split(path.sep)[0] || '');   // 152: o sufixo do mkdtemp podia comecar por «A»
+      if (wt.endsWith('-pv')) return { status: 1, signal: null, stdout: sumario(false, hist), stderr: '' };
+      if (wt.endsWith('-A')) return { status: aceitacaoA === 'verde' ? 0 : 1, signal: null, stdout: sumario(aceitacaoA === 'verde', hist), stderr: '' };
       nB[idDe(cwd)] = (nB[idDe(cwd)] || 0) + 1;   // 1.ª chamada em B = depois do local (vermelha por construção), 2.ª = depois da escalação
       const verde = nB[idDe(cwd)] >= 2 && aceitacaoEsc === 'verde';
       return { status: verde ? 0 : 1, signal: null, stdout: sumario(verde, hist), stderr: '' };
@@ -498,6 +505,7 @@ test('correr(): ponta a ponta com tudo injectado — sentinela posto antes da so
   fs.writeFileSync(path.join(ctx.routerDirVivo, 'classify.js'), ''); fs.writeFileSync(path.join(ctx.routerDirVivo, 'patterns.js'), ''); ctx.classifyPath = path.join(ctx.routerDirVivo, 'classify.js');
   ctx.preVooImpl = async () => ({ ok: true, falhas: [], avisos: [] });
   ctx.cacheNmImpl = () => [];
+  const controlados = []; ctx.controloImpl = (c, ids) => { controlados.push(...ids); return []; };   // 157
   const sentinelaVisto = [];
   ctx.aquecerImpl = async () => { sentinelaVisto.push(fs.existsSync(caminhoDoSentinela(ctx.routerDirVivo))); return { ok: true, ms: 1 }; };
   // a sonda passa pelo spawn injectado do harness (args[0] === '-p'); a analise no fim tambem (args[0] termina em custo-analise.mjs)
@@ -515,6 +523,7 @@ test('correr(): ponta a ponta com tudo injectado — sentinela posto antes da so
   const logs = []; ctx.log = (m) => logs.push(String(m));
   const codigo = await correr(ctx);
   assert.equal(codigo, 0, logs.join(' | '));
+  assert.deepEqual(controlados, ['t22-11f81c79b7', 't21-96171ef138', 't02-7bb45751d8'], '157: o controlo do filho corre antes de pagar, tarefas em jogo + suplentes');
   assert.deepEqual(sentinelaVisto, [true], '145: o sentinela ja esta posto quando o modelo aquece (antes da sonda)');
   assert.equal(fs.existsSync(caminhoDoSentinela(ctx.routerDirVivo)), false, 'retirado no fim');
   const m = JSON.parse(fs.readFileSync(ctx.manifestoPath, 'utf8'));
@@ -531,7 +540,7 @@ test('correr(): ponta a ponta com tudo injectado — sentinela posto antes da so
   const c2 = h2.ctx;
   c2.raiz = path.join(c2.home, 'raiz'); c2.ledgerPath = path.join(c2.home, 'l.jsonl'); c2.manifestoPath = path.join(c2.home, 'm.json'); c2.analysisPath = path.join(c2.home, 'a.json');
   fs.rmSync(path.join(c2.routerDirVivo, '.budget-freeze'), { force: true });
-  c2.preVooImpl = async () => ({ ok: true, falhas: [], avisos: [] }); c2.cacheNmImpl = () => []; c2.aquecerImpl = async () => ({ ok: true, ms: 1 });
+  c2.preVooImpl = async () => ({ ok: true, falhas: [], avisos: [] }); c2.cacheNmImpl = () => []; c2.aquecerImpl = async () => ({ ok: true, ms: 1 }); c2.controloImpl = () => [];
   const inner2 = c2.spawnImpl;
   c2.spawnImpl = (exe, args, opts) => { if (args[0] === '-p') return { status: 0, signal: null, stdout: JSON.stringify({ session_id: 's', usage: SONDA.usage, modelUsage: { 'claude-opus-4-1': SONDA.modelUsage['claude-opus-5'] } }), stderr: '' }; return inner2(exe, args, opts); };
   assert.equal(await correr(c2), 2);
@@ -548,4 +557,10 @@ test('sondar: exige a chave literal claude-opus-5, usage, e o transcript do sess
   const semTranscript = harness(); semTranscript.ctx.raiz = semTranscript.ctx.home;
   const s2 = sondar(semTranscript.ctx);
   assert.equal(s2.ok, false); assert.ok(s2.falhas.some((f) => /transcript da sonda/.test(f)));
+  // o controlo positivo do instrumento: um transcript que nao bate com o JSON (aqui, o dobro — duas respostas com ids DIFERENTES) reprova a sonda
+  const h3 = harness(); h3.ctx.raiz = h3.ctx.home;
+  const inner3 = h3.ctx.spawnImpl;
+  h3.ctx.spawnImpl = (exe, args, opts) => { const r = inner3(exe, args, opts); if (args[0] === '-p') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(h3.ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), [1, 2].map((i) => JSON.stringify({ message: { id: `msg_${i}`, model: 'claude-opus-5', usage: SONDA.usage } })).join('\n') + '\n'); } return r; };
+  const s3 = sondar(h3.ctx);
+  assert.equal(s3.ok, false); assert.ok(s3.falhas.some((f) => /cruzamento n.o bate/.test(f)), s3.falhas.join(' | '));
 });
