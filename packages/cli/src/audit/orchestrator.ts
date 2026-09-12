@@ -181,15 +181,19 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
           };
         }
         const r = await worker({ model, system: AUDIT_SYSTEM, prompt: f.prompt(input), backend: "ollama" });
+        // Transport success is not a finding. The Ollama worker returns
+        // ok:true with an empty `response`; treating that as a finding let the
+        // (paid) synthesis run over one blank section and five "no finding"s.
+        const blank = r.ok && String(r.text ?? "").trim().length === 0;
         return {
           facet: f.name,
           sources: input.sources,
           backend: r.backend,
           model: r.model,
           cost_usd: r.cost_usd,
-          text: r.text,
-          ok: r.ok,
-          error: r.error,
+          text: blank ? "" : r.text,
+          ok: r.ok && !blank,
+          error: blank ? "worker returned no text" : r.error,
         };
       }),
     ),

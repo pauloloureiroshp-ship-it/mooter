@@ -417,3 +417,53 @@ test("objeccao 3 · --facets que resolve para lista vazia → exit 1 «no facets
   assert.deepEqual(selectFacets(""), { facets: [], unknown: [] }, "\"\" explicito nao expande para «todos»");
   assert.equal(selectFacets(undefined).facets.length, FACET_NAMES.length, "flag ausente continua a ser «todos»");
 });
+
+// ── ronda 2 do adversario (codex, sobre 5ef8a35a) ───────────────────────────
+
+test("ronda 2 · obj. 1 · worker ok:true com texto vazio nao e achado: facet ok:false, sintese NAO corre", async () => {
+  // Reproducao do adversario: install.sh = "x", os outros 5 a 0 fontes, worker
+  // devolve ok:true e text:"" (o worker Ollama faz isso quando `response` vem
+  // vazio). Antes: 1 chamada cloud sobre uma seccao sem texto e cinco «no finding».
+  let cloudCalls = 0;
+  const worker: WorkerFn = async (req) => {
+    if (req.backend === "claude-api") { cloudCalls++; return { text: FABRICATED, backend: req.backend, model: req.model, cost_usd: 0.01, ok: true }; }
+    return { text: "   ", backend: req.backend, model: req.model, cost_usd: 0, ok: true };
+  };
+  const io = mockIO({ "install.sh": "x" });
+  io.exists = () => false;
+  io.list = () => [];
+  const report = await runFanOut({ root: "/r", facets: FACET_NAMES.map((n) => FACETS[n]), io, worker, maxCostUsd: 1, nowMs: NOW });
+  const inst = report.facets.find((f) => f.facet === "install")!;
+  assert.equal(inst.sources, 1, "a fonte existe — o que falta e o achado");
+  assert.equal(inst.ok, false, "sucesso de transporte sem texto nao e achado");
+  assert.match(String(inst.error), /no text/);
+  assert.equal(cloudCalls, 0, "sem achado nenhum, a sintese paga nao corre");
+  assert.equal(report.cloudCount, 0);
+  assert.equal(report.synthesis, "(synthesis skipped — no facet produced a finding)");
+});
+
+test("ronda 2 · obj. 2 · a fonte conta-se no EXCERTO que vai ao worker, nao no ficheiro inteiro", async () => {
+  // install.sh = 3500 espacos + "x": o ficheiro tem conteudo, o excerto (3500
+  // chars) nao. Antes: sources 1, evidencia so com espacos, worker chamado.
+  const worker = inventingWorker();
+  const io = mockIO({ "install.sh": " ".repeat(3500) + "x" });
+  io.exists = () => false;
+  io.list = () => [];
+  const facets = FACET_NAMES.map((n) => FACETS[n]);
+  const inst = FACETS.install.gather("/r", io);
+  assert.equal(inst.sources, 0, "excerto em branco nao e fonte");
+  assert.match(inst.evidence, /# install\.sh\n\(empty\)/);
+  const report = await runFanOut({ root: "/r", facets, io, worker: worker.fn, nowMs: NOW });
+  assert.equal(worker.calls(), 0, "nenhum facet tinha excerto com conteudo — o worker nao corre");
+  assert.ok(report.facets.every((f) => f.sources === 0 && !f.ok));
+  // Par positivo: com o `x` DENTRO do excerto, conta e o worker corre.
+  const io2 = mockIO({ "install.sh": "x" + " ".repeat(3500) });
+  io2.exists = () => false;
+  io2.list = () => [];
+  assert.equal(FACETS.install.gather("/r", io2).sources, 1);
+  // E o corte de 1500 do install.ps1 tambem conta no excerto, nao no ficheiro.
+  const io3 = mockIO({ "install.ps1": " ".repeat(1500) + "x" });
+  io3.exists = () => false;
+  io3.list = () => [];
+  assert.equal(FACETS.install.gather("/r", io3).sources, 0);
+});

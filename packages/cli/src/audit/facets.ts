@@ -48,10 +48,20 @@ export function realIO(): FacetIO {
   };
 }
 
+const ABSENT = "(absent)";
+const EMPTY = "(empty)";
+
+/**
+ * The excerpt that is actually sent to the worker. A source is counted on
+ * THIS, not on the raw read: a file of 3500 blanks followed by an `x` has
+ * content, but the excerpt the worker sees has none — an adversary showed
+ * `sources: 1` with an all-blank evidence block, and the worker was called.
+ */
 function clip(s: string | null, max = 3500): string {
-  if (s === null) return "(absent)";
-  if (!hasContent(s)) return "(empty)";
-  return s.length > max ? `${s.slice(0, max)}\n…(${s.length - max} more chars)` : s;
+  if (s === null) return ABSENT;
+  const head = s.slice(0, max);
+  if (!hasContent(head)) return EMPTY;
+  return s.length > max ? `${head}\n…(${s.length - max} more chars)` : head;
 }
 
 /** True only for a read that carries content — the single definition of "source". */
@@ -59,9 +69,9 @@ function hasContent(s: string | null): s is string {
   return s !== null && s.trim().length > 0;
 }
 
-/** Count what actually entered the evidence: read AND non-empty. */
-function countSources(...reads: Array<string | null>): number {
-  return reads.filter(hasContent).length;
+/** Count what actually entered the evidence: excerpts that are neither absent nor empty. */
+function countSources(...excerpts: string[]): number {
+  return excerpts.filter((e) => e !== ABSENT && e !== EMPTY).length;
 }
 
 /** Read the first candidate that exists; returns its path + content (or nulls). */
@@ -83,8 +93,10 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const sh = io.read(join(root, "install.sh"));
       const ps = io.read(join(root, "install.ps1"));
-      const sources = countSources(sh, ps);
-      const evidence = `# install.sh\n${clip(sh)}\n\n# install.ps1\n${clip(ps, 1500)}`;
+      const shX = clip(sh);
+      const psX = clip(ps, 1500);
+      const sources = countSources(shX, psX);
+      const evidence = `# install.sh\n${shX}\n\n# install.ps1\n${psX}`;
       return { summary: "installer scripts (sh + ps1)", evidence, sources };
     },
     prompt: (i) =>
@@ -97,8 +109,9 @@ export const FACETS: Record<string, Facet> = {
       // READ ONLY — classify.js is sha-locked; this facet must never write it.
       const js = io.read(join(root, "tools/router/classify.js"));
       const sha = io.read(join(root, "tools/router/classify.js.sha256"));
-      const sources = countSources(js);
-      const evidence = `# tools/router/classify.js (head)\n${clip(js)}\n\n# tools/router/classify.js.sha256\n${clip(sha, 200)}`;
+      const jsX = clip(js);
+      const sources = countSources(jsX);
+      const evidence = `# tools/router/classify.js (head)\n${jsX}\n\n# tools/router/classify.js.sha256\n${clip(sha, 200)}`;
       return { summary: "classify.js + recorded sha", evidence, sources };
     },
     prompt: (i) =>
@@ -110,8 +123,10 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const multi = io.read(join(root, "tools/router/statusline-multi.js"));
       const modes = io.read(join(root, "tools/router/statusline-modes.js"));
-      const sources = countSources(multi, modes);
-      const evidence = `# statusline-multi.js (head)\n${clip(multi)}\n\n# statusline-modes.js (head)\n${clip(modes, 1500)}`;
+      const multiX = clip(multi);
+      const modesX = clip(modes, 1500);
+      const sources = countSources(multiX, modesX);
+      const evidence = `# statusline-multi.js (head)\n${multiX}\n\n# statusline-modes.js (head)\n${modesX}`;
       return { summary: "statusline renderer + modes", evidence, sources };
     },
     prompt: (i) =>
@@ -123,8 +138,10 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const status = io.read(join(root, "tools/router/mlwr-status.js"));
       const bench = io.read(join(root, "packages/validation/src/benchmark/mlwr.ts"));
-      const sources = countSources(status, bench);
-      const evidence = `# tools/router/mlwr-status.js (head)\n${clip(status, 1500)}\n\n# packages/validation/src/benchmark/mlwr.ts (head)\n${clip(bench)}`;
+      const statusX = clip(status, 1500);
+      const benchX = clip(bench);
+      const sources = countSources(statusX, benchX);
+      const evidence = `# tools/router/mlwr-status.js (head)\n${statusX}\n\n# packages/validation/src/benchmark/mlwr.ts (head)\n${benchX}`;
       return { summary: "MLWR status + benchmark", evidence, sources };
     },
     prompt: (i) =>
@@ -136,8 +153,10 @@ export const FACETS: Record<string, Facet> = {
     gather: (root, io) => {
       const patterns = io.read(join(root, "tools/router/patterns.js"));
       const resolver = io.read(join(root, "tools/router/_model-resolver.js"));
-      const sources = countSources(patterns, resolver);
-      const evidence = `# tools/router/patterns.js (head)\n${clip(patterns)}\n\n# tools/router/_model-resolver.js (head)\n${clip(resolver, 1800)}`;
+      const patternsX = clip(patterns);
+      const resolverX = clip(resolver, 1800);
+      const sources = countSources(patternsX, resolverX);
+      const evidence = `# tools/router/patterns.js (head)\n${patternsX}\n\n# tools/router/_model-resolver.js (head)\n${resolverX}`;
       return { summary: "routing patterns + model resolver", evidence, sources };
     },
     prompt: (i) =>
