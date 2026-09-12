@@ -275,7 +275,13 @@ export function globParaRegex(glob) {
     } else if (ch === '[') {
       const fim = g.indexOf(']', i);
       if (fim < 0) { re += '\\['; continue; }
-      re += g.slice(i, fim + 1);
+      // `[!a]` e negacao no glob; copiada tal e qual para JavaScript era «`!`
+      // ou `a`» — e `a.test.mjs`, que o node NAO corre, contava como coberto
+      // (3.a ronda do adversario). A classe tambem nao pode casar `/`.
+      let classe = g.slice(i + 1, fim);
+      const negada = classe.startsWith('!') || classe.startsWith('^');
+      if (negada) classe = classe.slice(1);
+      re += negada ? `(?!/)[^/${classe}]` : `[${classe}]`;
       i = fim;
     } else {
       re += escaparRe(ch);
