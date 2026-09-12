@@ -334,3 +334,31 @@ para o mesmo ficheiro, e faria parecer que o CI ganhou mais do que ganhou.
 | **0 segredos no histórico** | **cumprido, na forma exacta do cabeçalho** — 0 HIGH não declarados nos três âmbitos (`origin`, `all`, `todos`), mensagens de commit e tag incluídas; 13 críticos verificados um a um no blob, todos fixtures; contraprova externa independente concorda no nível crítico. **Não cobre**: 2 424 `LOW` heurísticos por triar (§4) |
 | índice publicado com as sete parcelas | pendente (F0.2) |
 | 3 devices no mesmo sha | pendente |
+
+---
+
+## 8. Re-medição a 2026-09-11 — 16 dias e ~90 PRs depois
+
+O PR ficou aberto sem merge de 26/08 a 11/09. Ao fundi-lo com `origin/main`
+a346230c, a bateria correu outra vez contra o histórico de hoje. Os números
+de cima são de 26/08 e ficam como estavam; estes são os de hoje.
+
+| âmbito | comando | HIGH não declarados | LOW | INFO |
+|---|---|---|---|---|
+| árvore de hoje (o passo do CI) | `node tools/audit/varredura-segredos.mjs --sem-vault` | **0** | 1 911 | 28 |
+| histórico de `origin` (`--refs origin`) | `node tools/audit/varredura-historico.mjs --refs origin` | **0** | 2 735 | 92 |
+
+- `LOW` subiu de 2 424 para 2 735 no histórico: 311 heurísticos novos em 16
+  dias, **por triar**, como os anteriores (§4). Nenhum subiu a `HIGH`.
+- Só um dos dois blobs declarados (`bd1e23cf`) continua alcançável a partir de
+  `origin`; o outro (`b8979864`) vivia num branch que entretanto deixou de
+  existir no remoto. A allowlist não foi mexida: uma entrada para um blob que
+  já não se alcança é inerte, não é um risco.
+- `npm run test:audit`: 55/55, iguais a 26/08.
+- Os âmbitos `all` e `todos` (objectos soltos desta máquina) **não foram
+  re-corridos hoje** — n/d. O CI só corre a árvore; o histórico de `origin` é
+  o que qualquer clone consegue reproduzir.
+
+O que isto acrescenta ao veredicto do §7: nada muda no critério «0 segredos
+no histórico» — continua cumprido na forma exacta do cabeçalho, agora
+também para os commits de 27/08 a 11/09.
