@@ -85,12 +85,28 @@ export const NAO_MEDIDO = {
  * O dado estava no disco o tempo todo; o Mooter é que nunca o tinha lido.
  *
  * `tools/router/recibo.js` passa a lê-lo. A chave de atribuição **não** é
- * `session_id`: medido, 387 prompts classificados correspondem a 9.692 chamadas
- * — 25 por prompt — e dividir por aí reconstruía o defeito exacto que matou o
- * `0%` deste projecto («o denominador eram chamadas Bash, não prompts»). A chave
- * é a cadeia `parentUuid` até ao turno humano mais próximo, ignorando os
- * `tool_result` (que também são `type: "user"`). Medido: **318 turnos humanos
- * ← 9.420 chamadas, 0 órfãs**. É causal por construção.
+ * `session_id`: medido a 2026-09-12, 970 prompts classificados correspondem a
+ * 11.878 respostas — 12,2 por prompt — e dividir por aí reconstruía o defeito
+ * exacto que matou o `0%` deste projecto («o denominador eram chamadas Bash,
+ * não prompts»). A chave é a cadeia `parentUuid` até ao turno humano mais
+ * próximo, ignorando os `tool_result` (que também são `type: "user"`). Medido
+ * a 2026-09-12 nos 25 transcripts mais recentes: **223 turnos humanos ← 3.813
+ * respostas, 0 órfãs**. É causal por construção.
+ *
+ * ⚠️  Uma linha não é uma chamada. O Claude Code escreve UMA LINHA POR BLOCO DE
+ * CONTEÚDO da mesma resposta da API (thinking + text, text + tool_use), cada
+ * uma a repetir o mesmo `message.id` e o `usage` completo. Até 2026-09-12 o
+ * `recibo.js` somava-as todas, e o snapshot que aqui esteve (2026-08-28: 710
+ * turnos, 17.297 «chamadas», $5.704,22, 7,57 mil milhões de cache-read) vinha
+ * inflado por isso — as «chamadas» eram linhas. Medido a 2026-09-11 em 3
+ * transcripts reais: 1,76–1,81× (brief 164 da revisão do `correr-custo.mjs`);
+ * no corpus inteiro desta máquina a 2026-09-12, 2,0× (23.196 respostas para
+ * 46.455 linhas). Desde 2026-09-12 conta-se por `message.id`, com o MÁXIMO por
+ * campo das linhas da mesma resposta — nos transcripts de subagentes a 1.ª
+ * linha traz o `output_tokens` em streaming e só a última o total (ficar com a
+ * 1.ª subcontava o output em 18,3% na janela dos 40). O snapshot abaixo é o
+ * primeiro com o dedup. Não é comparável com o anterior: os «40 mais recentes»
+ * são hoje outros ficheiros, noutra janela.
  *
  * ⚠️  E a distinção que não se pode perder: o total NÃO é despesa. Estes tokens
  * correram dentro de uma subscrição de valor fixo. O número mede o que os mesmos
@@ -103,16 +119,26 @@ export const NAO_MEDIDO = {
  * Continua a não haver percentagem de poupança, e continua a não poder haver.
  */
 export const RECIBO = {
-  janela: { de: '2026-08-02T17:16Z', ate: '2026-08-28T09:53Z' },
+  /** Medido a 2026-09-12T10:22Z com `node tools/router/recibo.js` (40 mais recentes, o default). */
+  janela: { de: '2026-08-25T21:22Z', ate: '2026-09-12T10:11Z' },
   transcriptsLidos: 40,
-  transcriptsTotais: 282,
-  turnosHumanos: 710,
-  chamadas: 17297,
+  transcriptsTotais: 539,
+  turnosHumanos: 247,
+  /** Respostas da API, UMA por `message.id`. As 3.492 linhas repetidas não entram. */
+  chamadas: 4290,
+  linhasRepetidas: 3492,
   /** Tokens medidos x preço público. NÃO é despesa — ver o comentário acima. */
-  equivalenteListaUsd: 5704.22,
-  cacheLidoTokens: 7_569_960_888,
+  equivalenteListaUsd: 976.84,
+  /** Só dos modelos com preço — o cabeçalho do recibo.js conta todos (1,42B). */
+  cacheLidoTokens: 1_328_273_589,
   /** Chamadas atribuídas a turno humano nenhum. Zero é o ponto todo. */
   orfas: 0,
+  /**
+   * Chamadas de modelo SEM preço na tabela — contadas, NÃO somadas ao total.
+   * São `claude-fable-5-1` (ainda sem preço em `pricing.js`) e `<synthetic>`
+   * (marcador interno do Claude Code). O total acima é por isso um piso.
+   */
+  chamadasSemPreco: 264,
   fonte: 'tools/router/recibo.js sobre ~/.claude/projects/**\/*.jsonl, 1 máquina',
 } as const;
 
