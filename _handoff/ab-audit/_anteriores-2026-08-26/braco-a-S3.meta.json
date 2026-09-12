@@ -1,17 +1,14 @@
 {
   "sujeito": "S3",
   "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/hono",
-  "head_da_raiz": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
   "modo": "limpo",
-  "tracer": null,
-  "extra_do_modo": [],
   "rc": 0,
-  "parede_s": 26.107,
+  "parede_s": 20.325,
   "ficheiros_na_lista": 221,
   "regras_correram": 89,
   "semgrep": "1.174.0",
   "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
-  "corrido_em": "2026-09-12T10:23:23Z",
+  "corrido_em": "2026-08-26T19:38:11Z",
   "sha256_lista_ambito": "0149fc8663c8c6bc4275c941542270b2889c7f43207735e188ff2e20117435a0",
   "sha256_regras": {
     "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
@@ -19,5 +16,5 @@
     "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
     "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
   },
-  "sha256_json": "26b8f39fe5a173a5a499de20eb94afb19aaa5fbf00f551161512890d5c226cb6"
+  "sha256_json": "b5643c004fd34b0e2422b332c15636c33bf6bd76107125eb1df711bfd6965aeb"
 }

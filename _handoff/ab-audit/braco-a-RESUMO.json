@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-09-12T01:57:11.556Z",
+  "gerado_em": "2026-09-12T10:25:11.033Z",
   "dir": "C:\\Users\\Paulo Loureiro\\frugal-ab-braco-a\\_handoff\\ab-audit",
   "sujeitos": [
     {
@@ -163,14 +163,17 @@
       "recibo_da_corrida": {
         "sujeito": "S2",
         "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/fastify",
+        "head_da_raiz": "1beaf7e72d24b2fc63a02a7f5806772a00e45454",
         "modo": "limpo",
+        "tracer": null,
+        "extra_do_modo": [],
         "rc": 0,
-        "parede_s": 10.082,
+        "parede_s": 10.844,
         "ficheiros_na_lista": 54,
         "regras_correram": 89,
         "semgrep": "1.174.0",
         "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
-        "corrido_em": "2026-08-26T19:37:50Z",
+        "corrido_em": "2026-09-12T10:22:20Z",
         "sha256_lista_ambito": "8eeb34211fe8253e53863dd97d2899e4df4dde96c1fb8ecd6b1a851ea4998e28",
         "sha256_regras": {
           "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
@@ -178,7 +181,7 @@
           "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
           "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
         },
-        "sha256_json": "a860b99b18aaf92f8255e4e3a0d3400e8afec635353239fd086bbc5a56f52fa5"
+        "sha256_json": "0ebc5a1fec0087a1b55dba157c2508f1025a81bc4984fa3b9f387a483e619dd8"
       },
       "volume_entregue_ao_humano": 2,
       "achados_distintos_apos_colapso_exacto": 2,
@@ -230,8 +233,10 @@
       "controlo_sem_rede": {
         "medido": true,
         "brutos": 2,
-        "erros": 0,
-        "erros_por_tipo": {},
+        "erros": 1,
+        "erros_por_tipo": {
+          "Timeout": 1
+        },
         "ficheiros_varridos": 54,
         "achados_identicos": true,
         "so_no_limpo": 0,
@@ -248,14 +253,22 @@
         "so_no_outro": 0
       },
       "criterio_5_rede": {
-        "medido": false,
-        "porque": "o tracer nao mostra o semgrep a ser executado: nenhuma linha execve(\"…semgrep…\") = 0 no trace (0 execve de outros executaveis; um trace so com -e trace=connect nao a contem) — um zero sem produtor observado e n/d, nao \"nao saiu\""
+        "medido": true,
+        "prova_de_execucao": {
+          "pid": 806,
+          "executavel": "/home/paulo/.local/bin/semgrep"
+        },
+        "total_connect": 0,
+        "af_unix": 0,
+        "loopback": 0,
+        "externos": [],
+        "saiu_da_maquina": false
       },
-      "criterio_5_declaracao": "(a) sob strace: n/d — o tracer nao mostra o semgrep a ser executado: nenhuma linha execve(\"…semgrep…\") = 0 no trace (0 execve de outros executaveis; um trace so com -e trace=connect nao a contem) — um zero sem produtor observado e n/d, nao \"nao saiu\"; (b) em netns sem interface, conjunto de achados identico ao da corrida limpa (2 vs 2) — a varredura nao precisou de rede",
+      "criterio_5_declaracao": "(a) sob strace, 0 connect() numa corrida com 2 achados — conjunto de achados identico ao da corrida limpa; (b) em netns sem interface, conjunto de achados identico ao da corrida limpa (2 vs 2) — a varredura nao precisou de rede",
       "custo_em_dolares": {
         "medido": false,
         "por_construcao": "$0",
-        "porque": "$0 por construcao: nenhuma chamada a API paga foi feita (netns sem interface com o mesmo conjunto de achados) — nao e um recibo de custo"
+        "porque": "$0 por construcao: nenhuma chamada a API paga foi feita (0 connect() sob strace numa corrida com o mesmo conjunto de achados; netns sem interface com o mesmo conjunto de achados) — nao e um recibo de custo"
       }
     },
     {
@@ -264,14 +277,17 @@
       "recibo_da_corrida": {
         "sujeito": "S3",
         "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/hono",
+        "head_da_raiz": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
         "modo": "limpo",
+        "tracer": null,
+        "extra_do_modo": [],
         "rc": 0,
-        "parede_s": 20.325,
+        "parede_s": 26.107,
         "ficheiros_na_lista": 221,
         "regras_correram": 89,
         "semgrep": "1.174.0",
         "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
-        "corrido_em": "2026-08-26T19:38:11Z",
+        "corrido_em": "2026-09-12T10:23:23Z",
         "sha256_lista_ambito": "0149fc8663c8c6bc4275c941542270b2889c7f43207735e188ff2e20117435a0",
         "sha256_regras": {
           "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
@@ -279,7 +295,7 @@
           "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
           "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
         },
-        "sha256_json": "b5643c004fd34b0e2422b332c15636c33bf6bd76107125eb1df711bfd6965aeb"
+        "sha256_json": "26b8f39fe5a173a5a499de20eb94afb19aaa5fbf00f551161512890d5c226cb6"
       },
       "volume_entregue_ao_humano": 4,
       "achados_distintos_apos_colapso_exacto": 4,
@@ -377,14 +393,22 @@
         "so_no_outro": 0
       },
       "criterio_5_rede": {
-        "medido": false,
-        "porque": "o tracer nao mostra o semgrep a ser executado: nenhuma linha execve(\"…semgrep…\") = 0 no trace (0 execve de outros executaveis; um trace so com -e trace=connect nao a contem) — um zero sem produtor observado e n/d, nao \"nao saiu\""
+        "medido": true,
+        "prova_de_execucao": {
+          "pid": 1406,
+          "executavel": "/home/paulo/.local/bin/semgrep"
+        },
+        "total_connect": 0,
+        "af_unix": 0,
+        "loopback": 0,
+        "externos": [],
+        "saiu_da_maquina": false
       },
-      "criterio_5_declaracao": "(a) sob strace: n/d — o tracer nao mostra o semgrep a ser executado: nenhuma linha execve(\"…semgrep…\") = 0 no trace (0 execve de outros executaveis; um trace so com -e trace=connect nao a contem) — um zero sem produtor observado e n/d, nao \"nao saiu\"; (b) em netns sem interface, conjunto de achados identico ao da corrida limpa (4 vs 4) — a varredura nao precisou de rede",
+      "criterio_5_declaracao": "(a) sob strace, 0 connect() numa corrida com 4 achados — conjunto de achados identico ao da corrida limpa; (b) em netns sem interface, conjunto de achados identico ao da corrida limpa (4 vs 4) — a varredura nao precisou de rede",
       "custo_em_dolares": {
         "medido": false,
         "por_construcao": "$0",
-        "porque": "$0 por construcao: nenhuma chamada a API paga foi feita (netns sem interface com o mesmo conjunto de achados) — nao e um recibo de custo"
+        "porque": "$0 por construcao: nenhuma chamada a API paga foi feita (0 connect() sob strace numa corrida com o mesmo conjunto de achados; netns sem interface com o mesmo conjunto de achados) — nao e um recibo de custo"
       }
     }
   ],
