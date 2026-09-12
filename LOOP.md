@@ -20,6 +20,59 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-12-o-sha256-provava-integridade-e-ninguem-leu-a-linha-da-licenca
+
+**Contexto:** o gate de pré-merge dos 7 PRs do A/B do Moo Audit, corrido a
+12/09 antes do primeiro merge, bloqueou o #505 (F2, braço A). O pré-registo
+§2.1 mandava vendorizar as regras do semgrep com sha256 por ficheiro, e foi
+feito: `MANIFESTO.json` com os 4 hashes, `ab-vendorizado.mjs` a verificar,
+mordida a reprovar um byte trocado. O que ninguém leu foi a linha `license:`
+que cada uma das 409 regras traz.
+
+**Observado:**
+
+1. **Integridade não é permissão.** Os 4 `p-*.yaml` (1 017 001 bytes) dizem,
+   regra a regra, `Semgrep Rules License v1.0`; o texto da licença diz «only
+   for your own internal business purposes» e «does not allow you to
+   distribute the rules». O repo é público e MIT. Os ficheiros estiveram 17
+   dias num branch público sem que o verificador, o adversário (codex, 3
+   rondas sobre o #505) ou o autor o apontassem — o verificador media o que o
+   pré-registo lhe pediu para medir. Um guarda desenhado para «foi
+   adulterado?» não responde a «podemos ter isto aqui?».
+
+2. **O gate apanhou-o por abrir o ficheiro, não o diff.** As rondas do codex
+   e a leitura humana viram o diff (código, testes, relatório); o
+   `final-reviewer` abriu os yaml e procurou `license:`. A pergunta «isto pode
+   estar num repo MIT?» não estava em nenhuma lista da série: nem no §10 do
+   pré-registo, nem nas 8 perguntas do red-team, nem no gate do `AGENTS.md`.
+
+3. **Mudar a base de um PR não corre os checks obrigatórios.** O #414 tinha
+   base `ab-audit/f0-2-indice`; `gh pr edit --base main` gera o evento
+   `edited`, que os workflows com `pull_request: branches: [main]` ignoram.
+   Ficou `BLOCKED` com 10 checks verdes e os 4 obrigatórios por correr.
+   Fechar e reabrir (`reopened`) correu-os: 25/25.
+
+**Hipótese:** um artefacto de terceiros que entre versionado (regras,
+modelos, datasets, fixtures copiadas) precisa de duas linhas no manifesto, não
+de uma: o sha256 e a licença lida do próprio ficheiro, com «distribuível:
+sim/não». **Experimento:** `ab-vendorizado.mjs` passa a extrair o campo
+`license` de cada yaml e a reprovar quando o valor não está numa lista de
+licenças distribuíveis; mordida: um yaml com `license: Semgrep Rules License
+v1.0` numa árvore pública reprova. Critério: o teste existe e reprova a árvore
+actual do #505 antes de qualquer reconstrução.
+
+**Resultado (12/09, mesmo dia, #512 · `b0edf916`):** feito. `ab-vendorizado.mjs` lê
+`license:` de cada ficheiro e reprova (a) yaml dentro do repo quando o manifesto diz
+`distribuivel: false`, (b) yaml que declara licença sem o manifesto ter decidido; sem
+cópia externa devolve `N/D` declarado, não `OK`. Critério: a árvore do #505 reprova
+com 4 × `[licenca]` (medido de outro cwd — o que apanhou um defeito do CLI: sem
+`--regras` o argumento da raiz era ignorado; corrigido com teste), a árvore nova dá
+`N/D` + `OK` 3 listas. 17 testes (16 + 1 skip sem `AB_REGRAS_SEMGREP`; 17/17 com).
+O que a hipótese não cobre e fica dito: os recibos JSON do semgrep trazem `message` e
+`metadata` das regras que dispararam — saída da ferramenta, não a regra.
+
+---
+
 ### 2026-09-11-um-pr-parado-16-dias-mediu-tres-coisas-que-um-pr-fundido-nao-media
 
 **Contexto:** os cinco PRs do A/B do Moo Audit (#411-#415) ficaram parados de
