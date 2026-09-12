@@ -146,3 +146,95 @@ apanha.
 
 **Regra que se aplica aqui:** R10. Um TTV inventado seria pior do que `n/d`, porque
 `n/d` diz a verdade e um número inventado entra em copy.
+
+---
+
+## W3-D1 · `--test-force-exit` esconde **206 testes e 6 falhas** — e a suite sai VERDE (aberto)
+
+**Encontrado:** 2026-09-10, ao ligar os testes desta onda ao script `test` do `tools/router`.
+**Severidade:** **alta.** O número que o CI publica não é o número de testes que existem.
+**Estado:** **aberto**. Mitigado nesta onda; a causa **não** foi tocada.
+
+### O que está medido
+
+O script `tools/router` → `npm test` corre `node --test --test-force-exit …`. Essa flag mata o
+processo assim que a fase síncrona acaba — e **os testes assíncronos que ainda estavam a correr
+desaparecem, sem aviso e sem alterar o código de saída**.
+
+Medido nesta bancada, ficheiro a ficheiro:
+
+| Ficheiro | com a flag | sem a flag | perdidos |
+|---|---|---|---|
+| `ledger-turn-io.test.js` | 7 | 16 | **9** |
+| `provider-health.test.js` | 7 | 14 | **7** |
+| `ollama-host.test.js` | 9 | 11 | 2 |
+| `recibo.test.js` | 10 | 11 | 1 |
+
+E a suite inteira:
+
+| | testes | pass | fail |
+|---|---|---|---|
+| **com** `--test-force-exit` (o que o CI corre) | 1110 | 1109 | **0** — verde |
+| **sem** a flag | **1316** | 1309 | **6** |
+
+**206 testes nunca correm, e 6 falham enquanto o CI diz que está tudo bem.**
+
+### Das 6 falhas, quantas são reais
+
+- **5** (`mooter-doctor.test.js:154+`) são `listen EPERM 127.0.0.1` — a **sandbox desta bancada** a
+  recusar um listen local. Não é código. Precisam de ser reconfirmadas fora da sandbox antes de
+  se lhes chamar defeito.
+- **1 é real, e foi apanhada a mim.** `ollama-host.test.js` tem uma guarda de **cobertura**:
+  nenhum ficheiro de `tools/` pode ler `process.env.OLLAMA_HOST` sem passar por
+  `ollamaHostFromEnv()`. O `tools/cli/lib/probe.js` desta onda normalizava à mão, com regex
+  própria. **Já corrigido neste PR** — mas o ponto é outro: com a flag ligada, essa guarda **nunca
+  teria corrido**, e a segunda implementação entrava em `main` em silêncio. A guarda existe
+  precisamente por causa do defeito de 2026-09-01, em que o motor $0 falhava mudo e o trabalho
+  caía para um motor pago.
+
+### Porque é que isto é a mesma lição outra vez
+
+«Um número que ninguém verifica não é uma prova» está escrito no CI deste repositório, a propósito
+do `mooter-bridge` — uma sessão anunciou «140 testes verdes» tendo corrido 11 de 29 ficheiros.
+É exactamente isto, mas dentro da suite que impõe a regra.
+
+### O que foi feito nesta onda (mitigação, não correcção)
+
+Os três ficheiros de teste do onboarding v2 correm num script próprio,
+`npm run test:onboarding-v2`, **sem** `--test-force-exit`, com passo dedicado no CI. Sem isso, os
+78 casos desta onda passariam a 29 — e os 49 que faltavam eram precisamente os assíncronos:
+enrolment, troca de payload, `fetch` injectado.
+
+### Pista para a causa — verificada, mas **não** é ainda um diagnóstico
+
+Ao tentar correr a suite inteira nesta bancada, ela **não termina**. Dois ficheiros ficam vivos
+indefinidamente, e são reproduzíveis (duas corridas, uma delas com a máquina limpa de processos):
+
+- `pin-timeout.test.js`
+- `backtest.test.js`
+
+**Ambos passam sozinhos** (`pin-timeout` 9/9; `backtest` 97/97 sem a flag, 52 com ela — mais uma
+medição da truncagem). E **ambos referem o Ollama**. O `pin-timeout.test.js` testa `executePinned`
+contra `codex exec`, que o próprio cabeçalho do ficheiro descreve como «an agentic loop, not a
+chat», com um caso medido de **283 s** e um `timeoutMs` de 600 000.
+
+**A hipótese**, escrita como hipótese: a flag existe porque estes testes lançam motores reais com
+timeouts longos, e sem ela a suite espera por eles. Se assim for, a flag não é um descuido — é uma
+solução que resolveu o sintoma errado, e o custo (206 testes silenciados) nunca foi medido até hoje.
+
+**O que isto NÃO prova:** não confirmei que foi por isto que a flag foi acrescentada (não fui ao
+histórico do git), nem que estes dois são os únicos ficheiros a fazê-lo.
+
+### O que é preciso para fechar (não feito aqui, de propósito)
+
+1. Confirmar a hipótese acima no histórico (`git log -p` sobre a linha `test` do `package.json`) e
+   isolar todos os ficheiros que lançam motores reais. Se forem esses, a correcção provavelmente
+   não é tirar a flag: é **separá-los** para uma suite própria — que é exactamente o padrão que
+   esta onda já usou para os seus (`test:onboarding-v2`).
+2. Encontrar o(s) ficheiro(s) que não fecham handles (`why-is-node-running`, ou bissecção).
+3. Reconfirmar as 5 falhas do `mooter-doctor` **fora** de uma sandbox.
+4. Só então tirar a flag, e cravar o número de testes num teste — o número que ninguém vigia
+   volta a mudar.
+
+**Fora do âmbito da W3, e deliberadamente não tocado:** mexer nisto às cegas pode pendurar o CI
+inteiro, e essa decisão é do dono.

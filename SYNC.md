@@ -49,52 +49,25 @@
 > `v1.49.4`. Regenerar: `node packages/mooter-bridge/sync.js --max-jobs 1`
 
 # Mooter — Sync Snapshot
+## 2026-09-10 · Onboarding v2 — W0→W3 (PRs #491, #492, #493 + W3 por abrir)
 
-## 2026-09-10 · Onboarding v2 — W0 e W1 (branches `feat/onboarding-v2-w0` e `-w1`)
+Detalhe integral: `docs/adr/ADR-onboarding-v2.md` · `_handoff/onboarding-v2/` (kickoff, mapa de
+estados, refutacao, DEFEITOS.md, corpos dos PRs) · vault `10-projects/2026-09-10-mac-onboarding-v2-*`.
+O historico completo destas quatro entradas foi ROLADO para
+`docs/foundation/SYNC_ARCHIVE_2026.md` no mesmo commit — movido, nunca apagado.
 
-PR **#491** aberto (W0). W1 por empurrar. Detalhe: `docs/adr/ADR-onboarding-v2.md`,
-`_handoff/onboarding-v2/`, vault `10-projects/2026-09-10-mac-onboarding-v2-*`.
+**Em quatro linhas.** W0: o `/dashboard` tinha **seis** superficies de poupanca, as seis do mesmo
+preco de tabela que ninguem pagou; entram 4 KPIs com **ESR `n/d`**. W1: o canal de update
+**evaporava-se em silencio** (`install.sh` so o imprimia) e nada era verificado; e a chave publica
+que o kickoff mandava usar **nao existe** — passa a haver chave de release com **falha fechada**.
+W2: o launcher `.mcpb` (200 linhas, 0 dependencias) e o achado de que `/i/<token>.mcpb` ia
+**queimar o codigo de uso unico** do proprio utilizador. W3: o `init` deixa de fazer onze
+perguntas — e descobriu-se que **`--test-force-exit` esconde 206 testes e 6 falhas** com a suite a
+sair verde.
 
-**W0 — o `/dashboard` deixa de publicar poupanca.** Nao era uma superficie: eram **seis**, as
-seis derivadas do mesmo preco de tabela que ninguem pagou (`decisoes x $0,015` ou `x $0,045`) —
-calculadora com sliders, heroi, cartao de profundidade, cifra por device, cifra por dia, e uma
-coluna «Savings» com adjectivos. Entram 4 KPIs (`landing/app/(app)/dashboard/_kpis.ts`):
-tarefas roteadas · cobertura local · janela preservada (**estimado**, conta tarefas e nao
-tokens) · **ESR `n/d` com a razao**. O ESR exige tokens dos dois lados; medido: **0/156** eventos
-do ledger tem campos de tokens. **Tres testes que EXIGIAM a string removida foram invertidos,
-nao apagados** — um teste que pede a coisa removida e um roquete no sentido errado.
-Grep no build: **0** de `saved vs`. ADR grava D1–D6 com a refutacao do codex na integra e 7 `n/d`.
-
-**W1 — o canal evaporava-se, e nada era verificado.** Uma premissa do kickoff estava **errada**:
-nao ha chave publica embutida em lado nenhum (procurado; o HMAC e simetrico e o Ed25519 e por
-device contra um registo no vault, que um cliente instalado nao tem). Correccao: chave de
-**release**, publica pregada no cliente, e **falha fechada** — como essa chave ainda nao existe
-(exige um segredo do dono), nao ha chave inventada no repo e o `update` **recusa-se a trocar o
-payload** (`sem-ancora`). Tres defeitos fechados: o canal so era IMPRESSO (`install.sh:101`) e
-perdia-se a cada update — passa a vir do `entitlement.json`, escrito so pela conta (D4), com o
-`profile.json` proibido; nao havia verificacao; nao havia volta — entram `cli.prev` e
-`--rollback` (B14). **28 testes novos**, incluindo rebaixamento de canal e «uma troca falhada
-nao deixa a maquina sem payload nenhum».
-
-**Aberto, nao corrigido:** `UserPromptSubmit · loader:1520` (`_handoff/onboarding-v2/DEFEITOS.md`
-W1-D1). Causa `n/d` — e do carregador do Claude Code. Descartado por medicao: sintaxe, excepcao,
-saida ≠0, hook duplicado.
-
-**W2 — launcher `.mcpb`, e o download que ia queimar o codigo do utilizador.** `packages/launcher/`
-(pacote NOVO, allowlist registada no `CLAUDE.md`): `index.js` com **200 linhas**, **zero
-dependencias**, e o `pack-mcpb.mjs` **recusa empacotar** um launcher que viole qualquer dos dois —
-o risco de um launcher nao e ter um bug, e deixar de ser um launcher. Bundle **reproduzivel**
-(mesmo sha256 em dois builds), provado contra o `unzip` do sistema. **ADR ganha a D3.1**: o
-`.mcpb` fica **sem token pre-preenchido** — o kickoff deixava a escolha em aberto e o adversario
-ja tinha dito «bundle copiavel = credencial copiavel»; um `.mcpb` aterra em `~/Downloads`
-sincronizado e e reenviado a colegas. Achado ao construir a rota: `/i/<token>.mcpb` **nao pode
-fazer `redeem`** — o codigo e de uso unico e o download consumia-o, deixando a pessoa com o
-ficheiro e sem codigo para colar; usa `peek_install_token`, que ja existia. **39 testes novos**
-(31 launcher + 7 rota + 1). **TTV: `n/d`** — exige conta de utilizador nova num Mac limpo
-(`DEFEITOS.md` W2-D1).
-
-**Portoes:** `tools/router` 1109/1109 · `landing` 239/239 · `launcher` 31/31 · `tsc` limpo ·
-`classify.js` intacto.
+**Aberto, por decisao:** `npm audit` HIGH (divida de `main`, W1-D2) · `loader:1520` (W1-D1) · TTV
+`n/d` (W2-D1) · `--test-force-exit` (W3-D1) · chave de release por gerar · migracao
+`enroll_device` por aplicar.
 
 ## ⏳ PENDENTE — o que continua aberto
 
