@@ -9,32 +9,65 @@
 // output, `cache_read_input_tokens`, `cache_creation_input_tokens` e o modelo —
 // em cada linha de `~/.claude/projects/**/*.jsonl`.
 //
-// Medido a 2026-08-28, só nos 40 transcripts mais recentes de 255:
-//   19.436 linhas com usage · 21,1M de output · **8,6 mil milhões de cache-read**
+// Medido a 2026-09-12, só nos 40 transcripts mais recentes de 539, contando
+// cada resposta da API UMA vez, com o máximo por campo (ver «uma linha não é
+// uma chamada», abaixo), todos os modelos incluídos — também os 264 sem preço,
+// que o impresso conta mas não soma:
+//   7.782 linhas com usage = 4.290 respostas (1,81×)
+//   5,62M de output · **1,42 mil milhões de cache-read**
+//   (somadas por linha, como a medição de 2026-08-28 fazia: 11,7M e 2,55 mil milhões)
 //
 // O modelo de poupança deste projecto ignorava o cache por inteiro, e o cache é
 // o maior condutor de custo que aqui existe.
 //
 // ─────────────────────────────────────────────────────────────────────────────
+// UMA LINHA NÃO É UMA CHAMADA
+//
+// O Claude Code escreve UMA LINHA POR BLOCO DE CONTEÚDO da mesma resposta da
+// API (thinking + text, text + tool_use), cada uma a repetir o mesmo
+// `message.id`, o mesmo `requestId` e o `usage` completo. Medido a 2026-09-11
+// (revisão adversarial do `tools/ab/correr-custo.mjs`, brief 164) em 3
+// transcripts reais PRINCIPAIS: 294/495/99 linhas para 162/278/54 `message.id`
+// distintos (1,76–1,81×), com o `usage` idêntico em todas as linhas do mesmo id
+// nesses três (0 desvios em 336 ids multi-linha — nos subagentes não, ver
+// abaixo). A primeira versão deste ficheiro somava linhas, e
+// por isso sobrestimava tokens e preço de tabela em ~1,8×. Desde 2026-09-12
+// conta-se por `message.id` (fallback `requestId`, depois `uuid`) e o impresso
+// diz quantas linhas ficaram de fora.
+//
+// E ficar com a PRIMEIRA linha também não chega. O «usage idêntico» só vale
+// para os transcripts principais: nos de subagentes
+// (`<sessão>/subagents/agent-*.jsonl`) o `output_tokens` das primeiras linhas
+// é o contador em streaming (1–7) e só a última linha traz o total. Medido a
+// 2026-09-12 na janela dos 40: 631 dos 2.500 ids multi-linha diferem, todos em
+// 21 ficheiros de subagente, só em `output_tokens`, e a última linha é o máximo
+// em 631/631; no corpus inteiro, 1.498 de 14.435. First-wins subcontava o
+// output em 18,3% (4,58M contra 5,61M) — apanhado pelo final-reviewer antes do
+// push. Por isso a resposta leva o MÁXIMO por campo das suas linhas.
+//
+// ─────────────────────────────────────────────────────────────────────────────
 // A CHAVE DE ATRIBUIÇÃO, E PORQUE NÃO É A ÓBVIA
 //
 // A primeira versão deste plano juntava tokens ao `decisions.log` por
-// `session_id`. Medido antes de escrever uma linha:
+// `session_id`. Medido a 2026-09-12, nas 195 sessões que têm decisão registada:
 //
-//     387 prompts classificados  →  9.692 chamadas com usage  =  25 por prompt
+//     970 prompts classificados  →  11.878 respostas com usage  =  12,2 por prompt
+//     (por linha, como se media a 2026-08-28: 23.384 = 24,1 por prompt; o «25 por
+//      prompt» que aqui esteve era linhas, e vinha inflado ~2× pelo mesmo defeito)
 //
 // `session_id` prova CO-RESIDÊNCIA na sessão, não causalidade prompt→chamada.
 // Dividir por ele reconstruía exactamente o defeito que matou o `0%` deste
 // projecto — a auditoria de 2026-08-23 escreveu-o assim: «o denominador eram
-// chamadas Bash, não prompts (26 por prompt)». O número medido hoje é 25. É o
-// mesmo defeito, com melhor arquitectura.
+// chamadas Bash, não prompts (26 por prompt)». Corrigido o dedup, o número é
+// 12,2, e continua a não ser 1. É o mesmo defeito, com melhor arquitectura.
 //
 // A chave certa é a cadeia `parentUuid`. Cada registo do transcript aponta ao
 // pai; subindo até ao **turno humano** mais próximo — ignorando os `tool_result`,
 // que também são `type: "user"` — cada chamada fica atribuída a exactamente um
-// prompt do utilizador. Medido em 25 transcripts:
+// prompt do utilizador. Medido a 2026-09-12 nos 25 transcripts mais recentes:
 //
-//     318 turnos humanos  ←  9.420 chamadas  ·  0 órfãs (0,00%)
+//     223 turnos humanos  ←  3.813 respostas  ·  0 órfãs (0,00%)
+//     (+ 3.105 linhas repetidas do mesmo message.id, não somadas: 1,81×)
 //
 // Isso é causal por construção, e é a diferença entre um recibo e uma alegação.
 //
@@ -55,7 +88,8 @@
 // ────────────────────────────────────────────────────────────────────────────
 // A DISTINÇÃO QUE ESTE FICHEIRO NÃO PODE PERDER
 //
-// A primeira corrida deu **$5.700**. É verdade, e seria uma mentira grave
+// A primeira corrida deu **$5.700** (inflado ~1,8× pelo defeito das linhas,
+// ver acima — o ponto não depende do valor): seria uma mentira grave
 // publicá-la como «gastaste $5.700».
 //
 // Estes tokens correram dentro de uma **subscrição de valor fixo** (Claude Max,
@@ -82,7 +116,8 @@ const path = require('path');
 // A tabela base é `pricing.js`, o SSOT do repositório, e não se duplica aqui.
 //
 // O que `pricing.js` NÃO tem é preço de cache, e sem ele este recibo estaria a
-// ignorar 8,6 mil milhões de tokens. Os multiplicadores abaixo são os
+// ignorar 1,42 mil milhões de tokens só na janela dos 40 (2026-09-12; 8,12 mil
+// milhões no corpus inteiro). Os multiplicadores abaixo são os
 // publicados pela Anthropic sobre o preço de input do próprio modelo, e ficam
 // declarados como multiplicadores — não como preços inventados — para que
 // qualquer um os possa conferir contra a tabela do fornecedor.
@@ -174,11 +209,50 @@ function ehTurnoHumano(o) {
   return false;
 }
 
+/** Só os campos que `custoDe` lê, para a fusão ser por valor e não por forma. */
+function copiarUsage(u) {
+  const cc = u.cache_creation || {};
+  return {
+    input_tokens: u.input_tokens || 0,
+    output_tokens: u.output_tokens || 0,
+    cache_read_input_tokens: u.cache_read_input_tokens || 0,
+    cache_creation_input_tokens: u.cache_creation_input_tokens || 0,
+    cache_creation: {
+      ephemeral_5m_input_tokens: cc.ephemeral_5m_input_tokens || 0,
+      ephemeral_1h_input_tokens: cc.ephemeral_1h_input_tokens || 0,
+    },
+  };
+}
+
+/** Máximo por campo: a última linha de uma resposta é a que traz o total. */
+function fundirUsage(alvo, u) {
+  const n = copiarUsage(u);
+  for (const k of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) {
+    if (n[k] > alvo[k]) alvo[k] = n[k];
+  }
+  for (const k of ['ephemeral_5m_input_tokens', 'ephemeral_1h_input_tokens']) {
+    if (n.cache_creation[k] > alvo.cache_creation[k]) alvo.cache_creation[k] = n.cache_creation[k];
+  }
+  return alvo;
+}
+
 /**
  * Lê um transcript e devolve um turno humano por entrada, com o custo medido
  * de TODAS as chamadas que dele descendem.
  *
- * @returns {{sessao:string, turnos:Array}}
+ * Cada resposta da API conta UMA vez. O Claude Code escreve uma linha por
+ * bloco de conteúdo da mesma resposta (thinking + text, text + tool_use), cada
+ * uma a repetir o mesmo `message.id` e `requestId` — somar linhas dava ~1,8× o
+ * facturado (medido a 2026-09-11 em 3 transcripts reais: 294/495/99 linhas
+ * para 162/278/54 ids). A chave é `message.id` (fallback `requestId`, depois
+ * `uuid`), a mesma de `tokensDoTranscript` em `tools/ab/correr-custo.mjs`
+ * (#508) — com uma diferença: aqui o usage da resposta é o MÁXIMO por campo
+ * das suas linhas, porque nos subagentes a 1.ª linha traz o `output_tokens`
+ * em streaming (ver o cabeçalho); o `tokensDoTranscript` fica com a 1.ª e
+ * herda essa subcontagem. `linhas_repetidas` fica no resultado para o
+ * impresso o dizer.
+ *
+ * @returns {{sessao:string, turnos:Array, orfas:number, linhas_repetidas:number}}
  */
 function lerTranscript(ficheiro) {
   const registos = [];
@@ -222,10 +296,25 @@ function lerTranscript(ficheiro) {
     return null;
   };
 
-  let orfas = 0;
+  // 1.ª passagem: uma resposta por chave, com o usage FUNDIDO pelo máximo de
+  // cada campo. Não basta ficar com a 1.ª linha: nos transcripts de subagentes
+  // (`<sessão>/subagents/agent-*.jsonl`) o bloco `apiBlockIndex: 0` traz o
+  // `output_tokens` em streaming (1–7) e só o último bloco traz o valor final
+  // — ver o cabeçalho, «uma linha não é uma chamada».
+  let orfas = 0, linhasRepetidas = 0;
+  const respostas = new Map();
   for (const o of registos) {
     const u = o.message && o.message.usage;
     if (!u) continue;
+    const chave = o.message.id || o.requestId || o.uuid || o;
+    const r = respostas.get(chave);
+    if (!r) { respostas.set(chave, { o, usage: copiarUsage(u) }); continue; }
+    linhasRepetidas++;
+    fundirUsage(r.usage, u);
+  }
+
+  // 2.ª passagem: atribuir cada resposta ao turno humano de que descende.
+  for (const { o, usage: u } of respostas.values()) {
     const t = turnoDe(o);
     if (!t) { orfas++; continue; }
     const alvo = registarTurno(t);
@@ -250,6 +339,7 @@ function lerTranscript(ficheiro) {
     sessao: path.basename(ficheiro).replace(/\.jsonl$/, ''),
     turnos: [...turnos.values()].sort((a, b) => (a.ts || 0) - (b.ts || 0)),
     orfas,
+    linhas_repetidas: linhasRepetidas,
   };
 }
 
@@ -329,6 +419,7 @@ function recibo(opts = {}) {
     chamadas: 0,
     chamadasSemPreco: 0,
     orfas: 0,
+    linhasRepetidas: 0,
     custoTotal: 0,
     porModelo: {},
     tokens: { input: 0, output: 0, cacheLer: 0, cacheEscr: 0 },
@@ -341,8 +432,9 @@ function recibo(opts = {}) {
   };
 
   for (const f of usados) {
-    const { sessao, turnos, orfas } = lerTranscript(f);
+    const { sessao, turnos, orfas, linhas_repetidas } = lerTranscript(f);
     r.orfas += orfas || 0;
+    r.linhasRepetidas += linhas_repetidas || 0;
     const casados = casar(turnos, decisoesPorSessao.get(sessao));
     for (const t of casados) {
       r.turnos++;
@@ -385,6 +477,7 @@ function imprimir(r) {
   }
   L.push(`  fonte       ${r.transcriptsLidos} de ${r.transcriptsTotais} transcripts · ~/.claude/projects/**/*.jsonl`);
   L.push(`  atribuição  cadeia parentUuid → turno humano · ${r.orfas} chamada(s) órfã(s)`);
+  L.push(`  dedup       1 resposta por message.id · ${mil(r.linhasRepetidas)} linha(s) repetida(s) não somada(s)`);
   L.push('');
   L.push(`  ${r.turnos} turnos humanos  ←  ${mil(r.chamadas)} chamadas à API  (${(r.chamadas / Math.max(1, r.turnos)).toFixed(1)} por turno)`);
   L.push('');
