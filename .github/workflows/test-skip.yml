@@ -42,6 +42,10 @@ on:
       # ao launcher dispara AS DUAS workflows, e fica um check obrigatorio verde
       # sem ter corrido nada — que e o pior dos dois modos de falhar.
       - 'packages/launcher/**'
+      # W3 — o par de `tools/cli/**`. Esse path entrou no test.yml porque NUNCA
+      # la tinha estado: as suites do `tools/cli` correm a partir de
+      # `tools/router`, e por isso pareciam cobertas.
+      - 'tools/cli/**'
       - 'tools/cockpit/**'
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
