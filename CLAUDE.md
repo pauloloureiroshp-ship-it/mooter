@@ -195,6 +195,51 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   package — mais `esbuild`, que é **low**, não HIGH. Ficam por corrigir, e fica
   por decidir se a matriz cresce: acrescentar `packages/router` hoje poria o CI
   vermelho de imediato.
+  **2026-09-11 · o pacote que ninguém auditava** allowlists **duas linhas** de
+  `packages/router/package.json` (`esbuild` `^0.28.0` → `^0.28.1`;
+  `@dsnp/parquetjs` `^1.8.7` → **`1.8.8`, pin exacto**), o `package-lock.json`
+  correspondente (medido contra `origin/main`: **36** entradas com versão
+  alterada — 27 são `esbuild` + `@esbuild/*`, 7 a subárvore do `parquetjs`
+  (thrift, zenfs, AWS SDK), mais `fast-uri` e `ws` —, **28** adicionadas, **10**
+  removidas), e o ficheiro novo `packages/router/tests/benchmark-libs.test.ts`.
+  Autorizado pelo dono nesta data, a pedido explícito: «abre PR de seguimento
+  para o packages/router», com as duas decisões de desenho perguntadas e
+  respondidas (matriz do CI: sim; teste: sim). É o seguimento do #489, que
+  deixou escrito o que este pacote tinha: **3 nós HIGH e 1 low** fora da matriz
+  do `security.yml` — `fast-uri` (6 advisories, via `ajv`; 3.1.2 → 3.1.7,
+  lockfile-only), `thrift` (2, via `@dsnp/parquetjs`; 0.21.0 → 0.23.0) e
+  `esbuild` (low; 0.28.0 → 0.28.2). Zero linhas de lógica do motor. Não é
+  dev-only por acaso: os dois únicos consumidores de `ajv` e `@dsnp/parquetjs`
+  são `scripts/wave{1,2}-benchmark/lib/{schema-validate,parquet-write}.ts`, que
+  **nada testava** — e o `src/` nunca os importa, por isso o bundle do CLI sai
+  **byte-idêntico** (`00ee031b…`) e o `pack-hint.cjs` também (122.986 bytes,
+  com a guarda do `js-yaml`). Porquê um pin exacto, num ficheiro cheio de
+  carets: das três versões acima da vulnerável, **duas não servem**.
+  `@dsnp/parquetjs@1.9.3`, o `latest`, é um **publish partido** — 9 ficheiros,
+  sem `dist/`, `main` a apontar para um ficheiro que não existe. `1.8.9`
+  funciona (62 ficheiros, `thrift 0.24.0`) mas declara `engines.node >=24.18.0`
+  — o CI corre em Node 22, este pacote promete `>=22`, e cada `npm ci` passaria
+  a imprimir `EBADENGINE` (o gate de pré-merge apanhou-o: a 1.ª versão desta
+  entrada tinha `~1.8.9` e não o dizia). `1.8.8` limpa os dois HIGH com
+  `engines >=18.18.2`, 62 ficheiros, `npm ci` em silêncio. Um `^` ou um `~`
+  resolviam para uma das duas erradas; só o pin diz «esta e nenhuma acima».
+  O smoke que apanhou o 1.9.3 entra como teste: valida os **102 eventos reais**
+  de `scripts/wave1-benchmark/outputs/RAW_RESULTS.jsonl` com o `ajv`, rejeita
+  um deliberadamente partido (`event_id` está em `required`), e faz round-trip
+  Parquet (102 linhas escritas, 102 lidas, 55.351 bytes — idêntico antes e
+  depois do bump). **Mordida verificada:** com o 1.9.3 instalado sem gravar, o
+  teste sai 1 com `Cannot find package …/parquetjs/dist/parquet.js`; `npm ci`
+  restaura. **Nota honesta sobre o alcance do teste:** `packages/router` recebe
+  `npm ci` no CI mas **nunca `npm test`** (pré-existente — é por isso que as 3
+  falhas de ambiente deste pacote nunca apareceram vermelhas), logo o teste
+  morde localmente e a guarda em CI é o pin. A matriz do
+  `.github/workflows/security.yml` passa a
+  `[tools/router, packages/cli, hub, packages/router]` — um pacote que ninguém
+  audita não fica verde, fica invisível. Provado por `npm audit` a **0 em todas
+  as severidades**, e por `npm ci && npm test`: 319 testes, 312 pass, 3 fail, 4
+  skipped — as 3 são as mesmas pré-existentes de ambiente do #489, conjunto
+  comparado nome a nome. `packs/` fica de fora — tem `js-yaml` 4.1.1 (HIGH) e
+  `esbuild` (low), não está na matriz, e é o próximo do mesmo tipo.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

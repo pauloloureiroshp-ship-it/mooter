@@ -32,7 +32,14 @@ jobs:
         # Backend/CLI packages block on HIGH. `landing` is audited separately
         # (non-blocking) because its Next.js toolchain carries pre-existing HIGH
         # advisories tracked in audit/NPM_AUDIT_BASELINE.md (SC: `npm audit fix`).
-        pkg: [tools/router, packages/cli, hub]
+        # `packages/router` joined on 2026-09-11 (#489 follow-up): it was the one
+        # package the CLI bundle inlines from and nobody audited — it carried
+        # 3 HIGH nodes (fast-uri, thrift, @dsnp/parquetjs) invisibly. A package
+        # nobody audits is not green, it is invisible. `packs` joined the same
+        # way minutes later, same day (#501 follow-up): js-yaml 4.1.1 sat inside four
+        # advisories there, unaudited, while the same package was being fixed
+        # everywhere else.
+        pkg: [tools/router, packages/cli, hub, packages/router, packs]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
