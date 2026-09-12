@@ -82,6 +82,10 @@ export function parcela(id, { num = null, den = null, porque = null, fonte = nul
     else if (num > den) violacao = `num=${num} > den=${den}`;
   } else if ((temNum && num < 0) || (temDen && den < 0)) {
     violacao = `num=${num} den=${den} negativo`;
+  } else if ((num != null && !temNum) || (den != null && !temDen)) {
+    // `{num:'1', den:'2'}` saia com tudo a null e SEM porque — um adversario
+    // apontou que a rejeicao nao se explicava. Agora diz o que veio.
+    violacao = `num=${JSON.stringify(num)} den=${JSON.stringify(den)} nao numericos`;
   }
   const medida = !violacao && temNum && temDen && den > 0;
   return {
@@ -111,23 +115,36 @@ export function parcela(id, { num = null, den = null, porque = null, fonte = nul
  *
  * O numerador sao os ficheiros ao alcance de alguma coisa que o CI invoca.
  * Cada `run:` de cada workflow e partido em COMANDOS (por `&&`, `||`, `|`,
- * `;` e fim de linha, fora de aspas), cada comando e resolvido no
- * `working-directory` do passo, e **so os comandos com um RUNNER contam**
- * (`node`, `tsx`, `npx`, `vitest`, `jest`, ou um `--test` solto):
+ * `;` e fim de linha, fora de aspas; corpos de heredoc e comentarios saem
+ * antes), cada comando e resolvido no `working-directory` do passo, e **so
+ * os comandos cujo EXECUTAVEL e um runner contam** (`node`, `tsx`, `vitest`,
+ * `jest` — o primeiro token depois de `X=Y` e de envoltorios como `env`,
+ * `npx`, `c8`; ver `executavelDe`):
  *
- *   a) `node --test a.test.mjs` — o nome conta. `echo a.test.mjs` NAO conta:
- *      nao ha runner nesse comando. A primeira versao recolhia nomes de
- *      ficheiro de qualquer sitio do texto, e um `echo` cobria um teste;
+ *   a) `node --test a.test.mjs` — o nome conta. `echo a.test.mjs` NAO conta,
+ *      e `echo node --test a.test.mjs` TAMBEM NAO: o executavel e `echo`. A
+ *      primeira versao recolhia nomes de ficheiro de qualquer sitio do texto;
+ *      a segunda aceitava o runner em qualquer posicao do comando (1/11 num
+ *      `echo`, reproduzido por um adversario). Um `cat <<'EOF'` com um
+ *      `node --test` la dentro e texto: o corpo do heredoc sai antes da
+ *      particao. Aspas por fechar recusam o bloco inteiro (e o que o bash
+ *      faz: codigo 2, zero comandos corridos);
  *   b) `node --test "dir/*.test.mjs"` — o glob e casado contra o caminho de
  *      cada ficheiro com as regras do executor: `*` nao atravessa `/`, `**`
  *      seguido de `/` atravessa, `?` e um caracter, `{a,b}` e alternativa,
- *      `?(x)` e opcional.
+ *      `?(x)` e opcional, e um segmento a comecar por `.` so casa se o
+ *      padrao o escrever (`*`, `?` e `**` nao casam dotfiles — ver
+ *      `globParaRegex`).
  *      Confirmado em Node v24.14.0 por um adversario noutro motor:
  *      `node --test "a/*.test.mjs"` correu so `a/b.test.mjs`;
- *      `"a/**` `/*.test.mjs"` correu tambem `a/sub/c.test.mjs`. A primeira
- *      versao transformava o glob num directorio e perdia o filtro —
- *      `unit-*.test.mjs` deixava de ver `unit-x.test.mjs` sozinho e passava a
- *      cobrir `outro.test.mjs`;
+ *      `"a/**` `/*.test.mjs"` correu tambem `a/sub/c.test.mjs`, e NAO correu
+ *      `a/.hidden/d.test.mjs` nem `a/.x.test.mjs`. A primeira versao
+ *      transformava o glob num directorio e perdia o filtro — `unit-*.test.mjs`
+ *      deixava de ver `unit-x.test.mjs` sozinho e passava a cobrir
+ *      `outro.test.mjs`; a segunda casava dotfiles que o node nao corre
+ *      (9/11 contra 6 executados). O teste desta funcao CORRE o `node --test`
+ *      real num directorio temporario e compara — nao ha outra maneira de a
+ *      mordida nao ser tautologica;
  *   c) `node --test` / `tsx --test` SEM ficheiros nem globs — a descoberta do
  *      node apanha o directorio inteiro, recursivamente, pelo padrao dele
  *      (`**` `/*.test.?(c|m)js`). E o que impede este contador de mentir ao
@@ -136,12 +153,20 @@ export function parcela(id, { num = null, den = null, porque = null, fonte = nul
  *      inteiramente coberto. `node --test && echo done` tambem e pelado — o
  *      comando acaba no `&&`, nao no fim da linha;
  *   d) `vitest` — le o `vitest.config.{ts,js,mts,mjs}` do directorio e aplica
- *      os globs de `include`; sem `include`, o default do vitest. A 2026-09-11
- *      o `landing/vitest.config.ts` limita a `app/**`: um `landing/zz.test.ts`
+ *      os globs de `include` (ver `includeDoVitestConfig`: o objecto `test`
+ *      le-se por contagem de chavetas, `include` so a profundidade 1,
+ *      `test.include = [...]` por atribuicao tambem conta, `include: []`
+ *      cobre nada); sem `include`, o default do vitest. A 2026-09-11 o
+ *      `landing/vitest.config.ts` limita a `app/**`: um `landing/zz.test.ts`
  *      fora de `app/` NAO corre, e a primeira versao contava-o como coberto
- *      (474/667 com um ficheiro injectado — foi o adversario que o mediu);
- *   e) `npm test` / `npm run x` expande-se no package.json DESTE directorio, e
- *      `--cwd X -- <cmd>` corre `<cmd>` dentro de X.
+ *      (474/667 com um ficheiro injectado — foi o adversario que o mediu). A
+ *      segunda apanhava o primeiro `include` a seguir a `test: {` sem
+ *      delimitar o objecto: `coverage.include` trocava o padrao, a atribuicao
+ *      nao era vista, e `[]` dava «tudo» quando o vitest corre 0 — os tres
+ *      reproduzidos contra o Vitest 2.1.9 real;
+ *   e) `npm test` / `npm run x` expande-se no package.json DESTE directorio
+ *      (so quando `npm` e o executavel do comando), e `--cwd X -- <cmd>` corre
+ *      `<cmd>` dentro de X.
  *
  * ── O QUE ESTE MATCHER NAO SEGUE (limitacoes escritas, nao corrigidas) ──────
  *
@@ -155,16 +180,36 @@ export function parcela(id, { num = null, den = null, porque = null, fonte = nul
  *     conta se OUTRO comando o nomear.
  *   · `--test-reporter tap` (valor separado por espaco): o `tap` parece um
  *     argumento posicional e o runner deixa de ser «pelado».
+ *   · Execucao CONDICIONAL: `true || node --test a.test.mjs` nunca corre o
+ *     runner, e `false && node --test …` tambem nao; `if`/`case` idem. O
+ *     matcher nao avalia a shell — cada comando da cadeia conta como se
+ *     corresse. E o unico caso conhecido em que SOBRECONTA (reproduzido por
+ *     um adversario, 1/11); corrigi-lo exigia um interprete de shell, e a
+ *     alternativa — nao contar nada a seguir a `||` — subcontava o
+ *     `node --test || true` legitimo. Fica escrito.
+ *   · Envoltorios fora de `ENVOLTORIOS` (`executavelDe`): um `dotenv -- node
+ *     --test x` subconta ate alguem o acrescentar a lista.
+ *   · `include` do vitest que nao seja um array literal (uma variavel, um
+ *     spread) cobre nada — subconta.
  *
- * Os erros que restam vao todos na mesma direccao: um ficheiro que corre e
- * que o matcher nao ve fica orfao, nunca o contrario. E a direccao certa para
- * um contador que alimenta uma catraca — o pior que faz e pedir uma
- * justificacao a mais, nunca deixar passar um orfao a menos.
+ * ── RESSALVAS (medidas por um adversario, 2026-09-12; nao corrigidas) ───────
+ *
+ *   · O relogio do instantaneo (`lerInstantaneo`) nao tem tolerancia: um
+ *     carimbo 1 s a frente do relogio de quem le da `idade_s: -1`, `fresco:
+ *     false`, com o porque. E deliberado (um relogio errado nao publica como
+ *     fresco), mas dois relogios sincronizados por NTP podem diferir 1 s.
+ *   · `tools/cli/lib/paths.test.js` esta na lista do `test` do `tools/router`
+ *     (coberto por C1), mas nao casa com nenhum filtro `paths:` do
+ *     `test.yml`: uma alteracao SO nesse ficheiro nao dispara a suite. C1
+ *     mede alcance, nao gatilho.
+ *
+ * Com a excepcao escrita da execucao condicional, os erros que restam vao
+ * todos na mesma direccao: um ficheiro que corre e que o matcher nao ve fica
+ * orfao, nunca o contrario. E a direccao certa para um contador que alimenta
+ * uma catraca — o pior que faz e pedir uma justificacao a mais.
  */
 export const EXTENSOES_DE_TESTE = Object.freeze(['js', 'mjs', 'cjs', 'ts', 'tsx']);
 const RE_FICHEIRO_TESTE = /\.test\.(?:js|mjs|cjs|ts|tsx)$/;
-// `node_modules` nao e `node`: o runner tem de vir seguido de espaco ou fim.
-const RE_RUNNER = /(^|[\s/])(node|tsx|npx|vitest|jest)(\s|$)|(^|\s)--test(\s|$)/;
 const VITEST_INCLUDE_OMISSAO = Object.freeze(['**/*.{test,spec}.?(c|m)[jt]s?(x)']);
 // O que `node --test` pelado descobre (docs do node:test); com `tsx` a frente,
 // o loader deixa passar `.ts` tambem.
@@ -185,23 +230,43 @@ const escaparRe = (s) => String(s).replace(/[.+^$()|\\]/g, '\\$&');
  *   `{a,b}`  alternativa
  *   `?(x|y)` opcional (extglob, usado no default do vitest)
  *   `[jt]`   classe de caracteres, passa como esta
+ *
+ * DOTFILES (medido contra o `node --test` real, v24.14.0, 2026-09-12): um
+ * segmento que comeca por `.` so casa se o padrao o pedir explicitamente.
+ * `*` e `?` no INICIO de um segmento nao casam um `.` inicial; `**` nao
+ * atravessa directorios `.x` nem casa um ficheiro `.x` no fim. `.hidden/*`,
+ * `.*.test.mjs`, `[.]hidden` e `{.hidden,sub}` casam — o ponto esta escrito.
+ * `?(x|y).test.mjs` casa `.test.mjs`: o extglob no inicio do segmento nao
+ * traz a guarda (e assim no minimatch e foi assim que o node correu). A
+ * primeira versao casava tudo: `tests/**` `/*.test.mjs` dava 9 ficheiros
+ * quando o node corria 6 — tres dotfiles a contar como cobertos sem ninguem
+ * os correr. Foi um adversario que o mediu.
  */
+const SEG_SEM_PONTO = '(?!\\.)';
 export function globParaRegex(glob) {
   const g = String(glob);
   let re = '';
   for (let i = 0; i < g.length; i++) {
     const ch = g[i];
+    const inicioDeSegmento = i === 0 || g[i - 1] === '/';
     if (ch === '*') {
-      if (g[i + 1] === '*') {
-        if (g[i + 2] === '/') { re += '(?:.*/)?'; i += 2; } else { re += '.*'; i += 1; }
-      } else re += '[^/]*';
+      const globstar = g[i + 1] === '*' && inicioDeSegmento && (g[i + 2] === '/' || i + 2 === g.length);
+      if (globstar) {
+        // `**/`: zero ou mais directorios, nenhum a comecar por `.`.
+        // `**` no fim: tudo o que esta abaixo, sem segmentos `.x`.
+        if (g[i + 2] === '/') { re += `(?:${SEG_SEM_PONTO}[^/]+/)*`; i += 2; } else { re += `(?:${SEG_SEM_PONTO}[^/]+(?:/${SEG_SEM_PONTO}[^/]+)*)?`; i += 1; }
+      } else {
+        // `**` que nao e um segmento inteiro vale `*` (minimatch faz o mesmo).
+        if (g[i + 1] === '*') i += 1;
+        re += (inicioDeSegmento ? SEG_SEM_PONTO : '') + '[^/]*';
+      }
     } else if (ch === '?' && g[i + 1] === '(') {
       const fim = g.indexOf(')', i);
       if (fim < 0) { re += '[^/]'; continue; }
       re += '(?:' + g.slice(i + 2, fim).split('|').map(escaparRe).join('|') + ')?';
       i = fim;
     } else if (ch === '?') {
-      re += '[^/]';
+      re += (inicioDeSegmento ? SEG_SEM_PONTO : '') + '[^/]';
     } else if (ch === '{') {
       const fim = g.indexOf('}', i);
       if (fim < 0) { re += '\\{'; continue; }
@@ -220,24 +285,198 @@ export function globParaRegex(glob) {
 }
 
 /**
+ * Corpos de heredoc (`<<EOF` … `EOF`, tambem `<<-EOF`, `<<'EOF'`, `<<"EOF"`)
+ * retirados de um bloco de shell. O corpo e TEXTO: `cat <<'EOF'` com um
+ * `node --test a.test.mjs` la dentro imprime a linha e nao corre nada —
+ * reproduzido por um adversario, com C1 a contar 1/11. A linha do `<<` fica
+ * (e um comando sem runner); as linhas ate ao delimitador saem.
+ */
+export function semHeredocs(bloco) {
+  const linhas = String(bloco).split('\n');
+  const out = [];
+  const delimitadores = [];
+  for (const l of linhas) {
+    if (delimitadores.length) {
+      // As linhas chegam com a indentacao do YAML (o bloco `run: |` e lido em
+      // bruto), por isso o delimitador compara-se sem espacos a volta.
+      if (l.trim() === delimitadores[0]) delimitadores.shift();
+      continue;
+    }
+    out.push(l);
+    // `<<<` e uma here-string, nao um heredoc.
+    for (const m of l.matchAll(/(?<!<)<<(?!<)-?\s*(?:'([^']+)'|"([^"]+)"|(\w+))/g)) {
+      delimitadores.push(m[1] || m[2] || m[3]);
+    }
+  }
+  return out.join('\n');
+}
+
+/**
  * Um bloco `run:` partido nos comandos que a shell executa: por `&&`, `||`,
  * `|`, `;`, `&` e fim de linha — FORA de aspas, porque o `test` do router
  * leva `--test-skip-pattern="(a|b|c)"` e partir ai deixava 97 ficheiros num
- * comando sem runner. Continuacoes de linha (`\` + newline) juntam-se antes.
+ * comando sem runner. Continuacoes de linha (`\` + newline) juntam-se antes;
+ * heredocs saem antes; comentarios (`#` no inicio ou depois de espaco, fora
+ * de aspas) saem ate ao fim da linha — um apostrofo num comentario nao abre
+ * aspas.
+ *
+ * ASPAS POR FECHAR ⇒ o bloco inteiro nao conta (`[]`). O bash recusa o
+ * script todo com «unexpected EOF while looking for matching `"'», codigo 2,
+ * sem correr um unico comando — reproduzido por um adversario com
+ * `node --test a.test.mjs "unterminated`, que C1 contava como 1/11. Subconta,
+ * nunca sobreconta.
  */
 export function comandosDe(bloco) {
-  const s = String(bloco).replace(/\s*\\\r?\n\s*/g, ' ');
+  const s = semHeredocs(String(bloco)).replace(/\s*\\\r?\n\s*/g, ' ');
   const out = [];
   let cur = '';
   let aspas = null;
+  let comentario = false;
+  let anterior = '\n';
   for (const ch of s) {
-    if (aspas) { cur += ch; if (ch === aspas) aspas = null; continue; }
-    if (ch === '"' || ch === "'") { aspas = ch; cur += ch; continue; }
-    if (ch === '\n' || ch === ';' || ch === '|' || ch === '&') { out.push(cur); cur = ''; continue; }
+    if (comentario) { if (ch === '\n') { comentario = false; out.push(cur); cur = ''; anterior = ch; } continue; }
+    if (aspas) { cur += ch; if (ch === aspas) aspas = null; anterior = ch; continue; }
+    if (ch === '#' && /\s/.test(anterior)) { comentario = true; continue; }
+    if (ch === '"' || ch === "'") { aspas = ch; cur += ch; anterior = ch; continue; }
+    if (ch === '\n' || ch === ';' || ch === '|' || ch === '&') { out.push(cur); cur = ''; anterior = ch; continue; }
     cur += ch;
+    anterior = ch;
   }
+  if (aspas) return [];
   out.push(cur);
-  return out.map((c) => c.trim()).filter((c) => c && !c.startsWith('#'));
+  return out.map((c) => c.trim()).filter(Boolean);
+}
+
+/**
+ * O executavel de um comando: o primeiro token depois de atribuicoes `X=Y` e
+ * de ENVOLTORIOS que executam o resto da linha (`env`, `npx`, `c8`, `nyc`,
+ * `cross-env`, `timeout`, `xvfb-run`, `exec`, `time`), com as flags deles,
+ * reduzido ao nome base. `echo node --test a.test.mjs` tem executavel `echo`
+ * — imprime e nao corre nada (reproduzido por um adversario; a versao
+ * anterior aceitava o runner em QUALQUER posicao).
+ *
+ * O `c8` esta na lista por medicao, nao por precaucao: o `tools/router`
+ * corre `c8 --reporter=text --reporter=lcov --check-coverage npm test`, e
+ * a primeira tentativa de «executavel = primeiro token» mandou os 96
+ * ficheiros desse pacote para orfaos (473 → 377/667) sem ninguem ter
+ * deixado de os correr. Um envoltorio desconhecido subconta — e a direccao
+ * certa, mas nao e gratis: acrescenta-se aqui, com o caso.
+ */
+const ENVOLTORIOS = new Set(['env', 'npx', 'c8', 'nyc', 'cross-env', 'timeout', 'xvfb-run', 'exec', 'time']);
+export function executavelDe(args) {
+  let i = 0;
+  for (;;) {
+    while (i < args.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(args[i])) i += 1;
+    const nome = String(args[i] || '').split('/').pop();
+    if (!ENVOLTORIOS.has(nome)) return nome;
+    i += 1;
+    while (i < args.length && (args[i].startsWith('-') || (nome === 'timeout' && /^\d/.test(args[i])))) i += 1;
+  }
+}
+const RUNNERS = new Set(['node', 'tsx', 'vitest', 'jest']);
+
+/** Fonte JS/TS com os comentarios apagados (fora de strings), indices intactos. */
+export function semComentariosJs(src) {
+  const s = String(src);
+  let out = '';
+  let aspas = null;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (aspas) {
+      out += ch;
+      if (ch === '\\') { out += s[i + 1] ?? ''; i += 1; } else if (ch === aspas) aspas = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { aspas = ch; out += ch; continue; }
+    if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') { out += ' '; i += 1; } out += '\n'; continue; }
+    if (ch === '/' && s[i + 1] === '*') {
+      const fim = s.indexOf('*/', i + 2);
+      const ate = fim < 0 ? s.length : fim + 2;
+      out += s.slice(i, ate).replace(/[^\n]/g, ' ');
+      i = ate - 1;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/** Indice do fecho que casa com o abre em `s[i]`, a saltar strings; -1 se nao fecha. */
+function fechoDe(s, i) {
+  const abre = s[i];
+  const fecha = { '{': '}', '[': ']', '(': ')' }[abre];
+  let prof = 0;
+  let aspas = null;
+  for (let k = i; k < s.length; k++) {
+    const ch = s[k];
+    if (aspas) { if (ch === '\\') k += 1; else if (ch === aspas) aspas = null; continue; }
+    if (ch === '"' || ch === "'" || ch === '`') { aspas = ch; continue; }
+    if (ch === abre) prof += 1;
+    else if (ch === fecha) { prof -= 1; if (prof === 0) return k; }
+  }
+  return -1;
+}
+
+/** Os literais de string de um `[...]` que comeca em `s[i]`. */
+const stringsDoArray = (s, i) => {
+  const fim = fechoDe(s, i);
+  const corpo = fim < 0 ? s.slice(i + 1) : s.slice(i + 1, fim);
+  return [...corpo.matchAll(/(['"`])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2]);
+};
+
+/**
+ * Os globs de `test.include` de um `vitest.config.*`, lidos como o vitest os
+ * le — ou tao perto quanto se consegue sem executar o ficheiro:
+ *
+ *   · `test: { … include: [...] … }` — o objecto `test` le-se por contagem de
+ *     chavetas (a saltar strings) e o `include` so conta a PROFUNDIDADE 1.
+ *     `coverage: { include: [...] }` antes do `include` de `test` trocava o
+ *     padrao — e a identidade do orfao — na versao anterior, que apanhava o
+ *     primeiro `include` a seguir a `test: {` sem delimitar o objecto;
+ *   · `test.include = [...]` (ou `.test.include = [...]`), por atribuicao,
+ *     tambem conta — a versao anterior nao o via e assumia o default (2/2
+ *     quando o vitest corria 1/2);
+ *   · `include: []` cobre NADA: o vitest sai com «No test files found»,
+ *     codigo 1 — a versao anterior lia a lista vazia como «sem include» e
+ *     dava o default (2/2 quando o vitest corria 0);
+ *   · sem `test` nem atribuicao, o default do vitest;
+ *   · `include` presente mas nao um array literal (uma variavel, um spread
+ *     sem strings) cobre nada: nao se adivinha, e o erro fica do lado que
+ *     pede uma justificacao a mais.
+ *
+ * Os tres primeiros casos foram reproduzidos por um adversario contra o
+ * Vitest 2.1.9 real, 2026-09-12.
+ */
+export function includeDoVitestConfig(src) {
+  const s = semComentariosJs(src);
+  const atrib = /\btest\s*\.\s*include\s*=\s*/.exec(s);
+  if (atrib) {
+    const i = atrib.index + atrib[0].length;
+    return s[i] === '[' ? stringsDoArray(s, i) : [];
+  }
+  const cabeca = /(?:^|[^.\w$])['"]?test['"]?\s*:\s*\{/.exec(s);
+  if (!cabeca) return VITEST_INCLUDE_OMISSAO;
+  const abre = cabeca.index + cabeca[0].length - 1;
+  const fecha = fechoDe(s, abre);
+  const corpo = s.slice(abre + 1, fecha < 0 ? s.length : fecha);
+  // Percorre o corpo a profundidade 1: uma chave `include:` so conta se nao
+  // estiver dentro de outro `{`, `[` ou `(`.
+  let prof = 0;
+  let aspas = null;
+  for (let k = 0; k < corpo.length; k++) {
+    const ch = corpo[k];
+    if (aspas) { if (ch === '\\') k += 1; else if (ch === aspas) aspas = null; continue; }
+    if (ch === '"' || ch === "'" || ch === '`') { aspas = ch; continue; }
+    if (ch === '{' || ch === '[' || ch === '(') { prof += 1; continue; }
+    if (ch === '}' || ch === ']' || ch === ')') { prof -= 1; continue; }
+    if (prof !== 0) continue;
+    const m = /^['"]?include['"]?\s*:\s*/.exec(corpo.slice(k));
+    if (m && (k === 0 || /[\s,{]/.test(corpo[k - 1]))) {
+      const i = k + m[0].length;
+      return corpo[i] === '[' ? stringsDoArray(corpo, i) : [];
+    }
+  }
+  return VITEST_INCLUDE_OMISSAO;
 }
 
 /** Os argumentos de um comando, com as aspas retiradas e o conteudo inteiro. */
@@ -315,16 +554,12 @@ export function testesGateados({
   const cobrirGlob = (base, glob) => padroes.push(globParaRegex(juntar(base, glob)));
 
   // O `include` do vitest do directorio onde ele corre; sem ficheiro de
-  // configuracao, ou sem `include` dentro de `test: {}`, o default do vitest.
+  // configuracao, o default do vitest. Com ficheiro, `includeDoVitestConfig`.
   const includeDoVitest = (base) => {
     for (const nome of ['vitest.config.ts', 'vitest.config.js', 'vitest.config.mts', 'vitest.config.mjs']) {
       let src;
       try { src = String(readImpl(path.join(raiz, base, nome), 'utf8')); } catch { continue; }
-      const bloco = /\btest\s*:\s*\{/.exec(src);
-      const m = /\binclude\s*:\s*\[([^\]]*)\]/.exec(bloco ? src.slice(bloco.index) : '');
-      if (!m) return VITEST_INCLUDE_OMISSAO;
-      const globs = [...m[1].matchAll(/['"`]([^'"`]+)['"`]/g)].map((x) => x[1]);
-      return globs.length ? globs : VITEST_INCLUDE_OMISSAO;
+      return includeDoVitestConfig(src);
     }
     return VITEST_INCLUDE_OMISSAO;
   };
@@ -348,22 +583,26 @@ export function testesGateados({
       const mCwd = /--cwd\s+(\S+)\s+--\s+(.+)$/.exec(c);
       if (mCwd) { analisarComando(mCwd[1].replace(/\/$/, ''), mCwd[2], profundidade + 1); continue; }
 
+      // O que corre e o EXECUTAVEL do comando — o primeiro token depois de
+      // `X=Y`, `env`, `npx`. `echo node --test a.test.mjs` executa `echo`.
+      const args = argumentosDe(c);
+      const exe = executavelDe(args);
+
       // `npm test` / `npm run x` expande-se no package.json DESTE directorio.
       const s = scriptsDe.get(base);
-      if (s) {
-        for (const m of c.matchAll(/(?:^|\s)npm\s+(?:run(?:\s+-\S+)*\s+(\S+)|(test))(?=\s|$)/g)) {
-          const alvo = s[m[1] || m[2]];
-          if (alvo) analisarComando(base, alvo, profundidade + 1);
-        }
+      if (s && exe === 'npm') {
+        const m = /(?:^|\s)npm\s+(?:run(?:\s+-\S+)*\s+(\S+)|(test))(?=\s|$)/.exec(c);
+        const alvo = m && s[m[1] || m[2]];
+        if (alvo) analisarComando(base, alvo, profundidade + 1);
+        continue;
       }
 
-      // Sem runner, um nome de ficheiro e texto. `echo a.test.mjs` nao corre nada.
-      if (!RE_RUNNER.test(c)) continue;
+      // Sem runner a executar, um nome de ficheiro e texto.
+      if (!RUNNERS.has(exe)) continue;
 
-      if (/(^|[\s/])vitest(\s|$)/.test(c)) { for (const g of includeDoVitest(base)) cobrirGlob(base, g); continue; }
-      if (/(^|[\s/])jest(\s|$)/.test(c)) { cobrirGlob(base, JEST_OMISSAO); continue; }
+      if (exe === 'vitest') { for (const g of includeDoVitest(base)) cobrirGlob(base, g); continue; }
+      if (exe === 'jest') { cobrirGlob(base, JEST_OMISSAO); continue; }
 
-      const args = argumentosDe(c);
       const iTest = args.indexOf('--test');
       // Posicionais depois do `--test`: o que nao e flag nem redireccao.
       const posicionais = [];
@@ -378,7 +617,7 @@ export function testesGateados({
         // A raiz cobriria o repositorio inteiro, e nada corre `node --test`
         // na raiz. Assumi-lo daria 100% a esta parcela sem ninguem correr um
         // teste — por isso a raiz nao conta.
-        if (base) cobrirGlob(base, /(^|[\s/])tsx(\s|$)/.test(c) ? TSX_TEST_OMISSAO : NODE_TEST_OMISSAO);
+        if (base) cobrirGlob(base, exe === 'tsx' ? TSX_TEST_OMISSAO : NODE_TEST_OMISSAO);
         continue;
       }
       for (const a of posicionais) {
