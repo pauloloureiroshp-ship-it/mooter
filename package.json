@@ -61,6 +61,7 @@
     "watchdog": "node tools/cockpit/runner/watchdog.mjs",
     "test:router:quick": "node tools/router/correr-suite.mjs --quick",
     "test:router:full": "node tools/router/correr-suite.mjs",
+    "test:audit": "node --test tools/audit/varredura-segredos.test.mjs tools/audit/varredura-historico.test.mjs tools/audit/varredura-historico.e2e.test.mjs",
     "indice": "node tools/cockpit/runner/indice-do-harness.mjs",
     "indice:escrever": "node tools/cockpit/runner/indice-do-harness.mjs --escrever",
     "testes:fora-do-ci": "node tools/cockpit/runner/teste-fora-do-ci.mjs",
