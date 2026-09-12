@@ -50,6 +50,40 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-11 · A/B do Moo Audit — retoma 16 dias depois: 7 PRs abertos, **nada merged**
+
+Os cinco PRs de 2026-08-26 (#411-#415) ficaram parados com o `main` a andar ~90
+PRs. Todos fundidos hoje com `origin/main` a346230c **por merge, não rebase**
+(sem force-push). Dois PRs novos: **#505** (F2 · braço A) e **#506** (fan-out com
+0 fontes). Decisão de IP continua do dono. Vault: `10-projects/2026-09-11-ab-moo-audit-retoma-…`.
+
+| PR | o quê | número de hoje |
+|---|---|---|
+| #412 F0.1 | segredos — árvore e histórico de `origin` re-varridos | **HIGH 0** · LOW 2735 (era 2424, por triar) · INFO 92 |
+| #413 F0.2 | índice do arnês | **3,04/10** @ d12908c0 (2,89 ao retomar; 3,34 a 26/08) |
+| #413 C5 | telemetria — passou a ler `recibo.js` | **81/1698** turnos com custo medido casam com uma decisão (4,8 %); o 0/4830 era zero por construção |
+| #413 C4 | frota no mesmo sha | n/d: **3 beacons, os 3 expirados** (desktop 27/08, mac 26/08, paulo-desktop 03/09) |
+| #414 F0.3 | catraca | 180 → **193** ao retomar (+15 em 16 dias, 5 do motor) → **186/668** depois de ligar 8 ao CI e justificar 8 |
+| #415 F1 | prova de rede, 4.ª ronda | `true` **só por construção** (namespace); sentinela = evidência; jscpd/knip em Windows nativo ⇒ `null`, exit 3 |
+| #505 F2 | braço A + **F2 publicada** (12/09, decisão do dono: sem emendar a amostragem) | **FALHA por INCONCLUSIVO nos 3 sujeitos** (§7.3 + §7.1): calibração do §3 consome 22/22, 2/2, 4/4 ⇒ n = 0; 0 rótulos; B e C não corridos; S2/S3 re-corridos no sha (idênticos); codex `PASSA-COM-RESSALVAS` — `_handoff/AB_MOO_AUDIT_F2.md` |
+| #506 | `mooter audit fan-out` noutro repo | 0 fontes × 6 facets: antes `exit 0` com achados inventados; agora o LLM não é chamado e sai 1 |
+
+**Adversário.** `codex` (OpenAI) voltou a ter créditos; o sandbox não cria
+processos nesta máquina (`CreateProcessAsUserW … 5`), correu desligado em
+worktrees limpas com `git status` vazio verificado. **Bloqueou os 5 PRs de
+código à primeira** (#413, #414, #415, #505, #506), todos com reprodução;
+14 rondas no total, veredictos publicados como comentário. Recusou a 4.ª ronda
+do #415 por filtro de cibersegurança — declarado no PR; Ollama `qwen3.6:27b`
+como recurso, com o peso baixo escrito.
+
+**Abandonado:** `ab-audit/telemetria` (a1c35d22, atribuição por `session_id`)
+— o `recibo.js` de main (28/08) refuta essa chave. O hook Stop deixou de ser
+preciso. Worktree `~/frugal-ab-tokens` pode ser removida.
+
+**Só o dono:** merge dos 7 (ordem sugerida #411 → #412 → #413 → #414 → #506 → #415 → #505);
+F2 — **decidido a 12/09: publicado o INCONCLUSIVO sem emendar**; um resultado conclusivo exige outro pré-registo;
+fan-out — probes genéricos ou auto-auditoria assumida; `git pull` no mac e no paulo-desktop.
+
 ## 2026-09-10 · MATRIZ 12 — o Mooter contra a escolha real do utilizador, e perdeu
 
 `_handoff/matriz-12-2026-09-10/` (branch `claude/matriz-12-mooter-comparison-3c2b8e`). Índice em `verdict.md` (v3); cópia no vault `20-mooter/artifacts/matriz-12-2026-09-10/`; 17 linhas no `INBOX.md` do livro.
