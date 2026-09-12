@@ -240,6 +240,27 @@ protocol, information architecture: see @AGENTS.md (auto-imported into every ses
   skipped — as 3 são as mesmas pré-existentes de ambiente do #489, conjunto
   comparado nome a nome. `packs/` fica de fora — tem `js-yaml` 4.1.1 (HIGH) e
   `esbuild` (low), não está na matriz, e é o próximo do mesmo tipo.
+  **2026-09-12 · a guarda do T5 cobre o Fable 5.1** allowlists **uma linha** de
+  `packages/router/src/decide-agent.ts` — `OPT_IN_ONLY_MODELS` passa de
+  `["claude-fable-5"]` a `["claude-fable-5", "claude-fable-5-1"]` — e o teste novo
+  em `packages/router/tests/decide-agent.test.ts` (bloco «tier ladder — T5»).
+  Autorizado pelo dono nesta data, a pedido explícito: «faz a guarda do T5 também».
+  É a terceira entrada a autorizar mexer neste ficheiro de motor, e o motivo é o
+  da primeira (2026-08-25), repetido: nesse mesmo dia `claude-fable-5-1` entrou no
+  SSOT de preços (`tools/router/pricing.js`, $10/$50, cache-read $0,25, sem `tier`),
+  e a exclusão do motor é dupla — roster nomeado OU tier T5 no snapshot. O 5.1 não
+  estava no roster, e `tierForModel("claude-fable-5-1")` devolve o default **T2**
+  porque o snapshot não o conhece. Hoje o `decideAgent` não o pode escolher só
+  porque **também não tem célula medida** — é exactamente a defesa-por-dado-em-falta
+  que a entrada de 2026-08-25 descreve como a que «cai no dia em que alguém completa
+  os dados de boa-fé». Zero alterações à ordenação por TES, ao `force_model`
+  (nomear o modelo **é** o opt-in) ou aos portões de `min_score` e orçamento: a
+  linha só acrescenta um id à lista que o filtro já lia. Provado por
+  `packages/router/tests/decide-agent.test.ts` (26/26: o 5.1 está no roster, o
+  tier **não** o cobre, `isOptInOnly` diz true, ids datados normalizam; falha
+  contra `origin/main`). O `precificavel-nao-rotavel.test.mjs` continua 13/13 mas
+  **não morde** esta mudança — dá verde com o roster antigo, porque o 5.1 não tem
+  célula medida; a única prova da guarda é o teste unitário.
 - **Selective git adds only** — never `git add -A`. Stage exactly the files you changed.
 - **No new root `.md` files** without an explicit request.
 - **PT-BR in conversation, English in code** and identifiers. (Canon PT-BR reconfirmado 2026-07-07.)

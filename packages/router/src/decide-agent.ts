@@ -165,7 +165,7 @@ const TIER_HEURISTIC_CAPABILITY: Record<ModelTier, number> = {
  * Models reachable ONLY when the caller names them (`force_model`), never by
  * automatic selection. Keyed by the id as it appears in `MATRIX_MODELS`.
  */
-export const OPT_IN_ONLY_MODELS: readonly string[] = ["claude-fable-5"];
+export const OPT_IN_ONLY_MODELS: readonly string[] = ["claude-fable-5", "claude-fable-5-1"];
 
 /**
  * Is this model opt-in only (T5)? True by EITHER route — see the double
