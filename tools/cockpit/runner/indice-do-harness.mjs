@@ -45,6 +45,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 export const RAIZ_REPO = path.resolve(AQUI, '..', '..', '..');
@@ -332,8 +333,17 @@ export function veredictosPublicados({ prs = null } = {}) {
  * um device faz e o codigo que ele tem em memoria, nao o que esta no checkout a
  * espera de um restart.
  */
-export function devicesNoMesmoSha({ frota = null, shaAlvo = null } = {}) {
+export function devicesNoMesmoSha({ frota = null, shaAlvo = null, rejeitados = null } = {}) {
   if (!frota) {
+    // Dois n/d diferentes, e nao se podem confundir: «nao ha ficheiros» e uma
+    // pasta por montar; «ha ficheiros e todos rejeitados» e uma frota que
+    // deixou de emitir. A 2026-09-11 era o segundo caso — 3 beacons, os 3 com
+    // assinatura expirada (o mais recente com 8 dias) — e a parcela dizia
+    // «vault nao montado» com o vault montado.
+    if (Array.isArray(rejeitados) && rejeitados.length) {
+      const lista = rejeitados.map((r) => `${r.device || r.ficheiro}: ${r.codigo || 'rejeitado'}${r.ts ? ' (' + String(r.ts).slice(0, 10) + ')' : ''}`).join(' · ');
+      return parcela('devices_no_mesmo_sha', { porque: `${rejeitados.length} beacon(s), todos rejeitados — ${lista}` });
+    }
     return parcela('devices_no_mesmo_sha', { porque: 'sem beacons legiveis — o vault nao esta montado ou a pasta da frota nao existe' });
   }
   if (!shaAlvo) {
@@ -361,37 +371,61 @@ export function devicesNoMesmoSha({ frota = null, shaAlvo = null } = {}) {
  * O que nao esta instrumentado nao existe — e o que esta instrumentado a meio
  * e pior, porque produz medias sobre a metade que respondeu.
  *
- * O que se conta e a fraccao de decisoes que trazem os campos de que a
- * metrica-mae precisa (`tokens_in` e `tokens_out`). Uma decisao sem eles entra
- * na contagem de volume e desaparece da de custo, e e assim que uma poupanca
- * se sobrestima sem ninguem mentir.
+ * ── A PRIMEIRA VERSAO DESTA PARCELA MEDIA A COISA ERRADA ────────────────────
+ *
+ * A 2026-08-26 esta parcela contava a fraccao de linhas do `decisions_v2.jsonl`
+ * com `tokens_in > 0 && tokens_out > 0`, e deu **0/4830**. O numero era
+ * verdadeiro e a leitura era errada: esse ficheiro e escrito pelo hook
+ * `UserPromptSubmit`, que corre ANTES de o modelo responder — os tokens sao
+ * zero por construcao, nao por falta de instrumentacao. Um contador que so pode
+ * dar zero nao mede cobertura nenhuma.
+ *
+ * A 2026-08-28 entrou em `main` o `tools/router/recibo.js`: os tokens sempre
+ * estiveram no disco (`~/.claude/projects/** /*.jsonl`, `message.usage`
+ * completo) e o recibo atribui cada chamada ao turno humano pela cadeia
+ * `parentUuid`, e casa cada turno com a decisao do router (mesma sessao,
+ * janela de 30 s). E ESSA a cobertura que interessa a metrica-mae:
+ *
+ *     num = turnos humanos com custo medido E com decisao do router casada
+ *     den = turnos humanos com custo medido
+ *
+ * O que falta no numerador nao e «tokens em falta» — e custo REAL que nenhuma
+ * recomendacao consegue reclamar. Medido a 2026-09-11 nesta maquina:
+ * **81/1686** em 524 transcripts (4,8 %); nos 40 mais recentes, 53/240.
+ *
+ * O ramo `session_id` que existia num branch paralelo (`ab-audit/telemetria`)
+ * foi abandonado: `recibo.js` documenta porque essa chave reconstruia o defeito
+ * dos «25 por prompt».
  */
 export const CAMPOS_TELEMETRIA = Object.freeze(['tokens_in', 'tokens_out']);
 
-export function coberturaDeTelemetria({ caminho = path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions_v2.jsonl'), readImpl = fs.readFileSync, maxLinhas = 50000 } = {}) {
-  let bruto;
+function reciboReal() {
+  // CJS a partir de ESM — o recibo vive em tools/router e e require()-avel.
+  return createRequire(import.meta.url)('../../router/recibo.js').recibo;
+}
+
+export function coberturaDeTelemetria({ reciboImpl = null, limite = 0 } = {}) {
+  let r;
   try {
-    bruto = String(readImpl(caminho, 'utf8'));
-  } catch {
-    return parcela('cobertura_de_telemetria', { porque: `sem registo de decisoes em ${caminho}` });
+    const fn = reciboImpl || reciboReal();
+    r = fn(limite ? { limite } : {});
+  } catch (e) {
+    return parcela('cobertura_de_telemetria', { porque: `recibo.js indisponivel: ${e && e.message ? e.message : e}` });
   }
-  const linhas = bruto.split('\n').filter((l) => l.trim()).slice(-maxLinhas);
-  let total = 0;
-  let completas = 0;
-  for (const l of linhas) {
-    let j;
-    try { j = JSON.parse(l); } catch { continue; }
-    total += 1;
-    if (CAMPOS_TELEMETRIA.every((c) => Number(j && j[c]) > 0)) completas += 1;
+  if (!r || !Number.isFinite(r.turnos)) {
+    return parcela('cobertura_de_telemetria', { porque: 'recibo devolveu uma forma que nao se le' });
   }
-  if (!total) {
-    return parcela('cobertura_de_telemetria', { porque: 'registo de decisoes vazio ou ilegivel' });
+  if (!r.turnos) {
+    return parcela('cobertura_de_telemetria', {
+      porque: `0 turnos humanos com custo medido em ${r.transcriptsLidos || 0} transcript(s) — sem denominador nao ha cobertura`,
+    });
   }
+  const num = Number(r.comDecisao) || 0;
   return parcela('cobertura_de_telemetria', {
-    num: completas,
-    den: total,
-    fonte: `${path.basename(caminho)} (ultimas ${linhas.length} linhas)`,
-    porque: `${total - completas} decisoes sem ${CAMPOS_TELEMETRIA.join(' e ')} — invisiveis para a metrica de custo`,
+    num,
+    den: r.turnos,
+    fonte: `recibo.js — ${r.transcriptsLidos}/${r.transcriptsTotais} transcripts, ${r.chamadas} chamadas com usage`,
+    porque: `${r.turnos - num} turnos com custo medido sem decisao do router casada (mesma sessao, janela 30 s) — custo real que nenhuma recomendacao reclama; o decisions_v2.jsonl traz tokens a 0 por construcao (o hook escreve antes de o modelo responder)`,
   });
 }
 
@@ -600,9 +634,12 @@ export async function recolherFrota() {
     const m = await import('./fleet-beacon.mjs');
     const b = m.beaconDir({});
     const r = m.readBeacons({ dir: b.dir, transporte: b.transporte, partilhado: b.partilhado });
-    return Array.isArray(r.frota) && r.frota.length ? r.frota : null;
+    return {
+      frota: Array.isArray(r.frota) && r.frota.length ? r.frota : null,
+      rejeitados: Array.isArray(r.rejeitados) ? r.rejeitados : [],
+    };
   } catch {
-    return null;
+    return { frota: null, rejeitados: [] };
   }
 }
 
@@ -629,13 +666,13 @@ export async function recolherFrota() {
  */
 export async function calcular({ raiz = RAIZ_REPO, semRede = false, agora = Date.now() } = {}) {
   const prs = semRede ? null : recolherPrs({ raiz });
-  const frota = await recolherFrota();
+  const { frota, rejeitados } = await recolherFrota();
   const shaAlvo = shaDeReferencia({ raiz });
   const r = indice([
     testesGateados({ raiz }),
     recibosDeCenso({}),
     veredictosPublicados({ prs }),
-    devicesNoMesmoSha({ frota, shaAlvo }),
+    devicesNoMesmoSha({ frota, shaAlvo, rejeitados }),
     coberturaDeTelemetria({}),
     higieneDePrs({ prs, agora }),
     limiaresMedidos({ raiz }),
