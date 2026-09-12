@@ -407,7 +407,10 @@ if (invocadoDirectamente) {
   const args = process.argv.slice(2);
   const i = args.indexOf('--regras');
   const dirRegrasExterno = i >= 0 ? args[i + 1] : (process.env[ENV_REGRAS] || null);
-  const raiz = args.filter((a, j) => j !== i && j !== i + 1)[0] || process.cwd();
+  // Sem `--regras`, i = -1 e i + 1 = 0: o filtro antigo deitava fora o PRIMEIRO
+  // argumento, que e a raiz — o CLI corria sempre no cwd. Apanhado a 12/09 ao
+  // apontar o verificador novo a arvore velha do #505 a partir de outro directorio.
+  const raiz = args.filter((a, j) => i < 0 || (j !== i && j !== i + 1))[0] || process.cwd();
   const { texto, falhas } = relatorio(verificarTudo(raiz, {}, { dirRegrasExterno }));
   process.stdout.write(texto);
   process.exitCode = falhas > 0 ? 1 : 0;

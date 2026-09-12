@@ -25,6 +25,8 @@
  */
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -305,6 +307,20 @@ test('os artefactos versionados neste repo: regras N/D por licenca (fora do repo
   // E o directorio do repo nao tem yaml nenhum — a mordida acima e o que o garante.
   const yamlNoRepo = readdirSync(path.join(RAIZ_REPO, DIR_AB, 'regras-semgrep')).filter(ehRegraYaml);
   assert.deepEqual(yamlNoRepo, [], 'ha regras dentro do repo: ' + yamlNoRepo.join(', '));
+});
+
+test('CLI: a raiz passada por argumento e respeitada mesmo sem --regras (corre de OUTRO cwd)', () => {
+  // Mordida do defeito de 12/09: sem --regras o filtro de argumentos deitava fora
+  // o primeiro argumento e o CLI verificava o cwd — daqui, o scratch — em vez da raiz.
+  const cli = path.join(RAIZ_REPO, 'tools/cockpit/runner/ab-vendorizado.mjs');
+  const r = spawnSync(process.execPath, [cli, RAIZ_REPO], { cwd: tmpdir(), encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^N\/D {4}regras do semgrep/m, r.stdout);
+  assert.match(r.stdout, /^OK {5}listas de ambito \(§2\.2\) — 3 ficheiro\(s\)/m, r.stdout);
+  // e com --regras a apontar para um directorio que nao existe: FALHA [ausente] x4, exit 1
+  const rMau = spawnSync(process.execPath, [cli, RAIZ_REPO, '--regras', path.join(tmpdir(), 'nao-existe-' + process.pid)], { cwd: tmpdir(), encoding: 'utf8' });
+  assert.equal(rMau.status, 1, rMau.stdout + rMau.stderr);
+  assert.equal((rMau.stdout.match(/\[ausente\]/g) || []).length, 4, rMau.stdout);
 });
 
 test('os 4 ficheiros REAIS, fora do repo: batem byte a byte e declaram a licenca 409 vezes (corre so com AB_REGRAS_SEMGREP)', (t) => {
