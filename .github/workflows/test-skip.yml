@@ -38,6 +38,10 @@ on:
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
+      # W2 — o par de `packages/launcher/**` do test.yml. Sem esta linha, um PR
+      # ao launcher dispara AS DUAS workflows, e fica um check obrigatorio verde
+      # sem ter corrido nada — que e o pior dos dois modos de falhar.
+      - 'packages/launcher/**'
       - 'tools/cockpit/**'
       - 'tools/verify/**'
       - 'tools/gauntlet/**'
