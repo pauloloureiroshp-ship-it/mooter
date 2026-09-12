@@ -100,7 +100,11 @@ export async function runAudit(args: string[], deps: AuditDeps = {}): Promise<Cm
   }
 
   const anyFailed = report.facets.some((f) => !f.ok);
-  const exitCode = flags.strict && anyFailed ? 1 : 0;
+  // Todos os facets a 0 fontes = nao houve auditoria nenhuma; exit 0 diria
+  // «auditado, tudo bem». Sai 1 mesmo sem --strict. Um run parcial (alguns
+  // facets com fontes) mantem o comportamento: exit 0 com ⚠ nas linhas.
+  const nothingAudited = report.facets.length > 0 && report.facets.every((f) => f.sources === 0);
+  const exitCode = nothingAudited || (flags.strict && anyFailed) ? 1 : 0;
 
   if (flags.json) {
     return { exitCode, output: JSON.stringify({ ...report, reportPath: writtenPath }, null, 2) };
@@ -113,6 +117,7 @@ export async function runAudit(args: string[], deps: AuditDeps = {}): Promise<Cm
   for (const f of report.facets) {
     out.push(`   ${f.ok ? "✓" : "⚠"} ${f.facet}${f.ok ? "" : ` — ${f.error}`}`);
   }
+  if (nothingAudited) out.push(`   no facet read any source — nothing was audited (root: ${root})`);
   if (writtenPath) out.push(`   report → ${writtenPath}`);
   return { exitCode, output: out.join("\n") };
 }

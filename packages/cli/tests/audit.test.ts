@@ -153,6 +153,108 @@ test("runAudit CLI: --max-cost 0 → exit 0, never calls the cloud", async () =>
   assert.match(res.output, /audit fan-out/);
 });
 
+// ── 0 fontes → 0 achados ─────────────────────────────────────────────────────
+//
+// Medido a 2026-08-26 e 2026-09-11: apontado ao fastify (que nao tem install.sh,
+// tools/router/*, packages/*), os 6 facets liam 0 ficheiros, o prompt ia na
+// mesma ao Ollama e o worker devolvia achados a citar ficheiros inexistentes —
+// ok:true, exit 0. Estes testes mordem nisso: o worker inventa de proposito,
+// e a asserçao e que a invençao nunca chega ao output.
+
+// IO de um repo que nao tem NADA do que os probes procuram.
+function emptyIO(): FacetIO & { reads: string[] } {
+  const reads: string[] = [];
+  return {
+    reads,
+    read: (p: string) => { reads.push(p); return null; },
+    list: () => [],
+    exists: () => false,
+  };
+}
+
+const FABRICATED = "FABRICATED: install.sh lacks set -eu; classify.js has no sha gate";
+
+// Worker que responde sempre com um achado inventado e conta as chamadas.
+function inventingWorker(): { fn: WorkerFn; calls: () => number } {
+  let n = 0;
+  const fn: WorkerFn = async (req) => {
+    n++;
+    return { text: FABRICATED, backend: req.backend, model: req.model, cost_usd: 0, ok: true };
+  };
+  return { fn, calls: () => n };
+}
+
+test("0 fontes em todos os facets: worker nunca e chamado, todos ok:false, exit 1 sem --strict", async () => {
+  const io = emptyIO();
+  const worker = inventingWorker();
+  const res = await runAudit(["fan-out", "--no-write"], { root: "/not-mooter", nowMs: NOW, worker: worker.fn, io });
+
+  assert.equal(worker.calls(), 0, "nenhum prompt vazio chega ao LLM");
+  assert.equal(res.exitCode, 1, "nada foi auditado — 0 diria «auditado, tudo bem»");
+  assert.match(res.output, /6 facet\(s\), 0 ok/);
+  assert.match(res.output, /local 0 · cloud 0/, "0 workers despachados, nao 6");
+  assert.match(res.output, /0 source\(s\) read/);
+  assert.match(res.output, /no facet read any source — nothing was audited/);
+  assert.doesNotMatch(res.output, /FABRICATED/, "texto inventado nunca aparece");
+
+  const strict = await runAudit(["fan-out", "--no-write", "--strict"], { root: "/not-mooter", nowMs: NOW, worker: worker.fn, io });
+  assert.equal(strict.exitCode, 1, "--strict morde tambem");
+  assert.equal(worker.calls(), 0);
+
+  const json = await runAudit(["fan-out", "--no-write", "--json"], { root: "/not-mooter", nowMs: NOW, worker: worker.fn, io });
+  assert.equal(json.exitCode, 1, "JSON continua a sair, mas com exit 1");
+  const parsed = JSON.parse(json.output) as { facets: Array<{ ok: boolean; sources: number; text: string; error?: string }>; localCount: number };
+  assert.equal(parsed.facets.length, FACET_NAMES.length);
+  assert.ok(parsed.facets.every((f) => f.ok === false && f.sources === 0 && f.text === ""), "todos ok:false, text vazio");
+  assert.ok(parsed.facets.every((f) => /0 source\(s\) read/.test(f.error ?? "")), "erro diz 0 fontes");
+  assert.equal(parsed.localCount, 0);
+  assert.doesNotMatch(json.output, /FABRICATED/);
+});
+
+test("0 fontes: o relatorio markdown diz «0 source(s)» + «no finding», nunca o texto do worker", async () => {
+  const io = emptyIO();
+  const worker = inventingWorker();
+  const report = await runFanOut({ root: "/not-mooter", facets: [FACETS.install, FACETS.packages], io, worker: worker.fn, nowMs: NOW });
+  assert.equal(worker.calls(), 0);
+  const md = renderMarkdown(report, { facetsRequested: ["install", "packages"] });
+  assert.match(md, /## install {2}· {2}0 source\(s\)/);
+  assert.match(md, /## packages {2}· {2}0 source\(s\)/);
+  assert.equal((md.match(/⚠️ no finding — 0 source\(s\) read/g) ?? []).length, 2, "um aviso por facet");
+  assert.doesNotMatch(md, /FABRICATED/);
+  assert.equal(report.localCount, 0, "0 workers locais correram");
+});
+
+test("parcial: facet com fontes corre o worker, facets sem fontes nao; exit 0 sem --strict, 1 com --strict", async () => {
+  const io = mockIO({ "install.sh": "#!/bin/sh\nset -eu\n" });
+  const worker = inventingWorker();
+  const args = ["fan-out", "--no-write", "--facets", "install,classify,routing"];
+  const res = await runAudit(args, { root: "/repo", nowMs: NOW, worker: worker.fn, io });
+  assert.equal(worker.calls(), 1, "so o facet com fontes chega ao worker");
+  assert.equal(res.exitCode, 0, "run parcial mantem exit 0 sem --strict");
+  assert.match(res.output, /3 facet\(s\), 1 ok/);
+  assert.match(res.output, /local 1 · cloud 0/);
+  assert.match(res.output, /✓ install/);
+  assert.match(res.output, /⚠ classify — 0 source\(s\) read/);
+  assert.match(res.output, /⚠ routing — 0 source\(s\) read/);
+  assert.doesNotMatch(res.output, /nothing was audited/);
+
+  const strict = await runAudit([...args, "--strict"], { root: "/repo", nowMs: NOW, worker: worker.fn, io });
+  assert.equal(strict.exitCode, 1, "--strict morde no facet a 0 fontes");
+});
+
+test("par positivo: com fontes o worker corre, ok:true, exit 0 — o texto do worker aparece", async () => {
+  const io = mockIO({ "install.sh": "#!/bin/sh\nset -eu\n", "install.ps1": "Write-Host hi" });
+  const worker = inventingWorker();
+  const res = await runAudit(["fan-out", "--no-write", "--facets", "install", "--json"], { root: "/repo", nowMs: NOW, worker: worker.fn, io });
+  assert.equal(worker.calls(), 1);
+  assert.equal(res.exitCode, 0);
+  const parsed = JSON.parse(res.output) as { facets: Array<{ ok: boolean; sources: number; text: string }>; localCount: number };
+  assert.equal(parsed.facets[0].ok, true);
+  assert.equal(parsed.facets[0].sources, 2);
+  assert.equal(parsed.facets[0].text, FABRICATED, "com evidencia, o achado do worker e o achado");
+  assert.equal(parsed.localCount, 1);
+});
+
 test("runAudit CLI: unknown facet → exit 1 + lists valid facets; help → exit 0", async () => {
   const bad = await runAudit(["fan-out", "--facets", "nope"], { root: "/repo", nowMs: NOW, worker: echoWorker, io: mockIO({}) });
   assert.equal(bad.exitCode, 1);

@@ -162,6 +162,24 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
     opts.facets.map((f) =>
       limit(async (): Promise<Finding> => {
         const input = f.gather(opts.root, io);
+        // Sem fontes nao ha auditoria. Medido a 2026-08-26 e outra vez a
+        // 2026-09-11 contra um repo que nao e o Mooter (fastify): os 6 facets
+        // leram 0 ficheiros, o prompt foi na mesma ao worker, e o worker
+        // devolveu achados a citar install.sh / classify.js / isolated-vm que
+        // nao existem la — com ok:true e exit 0. Um achado sem fonte e
+        // invencao; o worker nao e chamado.
+        if (input.sources === 0) {
+          return {
+            facet: f.name,
+            sources: 0,
+            backend: "ollama",
+            model,
+            cost_usd: 0,
+            text: "",
+            ok: false,
+            error: `0 source(s) read — nothing to audit under ${opts.root} (this facet's probes found no files)`,
+          };
+        }
         const r = await worker({ model, system: AUDIT_SYSTEM, prompt: f.prompt(input), backend: "ollama" });
         return {
           facet: f.name,
@@ -207,7 +225,8 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
     facets: findings,
     synthesis,
     totalCostUsd,
-    localCount: findings.filter((f) => f.backend === "ollama").length,
+    // Conta workers despachados; um facet saltado por 0 fontes nao correu worker nenhum.
+    localCount: findings.filter((f) => f.backend === "ollama" && f.sources > 0).length,
     cloudCount: findings.filter((f) => f.backend === "claude-api").length + (synthDidRun ? 1 : 0),
     concurrency,
   };
