@@ -274,6 +274,49 @@ export function proximoSeq(device, {
   return seq;
 }
 
+/**
+ * O indice do arnes, pela MESMA allowlist a escrever e a ler.
+ *
+ * Ate 2026-09-11 o `moo-runner` entregava `indice` ao `writeBeacon`, e o
+ * envelope — construido com chaves nomeadas, de proposito — nao o tinha. A
+ * leitura tambem nao. O indice era lido do instantaneo, passado, e perdido
+ * duas linhas depois: nunca chegou a um beacon, nunca chegou a frota. Foi um
+ * adversario a ler as duas funcoes lado a lado que o viu.
+ *
+ * Viaja o que o painel de OUTRO device precisa para dizer o numero e a idade:
+ * as sete parcelas com `num/den` e o `porque`, os dois shas, e a idade do
+ * instantaneo NO MOMENTO EM QUE O BEACON FOI ESCRITO (`idade_s`) — quem le
+ * soma-lhe a idade do proprio beacon. Sem `orfaos`: 190 caminhos por ronda
+ * nao sao telemetria.
+ */
+export function indiceParaBeacon(i) {
+  if (!i || typeof i !== 'object') return null;
+  if (i.presente !== true) {
+    return { presente: false, porque: typeof i.porque === 'string' ? i.porque : 'indice sem porque' };
+  }
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  return {
+    presente: true,
+    fresco: i.fresco === true,
+    idade_s: num(i.idade_s),
+    ts: typeof i.ts === 'string' ? i.ts : null,
+    sha_head: typeof i.sha_head === 'string' ? i.sha_head : null,
+    sha_origin_main: typeof i.sha_origin_main === 'string' ? i.sha_origin_main : null,
+    pontos: num(i.pontos),
+    total: num(i.total),
+    pct: num(i.pct),
+    peso_nao_medido: num(i.peso_nao_medido),
+    nao_medidas: Array.isArray(i.nao_medidas) ? i.nao_medidas.filter((x) => typeof x === 'string') : [],
+    parcelas: Array.isArray(i.parcelas)
+      ? i.parcelas.filter((p) => p && typeof p === 'object' && typeof p.id === 'string').map((p) => ({
+        id: p.id, peso: num(p.peso), num: num(p.num), den: num(p.den),
+        porque: typeof p.porque === 'string' ? p.porque : null,
+      }))
+      : [],
+    ...(typeof i.porque === 'string' ? { porque: i.porque } : {}),
+  };
+}
+
 /** Writes this device's beacon. Never throws — a beacon is telemetry, not work. */
 export function writeBeacon(state, {
   dir, writeImpl = fs.writeFileSync, mkdirImpl = fs.mkdirSync,
@@ -334,6 +377,9 @@ export function writeBeacon(state, {
       // O que este device leva para a frota se comparar (ver `medirParidade`).
       // O chamador mede e poe em `state.paridade`; aqui so viaja.
       paridade: state && state.paridade && typeof state.paridade === 'object' ? state.paridade : null,
+      // O indice do arnes: lido do instantaneo por quem chama, filtrado aqui.
+      // Ver `indiceParaBeacon` — e a allowlist que a leitura tambem usa.
+      indice: indiceParaBeacon(state && state.indice),
       /**
        * A versao do conector DESTE device: a instalada no Claude Desktop e a
        * que o checkout traz. Dois FACTOS, sem juizo — quem julga e `naTuaMao`.
@@ -644,6 +690,9 @@ export function readBeacons({
         repo_path: typeof b.paridade.repo_path === 'string' ? b.paridade.repo_path : null,
         vault_path: typeof b.paridade.vault_path === 'string' ? b.paridade.vault_path : null,
       } : null,
+      // Mesma allowlist da escrita. `null` num beacon de antes de 2026-09-11,
+      // e assim fica: a ausencia e uma versao antiga, nao um indice a zero.
+      indice: indiceParaBeacon(b.indice),
       usd: typeof b.usd === 'number' ? b.usd : 0,
       self: eSelf,
       // De onde veio ESTE beacon. Sem isto, um device fresco pelo remoto e um
