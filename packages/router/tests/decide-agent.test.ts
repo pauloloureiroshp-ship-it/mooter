@@ -304,6 +304,23 @@ describe("tier ladder — T5/Fable e opt-in only, e agora em codigo", () => {
     // Ids datados normalizam para a chave do snapshot antes de decidir.
     assert.equal(isOptInOnly("claude-fable-5-20260101"), true);
   });
+
+  test("o Fable 5.1 so esta coberto pelo roster — o tier NAO o cobre, e e por isso que tem de estar la", async () => {
+    // 2026-09-12: `claude-fable-5-1` entrou no SSOT de precos (tools/router/
+    // pricing.js) sem `tier`, como o Fable 5. Mas a segunda via da exclusao —
+    // `tierForModel()` — le o snapshot, e o snapshot nao tem o 5.1: cai no
+    // default "T2". Hoje o decideAgent nao o pode escolher porque tambem nao
+    // tem celula medida — a mesma defesa-por-dado-em-falta que o cabecalho
+    // deste bloco descreve, e que cai no dia em que alguem mede uma celula de
+    // boa-fe. O roster nomeado e a unica guarda que nao depende de um dado
+    // faltar. Se um dia o 5.1 entrar no snapshot com tier "T5", a segunda
+    // asserção passa a ser redundante — e isso e o estado desejado, nao um erro.
+    const { isOptInOnly, OPT_IN_ONLY_MODELS, tierForModel: tfm } = await import("../src/decide-agent.ts");
+    assert.ok(OPT_IN_ONLY_MODELS.includes("claude-fable-5-1"), "o 5.1 tem de estar no roster nomeado");
+    assert.notEqual(tfm("claude-fable-5-1"), "T5", "se isto falhar, o snapshot passou a cobrir o 5.1 — actualiza o comentario, nao a guarda");
+    assert.equal(isOptInOnly("claude-fable-5-1"), true, "sem o roster, o 5.1 seria T2 e auto-encaminhavel assim que tivesse uma celula");
+    assert.equal(isOptInOnly("claude-fable-5-1-20260901"), true, "ids datados normalizam antes da guarda");
+  });
 });
 
 /** As 24, lidas da taxonomia — nunca escritas a mao aqui. */

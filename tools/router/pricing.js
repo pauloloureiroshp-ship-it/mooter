@@ -14,7 +14,12 @@
  * FALLBACK_PRICE (Sonnet-tier) so we never crash on a typo — but the
  * estimate will be wrong until added here.
  *
- * Last reviewed: 2026-08-03. Cross-check against:
+ * Last reviewed: 2026-09-12 (claude-fable-5-1 added; the other Anthropic
+ * rows re-read against the live table that day and unchanged — except
+ * `claude-opus-4-6[fast]`, whose 6x rate the live page no longer lists: fast
+ * mode is Opus 5 / 4.8 only now, and 4.6 requests run at standard rates. The
+ * row is kept as-is because old logs carry that suffix). Cross-check against:
+ *   https://platform.claude.com/docs/en/about-claude/pricing
  *   https://www.anthropic.com/pricing
  *   https://platform.openai.com/docs/pricing
  *   https://ai.google.dev/pricing
@@ -27,6 +32,9 @@
  * @typedef {Object} ModelPrice
  * @property {number} input  - USD per 1M input tokens
  * @property {number} output - USD per 1M output tokens
+ * @property {number} [cacheRead] - USD per 1M cache-READ tokens, ONLY when the
+ *   model departs from the standard 0.1x-of-input rule. Absent = 0.1x applies.
+ *   Consumers that price cache (recibo.js) must prefer this field when present.
  * @property {string[]} [strengths] - optional classifier hints
  * @property {Tier} [tier]
  * @property {string} [subtier]
@@ -63,6 +71,14 @@ const PRICES = {
   // be reachable by tier-based selection. A price without a tier is exactly
   // "priceable, not routable".
   'claude-fable-5':                  { input: 10.0,  output: 50.0,  strengths: ['architecture','long-context'] },
+  // Fable 5.1 — same tier, same per-token price as Fable 5, same "priceable,
+  // not routable" rule (no `tier`). One difference the standard multiplier
+  // gets wrong by 4x: cache hits are $0.25/MTok (0.025x of input), not the
+  // 0.1x every other row uses — the docs table carries it as a footnote.
+  // Source: https://platform.claude.com/docs/en/about-claude/pricing, read
+  // 2026-09-12 ("$10 / $12.50 / $20 / $0.25 / $50"). Until this row existed,
+  // recibo.js counted 211 fable-5-1 calls as "sem preço" (2026-09-12).
+  'claude-fable-5-1':                { input: 10.0,  output: 50.0,  cacheRead: 0.25, strengths: ['architecture','long-context'] },
   'claude-haiku-4-5':                { input:  1.0,  output:  5.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
   'claude-haiku-4-5-20251001':       { input:  1.0,  output:  5.0,  strengths: ['light-code','explain','regex','commit'],   tier: 'T1' },
   // Legacy mappings that may appear in older logs
