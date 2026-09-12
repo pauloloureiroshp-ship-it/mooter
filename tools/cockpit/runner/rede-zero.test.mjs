@@ -20,6 +20,7 @@ import dns from 'node:dns';
 import net from 'node:net';
 import dgram from 'node:dgram';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import child_process from 'node:child_process';
@@ -27,7 +28,7 @@ import child_process from 'node:child_process';
 import {
   medirRede, auditar, ehInerte, alvoDoConnect, ambienteHostil, instalarGuardas,
   lerRegistoDosFilhos, RedeBloqueada, PORTA_PROXY_MORTA, RE_INERTE,
-  METODOS_RESOLVER, classificarPorCamadas,
+  METODOS_RESOLVER, classificarPorCamadas, instalarVigiaDeFilhos, pareceNode,
 } from './rede-zero.mjs';
 
 // Sonda injectada: nunca vê nada. Serve os casos em que o que se testa é a
@@ -571,4 +572,273 @@ test('auditar conta os descendentes não medidos como não medidos', () => {
   assert.equal(auditar({ filhos: [medido], descendentes: [cego] }).rede_zero, null);
   const falador = { cmd: 'd', pid: 7, sonda: { estado: 'instrumentado', remotos: [], saidas: [{ api: 'fetch', alvo: 'https://x' }], amostras: 0, porque: null } };
   assert.equal(auditar({ filhos: [medido], descendentes: [falador] }).rede_zero, false);
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// A 2.ª LENTE, 2026-08-26. Duas objecções que BLOQUEARAM a prova:
+//
+//   H · filho Node instrumentado faz nascer um NETO que não é Node (curl.exe)
+//       → era `instrumentado`/`true` com HTTP 200 real; tem de ser `n/d`
+//   P · registo das sentinelas com uma linha `saida` truncada
+//       → `partidas` caía no chão e o veredicto era `true`; tem de ser `null`
+//
+// Cada guarda leva o teste que o faz MORDER e o par que confirma que NÃO
+// morde sempre. Os de mordida foram corridos contra o código ANTIGO
+// (HEAD 27c4fdac) e FALHARAM lá — ver a mensagem do commit.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Um executável que NÃO é Node, sem rede: o ponto é que seja anunciado. */
+function netoNaoNode() {
+  if (process.platform === 'win32') {
+    const curl = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'curl.exe');
+    if (fs.existsSync(curl)) return ['curl.exe', ['--version']];
+    return ['cmd.exe', ['/c', 'exit 0']];
+  }
+  return ['/bin/sh', ['-c', 'exit 0']];
+}
+const escapar = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+test('MORDIDA · H · um filho instrumentado que faz nascer um neto NÃO-Node não pode ser «instrumentado»', async () => {
+  // O `probe/n.mjs` da lente, sem a rede real: a sentinela cobria rede e
+  // `dlopen`, não o `child_process`, e a sonda do SO só olhava para o PID do
+  // filho. Um `curl.exe` nascido cá dentro não deixava rasto e o relatório dizia
+  // `instrumentado · não sobra camada por observar`. Aqui o neto só imprime a
+  // versão — o que se exige é que o nascimento seja VISTO e derrube a promoção.
+  const [cmd, args] = netoNaoNode();
+  const cod = `require('child_process').spawnSync(${JSON.stringify(cmd)}, ${JSON.stringify(args)}, {stdio:'ignore'})`;
+  const { auditoria } = await medirRede(async (ctx) => {
+    const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
+
+  assert.equal(auditoria.chamadas.length, 0, 'o processo-pai não falou para fora');
+  assert.notEqual(auditoria.rede_zero, true, 'um neto que ninguém mediu nunca pode dar `true`');
+  assert.equal(auditoria.rede_zero, null);
+  const f = auditoria.filhos[0];
+  assert.equal(f.sonda.estado, 'n/d');
+  assert.equal(f.sonda.addons.length, 0, 'sem addons — é precisamente o ramo que dizia «não sobra camada»');
+  assert.equal(f.sonda.filhos.length, 1, 'o nascimento tem de ter sido anunciado');
+  assert.equal(f.sonda.filhos[0].coberto, false);
+  assert.equal(f.sonda.filhos[0].node, false);
+  assert.match(auditoria.porque, new RegExp(escapar(path.basename(cmd))), 'o `porque` tem de nomear o comando');
+  assert.doesNotMatch(auditoria.porque, /não sobra camada/);
+});
+
+test('H2 · o MESMO filho a fazer nascer um neto NODE continua `instrumentado` — o neto anuncia-se', async () => {
+  // O par positivo: o guarda não pode morder sempre. Um neto Node herda o
+  // `NODE_OPTIONS`, escreve a sua própria `sentinela-carregada` e o anunciado
+  // fica coberto. O filho continua medido e o neto aparece como descendente.
+  const cod = "require('child_process').spawnSync(process.execPath, ['-e','0'], {stdio:'ignore'})";
+  const { auditoria } = await medirRede(async (ctx) => {
+    const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
+
+  assert.equal(auditoria.rede_zero, true);
+  const f = auditoria.filhos[0];
+  assert.equal(f.sonda.estado, 'instrumentado');
+  assert.equal(f.sonda.filhos.length, 1);
+  assert.equal(f.sonda.filhos[0].node, true);
+  assert.equal(f.sonda.filhos[0].coberto, true, 'o PID anunciado tem de casar com a sentinela-carregada do neto');
+  assert.equal(auditoria.descendentes.length, 1);
+  assert.equal(auditoria.descendentes[0].pid, f.sonda.filhos[0].pid);
+  assert.match(auditoria.descendentes[0].cmd, /anunciado pelo pid/);
+  assert.match(f.sonda.porque, /1 filho\(s\) anunciado\(s\), 1 coberto\(s\)/);
+});
+
+test('MORDIDA · H3 · um neto Node lançado SEM o ambiente da sentinela não fica coberto', async () => {
+  // Ser Node não chega: a cobertura é a `sentinela-carregada` do próprio neto.
+  // Um filho que monta o ambiente à mão (sem `NODE_OPTIONS`) faz nascer um Node
+  // cego, e o filho que o lançou tem de ficar `n/d`.
+  const cod = "require('child_process').spawnSync(process.execPath, ['-e','0'], {stdio:'ignore', env:{PATH:process.env.PATH}})";
+  const { auditoria } = await medirRede(async (ctx) => {
+    const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
+
+  assert.equal(auditoria.rede_zero, null);
+  assert.equal(auditoria.filhos[0].sonda.estado, 'n/d');
+  assert.equal(auditoria.filhos[0].sonda.filhos[0].node, true, 'é Node…');
+  assert.equal(auditoria.filhos[0].sonda.filhos[0].coberto, false, '…mas nunca se anunciou');
+  assert.equal(auditoria.descendentes.length, 0);
+});
+
+test('H4 · as SETE portas do child_process anunciam, e `exec` anuncia UMA vez', async () => {
+  // MEDIDO no Node v24.14.0: `exec` chama `module.exports.execFile` — sem a
+  // guarda de reentrância um `exec` contava dois filhos. `fork` chama o `spawn`
+  // LOCAL do módulo e passa ao lado do exportado — por isso é embrulhado à
+  // parte. Aqui o vigia é instalado NESTE processo, com um colector no lugar
+  // do registo, e cada porta é batida uma vez.
+  //
+  // E o que ele NÃO consegue, medido em vez de assumido: `execFileSync` e
+  // `execSync` devolvem o stdout, não o PID. Em sucesso o anúncio leva
+  // `pid: null` e um neto Node lançado assim nunca fica coberto (`n/d`, com o
+  // motivo escrito). Em falha (rc ≠ 0) o erro traz o PID.
+  const vistos = [];
+  const vigia = instalarVigiaDeFilhos({ aoFilho: (f) => vistos.push(f) });
+  const modulo = path.join(os.tmpdir(), `rede-zero-fork-${process.pid}.cjs`);
+  fs.writeFileSync(modulo, '');
+  try {
+    assert.equal(vigia.instaladas.length, 7);
+    const [cmd, args] = netoNaoNode();
+    const node = process.execPath;
+    child_process.spawnSync(cmd, args, { stdio: 'ignore' });
+    child_process.execFileSync(node, ['-e', '0'], { stdio: 'ignore' });
+    child_process.execSync(`"${node}" -e 0`, { stdio: 'ignore' });
+    try { child_process.execFileSync(node, ['-e', 'process.exit(3)'], { stdio: 'ignore' }); } catch { /* rc=3 é o ponto */ }
+    const esperar = (p) => new Promise((r) => { p.on('close', r); p.on('error', r); });
+    await esperar(child_process.spawn(node, ['-e', '0'], { stdio: 'ignore' }));
+    await esperar(child_process.execFile(node, ['-e', '0']));
+    await esperar(child_process.exec(`"${node}" -e 0`));
+    await esperar(child_process.fork(modulo, [], { stdio: 'ignore' }));
+  } finally {
+    vigia.restaurar();
+    try { fs.unlinkSync(modulo); } catch { /* temporário */ }
+  }
+  assert.deepEqual(vistos.map((v) => v.api), ['spawnSync', 'execFileSync', 'execSync', 'execFileSync', 'spawn', 'execFile', 'exec', 'fork']);
+  assert.equal(vistos.filter((v) => v.api === 'execFile').length, 1, 'o execFile de dentro do exec não pode contar');
+  const [neto, efsOk, esync, efsFalha, spawn, execFile, exec, fork] = vistos;
+  assert.equal(neto.node, false, 'o neto não-Node é anunciado como tal');
+  assert.ok(Number.isInteger(neto.pid) && neto.pid > 0, 'spawnSync devolve o PID');
+  for (const v of [spawn, execFile, fork]) {
+    assert.equal(v.node, true, v.api);
+    assert.ok(Number.isInteger(v.pid) && v.pid > 0, `${v.api} tem de trazer o PID`);
+  }
+  for (const v of [esync, exec]) assert.equal(v.node, false, `${v.api} passa por shell: o PID é o da shell`);
+  assert.equal(efsOk.node, true);
+  assert.equal(efsOk.pid, null, 'execFileSync em sucesso devolve o stdout, não o PID — fica por cobrir, e o porque di-lo');
+  assert.equal(efsFalha.node, true);
+  assert.ok(Number.isInteger(efsFalha.pid) && efsFalha.pid > 0, 'execFileSync em falha atira um erro que traz o PID');
+  assert.equal(child_process.spawn.name, 'spawn', 'o vigia foi reposto');
+});
+
+test('H5 · um neto Node por `execFileSync` fica por cobrir e o porque diz que foi o PID que faltou', async () => {
+  // A consequência do que H4 mede, vista de fora: é `n/d`, não `true`, e não é
+  // um `n/d` mudo — nomeia a porta que não devolveu o PID.
+  const cod = "require('child_process').execFileSync(process.execPath, ['-e','0'], {stdio:'ignore'})";
+  const { auditoria } = await medirRede(async (ctx) => {
+    const p = child_process.spawn(process.execPath, ['-e', cod], { env: ctx.ambiente });
+    await new Promise((r) => p.on('close', r));
+  }, { sondaImpl: sondaLimpa, intervaloSondaMs: 60_000 });
+
+  assert.equal(auditoria.rede_zero, null);
+  assert.equal(auditoria.filhos[0].sonda.filhos[0].pid, null);
+  assert.match(auditoria.porque, /execFileSync não devolveu o PID/);
+  // O neto anunciou-se na mesma (herdou o NODE_OPTIONS) — só não se consegue
+  // casar com o anúncio. Aparece como descendente não registado.
+  assert.equal(auditoria.descendentes.length, 1);
+  assert.match(auditoria.descendentes[0].cmd, /não registado/);
+});
+
+test('pareceNode reconhece o execPath e o nome, e mais nada', () => {
+  assert.equal(pareceNode(process.execPath), true);
+  assert.equal(pareceNode('node'), true);
+  assert.equal(pareceNode('C:\\Program Files\\nodejs\\node.exe'), true);
+  assert.equal(pareceNode('/usr/bin/node'), true);
+  assert.equal(pareceNode('curl.exe'), false);
+  assert.equal(pareceNode('nodemon'), false);
+  assert.equal(pareceNode(''), false);
+  assert.equal(pareceNode(undefined), false);
+});
+
+test('classificarPorCamadas: o terceiro eixo — um filho anunciado por cobrir é `n/d` com o nome', () => {
+  const curl = { api: 'spawnSync', cmd: 'curl.exe', args: ['-s', 'http://x'], pid: 1, node: false, coberto: false };
+  const nodeOk = { api: 'spawn', cmd: process.execPath, args: ['-e', '0'], pid: 2, node: true, coberto: true };
+  const r1 = classificarPorCamadas({ saidas: [], addons: [], amostras: 0, filhos: [curl] });
+  assert.equal(r1.estado, 'n/d');
+  assert.match(r1.porque, /curl\.exe -s http:\/\/x/);
+  const r2 = classificarPorCamadas({ saidas: [], addons: [], amostras: 0, filhos: [nodeOk] });
+  assert.equal(r2.estado, 'instrumentado');
+  assert.match(r2.porque, /1 filho\(s\) anunciado\(s\), 1 coberto\(s\)/);
+  // Um coberto ao lado de um por cobrir continua a ser um por cobrir.
+  assert.equal(classificarPorCamadas({ saidas: [], addons: [], amostras: 0, filhos: [nodeOk, curl] }).estado, 'n/d');
+  // Addons COM amostras e um neto por cobrir: o neto ganha, é `n/d`.
+  assert.equal(classificarPorCamadas({ saidas: [], addons: ['x.node'], amostras: 3, filhos: [curl] }).estado, 'n/d');
+  // A frase que a lente derrubou não pode voltar.
+  for (const r of [r1, r2, classificarPorCamadas({ saidas: [], addons: [], amostras: 0 })]) {
+    assert.doesNotMatch(r.porque, /não sobra camada/);
+  }
+});
+
+test('lerRegistoDosFilhos guarda os anúncios de filhos, com o PID do neto em `pid_filho`', () => {
+  // `pid` na linha é quem ANUNCIA (a sentinela escreve `pid: process.pid`); o
+  // PID de quem nasceu viaja em `pid_filho`. Um `pid` no anúncio sobrepunha o
+  // do anunciante e atribuía a linha ao neto.
+  const { porPid, partidas } = lerRegistoDosFilhos('/x', {
+    readImpl: () => [
+      JSON.stringify({ pid: 10, ev: 'sentinela-carregada', apis: 71 }),
+      JSON.stringify({ pid: 10, ev: 'filho', api: 'spawnSync', cmd: 'curl.exe', args: ['-s'], pid_filho: 11, node: false }),
+      JSON.stringify({ pid: 10, ev: 'filho', api: 'spawn', cmd: 'node', args: [], pid_filho: 12, node: true }),
+      JSON.stringify({ pid: 12, ev: 'sentinela-carregada', apis: 71 }),
+    ].join('\n'),
+  });
+  assert.equal(partidas, 0);
+  assert.equal(porPid.get(10).filhos.length, 2);
+  assert.deepEqual(porPid.get(10).filhos[0], { api: 'spawnSync', cmd: 'curl.exe', args: ['-s'], pid: 11, node: false });
+  assert.equal(porPid.get(10).filhos[1].pid, 12);
+  assert.equal(porPid.get(12).carregada, true);
+  assert.equal(porPid.has(11), false, 'o curl nunca escreve nada: só existe no anúncio');
+});
+
+test('MORDIDA · P · uma linha `saida` truncada no registo leva o veredicto a `null`, nunca a `true`', async () => {
+  // O `probe/p.mjs` da lente: `lerRegistoDosFilhos` contava a linha partida e o
+  // chamador de produção fazia `const { porPid } = …` — `partidas` caía no chão
+  // e uma tentativa de exfiltração registada pela própria sentinela desaparecia
+  // com «todos medidos». Uma saída registada e partida nunca pode virar zero.
+  const reg = path.join(os.tmpdir(), `rede-zero-partido-${process.pid}-${Date.now()}.jsonl`);
+  fs.writeFileSync(reg,
+    JSON.stringify({ pid: 424242, ev: 'sentinela-carregada', apis: 71 }) + '\n'
+    + '{"pid":424242,"ev":"saida","api":"fetch","alvo":"https://exfil.exempl' + '\n');
+  const { auditoria } = await medirRede(async () => {}, { registo: reg, sondaImpl: sondaLimpa });
+
+  assert.equal(auditoria.rede_zero, null);
+  assert.equal(auditoria.partidas, 1, 'a contagem tem de viajar na auditoria');
+  assert.match(auditoria.porque, /partid/i);
+  assert.match(auditoria.porque, /1 linha/);
+});
+
+test('P2 · o MESMO registo íntegro dá o veredicto de antes — completo é `false`, só carregada é `true`', async () => {
+  // O par positivo, nas duas direcções: a linha completa é uma saída (`false`,
+  // a nomear o alvo); sem a linha, um descendente calado (`true`). `partidas`
+  // é zero nos dois e não aparece no `porque`.
+  const reg = path.join(os.tmpdir(), `rede-zero-integro-${process.pid}-${Date.now()}.jsonl`);
+  fs.writeFileSync(reg,
+    JSON.stringify({ pid: 424242, ev: 'sentinela-carregada', apis: 71 }) + '\n'
+    + JSON.stringify({ pid: 424242, ev: 'saida', api: 'fetch', alvo: 'https://exfil.example' }) + '\n');
+  const a = (await medirRede(async () => {}, { registo: reg, sondaImpl: sondaLimpa })).auditoria;
+  assert.equal(a.rede_zero, false);
+  assert.equal(a.partidas, 0);
+  assert.match(a.porque, /exfil\.example/);
+
+  fs.writeFileSync(reg, JSON.stringify({ pid: 424242, ev: 'sentinela-carregada', apis: 71 }) + '\n');
+  const b = (await medirRede(async () => {}, { registo: reg, sondaImpl: sondaLimpa })).auditoria;
+  assert.equal(b.rede_zero, true);
+  assert.equal(b.partidas, 0);
+  assert.doesNotMatch(b.porque, /partid/i);
+});
+
+test('auditar: `partidas > 0` é `null` sem saída encontrada, e uma saída ENCONTRADA ganha à mesma', () => {
+  const medido = { cmd: 'a', sonda: { estado: 'instrumentado', remotos: [], saidas: [], amostras: 0, porque: null } };
+  assert.equal(auditar({ filhos: [medido], partidas: 0 }).rede_zero, true);
+  const r = auditar({ filhos: [medido], partidas: 2 });
+  assert.equal(r.rede_zero, null);
+  assert.equal(r.partidas, 2);
+  assert.match(r.porque, /2 linha\(s\).*partida/);
+  // Uma chamada registada continua a ganhar: partido não apaga o que se viu.
+  assert.equal(auditar({ chamadas: [{ api: 'fetch', alvo: 'x' }], partidas: 2 }).rede_zero, false);
+  // E ao lado de um `n/d` os dois motivos aparecem.
+  const cego = { cmd: 'b', sonda: { estado: 'n/d', remotos: [], saidas: [], amostras: 0, porque: 'sem sonda' } };
+  const r2 = auditar({ filhos: [medido, cego], partidas: 1 });
+  assert.equal(r2.rede_zero, null);
+  assert.match(r2.porque, /partida/);
+  assert.match(r2.porque, /sem sonda/);
+});
+
+test('o cabeçalho de rede-zero.mjs deixou de citar o teste do spawnVivo como prova sobre os netos', () => {
+  // A lente apontou o non-sequitur: o teste `spawnVivo` verifica que o
+  // ADAPTADOR passa pelo ponto de registo, não o que o filho faz nascer. A
+  // frase que o citava como fecho não pode voltar.
+  const pai = fs.readFileSync(path.join(AQUI, 'rede-zero.mjs'), 'utf8');
+  assert.doesNotMatch(pai, /trancado por um teste que exige `spawnVivo`/);
+  assert.doesNotMatch(pai, /não sobra camada por observar`/);
 });

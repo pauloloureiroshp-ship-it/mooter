@@ -65,12 +65,14 @@
  *
  * A promoção continua a existir, mas deixou de ser um acto de fé: a sentinela
  * instrumenta `process.dlopen` — o ponto único por onde um addon nativo entra
- * num processo Node — e o filho ANUNCIA quantos carregou. Daí saem três casos,
- * e só dois deles são medição:
+ * num processo Node — e o filho ANUNCIA quantos carregou. A isso a 2.ª lente
+ * (abaixo) acrescentou um terceiro eixo: os processos que o filho faz nascer.
+ * Daí saem os casos seguintes, e só os dois primeiros são medição:
  *
- *   sentinela + 0 addons                     → `instrumentado`. O processo correu
- *                                              100% em JavaScript; a intercepção
- *                                              é cobertura completa, sem janela.
+ *   sentinela + 0 addons + 0 filhos por cobrir → `instrumentado`. O processo
+ *                                              correu 100% em JavaScript e não
+ *                                              fez nascer nada que a sentinela
+ *                                              não tenha voltado a apanhar.
  *   sentinela + N addons + ≥1 amostra da sonda → `instrumentado`. A camada de JS
  *                                              por intercepção, a nativa por
  *                                              observação, e o número de amostras
@@ -80,6 +82,26 @@
  *                                              observada nem uma vez, e dizer
  *                                              «medido» seria a mentira exacta
  *                                              que este ficheiro veio impedir.
+ *   sentinela + ≥1 filho anunciado por cobrir → `n/d`, com o comando no `porque`.
+ *
+ * ── A 2.ª LENTE (2026-08-26): O NETO QUE NÃO É NODE ─────────────────────────
+ *
+ * O ramo `0 addons` dizia «não sobra camada por observar». Sobrava o
+ * `child_process`: a sentinela cobria rede e `dlopen`, não o que o filho faz
+ * nascer, e a sonda do SO pergunta pelo PID do filho, não pela árvore. Um filho
+ * Node instrumentado que lançasse `curl.exe` não deixava rasto. MEDIDO pela
+ * lente, com a sonda real do Windows: HTTP 200 de `172.66.147.243` e o
+ * relatório a dizer `rede_zero: true · todos medidos`.
+ *
+ * Agora a sentinela embrulha também `child_process.spawn/spawnSync/exec/
+ * execFile/execFileSync/execSync/fork` e ANUNCIA cada nascimento
+ * (`{ev:'filho', api, cmd, args, pid, node}`). Com o registo inteiro na mão, este
+ * ficheiro casa cada anunciado com a `sentinela-carregada` que o próprio neto
+ * escreve: anunciado que É Node e que se anunciou a si próprio → coberto (fica
+ * em `auditoria.descendentes`, com as mesmas regras de camada); anunciado que
+ * não é Node, ou que é Node mas nunca se anunciou (ambiente montado à mão sem
+ * `NODE_OPTIONS`, `shell: true`, nascimento falhado) → o filho que o lançou
+ * fica `n/d` e o `porque` nomeia o comando.
  *
  * ── DESCENDENTES QUE ESTE RAMO NÃO REGISTOU ────────────────────────────────
  *
@@ -94,16 +116,26 @@
  * outro lado: durante a medição, o `NODE_OPTIONS` do PRÓPRIO processo leva a
  * sentinela, portanto qualquer descendente Node que herde o ambiente
  * ANUNCIA-SE, tenha nascido pelo ponto de registo ou não. Fica em
- * `auditoria.descendentes`, com as mesmas regras de camada. O que continua a
- * escapar, e fica escrito: um descendente que NÃO seja Node, ou que receba um
- * ambiente montado à mão sem `NODE_OPTIONS`, nascido por uma referência
- * capturada. Para os produtores deste repositório isso está trancado por um
- * teste que exige `spawnVivo` nos três adaptadores.
+ * `auditoria.descendentes`, com as mesmas regras de camada.
+ *
+ * O que continua a escapar, e fica escrito em vez de prometido:
+ *   · um descendente NÃO-Node nascido NESTE processo por uma referência ao
+ *     `spawn` capturada antes de `medirRede` trocar o ponto de registo. A
+ *     sentinela não corre neste processo (só entra pelo `--require` dos
+ *     filhos), e a sonda do SO não sabe o PID dele. O teste que exige
+ *     `spawnVivo` nos três adaptadores tranca só os três adaptadores — não
+ *     diz nada sobre outra biblioteca que este processo importe;
+ *   · um processo lançado por um addon nativo sem passar pelo `child_process`
+ *     de JavaScript, num filho que a sonda chegou a amostrar (o addon conta,
+ *     as amostras cobrem-no, e o que ele lança fica fora das duas);
+ *   · a reutilização de PID pelo SO dentro de uma corrida: um neto anunciado
+ *     cujo PID calhe ao de um Node que se anunciou. Não medido; declarado.
  *
  * E daí sai um resultado de TRÊS estados:
  *
  *      rede_zero = false  há tentativa registada, ou um descendente com saída
- *      rede_zero = null   nasceu um processo que NÃO se conseguiu medir
+ *      rede_zero = null   nasceu um processo que NÃO se conseguiu medir, ou o
+ *                         registo das sentinelas tem linhas partidas
  *      rede_zero = true   zero tentativas e TODOS os processos medidos a zero
  *
  * `null` não é `true`. Não medido nunca é medido-zero.
@@ -150,6 +182,9 @@ export const RE_INERTE = apis.RE_INERTE;
 export const METODOS_RESOLVER = apis.METODOS_RESOLVER;
 /** O instalador partilhado. Exportado para que o teste de PARIDADE o possa contar. */
 export const instalarGuardas = apis.instalarGuardas;
+/** O vigia de `child_process` que a sentinela instala nos filhos. Exportado para o testar em processo. */
+export const instalarVigiaDeFilhos = apis.instalarVigiaDeFilhos;
+export const pareceNode = apis.pareceNode;
 
 /** Loopback (e o não-especificado) não é rede. Uma fronteira, um predicado. */
 export const ehInerte = apis.fazEhInerte(RE_INERTE);
@@ -239,7 +274,10 @@ export function ambienteHostil(base = process.env, porta = PORTA_PROXY_MORTA, { 
 
 /**
  * Lê o registo que as sentinelas dos filhos escreveram e agrupa-o por PID.
- * Uma linha ilegível é contada, nunca engolida.
+ * Uma linha ilegível é contada, nunca engolida — e `partidas` tem de chegar a
+ * `auditar()`: até à 2.ª lente o único chamador de produção fazia
+ * `const { porPid } = …` e uma saída truncada (o filho morto a meio do
+ * `appendFileSync`) desaparecia com o veredicto a subir a `true`.
  */
 export function lerRegistoDosFilhos(caminho, { readImpl = fs.readFileSync } = {}) {
   let bruto;
@@ -251,7 +289,7 @@ export function lerRegistoDosFilhos(caminho, { readImpl = fs.readFileSync } = {}
     let e;
     try { e = JSON.parse(linha); } catch { partidas += 1; continue; }
     if (!e || !Number.isInteger(e.pid)) { partidas += 1; continue; }
-    if (!porPid.has(e.pid)) porPid.set(e.pid, { carregada: false, saidas: [], addons: [], apis: null });
+    if (!porPid.has(e.pid)) porPid.set(e.pid, { carregada: false, saidas: [], addons: [], apis: null, filhos: [] });
     const r = porPid.get(e.pid);
     // `apis` é quantos pontos de saída a sentinela instalou LÁ DENTRO. É o que
     // torna a paridade com o pai verificável através da fronteira do processo,
@@ -261,32 +299,77 @@ export function lerRegistoDosFilhos(caminho, { readImpl = fs.readFileSync } = {}
     // A camada NATIVA do filho: cada `.node` que ele carregou. Zero destes é a
     // única prova de que a intercepção de JavaScript cobre o processo inteiro.
     else if (e.ev === 'nativo') r.addons.push(String(e.ficheiro || '?'));
+    // A DESCENDÊNCIA do filho: cada processo que ele fez nascer, tal como a
+    // sentinela o anunciou. Se ficou coberto ou não decide-se em `medirRede`,
+    // com o registo inteiro — aqui só se guarda o que foi dito.
+    else if (e.ev === 'filho') {
+      r.filhos.push({
+        api: String(e.api || '?'),
+        cmd: String(e.cmd || '?'),
+        args: Array.isArray(e.args) ? e.args.map(String) : [],
+        // `pid_filho`: o `pid` da linha é quem anuncia, não quem nasceu.
+        pid: Number.isInteger(e.pid_filho) ? e.pid_filho : null,
+        node: e.node === true,
+      });
+    }
   }
   return { porPid, partidas };
 }
 
 /**
+ * O nome com que um filho anunciado aparece no `porque`: comando + até 4
+ * argumentos, e o motivo de não estar coberto quando não é o óbvio. MEDIDO:
+ * `execFileSync`/`execSync` devolvem o stdout, não o PID — em sucesso um neto
+ * Node lançado assim não se consegue casar com a sua `sentinela-carregada`, e
+ * fica por cobrir com o motivo escrito (em falha o erro traz o PID).
+ */
+function nomearAnunciado(f) {
+  const args = (f.args || []).slice(0, 4).join(' ');
+  const nome = `${f.cmd}${args ? ` ${args}` : ''}${(f.args || []).length > 4 ? ' …' : ''}`;
+  if (f.node && f.pid === null) return `${nome} [Node, mas ${f.api} não devolveu o PID: não se casa com sentinela nenhuma]`;
+  if (f.node) return `${nome} [Node sem sentinela-carregada no pid ${f.pid}]`;
+  return nome;
+}
+
+/**
  * Aplica as regras de camada a um processo com sentinela carregada. Separada
  * para poder ser testada sem correr nada — é aqui que mora a decisão que a
- * lente adversarial derrubou.
+ * lente adversarial derrubou (duas vezes: a promoção cega com addons, e depois
+ * a frase «não sobra camada por observar» com um `curl.exe` a sair a sério).
+ *
+ * `filhos` são os processos que ESTE processo fez nascer, cada um já com
+ * `coberto` decidido por quem tem o registo inteiro: `true` só quando o
+ * anunciado é Node E escreveu a sua própria `sentinela-carregada`.
  */
-export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0 }) {
+export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0, filhos = [] }) {
   const js = `${saidas.length} saída(s) de JavaScript interceptada(s)`;
+  const porCobrir = filhos.filter((f) => !f.coberto);
+  const descendencia = filhos.length === 0
+    ? '0 filhos anunciados'
+    : `${filhos.length} filho(s) anunciado(s), ${filhos.length - porCobrir.length} coberto(s) pela sentinela`;
+
+  const buracos = [];
+  if (porCobrir.length > 0) {
+    buracos.push(`fez nascer ${porCobrir.length} processo(s) que a sentinela não cobre e a sonda do SO não apontou: ${porCobrir.map(nomearAnunciado).join(', ')}`);
+  }
+  if (addons.length > 0 && amostras === 0) {
+    buracos.push(`carregou ${addons.length} addon(s) nativo(s) e a sonda do SO não tirou UMA amostra: a camada onde esse código corre não foi observada`);
+  }
+  if (buracos.length > 0) {
+    return {
+      estado: 'n/d',
+      porque: `a camada de JavaScript foi interceptada (${js}), mas o processo ${buracos.join('; e ')}`,
+    };
+  }
   if (addons.length === 0) {
     return {
       estado: 'instrumentado',
-      porque: `sentinela dentro do processo: ${js}; ZERO addons nativos carregados, portanto não sobra camada por observar`,
-    };
-  }
-  if (amostras > 0) {
-    return {
-      estado: 'instrumentado',
-      porque: `sentinela dentro do processo: ${js}; ${addons.length} addon(s) nativo(s) cobertos por ${amostras} amostra(s) da sonda do SO`,
+      porque: `sentinela dentro do processo: ${js}; ZERO addons nativos carregados; ${descendencia}`,
     };
   }
   return {
-    estado: 'n/d',
-    porque: `a camada de JavaScript foi interceptada (${js}), mas o processo carregou ${addons.length} addon(s) nativo(s) e a sonda do SO não tirou UMA amostra: a camada onde esse código corre não foi observada`,
+    estado: 'instrumentado',
+    porque: `sentinela dentro do processo: ${js}; ${addons.length} addon(s) nativo(s) cobertos por ${amostras} amostra(s) da sonda do SO; ${descendencia}`,
   };
 }
 
@@ -294,8 +377,13 @@ export function classificarPorCamadas({ saidas = [], addons = [], amostras = 0 }
  * Decide o veredicto a partir do que foi registado. Separado de `medirRede`
  * para poder ser testado sem correr nada — é a função que tem de recusar
  * transformar "não medi" em "medi zero".
+ *
+ * `partidas` é o número de linhas do registo das sentinelas que não se
+ * conseguiram ler. Uma saída que um filho começou a escrever e não acabou é
+ * uma saída registada: nunca pode virar zero. Uma saída ENCONTRADA ganha à
+ * mesma (`false`); sem nenhuma, `partidas > 0` é `null`.
  */
-export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], descendentes = [] } = {}) {
+export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], descendentes = [], partidas = 0 } = {}) {
   // Um descendente com saída é o antigo "neto": um processo que este ramo não
   // registou mas que a sentinela viu. Estar um nível abaixo não é estar de fora.
   const netos = descendentes.flatMap((d) => (d.sonda.saidas || []).map((s) => ({ pid: d.pid, ...s })));
@@ -315,9 +403,16 @@ export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], d
   } else if (netos.length > 0) {
     rede_zero = false;
     porque = `${netos.length} saída(s) de processos descendentes: ${netos.map((n) => `pid ${n.pid}→${n.alvo}`).join(', ')}`;
-  } else if (naoMedidos.length > 0) {
+  } else if (naoMedidos.length > 0 || partidas > 0) {
     rede_zero = null;
-    porque = `${naoMedidos.length} de ${filhos.length + descendentes.length} processo(s) sem medição — ${naoMedidos.map((f) => `${f.cmd}: ${f.sonda.porque}`).join('; ')}`;
+    const motivos = [];
+    if (partidas > 0) {
+      motivos.push(`${partidas} linha(s) do registo das sentinelas partida(s)/ilegível(eis): uma saída que um filho começou a escrever e não acabou não pode contar como zero`);
+    }
+    if (naoMedidos.length > 0) {
+      motivos.push(`${naoMedidos.length} de ${filhos.length + descendentes.length} processo(s) sem medição — ${naoMedidos.map((f) => `${f.cmd}: ${f.sonda.porque}`).join('; ')}`);
+    }
+    porque = motivos.join('; ');
   } else {
     rede_zero = true;
     porque = (filhos.length + descendentes.length) === 0
@@ -335,6 +430,7 @@ export function auditar({ chamadas = [], loopback = [], ipc = [], filhos = [], d
     filhos,
     descendentes,
     netos,
+    partidas,
   };
 }
 
@@ -406,7 +502,7 @@ export async function medirRede(fn, {
       pid: null,
       sonda: {
         estado: 'n/d', remotos: [], udp_max: 0, amostras: 0, porque: 'ainda não medido',
-        js: 'n/d', nativo: 'n/d', addons: [], saidas: [],
+        js: 'n/d', nativo: 'n/d', addons: [], saidas: [], filhos: [],
       },
       ...extra,
     };
@@ -540,21 +636,34 @@ export async function medirRede(fn, {
   // linha `sentinela-carregada` com o PID do filho é a prova de que ela correu
   // mesmo lá dentro; sem ela não se conclui nada, porque um ficheiro vazio é
   // igual quer o filho tenha estado calado quer a sentinela nunca tenha entrado.
-  const { porPid } = lerRegistoDosFilhos(registo);
+  const { porPid, partidas } = lerRegistoDosFilhos(registo);
   const pidsDeFilhos = new Set(filhos.map((f) => f.pid).filter((x) => x !== null));
+
+  // A cobertura de um processo ANUNCIADO por uma sentinela: só conta como
+  // coberto se é Node E a sua própria sentinela escreveu `sentinela-carregada`
+  // com esse PID. Um `curl.exe` nunca é coberto; um Node lançado com um
+  // ambiente sem `NODE_OPTIONS` (ou por `shell: true`, cujo PID é o da shell)
+  // também não — e o filho que o lançou fica `n/d` a nomeá-lo.
+  const coberto = (f) => f.node === true && f.pid !== null && porPid.has(f.pid) && porPid.get(f.pid).carregada === true;
+  const anunciadosDe = (v) => (v.filhos || []).map((f) => ({ ...f, coberto: coberto(f) }));
+  // pid do neto → quem o anunciou, para o rotular no relatório.
+  const anunciadoPor = new Map();
+  for (const [pid, v] of porPid) for (const f of v.filhos || []) if (f.pid !== null) anunciadoPor.set(f.pid, { pid, cmd: f.cmd });
+
   for (const r of filhos) {
     const v = r.pid !== null ? porPid.get(r.pid) : null;
     if (!v || !v.carregada) continue;
     r.sonda.saidas = v.saidas;
     r.sonda.addons = v.addons;
     r.sonda.apis = v.apis;
+    r.sonda.filhos = anunciadosDe(v);
     r.sonda.js = 'intercetado';
     r.sonda.nativo = v.addons.length === 0 ? 'sem-addons' : `${v.addons.length} addon(s)`;
     r.sonda.instrumentado = true;
     // NUNCA se rebaixa um `bloqueado` (prova por construção) nem se toca no que
     // o adaptador declarou. E a promoção só acontece pelas regras de camada.
     if (!r.declarado && (r.sonda.estado === 'n/d' || r.sonda.estado === 'sondado')) {
-      const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: r.sonda.amostras });
+      const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: r.sonda.amostras, filhos: r.sonda.filhos });
       r.sonda.estado = c.estado;
       r.sonda.porque = c.porque;
     }
@@ -564,15 +673,19 @@ export async function medirRede(fn, {
   for (const [pid, v] of porPid) {
     if (pidsDeFilhos.has(pid) || !v.carregada) continue;
     // Nunca foi sondado: este ramo não soube o PID a tempo. Logo `amostras: 0`.
-    const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: 0 });
+    const anunciados = anunciadosDe(v);
+    const c = classificarPorCamadas({ saidas: v.saidas, addons: v.addons, amostras: 0, filhos: anunciados });
+    const pai = anunciadoPor.get(pid);
     descendentes.push({
-      cmd: `descendente não registado (pid ${pid})`,
+      cmd: pai
+        ? `descendente anunciado pelo pid ${pai.pid}: ${pai.cmd} (pid ${pid})`
+        : `descendente não registado (pid ${pid})`,
       pid,
       args: [],
       sonda: {
         estado: c.estado, porque: c.porque, remotos: [], udp_max: 0, amostras: 0,
         js: 'intercetado', nativo: v.addons.length === 0 ? 'sem-addons' : `${v.addons.length} addon(s)`,
-        addons: v.addons, saidas: v.saidas, instrumentado: true,
+        addons: v.addons, saidas: v.saidas, filhos: anunciados, instrumentado: true,
       },
     });
   }
@@ -586,5 +699,7 @@ export async function medirRede(fn, {
     }
   }
 
-  return { resultado, auditoria: auditar({ chamadas, loopback, ipc, filhos, descendentes }) };
+  // `partidas` viaja até ao veredicto. Deitá-lo fora aqui foi o que a 2.ª lente
+  // apanhou: uma saída truncada no registo e `rede_zero: true · todos medidos`.
+  return { resultado, auditoria: auditar({ chamadas, loopback, ipc, filhos, descendentes, partidas }) };
 }

@@ -35,6 +35,15 @@
  * falhado não abre sockets, mas contá-lo erra para o lado do `n/d`, que é o
  * lado seguro.
  *
+ * ⚠️ A TERCEIRA CAMADA (2026-08-26, 2.ª lente): os processos que ESTE processo
+ * faz nascer. Com rede e `dlopen` cobertos, o pai promovia um filho sem addons
+ * a «instrumentado — não sobra camada por observar». Sobrava: um `curl.exe`
+ * nascido cá dentro não passa por `net` nem por `dlopen`, e a sonda do SO só
+ * olha para o PID deste processo. MEDIDO pela lente: HTTP 200 real e o
+ * relatório a dizer `rede_zero: true`. Agora `child_process.*` (e `fork`) é
+ * embrulhado e cada nascimento é ANUNCIADO com comando, argumentos e PID. Quem
+ * decide se o anunciado ficou coberto é o pai, com o registo inteiro na mão.
+ *
  * NÃO decide o que é inerte. A regra vem do pai em `REDE_ZERO_INERTE_RE`, para
  * não haver duas definições de "sair da máquina" neste repositório.
  */
@@ -42,7 +51,7 @@
 'use strict';
 
 const fs = require('fs');
-const { fazEhInerte, instalarGuardas } = require('./rede-zero-apis.cjs');
+const { fazEhInerte, instalarGuardas, instalarVigiaDeFilhos } = require('./rede-zero-apis.cjs');
 
 const registo = process.env.REDE_ZERO_REGISTO;
 if (registo) {
@@ -73,10 +82,21 @@ if (registo) {
     };
   }
 
+  // A descendência. Anuncia-se o nascimento — comando, argumentos, PID e se é
+  // Node — e nada mais: a sentinela não sabe se o filho dela vai carregar a
+  // sentinela (depende do ambiente que lhe passaram). O pai casa o PID
+  // anunciado com a `sentinela-carregada` que o próprio neto escreve, ou não.
+  // `pid_filho`, e não `pid`: `anota` põe `pid: process.pid` (quem anuncia) e
+  // um `pid` aqui sobrepunha-o, atribuindo a linha ao neto em vez do filho.
+  const vigia = instalarVigiaDeFilhos({
+    aoFilho: ({ api, cmd, args, pid, node }) => anota({ ev: 'filho', api, cmd, args, pid_filho: pid, node }),
+  });
+
   anota({
     ev: 'sentinela-carregada',
     argv: process.argv.slice(1, 3),
     apis: guardas.instaladas.length,
+    vigia: vigia.instaladas.length,
     ts: new Date().toISOString(),
   });
 }

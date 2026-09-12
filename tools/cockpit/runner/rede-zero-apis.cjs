@@ -215,6 +215,98 @@ function instalarGuardas({ ehInerte, aoSaida, aoLocal = null }) {
   };
 }
 
+/**
+ * «Isto é o Node?» — decide se um processo que um filho fez nascer é da mesma
+ * espécie e, portanto, PODE ter herdado a sentinela pelo `NODE_OPTIONS`. Não é
+ * prova de cobertura: a prova é a linha `sentinela-carregada` com o PID dele.
+ * Um comando que passa por shell (`exec`, `execSync`, `shell: true`) nunca é
+ * Node aqui — o PID que se obtém é o da shell, e o que ela lança não se vê.
+ */
+function pareceNode(cmd, execPath = process.execPath) {
+  const c = String(cmd ?? '');
+  if (!c) return false;
+  if (c === execPath) return true;
+  const base = c.split(/[\\/]/).pop().toLowerCase();
+  return base === 'node' || base === 'node.exe';
+}
+
+/**
+ * O vigia dos filhos — a terceira camada da sentinela (2026-08-26, 2.ª lente).
+ *
+ * A sentinela cobria a rede e o `process.dlopen`, e a promoção a
+ * `instrumentado` dizia «não sobra camada por observar». Sobrava: um filho Node
+ * instrumentado que fizesse nascer um `curl.exe` não deixava rasto — a
+ * intercepção não vê o que outro executável faz, e a sonda do SO só olha para
+ * o PID do filho. MEDIDO pela lente: HTTP 200 real de `172.66.147.243` e o
+ * relatório a dizer `rede_zero: true · todos medidos`.
+ *
+ * Aqui cada nascimento é ANUNCIADO — `{ev:'filho', api, cmd, args, pid, node}` —
+ * e é o pai (`rede-zero.mjs`) que decide, com o registo inteiro na mão, se o
+ * anunciado ficou coberto (é Node E escreveu a sua própria
+ * `sentinela-carregada`) ou se é um processo que ninguém mediu.
+ *
+ * MEDIDO no Node v24.14.0: `exec` chama `module.exports.execFile` — sem a guarda
+ * de reentrância um `exec` anunciava-se duas vezes. `fork` chama o `spawn`
+ * LOCAL do módulo, não o exportado — por isso é embrulhado à parte.
+ */
+function instalarVigiaDeFilhos({ aoFilho, execPath = process.execPath, maxArgs = 32, maxArg = 200 }) {
+  const cp = require('node:child_process');
+  const repor = [];
+  const instaladas = [];
+  let dentro = false;
+
+  const pidDe = (r) => (r && Number.isInteger(r.pid) && r.pid > 0) ? r.pid : null;
+  const cortar = (args) => (Array.isArray(args) ? args : []).slice(0, maxArgs).map((a) => String(a).slice(0, maxArg));
+
+  const vigiar = (chave, extrair) => {
+    const orig = cp[chave];
+    if (typeof orig !== 'function') return;
+    cp[chave] = function (...a) {
+      if (dentro) return orig.apply(this, a);
+      dentro = true;
+      const { cmd, args, node } = extrair(a);
+      let r;
+      let pid = null;
+      try {
+        r = orig.apply(this, a);
+        pid = pidDe(r);
+      } catch (e) {
+        // `execSync`/`execFileSync` atiram quando o filho sai ≠ 0; o filho
+        // correu na mesma e o erro traz o PID.
+        pid = pidDe(e);
+        throw e;
+      } finally {
+        dentro = false;
+        try { aoFilho({ api: chave, cmd, args, pid, node }); } catch { /* anunciar não pode partir o filho */ }
+      }
+      return r;
+    };
+    repor.push(() => { cp[chave] = orig; });
+    instaladas.push(chave);
+  };
+
+  const directo = ([cmd, args]) => ({ cmd: String(cmd), args: cortar(args), node: pareceNode(cmd, execPath) });
+  const porShell = ([linha]) => ({ cmd: String(linha), args: [], node: false });
+
+  vigiar('spawn', directo);
+  vigiar('spawnSync', directo);
+  vigiar('execFile', directo);
+  vigiar('execFileSync', directo);
+  vigiar('exec', porShell);
+  vigiar('execSync', porShell);
+  vigiar('fork', ([modulo, args, opts]) => {
+    const o = (args && !Array.isArray(args) && typeof args === 'object') ? args : (opts || {});
+    const exe = (o && o.execPath) || execPath;
+    return { cmd: String(exe), args: cortar([modulo, ...(Array.isArray(args) ? args : [])]), node: pareceNode(exe, execPath) };
+  });
+
+  return {
+    instaladas: Object.freeze(instaladas.slice()),
+    restaurar() { for (const f of repor.reverse()) f(); repor.length = 0; },
+  };
+}
+
 module.exports = {
   RE_INERTE, fazEhInerte, alvoDoConnect, alvoDoDgram, METODOS_RESOLVER, instalarGuardas,
+  pareceNode, instalarVigiaDeFilhos,
 };
