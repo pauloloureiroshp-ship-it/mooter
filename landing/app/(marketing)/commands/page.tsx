@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
-import Eyebrow from '@/components/Eyebrow';
-import Card from '@/components/Card';
+import Cartucho from '@/components/Cartucho';
 import TerminalCard from '@/components/TerminalCard';
 import Btn from '@/components/Btn';
-import Dotgrid from '@/components/Dotgrid';
 import { TIER_COLORS_WEB } from '@/lib/mooter-event';
+import versionInfo from '@/app/version.json';
 import CommandCopy from './CommandCopy';
 
 export const metadata: Metadata = {
@@ -17,7 +16,6 @@ const ACCENT = 'var(--color-accent)';
 type Cmd = [cmd: string, args: string, desc: string];
 interface Group {
   name: string;
-  tint: string;
   badge?: string;
   cmds: Cmd[];
 }
@@ -25,10 +23,14 @@ interface Group {
 // Commands attested across the shipped runtime, skills and docs. The forge/adapter
 // group is honestly tagged "Wave 5 · in development" (see /under-the-hood) — the
 // namespace exists; the subcommands describe planned behaviour, not a shipped CLI.
+//
+// O `tint` por grupo saiu: era uma cor de TIER (T0/T1/T2) emprestada a coisas que
+// não são tiers — decoração a fingir-se de dado — e para o grupo `core` era rosa,
+// que a direcção de 2026-08-27 reserva ao `?` do wordmark, às cotas e ao CTA.
+// O que separa os grupos passa a ser a hairline e o rótulo mono.
 const CMD_GROUPS: Group[] = [
   {
     name: 'core',
-    tint: ACCENT,
     cmds: [
       ['/mooter init', '', 'Hook into Claude Code — writes the config and verifies the connection.'],
       ['/mooter why', '', 'Explain the routing call for the last prompt: tier, model, and the reason.'],
@@ -40,7 +42,6 @@ const CMD_GROUPS: Group[] = [
   },
   {
     name: 'packs',
-    tint: TIER_COLORS_WEB.T2,
     cmds: [
       ['/mooter pack list', '', 'List the packs installed on this machine.'],
       ['/mooter pack show', '<id>', 'Show a pack: skills, MCPs, agents, trust score.'],
@@ -51,7 +52,6 @@ const CMD_GROUPS: Group[] = [
   },
   {
     name: 'forge · local adapters',
-    tint: TIER_COLORS_WEB.T1,
     badge: 'Wave 5 · in development',
     cmds: [
       ['/mooter forge status', '', 'Adapter training state — idle, training, or active.'],
@@ -61,7 +61,6 @@ const CMD_GROUPS: Group[] = [
   },
   {
     name: 'adapter',
-    tint: TIER_COLORS_WEB.T0,
     badge: 'Wave 5 · in development',
     cmds: [
       ['/mooter adapter use', '<id>', 'Activate a trained adapter for routing.'],
@@ -70,21 +69,29 @@ const CMD_GROUPS: Group[] = [
   },
   {
     name: 'privacy',
-    tint: 'var(--color-green)',
     cmds: [
       ['/mooter share', '', 'Toggle opt-in telemetry. Default OFF. Prompts are hashed, never sent in plaintext.'],
     ],
   },
 ];
 
-function CmdRow({ cmd, args, desc, tint }: { cmd: string; args: string; desc: string; tint: string }) {
+// Os números que vão para a margem são CONTADOS da tabela acima, nunca escritos
+// à mão. Um número na margem que se possa dessincronizar do conteúdo da folha é
+// a mesma doença que a percentagem de poupança retirada da landing por decisão
+// de 2026-08-24: um literal que nenhum script regenerava. Aqui, acrescentar um
+// comando muda a cota sozinho.
+const TOTAL = CMD_GROUPS.reduce((n, g) => n + g.cmds.length, 0);
+const GRUPOS = CMD_GROUPS.length;
+const POR_IMPLEMENTAR = CMD_GROUPS.filter((g) => g.badge).reduce((n, g) => n + g.cmds.length, 0);
+
+function CmdRow({ cmd, args, desc }: { cmd: string; args: string; desc: string }) {
   return (
     <div
       className="cmd-row"
       style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 16, padding: '11px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'baseline' }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-        <CommandCopy command={cmd} tint={tint} />
+        <CommandCopy command={cmd} tint="var(--color-text)" />
         {args ? <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--color-muted)' }}>{args}</span> : null}
       </div>
       <div style={{ fontSize: 13.5, color: 'var(--color-text)', lineHeight: 1.5 }}>{desc}</div>
@@ -92,23 +99,65 @@ function CmdRow({ cmd, args, desc, tint }: { cmd: string; args: string; desc: st
   );
 }
 
+/**
+ * Um grupo do desenho. Era um `<Card>` — fundo próprio e raio 14, ou seja uma
+ * CAIXA, que é exactamente o que a direcção de 2026-08-27 tirou da linguagem.
+ * O que separa passa a ser a hairline; o rótulo é mono em caixa-alta, e ao lado
+ * a contagem do próprio grupo — uma cota, não um enfeite.
+ */
+function Grupo({ g }: { g: Group }) {
+  return (
+    <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14, alignSelf: 'start' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+        <span className="moo-label" style={{ color: 'var(--moo-faint)' }}>{g.name}</span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--moo-faint)', fontVariantNumeric: 'tabular-nums' }}>
+          {g.cmds.length}
+        </span>
+        {g.badge ? (
+          <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--color-muted)' }}>{g.badge}</span>
+        ) : null}
+      </div>
+      {g.cmds.map((c) => (
+        <CmdRow key={c[0]} cmd={c[0]} args={c[1]} desc={c[2]} />
+      ))}
+    </div>
+  );
+}
+
 export default function CommandsPage() {
   return (
-    <section style={{ position: 'relative', overflow: 'hidden' }}>
-      <Dotgrid />
-      <div style={{ position: 'relative', maxWidth: 1080, margin: '0 auto', padding: '72px 40px' }}>
-        <Eyebrow>Commands · the /mooter namespace</Eyebrow>
-        <h1 style={{ fontSize: 'clamp(34px, 5.5vw, 52px)', fontWeight: 700, margin: '0 0 14px', letterSpacing: '-0.03em', lineHeight: 1.06, maxWidth: 880 }}>
+    <section className="m-pad m-pad-y" style={{ position: 'relative', maxWidth: 1080, margin: '0 auto', padding: '72px 40px' }}>
+      {/* A grelha de 8px, faint. Substitui o Dotgrid: a direcção fixada a
+          2026-08-27 é papel milimétrico, e um desenho técnico assenta numa
+          grelha, não num campo de pontos. */}
+      <div className="moo-mm" aria-hidden="true" />
+
+      {/* O cartucho identifica a folha antes de qualquer conteúdo — e substitui
+          o `<Eyebrow>` rosa que dizia a mesma coisa por baixo. A revisão vem de
+          version.json, escrito pelo version-sync a partir da tag. */}
+      <Cartucho o_que="COMMANDS" desenho="005" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+
+      {/* O ÚNICO momento extremo da folha (regra 10). Um. */}
+      <div style={{ position: 'relative', padding: '48px 0 0' }}>
+        <h1 className="moo-h1" style={{ margin: '0 0 12px', maxWidth: 880 }}>
           Every command is a real Claude Code slash command.
         </h1>
-        <p style={{ color: 'var(--color-muted)', fontSize: 17, maxWidth: 720, lineHeight: 1.65, marginBottom: 40 }}>
+        <p style={{ color: 'var(--color-muted)', fontSize: 17, maxWidth: 720, lineHeight: 1.65, margin: 0 }}>
           Mooter registers under the <code style={{ fontFamily: 'var(--mono)', color: 'var(--color-text)' }}>/mooter</code> namespace —
           typed right in your Claude Code session, tab-completed, never clashing with the built-ins. No new CLI to learn.
           Click any command below to copy it.
         </p>
+      </div>
 
-        {/* featured example — /mooter why + /mooter override */}
-        <div className="cmd-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 48 }}>
+      {/* Featured example — /mooter why + /mooter override. A margem é
+          telegráfica: o que a secção É, o número que a governa, a ressalva. */}
+      <div className="moo-secao m-stack">
+        <div className="moo-marg">
+          example
+          <b>2 of {TOTAL}</b>
+          why · override
+        </div>
+        <div className="cmd-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           <TerminalCard title="claude · in-session">
             <div style={{ fontSize: 13, lineHeight: 1.85 }}>
               <div><span style={{ color: 'var(--color-term-dim)' }}>&gt; </span><span style={{ color: ACCENT }}>/mooter why</span></div>
@@ -126,39 +175,48 @@ export default function CommandsPage() {
             </div>
           </TerminalCard>
         </div>
-
-        {/* full reference */}
-        <div className="cmd-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
-          {CMD_GROUPS.map((g) => (
-            <Card key={g.name} padding={22} style={{ alignSelf: 'start' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: g.tint, flexShrink: 0 }} />
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-muted)' }}>{g.name}</span>
-                {g.badge ? (
-                  <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10.5, color: g.tint, border: `1px solid ${g.tint}`, borderRadius: 5, padding: '1px 7px', whiteSpace: 'nowrap' }}>{g.badge}</span>
-                ) : null}
-              </div>
-              {g.cmds.map((c) => (
-                <CmdRow key={c[0]} cmd={c[0]} args={c[1]} desc={c[2]} tint={g.tint} />
-              ))}
-            </Card>
-          ))}
-        </div>
-
-        <p style={{ marginTop: 26, fontSize: 12.5, color: 'var(--color-muted)', fontFamily: 'var(--mono)', lineHeight: 1.6 }}>
-          Sub-commands shown flat for reference; in-session, <span style={{ color: 'var(--color-text)' }}>/mooter</span> tab-completes the whole tree.
-          Forge and adapter commands ship with Wave 5 (in development) — the rest are live today.
-        </p>
-
-        <div style={{ marginTop: 28, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Btn href="/install" size="lg">Install mooter →</Btn>
-          <Btn href="/under-the-hood" variant="secondary">How forge works</Btn>
-        </div>
-
-        <p style={{ marginTop: 36, fontSize: 12, color: 'var(--color-muted)' }}>
-          Community project · not affiliated with Anthropic.
-        </p>
       </div>
+
+      {/* Full reference. Eram cinco `<Card>`; passam a cinco grupos separados por
+          hairline — zero caixas. */}
+      <div className="moo-secao m-stack">
+        <div className="moo-marg">
+          reference
+          <b>{TOTAL} commands</b>
+          {GRUPOS} groups · {POR_IMPLEMENTAR} not implemented yet
+        </div>
+        <div>
+          <div className="cmd-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+            {CMD_GROUPS.map((g) => (
+              <Grupo key={g.name} g={g} />
+            ))}
+          </div>
+
+          <p style={{ marginTop: 26, fontSize: 12.5, color: 'var(--color-muted)', fontFamily: 'var(--mono)', lineHeight: 1.6 }}>
+            Sub-commands shown flat for reference; in-session, <span style={{ color: 'var(--color-text)' }}>/mooter</span> tab-completes the whole tree.
+            Forge and adapter commands ship with Wave 5 (in development) — the rest are live today.
+          </p>
+        </div>
+      </div>
+
+      {/* Install */}
+      <div className="moo-secao m-stack">
+        <div className="moo-marg">
+          install
+          <b>/mooter</b>
+          one namespace · zero new CLI
+        </div>
+        <div>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Btn href="/install" size="lg">Install mooter →</Btn>
+            <Btn href="/under-the-hood" variant="secondary">How forge works</Btn>
+          </div>
+          <p style={{ marginTop: 24, fontSize: 12, color: 'var(--color-muted)' }}>
+            Community project · not affiliated with Anthropic.
+          </p>
+        </div>
+      </div>
+
       <style>{`
         @media (max-width: 768px){
           .cmd-2col{ grid-template-columns: 1fr !important; }

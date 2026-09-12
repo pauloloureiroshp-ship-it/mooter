@@ -1,22 +1,19 @@
 name: no-frugal ratchet
 # Kill Frugal W7 — the word "frugal" must never INCREASE in live code, and the
-# baseline only ratchets down. History (docs/archive, CHANGELOG, migrations) is
-# exempt by design: we do not rewrite the past, we protect the future.
+# PR/push head is compared with its merge-base. History outside the live-code
+# scopes is exempt by design: we do not rewrite the past, we protect the future.
 on: [push, pull_request]
 jobs:
   ratchet:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Count frugal references in live code
-        run: |
-          COUNT=$(grep -rli frugal tools packages hub landing scripts 2>/dev/null | grep -v node_modules | wc -l)
-          BASELINE=$(cat docs/rebrand/frugal-baseline.txt)
-          echo "live-code files containing 'frugal': $COUNT (baseline: $BASELINE)"
-          if [ "$COUNT" -gt "$BASELINE" ]; then
-            echo "::error::frugal references INCREASED ($COUNT > $BASELINE). Revert or rename."
-            exit 1
-          fi
-          if [ "$COUNT" -lt "$BASELINE" ]; then
-            echo "::notice::ratchet can be tightened: update docs/rebrand/frugal-baseline.txt to $COUNT"
-          fi
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Prove the ratchet rejects one added live-code file
+        run: node --test .github/scripts/no-frugal-ratchet.test.js
+      - name: Compare frugal references with the merge-base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node .github/scripts/no-frugal-ratchet.js --base "$BASE_REF" --head HEAD

@@ -1,0 +1,125 @@
+{
+  "date": "2026-09-09T11:24:49.930Z",
+  "scope": "Local model capability study using real Mooter buildPayload and endpoint guard. NOT installed connector/full Moo Pilot A/B. No tools granted to models; synthetic inputs only.",
+  "cases": [
+    {
+      "id": "L1-a",
+      "level": 1,
+      "prompt": "Extract the ticket ID from: Customer requests assistance regarding ticket SEN-4827. Return the ID string. Return only JSON with one key answer.",
+      "answer": "SEN-4827"
+    },
+    {
+      "id": "L1-b",
+      "level": 1,
+      "prompt": "Normalize this list by trimming and lowercasing; keep order and duplicates: [\" OPS \",\"Legal\",\"ops \"]. Return only JSON with one key answer.",
+      "answer": [
+        "ops",
+        "legal",
+        "ops"
+      ]
+    },
+    {
+      "id": "L2-a",
+      "level": 2,
+      "prompt": "Return alphabetically sorted IDs of OPEN tickets with priority >=3: [{\"id\":\"C\",\"state\":\"OPEN\",\"priority\":4},{\"id\":\"A\",\"state\":\"CLOSED\",\"priority\":5},{\"id\":\"B\",\"state\":\"OPEN\",\"priority\":3},{\"id\":\"D\",\"state\":\"OPEN\",\"priority\":2}]. Return only JSON with one key answer.",
+      "answer": [
+        "B",
+        "C"
+      ]
+    },
+    {
+      "id": "L2-b",
+      "level": 2,
+      "prompt": "Return a sorted unique list of owners with an overdue task. Today day=12; overdue means due<12 AND done=false. Tasks: Ana due11 done=false; Ben due12 done=false; Ana due9 done=false; Cam due8 done=true; Dan due10 done=false. Return only JSON with one key answer.",
+      "answer": [
+        "Ana",
+        "Dan"
+      ]
+    },
+    {
+      "id": "L3-a",
+      "level": 3,
+      "prompt": "Sum signed amounts for APPROVED rows only, excluding rows with refunded=true. Rows: amount120 APPROVED refunded=false; amount80 PENDING refunded=false; amount-20 APPROVED refunded=false; amount60 APPROVED refunded=true; amount45 APPROVED refunded=false. Return a number. Return only JSON with one key answer.",
+      "answer": 145
+    },
+    {
+      "id": "L3-b",
+      "level": 3,
+      "prompt": "Events are ordered. Deduplicate by event ID keeping the FIRST occurrence, then sum delta. Events: id=a delta=8; id=b delta=-3; id=a delta=50; id=c delta=7; id=b delta=4; id=d delta=-2. Return a number. Return only JSON with one key answer.",
+      "answer": 10
+    },
+    {
+      "id": "L4-a",
+      "level": 4,
+      "prompt": "Compute earliest completion time with unlimited parallel workers and finish-to-start dependencies: A duration3 no dependencies; B duration5 no dependencies; C duration4 depends A; D duration2 depends A,B; E duration6 depends C,D; F duration1 depends E. Time starts at0. Return final finish time as a number. Return only JSON with one key answer.",
+      "answer": 14
+    },
+    {
+      "id": "L4-b",
+      "level": 4,
+      "prompt": "Policy: allow iff user tenant equals document tenant AND device is managed AND (document public OR user in document department) AND no explicit deny. Deny overrides all. Return sorted allowed IDs: 1 userT=A docT=A managed=true public=false member=true deny=false; 2 userT=A docT=B managed=true public=true member=true deny=false; 3 userT=A docT=A managed=false public=true member=true deny=false; 4 userT=A docT=A managed=true public=true member=false deny=true; 5 userT=A docT=A managed=true public=true member=false deny=false. Return only JSON with one key answer.",
+      "answer": [
+        "1",
+        "5"
+      ]
+    },
+    {
+      "id": "L5-a",
+      "level": 5,
+      "prompt": "Select a subset maximizing total value subject to cost<=10. E requires A; B and C cannot coexist. Tie-break by lower total cost then lexicographically smallest concatenated sorted IDs. Items [ID,cost,value]: [[\"A\",4,8],[\"B\",3,7],[\"C\",5,11],[\"D\",2,4],[\"E\",6,13],[\"F\",1,1]]. Return only the sorted selected ID array as answer. Return only JSON with one key answer.",
+      "answer": [
+        "A",
+        "E"
+      ]
+    },
+    {
+      "id": "L5-b",
+      "level": 5,
+      "prompt": "Select a subset maximizing total value subject to cost<=9. E requires A; B and C cannot coexist. Tie-break by lower total cost then lexicographically smallest concatenated sorted IDs. Items [ID,cost,value]: [[\"A\",3,6],[\"B\",4,9],[\"C\",2,4],[\"D\",5,12],[\"E\",1,2],[\"F\",6,13]]. Return only the sorted selected ID array as answer. Return only JSON with one key answer.",
+      "answer": [
+        "B",
+        "D"
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "id": "budget-3GiB",
+      "model": "qwen2.5:3b",
+      "budgetGiB": 3
+    },
+    {
+      "id": "budget-8GiB",
+      "model": "qwen2.5-coder:7b",
+      "budgetGiB": 8
+    },
+    {
+      "id": "budget-16GiB",
+      "model": "qwen2.5-coder:14b",
+      "budgetGiB": 16
+    },
+    {
+      "id": "budget-22GiB",
+      "model": "qwen3.6:27b",
+      "budgetGiB": 22
+    },
+    {
+      "id": "cpu-only-3b",
+      "model": "qwen2.5:3b",
+      "budgetGiB": null,
+      "num_gpu": 0
+    }
+  ],
+  "plannedCalls": 50,
+  "retries": 0,
+  "timeoutMs": 60000,
+  "numPredict": 256,
+  "numCtx": 4096,
+  "seed": 81723,
+  "temperature": 0.2,
+  "think": false,
+  "quality": "Exact JSON answer against deterministic oracle, equal weight 10 tasks per profile. Levels are author-assigned, not validated difficulty scale.",
+  "hardware": "Capacity targets, not GPU caps or emulated devices. CPU-only request separately verified by runtime residency. No Mac benchmark.",
+  "cost": "Local API charge 0; electricity, hardware amortization, human effort and subscription cost unknown. No commercial price-per-prompt or market ranking.",
+  "comparison": "Fixed-model profiles are native baselines; Mooter payload preserves identical input. Any offline capacity-aware policy replay is a PROPOSED policy, not deployed routing or independent new calls."
+}

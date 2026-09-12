@@ -1,0 +1,156 @@
+{
+ "id": "LEGAL-1",
+ "chave": {
+  "R1": "B2",
+  "R2": "A",
+  "R3": "D",
+  "R4": "B",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Explica a restrição básica, mas assume Portugal, início após a saída e validade automática, além de incluir um longo raciocínio desnecessário.",
+     "total": 3,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Dá orientação prática e trata a validade, mas inventa contexto sobre um email, faz generalizações excessivas e alonga demasiado uma explicação simples.",
+     "total": 7,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explica os efeitos práticos com clareza, distingue restrição pretendida de validade legal e identifica os detalhes necessários sem assumir país ou início do prazo.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Alarga indevidamente a proibição a qualquer relacionamento profissional com concorrentes e apresenta a restrição como certa sem considerar redação ou validade.",
+     "total": 3,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Explica exemplos práticos, mas assume Portugal, confunde mesmo setor com concorrência e atribui categoricamente ao trabalhador o ónus da prova sem fundamento.",
+     "total": 5,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Explica a restrição básica, mas assume Portugal, início após a saída e validade automática, além de incluir um longo raciocínio desnecessário.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Dá orientação prática e trata a validade, mas inventa contexto sobre um email, faz generalizações excessivas e alonga demasiado uma explicação simples.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explica os efeitos práticos com clareza, distingue restrição pretendida de validade legal e identifica os detalhes necessários sem assumir país ou início do prazo.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Alarga indevidamente a proibição a qualquer relacionamento profissional com concorrentes e apresenta a restrição como certa sem considerar redação ou validade.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Explica exemplos práticos, mas assume Portugal, confunde mesmo setor com concorrência e atribui categoricamente ao trabalhador o ónus da prova sem fundamento.\"}}",
+   "custo_tokens": {
+    "in": 30167,
+    "out": 406,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Resposta correta mas mínima e expõe raciocínio interno em inglês em vez de responder apenas ao pedido.",
+     "total": 4,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Muito completa, correta e acionável (compensação, âmbito, negociação), mas excessivamente longa para o pedido de explicação simples.",
+     "total": 8,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Correta e cautelosa mas pede o texto da cláusula em vez de dar já uma explicação prática completa, ficando incompleta para agir.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 2,
+     "porque": "Explicação simples e direta mas não usa PT-PT nem menciona validade legal, compensação ou negociação.",
+     "total": 5,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Boa explicação prática com exemplos e nota sobre negociação e limites legais, embora um pouco genérica sobre a questão da compensação obrigatória.",
+     "total": 7,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Resposta correta mas mínima e expõe raciocínio interno em inglês em vez de responder apenas ao pedido.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Muito completa, correta e acionável (compensação, âmbito, negociação), mas excessivamente longa para o pedido de explicação simples.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Correta e cautelosa mas pede o texto da cláusula em vez de dar já uma explicação prática completa, ficando incompleta para agir.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":2,\"porque\":\"Explicação simples e direta mas não usa PT-PT nem menciona validade legal, compensação ou negociação.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Boa explicação prática com exemplos e nota sobre negociação e limites legais, embora um pouco genérica sobre a questão da compensação obrigatória.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 547,
+    "cache_write": 10935,
+    "cache_read": 3298
+   }
+  }
+ }
+}

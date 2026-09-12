@@ -1,0 +1,144 @@
+{
+ "id": "SMOKE-2",
+ "dominio": "smoke",
+ "risco": true,
+ "iniciado": "2026-09-10T18:04:59.314Z",
+ "bracos": {
+  "B": {
+   "ok": true,
+   "motivo": null,
+   "rota": {
+    "tier": "T3",
+    "task_category": "architecture_or_critical",
+    "risk_level": "high",
+    "confidence": 0.75,
+    "recommended_backend": "claude_subagent",
+    "recommended_model_do_classify": "claude-opus-4-6",
+    "suggested_subagent": "model-architect",
+    "classify_ms": 95.4,
+    "hw_t0_injectado": "qwen2.5-coder:14b",
+    "porque": "architecture_or_critical / risco high / confianca 0.75"
+   },
+   "backend": "claude",
+   "modelo": "claude-opus-5",
+   "modelo_reportado": [
+    "claude-opus-5"
+   ],
+   "texto": "Aqui vai um runbook. Não sei o motor (Postgres/MySQL/SQL Server), a tabela nem o filtro, por isso dou os comandos em Postgres com notas para MySQL — adapta.\n\nA regra que resume tudo: **antes de apagar, garante que consegues voltar atrás sem depender do backup.** O backup é a segunda linha de defesa, não a primeira.\n\n## 1. Definir o alvo (faz isto agora, não às 2h)\n\nEscreve o `WHERE` definitivo e conta as linhas:\n\n```sql\nSELECT count(*) FROM alvo WHERE <condicao>;\n```\n\nCompara com o número que esperas. Se não tens um número esperado independente da query, ainda não estás pronto — a query estar \"a devolver o que quero\" não é validação, é circularidade.\n\n## 2. Mapear dependências\n\n- **Foreign keys**: há `ON DELETE CASCADE` a apontar para esta tabela? Um DELETE de 1.000 linhas pode arrastar milhões. Lista as FKs de entrada antes.\n- **Triggers** de delete (auditoria, filas, agregados).\n- **Soft delete**: existe `deleted_at`? Se sim, a operação correcta pode ser um `UPDATE`, não um `DELETE`.\n- **A jusante**: réplicas, CDC/Debezium, ETL para o warehouse, caches, índices de busca. O DELETE propaga-se e nem tudo isso é reversível pelo teu rollback.\n\n## 3. Snapshot de recuperação (o passo mais importante)\n\n```sql\nCREATE TABLE alvo_deleted_20260910 AS\nSELECT * FROM alvo WHERE <condicao>;\n\nSELECT count(*) FROM alvo_deleted_20260910;  -- tem de bater com o passo 1\n```\n\nFaz o mesmo para as tabelas filhas que vão em cascata. Isto transforma um incidente de \"restaurar backup\" num `INSERT ... SELECT`. Guarda também um CSV fora da base de dados. Mantém a tabela pelo menos uma semana.\n\n## 4. Verificar o caminho de restauro\n\nConfirma — não assumas:\n\n- Timestamp do último backup completo e se terminou com sucesso.\n- Janela de PITR (WAL no Postgres, binlog no MySQL) cobre esta noite.\n- **Quanto tempo demora um restauro real.** Se nunca testaram, o RTO é desconhecido, e desconhecido significa horas.\n\n## 5. Ensaio\n\nCorre a coisa completa numa cópia restaurada de produção ou em staging com volume comparável. Mede a duração. Se não houver tempo para ensaiar antes desta noite, considera adiar — a pressa é o factor de risco dominante aqui.\n\n## 6. Execução\n\nPreparação da sessão:\n\n```sql\nSET statement_timeout = '30s';       -- não deixes um lock pendurado\nSET lock_timeout = '5s';\n-- MySQL: SET SQL_SAFE_UPDATES = 1;  rejeita DELETE sem chave no WHERE\n```\n\nPõe o SQL num ficheiro e corre com `psql -f delete.sql`. Não escrevas `DELETE FROM alvo` interactivamente — um Enter acidental antes do `WHERE` é o clássico. Verifica também se o cliente tem autocommit ligado (o `psql` tem, por omissão).\n\n**Se são poucas linhas** (até uns milhares), transacção única:\n\n```sql\nBEGIN;\nDELETE FROM alvo WHERE <condicao>;\n-- confere o \"DELETE n\" contra o passo 1\n-- se bater: COMMIT;  se não bater: ROLLBACK;\n```\n\nDecide o `COMMIT` pelo número, não pela sensação.\n\n**Se são muitas linhas**, apaga em lotes para não bloquear a tabela nem estourar a replicação:\n\n```sql\nDELETE FROM alvo\nWHERE id IN (\n  SELECT id FROM alvo WHERE <condicao> LIMIT 5000\n);\n```\n\nEm ciclo, com commit por lote e uma pausa de 1–2s entre lotes. Entre lotes, vigia o lag das réplicas e para se subir.\n\n## 7. Verificação\n\n```sql\nSELECT count(*) FROM alvo WHERE <condicao>;  -- espera 0\n```\n\nSanity checks nas tabelas relacionadas (não ficaram órfãos nem contagens absurdas), e olha para a aplicação: taxa de erros, latência, um par de fluxos críticos à mão. No Postgres, depois de um delete grande considera `VACUUM (ANALYZE) alvo` para recuperar espaço e actualizar estatísticas.\n\n## 8. Critérios de abortar — define-os antes de começar\n\nEscreve agora, por escrito, o que te faz parar: contagem que não bate, duração acima de X, lag de réplica acima de Y, erros na aplicação. Sem isto definido à partida, às 3h da manhã vais racionalizar em vez de decidir.\n\n## 9. Depois\n\nRegista o que correu, mantém o snapshot, e avisa quem precisa de saber (suporte, analytics — o warehouse vai mostrar números diferentes amanhã).\n\n---\n\nDuas notas práticas: não faças isto sozinho se puderes ter alguém acordado a validar o `WHERE` antes do commit — revisão por segunda pessoa apanha a maioria dos deletes catastróficos. E se o objectivo final é \"estes dados não devem aparecer\", um `UPDATE` de soft delete ou uma renomeação de tabela são reversíveis de forma trivial; o DELETE não é.\n\nSe me disseres o motor, a tabela, o filtro e a ordem de grandeza das linhas, adapto os comandos e o esquema de lotes ao teu caso concreto.",
+   "tokens_in": 2,
+   "tokens_out": 2997,
+   "cache_creation": 3812,
+   "cache_read": 0,
+   "decorrido_ms": 50825.3957,
+   "duration_api_ms": 47440,
+   "custo_reportado_pelo_cli_usd": 0.113055,
+   "preco": {
+    "input": 5,
+    "output": 25,
+    "cache_write_5m": 6.25,
+    "cache_read": 0.5
+   },
+   "custo_resposta_usd": 0.074935,
+   "custo_faturado_usd": 0.09876,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.074925,
+    "cache_write": 0.023825,
+    "cache_read": 0
+   }
+  },
+  "B2": {
+   "nao_corrido": "degrau T3: B2 so existe no T0"
+  },
+  "A": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-opus-5",
+   "model_reportado": [
+    "claude-opus-5"
+   ],
+   "texto": "Aqui vai um runbook. Não sei o motor (Postgres/MySQL/SQL Server), o volume de linhas nem se há réplicas — escrevi-o de forma genérica com notas por motor. Diz-me esses três pontos e afino a sintaxe.\n\n## 1. Antes da janela (fazer hoje, não às 3h da manhã)\n\n**Fixa o critério e mede-o.** Escreve o `WHERE` primeiro, e corre-o como `SELECT` antes de o transformares em `DELETE`:\n\n```sql\nSELECT COUNT(*) FROM tabela WHERE <criterio>;\nSELECT * FROM tabela WHERE <criterio> LIMIT 50;  -- confere que são mesmo estas\n```\n\nSe a contagem te surpreender, para. É o sinal mais comum de `WHERE` errado.\n\n**Mapeia o efeito colateral.** Verifica foreign keys com `ON DELETE CASCADE` (podes estar a apagar 4 tabelas sem saber) e triggers `AFTER DELETE`. Em Postgres, `\\d+ tabela` mostra ambos; em MySQL, `SHOW CREATE TABLE` mais `information_schema.TRIGGERS`.\n\n**Backup verificado.** Snapshot ou dump *concluído e testado* — não basta existir, tem de restaurar. Anota quanto tempo demora o restauro; é o teu pior cenário.\n\n**Ensaia em staging** com cópia recente dos dados, cronometrando.\n\n## 2. Rede de segurança específica\n\nAntes do DELETE, materializa as linhas que vais apagar:\n\n```sql\nCREATE TABLE tabela_backup_20260910 AS\nSELECT * FROM tabela WHERE <criterio>;\n```\n\nIsto dá-te um rollback barato sem restaurar a base toda. Confirma que a contagem bate certo com o `SELECT COUNT(*)` do passo 1.\n\n## 3. Execução\n\nTransacção explícita, com verificação antes do commit:\n\n```sql\nBEGIN;\nDELETE FROM tabela WHERE <criterio>;\n-- verifica o número de linhas afectadas AQUI\n-- bate certo com a contagem esperada? COMMIT. Não bate? ROLLBACK.\nCOMMIT;\n```\n\nConfirma que a sessão **não** está em autocommit antes de começares.\n\n**Se forem muitas linhas** (ordem das centenas de milhares ou mais), não faças num só comando — vais segurar locks, inchar o WAL/undo e provocar lag nas réplicas. Faz em lotes com pausa:\n\n```sql\n-- Postgres\nDELETE FROM tabela WHERE id IN (\n  SELECT id FROM tabela WHERE <criterio> LIMIT 5000\n);\n\n-- MySQL\nDELETE FROM tabela WHERE <criterio> ORDER BY id LIMIT 5000;\n```\n\nRepete até afectar 0 linhas, com 1–2 segundos entre lotes, e vigia o lag de réplica a cada iteração. Nota: em lotes, cada um faz commit próprio — o rollback passa a ser a tabela de backup, não o `ROLLBACK`.\n\n## 4. Verificação imediata\n\n- Contagem final na tabela e nas tabelas relacionadas por FK.\n- Smoke test da aplicação nos fluxos que tocam esses dados.\n- Taxa de erros e lag de réplica durante ~15 min.\n\n## 5. Rollback\n\n```sql\nINSERT INTO tabela SELECT * FROM tabela_backup_20260910;\n```\n\nAtenção a sequências/auto-increment e a linhas filhas apagadas em cascata — essas precisam do backup próprio, por isso vale a pena criar uma tabela de backup por tabela afectada. Restauro completo só como último recurso.\n\n## 6. Depois\n\nGuarda as tabelas de backup 7–30 dias com data no nome. Em Postgres, se apagaste muito, considera `VACUUM (ANALYZE)`; em MySQL/InnoDB, `OPTIMIZE TABLE` só se precisares mesmo do espaço em disco (reescreve a tabela).\n\n---\n\n**Três armadilhas que valem a pena repetir:** liga-te com um utilizador que tenha permissões só no necessário, nunca superuser; tem uma segunda pessoa a rever o `WHERE` antes do commit; e confirma em que servidor estás (`SELECT current_database()` / `SELECT @@hostname`) — a confusão entre janelas de terminal é uma das causas mais frequentes destes incidentes.\n\nSe me disseres o motor, o volume estimado e se há réplicas ou CDC a jusante, dou-te o script concreto com os lotes já dimensionados.",
+   "tokens_in": 2,
+   "tokens_out": 2488,
+   "cache_creation": 3816,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.10037000000000001,
+   "duration_ms": 40156,
+   "duration_api_ms": 38327,
+   "decorrido_ms": 41658.1435,
+   "num_turns": 1,
+   "session_id": "e8bc1dd6-4f06-497b-b7cd-354ddd4a0404",
+   "exit": 0,
+   "preco": {
+    "input": 5,
+    "output": 25,
+    "cache_write_5m": 6.25,
+    "cache_read": 0.5
+   },
+   "custo_resposta_usd": 0.06221,
+   "custo_faturado_usd": 0.08606,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.0622,
+    "cache_write": 0.02385,
+    "cache_read": 0
+   }
+  },
+  "C": {
+   "ok": true,
+   "is_error": false,
+   "motivo": null,
+   "model": "claude-haiku-4-5-20251001",
+   "model_reportado": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "texto": "Antes de fornecer um passo a passo, preciso de clarificar alguns pontos críticos — um DELETE em produção é uma operação destrutiva que é difícil ou impossível de reverter:\n\n**Questões essenciais:**\n\n1. **Backup**: Existe um backup recente de produção? Consegues fazer rollback se algo correr mal?\n\n2. **Âmbito**: Qual é exatamente o DELETE? (tabela, condições WHERE, quantos registos afetados)\n\n3. **Autorização**: Quem aprovou isto? Existe ticket/Change Management?\n\n4. **Janela de manutenção**: Está agendada downtime? Quem foi notificado?\n\n5. **Validação**: Como vais verificar que o DELETE correu corretamente e que não apagou mais do que deveria?\n\n6. **Rollback plan**: Se algo falhar, qual é o plano?\n\n**Recomendação geral:**\n- Testa o DELETE primeiro numa cópia da BD (staging/QA) com dados reais\n- Executa a query com `SELECT` primeiro para confirmar quais registos vão ser afetados\n- Faz backup imediatamente antes\n- Executa durante janela de baixo tráfego com observação\n- Tem um colega disponível para validação\n\nDá-me estes detalhes e posso ajudar com um procedimento seguro.",
+   "tokens_in": 10,
+   "tokens_out": 700,
+   "cache_creation": 6686,
+   "cache_read": 0,
+   "custo_reportado_usd": 0.016882,
+   "duration_ms": 10129,
+   "duration_api_ms": 8602,
+   "decorrido_ms": 11752.9829,
+   "num_turns": 1,
+   "session_id": "9aff8de4-0089-484c-a379-7af4de5cb34b",
+   "exit": 0,
+   "preco": {
+    "input": 1,
+    "output": 5,
+    "cache_write_5m": 1.25,
+    "cache_read": 0.1
+   },
+   "custo_resposta_usd": 0.00351,
+   "custo_faturado_usd": 0.0118675,
+   "parcelas_usd": {
+    "entrada_nova": 0.00001,
+    "saida": 0.0035,
+    "cache_write": 0.0083575,
+    "cache_read": 0
+   }
+  },
+  "D": {
+   "ok": true,
+   "motivo": null,
+   "exit": 0,
+   "modelo": "gpt-6-astra",
+   "effort": "medium",
+   "texto": "Antes de te dar comandos para produção, preciso de saber: **qual é o motor da base de dados, que tabela/registos queres apagar e se existe um backup recuperável?** Se já tens o `DELETE`, cola-o aqui sem credenciais nem dados pessoais.\n\nO procedimento deve seguir esta ordem:\n\n1. Validar o filtro com um `SELECT` e contar os registos abrangidos.\n2. Verificar dependências, triggers e eliminações em cascata.\n3. Confirmar como recuperar os dados e definir quando abortar.\n4. Preparar a execução conforme o volume e o suporte a transações, considerando bloqueios.\n5. Executar, conferir o número de linhas afetadas e validar o resultado antes do `COMMIT`, quando aplicável.\n6. Monitorizar a aplicação e a base de dados após a operação.\n\n**Não executes ainda um `DELETE` genérico:** o passo a passo exato depende dessas informações.",
+   "tokens_in": 27145,
+   "tokens_in_cached": 0,
+   "cache_write": 0,
+   "tokens_out": 231,
+   "tokens_reasoning": 33,
+   "erros_do_harness": [],
+   "decorrido_ms": 12866.7959,
+   "preco": "n/d",
+   "custo_resposta_usd": null,
+   "custo_faturado_usd": null,
+   "nota": "n/d — sem preco de lista para \"gpt-6-astra\" na tabela citada, e nao esta instalado localmente"
+  }
+ },
+ "terminado": "2026-09-10T18:06:56.584Z"
+}

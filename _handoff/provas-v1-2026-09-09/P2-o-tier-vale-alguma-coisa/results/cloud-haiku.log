@@ -1,0 +1,21 @@
+L1-a haiku true {"answer":"SEN-4827"} 7340ms
+L1-b haiku true {"answer":["ops","legal","ops"]} 8194ms
+L2-a haiku true {"answer":["B","C"]} 8361ms
+L2-b haiku true {"answer":["Ana","Dan"]} 8126ms
+L3-a haiku true {"answer":145} 7318ms
+L3-b haiku true {"answer":10} 7966ms
+L4-a haiku true {"answer":14} 8800ms
+L4-b haiku false {"answer":[1,5]} 9412ms
+L5-a haiku true {"answer":["A","E"]} 20638ms
+L5-b haiku true {"answer":["B","D"]} 52811ms
+L1-c haiku true {"answer":"A19-3302"} 7609ms
+L1-d haiku true {"answer":["z","x","y","x"]} 6908ms
+L2-c haiku true {"answer":["blue","green","red"]} 7761ms
+L2-d haiku true {"answer":3} 7473ms
+L3-c haiku true {"answer":10} 7621ms
+L3-d haiku true {"answer":3} 7418ms
+L4-c haiku true {"answer":11} 11945ms
+L4-d haiku true {"answer":["1","3","6"]} 9932ms
+L5-c haiku true {"answer":["A","B","D"]} 23750ms
+L5-d haiku true {"answer":["A","C","D"]} 16923ms
+-> results\cloud-haiku.json

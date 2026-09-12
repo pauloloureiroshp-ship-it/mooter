@@ -1,0 +1,156 @@
+{
+ "id": "LEGAL-3",
+ "chave": {
+  "R1": "A",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "C",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Cobre amplamente o pedido, mas atribui indevidamente ao artigo 16 a conservação para exercício de direitos e exige harmonizar prazos de eliminação e transição.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe extensa deliberação irrelevante, apresenta autorização para subcontratação como exigência expressa da LGPD e termina numa cláusula sem prazos nem procedimentos suficientes.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Fornece uma minuta adaptável que cobre os quatro pontos, distingue prazos contratuais de legais e disciplina devolução, eliminação, backups e suboperadores.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Cobre os temas pedidos, mas usa terminologia inadequada, deixa ambígua a retenção após o término e não exige eliminar as cópias quando há devolução.",
+     "total": 5,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Aborda os quatro temas, mas deixa a finalidade aberta, adota um marco de retenção pouco adequado e omite prazos de encerramento e tratamento das cópias.",
+     "total": 5,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Cobre amplamente o pedido, mas atribui indevidamente ao artigo 16 a conservação para exercício de direitos e exige harmonizar prazos de eliminação e transição.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe extensa deliberação irrelevante, apresenta autorização para subcontratação como exigência expressa da LGPD e termina numa cláusula sem prazos nem procedimentos suficientes.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Fornece uma minuta adaptável que cobre os quatro pontos, distingue prazos contratuais de legais e disciplina devolução, eliminação, backups e suboperadores.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Cobre os temas pedidos, mas usa terminologia inadequada, deixa ambígua a retenção após o término e não exige eliminar as cópias quando há devolução.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Aborda os quatro temas, mas deixa a finalidade aberta, adota um marco de retenção pouco adequado e omite prazos de encerramento e tratamento das cópias.\"}}",
+   "custo_tokens": {
+    "in": 35473,
+    "out": 483,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Clausula completa e bem fundamentada, com anexo e secção explícita de riscos a negociar, mas é muito extensa.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe raciocínio interno confuso (confunde GDPR/LGPD, cita instruções alheias) e entrega só uma cláusula final genérica de três frases.",
+     "total": 1,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Cobre todos os pontos pedidos com boa densidade jurídica, sinaliza o que é exigência legal vs proposta contratual, e mantém-se objectiva.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Estrutura completa e utilizável, mas inclui detalhe questionável (auditoria sem aviso prévio) e menos tratamento explícito de riscos práticos.",
+     "total": 7,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Clausula genérica que toca os quatro temas superficialmente mas falta profundidade LGPD (DPO, subcontratação equivalente, certificado de eliminação).",
+     "total": 4,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Clausula completa e bem fundamentada, com anexo e secção explícita de riscos a negociar, mas é muito extensa.\"},\n\"R2\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe raciocínio interno confuso (confunde GDPR/LGPD, cita instruções alheias) e entrega só uma cláusula final genérica de três frases.\"},\n\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Cobre todos os pontos pedidos com boa densidade jurídica, sinaliza o que é exigência legal vs proposta contratual, e mantém-se objectiva.\"},\n\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Estrutura completa e utilizável, mas inclui detalhe questionável (auditoria sem aviso prévio) e menos tratamento explícito de riscos práticos.\"},\n\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Clausula genérica que toca os quatro temas superficialmente mas falta profundidade LGPD (DPO, subcontratação equivalente, certificado de eliminação).\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 3804,
+    "cache_write": 20266,
+    "cache_read": 3298
+   }
+  }
+ }
+}

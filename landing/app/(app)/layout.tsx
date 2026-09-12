@@ -476,7 +476,7 @@ function LoginStatuslinePreview() {
         <span style={{ color: 'var(--faint)' }}>·</span>
         <span style={{ color: 'var(--yellow)' }}>$0.18 spent</span>
         <span style={{ color: 'var(--faint)', marginLeft: 'auto' }}>·</span>
-        <span style={{ color: 'var(--green)', fontWeight: 700 }}>$1.68 saved</span>
+        <span style={{ color: 'var(--green)', fontWeight: 700 }}>— saved</span>
       </div>
 
       {/* Second row — tier share */}
@@ -486,7 +486,7 @@ function LoginStatuslinePreview() {
         display: 'flex', alignItems: 'center', gap: 6,
       }}>
         <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.08em' }}>routing</span>
-        <div style={{ flex: 1, height: 6, background: '#1c1815', borderRadius: 3, overflow: 'hidden', display: 'flex', marginLeft: 8 }}>
+        <div style={{ flex: 1, height: 6, background: '#1c1815', borderRadius: 2, overflow: 'hidden', display: 'flex', marginLeft: 8 }}>
           <span style={{ width: '58%', height: '100%', background: 'var(--tier-0)' }} />
           <span style={{ width: '22%', height: '100%', background: 'var(--tier-1)' }} />
           <span style={{ width: '14%', height: '100%', background: 'var(--tier-2)' }} />

@@ -902,6 +902,46 @@ test('pin: ollama available + mocked wrapper → ok with text and model', async 
   assert.deepEqual(result.fallback_chain, ['ollama']);
 });
 
+test('pin: ollama receives maxTokens (regression — used to silently take num_predict:256)', async () => {
+  let seen = null;
+  const result = await executePinned({
+    prompt: 'hello',
+    provider: 'ollama',
+    options: { __deps: {
+      availability: { ollama: true },
+      providers: { ollama: async (p, o) => { seen = o; return { ok: true, text: 'x', model: 'm' }; } },
+    } },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(seen.maxTokens, 4096, 'local pin must get real headroom, not the wrapper 256 default');
+});
+
+test('pin: explicit maxTokens wins over the local default', async () => {
+  let seen = null;
+  await executePinned({
+    prompt: 'hello',
+    provider: 'ollama',
+    options: { maxTokens: 512, __deps: {
+      availability: { ollama: true },
+      providers: { ollama: async (p, o) => { seen = o; return { ok: true, text: 'x', model: 'm' }; } },
+    } },
+  });
+  assert.equal(seen.maxTokens, 512);
+});
+
+test('pin: cloud provider keeps the modest 1024 default', async () => {
+  let seen = null;
+  await executePinned({
+    prompt: 'hello',
+    provider: 'codex_cli',
+    options: { __deps: {
+      availability: { codex_cli: true },
+      providers: { codex_cli: async (p, o) => { seen = o; return { ok: true, text: 'x', model: 'm' }; } },
+    } },
+  });
+  assert.equal(seen.maxTokens, 1024);
+});
+
 test('pin: codex-cli with no subscription → error code no_quota (hyphen normalised)', async () => {
   const result = await executePinned({
     prompt: 'hello',

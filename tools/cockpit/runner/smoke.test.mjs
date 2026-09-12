@@ -164,6 +164,174 @@ test('smoke: o kill-switch local continua a funcionar (sem Origin = CLI desta ma
   }
 });
 
+// ------------------------------------------- as rotas que tiraram os "proposed"
+//
+// ⚠️ TODA a escrita aqui vai para `HOME_TMP`, e isso nao e higiene — e o
+// incidente de 2026-09-01. Uma prova manual do `/triage` feita contra um F10
+// levantado a mao, sem `MOOTER_HOME` temporario, escreveu no `triagem.jsonl`
+// REAL do dono uma decisao assinada `por:'dono'` que ele nunca tomou. As
+// contagens nao mexeram (a chave nao tinha recibo), e essa foi a sorte, nao o
+// desenho. A linha foi removida e o facto registado. Quem levantar um F10 a
+// mao para experimentar um verbo de ESCRITA: `MOOTER_HOME=$(mktemp -d)` antes.
+
+/**
+ * Um motor local de mentira que responde as DUAS rotas do Ollama que a doca usa:
+ * `/api/ps` (quem esta residente) e `/api/generate` (a resposta).
+ */
+const motorDeDoca = ({ residente = 'granite4.2:3b', resposta = 'Tres frases curtas.' } = {}) =>
+  async (url) => {
+    assert.match(url, /^http:\/\/127\.0\.0\.1:11434\//, '$0 duro: a doca nunca fala para fora do loopback');
+    if (/\/api\/ps$/.test(url)) {
+      return { ok: true, json: async () => ({ models: residente ? [{ name: residente, size: 3e9 }] : [] }) };
+    }
+    return {
+      ok: true, url: 'http://127.0.0.1:11434/api/generate',
+      json: async () => ({ response: resposta, eval_count: 31 }),
+    };
+  };
+
+test('smoke: POST /triage e a MESMA porta que /triagem — um so escritor', async () => {
+  const triagem = path.join(HOME_TMP, 'triagem.jsonl');
+  fs.rmSync(triagem, { force: true });
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/triage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave: 'f.js:1-9@2026-09-01T00:00:00Z', decisao: 'aceite', por: 'dono' }),
+    });
+    assert.equal(res.status, 200);
+    const { ok, registado } = await res.json();
+    assert.equal(ok, true);
+    assert.equal(registado.decisao, 'aceite');
+    // O ficheiro e o mesmo. Se um dia alguem duplicar a logica, esta linha cai.
+    const linhas = fs.readFileSync(triagem, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.equal(linhas.length, 1);
+    assert.equal(linhas[0].via, 'cliente-local', 'sem Origin, o canal e o que se observou');
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: /triage herda as validacoes todas — descartar sem motivo leva 400', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const r = await fetch(`${base}/triage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave: 'x', decisao: 'descartado', por: 'dono' }),
+    });
+    assert.equal(r.status, 400);
+    const b = await r.json();
+    assert.match(b.erro, /motivo/);
+    assert.ok(Array.isArray(b.aceites) && b.aceites.length, 'o painel precisa de saber O QUE mandar');
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke ACEITACAO: as rotas novas tem a MESMA guarda de origem que o kill-switch', async () => {
+  const { base, fechar } = await servidorEfemero({ fetchImpl: motorDeDoca() });
+  try {
+    for (const rota of ['/triage', '/assist', '/update']) {
+      const res = await fetch(`${base}${rota}`, {
+        method: 'POST',
+        headers: { Origin: 'https://site-qualquer.example', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagem: 'ola', chave: 'x', decisao: 'aceite' }),
+      });
+      assert.equal(res.status, 403, `${rota} tem de recusar uma origem de site`);
+    }
+    // E a origem de um iframe sandboxed (`null`) tambem nao entra.
+    const sandbox = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { Origin: 'null' }, body: JSON.stringify({ mensagem: 'ola' }),
+    });
+    assert.equal(sandbox.status, 403);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: POST /assist responde com texto do motor local e diz de onde veio o modelo', async () => {
+  const { base, fechar } = await servidorEfemero({ fetchImpl: motorDeDoca() });
+  try {
+    const r = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mensagem: 'o que e um recibo?' }),
+    });
+    assert.equal(r.status, 200);
+    const b = await r.json();
+    assert.equal(b.ok, true);
+    assert.equal(b.texto, 'Tres frases curtas.');
+    assert.equal(b.modelo, 'granite4.2:3b');
+    assert.equal(b.fonte_do_modelo, 'residente');
+    assert.equal(b.usd, 0, '$0 e estrutural, nao uma estimativa');
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: /assist com o motor em baixo da 503 COM o porque — nunca 200 vazio', async () => {
+  const { base, fechar } = await servidorEfemero({
+    fetchImpl: async (url) => (/\/api\/ps$/.test(url)
+      ? { ok: true, json: async () => ({ models: [{ name: 'm:1b' }] }) }
+      : { ok: false, status: 500, url: 'http://127.0.0.1:11434/api/generate' }),
+  });
+  try {
+    const r = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mensagem: 'ola' }),
+    });
+    assert.equal(r.status, 503);
+    const b = await r.json();
+    assert.equal(b.ok, false);
+    assert.match(b.porque, /500/);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: /assist recusa uma mensagem vazia com 400 antes de gastar GPU', async () => {
+  let tocouNoMotor = false;
+  const { base, fechar } = await servidorEfemero({
+    fetchImpl: async (url) => { if (/generate/.test(url)) tocouNoMotor = true; return { ok: false, status: 500 }; },
+  });
+  try {
+    const r = await fetch(`${base}/assist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(r.status, 400);
+    assert.equal(tocouNoMotor, false);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: POST /update aponta o bundle e declara que NAO instala', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const r = await fetch(`${base}/update`, { method: 'POST', body: '{}' });
+    assert.equal(r.status, 200);
+    const b = await r.json();
+    assert.equal(b.instala_sozinho, false, 'instalar e um gesto do dono, nunca do painel');
+    assert.match(b.porque_nao, /dono/);
+    assert.ok('disponivel' in b && 'instalada' in b && 'faz_assim' in b);
+  } finally {
+    await fechar();
+  }
+});
+
+test('smoke: uma rota POST desconhecida da 404 — nunca cai no /play por engano', async () => {
+  fs.writeFileSync(path.join(HOME_TMP, 'STOP'), '1');
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const r = await fetch(`${base}/triagemm`, { method: 'POST', body: '{}' });
+    assert.equal(r.status, 404, 'um endereco mal escrito nao pode religar o loop');
+    assert.equal(fs.existsSync(path.join(HOME_TMP, 'STOP')), true, 'e o STOP tem de continuar de pe');
+  } finally {
+    fs.rmSync(path.join(HOME_TMP, 'STOP'), { force: true });
+    await fechar();
+  }
+});
+
 // ------------------------------------------------------------------ o ciclo
 
 /**
@@ -392,8 +560,193 @@ test('smoke: o painel de recurso NUNCA se serve em silencio', async () => {
   } finally { await fechar(); }
 });
 
+/**
+ * O `/ledger` e a vista do DONO, e nasceu ao lado do `/panel` — nao por cima.
+ *
+ * Estes dois testes existem porque a tentacao obvia era servir uma so pagina. O
+ * Ledger nao tem os controlos (▶/⏸, foco, triagem); trocar um pelo outro tirava
+ * botoes ao dono sem lhe dar nada em troca. A guarda e por ROTA: se alguem
+ * apontar o `/panel` para a casca nova, o segundo teste morde.
+ */
+test('GET /ledger serve a casca do Ledger, com o payload injectado', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/ledger`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-moo-panel'), 'ledger');
+    assert.equal(res.headers.get('x-moo-panel-source'), 'tools/cockpit/moo-ledger-shell.html');
+    assert.ok(res.headers.get('x-moo-ledger-shell'), 'a resposta tem de dizer que versao de casca serviu');
+    const html = await res.text();
+    // A casca nao tem numeros; o payload tem de vir INJECTADO, senao a pagina
+    // renderiza o ecra de "no payload" e o dono ve uma pagina vazia com 200.
+    assert.match(html, /window\.__SNAPSHOT__=\{/, 'servido sem payload — a pagina sairia vazia');
+    assert.match(html, /window\.__ROADMAP__=/);
+    assert.match(html, /window\.__SHELL__=/);
+  } finally { await fechar(); }
+});
+
+/**
+ * HEAD — o achado A3 do live test do dono (2026-09-01).
+ *
+ * `curl -sI http://127.0.0.1:4290/ledger` respondia `404 not found` enquanto o
+ * GET no mesmo endereco respondia 200. HEAD e o metodo canonico de um health
+ * probe (nao puxa o corpo), portanto qualquer watchdog ou uptime checker
+ * externo lia o F10 como MORTO estando ele vivo — e um observador externo e
+ * exactamente o que o R7 do adversario exige.
+ *
+ * Estes testes atacam a correccao pelo lado por onde ela pode envelhecer mal:
+ * nao basta o `/ledger` responder. TODAS as rotas GET tem de responder, senao
+ * daqui a uma rota nova estamos no mesmo sitio.
+ */
+test('HEAD responde em TODAS as rotas GET, com o mesmo estado — nao so na que foi reportada', async () => {
+  const { base, fechar } = await servidorEfemero();
+  const ROTAS = ['/fleet.json', '/fleet', '/motores.json', '/saude.json', '/custo.json',
+    '/pilares.json', '/ledger', '/panel', '/'];
+  try {
+    for (const rota of ROTAS) {
+      const g = await fetch(`${base}${rota}`);
+      const h = await fetch(`${base}${rota}`, { method: 'HEAD' });
+      assert.equal(h.status, g.status, `HEAD ${rota} discorda do GET no estado`);
+      assert.notEqual(h.status, 404, `HEAD ${rota} caiu na cauda — e o defeito A3 outra vez`);
+      await g.text();
+    }
+  } finally { await fechar(); }
+});
+
+test('HEAD /ledger traz os cabecalhos do GET e um `Content-Length` util — sem corpo', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const h = await fetch(`${base}/ledger`, { method: 'HEAD' });
+    assert.equal(h.status, 200);
+    // Os cabecalhos que autenticam a peca servida sao os mesmos: um HEAD que
+    // responde 200 mas nao diz O QUE serviria nao vale mais do que um ping.
+    assert.equal(h.headers.get('x-moo-panel'), 'ledger');
+    assert.equal(h.headers.get('x-moo-panel-source'), 'tools/cockpit/moo-ledger-shell.html');
+    assert.ok(h.headers.get('x-moo-ledger-shell'), 'a versao de casca tem de viajar tambem no HEAD');
+    assert.equal(h.headers.get('content-type'), 'text/html; charset=utf-8');
+    // O UNICO ponto de um HEAD e o `Content-Length`. Um HEAD sem ele, ou com
+    // zero, mente sobre o tamanho da coisa que diz existir.
+    //
+    // Aqui NAO se compara com um GET, e a razao esta escrita na propria rota:
+    // o `/ledger` reconstroi-se a cada pedido, por desenho. Dois pedidos sao
+    // duas medicoes — a VRAM amostrada muda de casas decimais — e um teste que
+    // exigisse bytes iguais estaria a exigir que a pagina mentisse sobre ser
+    // viva. A igualdade exacta prova-se em baixo, numa rota determinista.
+    const n = Number(h.headers.get('content-length'));
+    assert.ok(n > 1000, `content-length improvavel: ${h.headers.get('content-length')}`);
+    assert.equal(await h.text(), '', 'HEAD com corpo nao e HEAD');
+  } finally { await fechar(); }
+});
+
+test('HEAD e GET anunciam EXACTAMENTE o mesmo tamanho onde a resposta e determinista', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    // O `/panel` serve um ficheiro do disco: duas leituras dao os mesmos bytes.
+    // E aqui, portanto, que a promessa de um HEAD — "os cabecalhos do GET" — se
+    // pode afirmar sem tolerancia nenhuma.
+    const g = await fetch(`${base}/panel`);
+    const corpo = await g.text();
+    const h = await fetch(`${base}/panel`, { method: 'HEAD' });
+    assert.equal(h.headers.get('content-length'), g.headers.get('content-length'));
+    assert.equal(Number(h.headers.get('content-length')), Buffer.byteLength(corpo, 'utf8'));
+    assert.equal(h.headers.get('x-moo-panel-source'), g.headers.get('x-moo-panel-source'));
+    assert.equal(await h.text(), '');
+  } finally { await fechar(); }
+});
+
+test('HEAD numa rota inexistente continua a ser 404 — a correccao nao inventou rotas', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const h = await fetch(`${base}/nao-existe`, { method: 'HEAD' });
+    assert.equal(h.status, 404);
+  } finally { await fechar(); }
+});
+
+test('HEAD nao ganha os verbos de escrita — parar o loop continua a exigir um POST', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    // Um HEAD normalizado para GET nao pode abrir a porta a `/stop` ou `/play`:
+    // eles sao POST, e um probe externo (ou um `<link rel=prefetch>`) nunca
+    // pode desligar a maquina do dono por acidente.
+    for (const rota of ['/stop', '/play', '/assist', '/triage']) {
+      const h = await fetch(`${base}${rota}`, { method: 'HEAD' });
+      assert.equal(h.status, 404, `HEAD ${rota} passou a ser servido — isso e uma escrita por GET`);
+    }
+  } finally { await fechar(); }
+});
+
+test('o /panel v1 continua a ser o painel do operador — o Ledger nao o substituiu', async () => {
+  const { base, fechar } = await servidorEfemero();
+  try {
+    const res = await fetch(`${base}/panel`);
+    // Comparacao ESTRITA, com barras POSIX, e nas duas plataformas. Foi assim
+    // que este teste apanhou o defeito para que nasceu: o cabecalho vinha de
+    // `path.relative` e no Windows saia `tools\cockpit\...`, o que faria a skill
+    // `/moo-pilot` — que manda conferir este valor — dar o painel canonico como
+    // "outro ficheiro". Uma verificacao com `.includes('moo-pilot-shell')` teria
+    // passado nas duas e nao teria visto nada.
+    assert.equal(res.headers.get('x-moo-panel-source'), 'tools/cockpit/moo-pilot-shell.html',
+      'o /panel passou a servir outra casca (ou o cabecalho deixou de ser POSIX)');
+  } finally { await fechar(); }
+});
+
 test('o aviso do prototipo diz o que se esta a ver e porque', () => {
   assert.match(AVISO_PROTOTIPO, /not the current one/);
   assert.match(AVISO_PROTOTIPO, /moo-pilot-shell\.html/, 'tem de nomear o ficheiro que falhou');
   assert.match(AVISO_PROTOTIPO, /nothing below is guaranteed/i);
+});
+
+/**
+ * Cada verbo declarado tem de ser SERVIDO por um ramo.
+ *
+ * Apanhado em revisao a 2026-09-01: a lista `VERBOS_DE_CONTROLO` passou a guarda
+ * de origem para um sitio so, mas a cauda do bloco era o `/play` — logo um verbo
+ * acrescentado a lista sem ramo proprio APAGAVA o STOP e ligava a maquina a
+ * trabalhar. O `/play` ganhou `if` proprio, a cauda passou a 404, e este teste
+ * exige que as duas metades andem juntas para sempre.
+ */
+test('smoke ACEITACAO: nenhum verbo declarado religa o loop por omissao', async () => {
+  const { VERBOS_DE_CONTROLO } = await import('./f10-server.mjs');
+  const { base, fechar } = await servidorEfemero({ fetchImpl: motorDeDoca() });
+  const STOP = path.join(HOME_TMP, 'STOP');
+  try {
+    for (const rota of VERBOS_DE_CONTROLO) {
+      if (rota === '/play') continue;              // este É o que apaga o STOP, e de propósito
+      fs.writeFileSync(STOP, '1');
+      await fetch(`${base}${rota}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensagem: 'ola', chave: 'x', decisao: 'aceite', por: 'dono' }),
+      });
+      assert.equal(fs.existsSync(STOP), true, `${rota} apagou o STOP — caiu na cauda do /play`);
+    }
+    // E um verbo declarado SEM ramo dá 404 a dizer que é um defeito, não 200.
+    const semRamo = await fetch(`${base}/autopilot`, { method: 'POST', body: 'nao-e-json' });
+    assert.notEqual(semRamo.status, 404, 'o /autopilot TEM ramo — se der 404 este teste mede a coisa errada');
+  } finally {
+    fs.rmSync(STOP, { force: true });
+    await fechar();
+  }
+});
+
+/**
+ * COBERTURA, NAO PRESENCA — a mesma licao que o portao de movimento reduzido
+ * aprendeu a 2026-08-29 (`CLAUDE.md`): testar que os verbos de HOJE se portam
+ * bem nao impede que o de AMANHA nasca descoberto. Este exige que cada entrada
+ * de `VERBOS_DE_CONTROLO` seja comparada por um ramo no corpo do handler.
+ */
+test('smoke ACEITACAO: cada verbo declarado tem um ramo que o serve', async () => {
+  const { VERBOS_DE_CONTROLO } = await import('./f10-server.mjs');
+  const src = fs.readFileSync(new URL('./f10-server.mjs', import.meta.url), 'utf8');
+  // Só o corpo do handler: a própria lista também nomeia as rotas.
+  const corpo = src.slice(src.indexOf('const servidor = http.createServer'));
+  for (const v of VERBOS_DE_CONTROLO) {
+    const ramo = new RegExp(`route === '${v}'`).test(corpo);
+    assert.ok(ramo, `${v} está na lista e nenhum ramo o serve — cai na cauda`);
+  }
+  // E a cauda tem de ser um 404, nunca a escrita que religa o loop.
+  const cauda = corpo.slice(corpo.lastIndexOf("route === '/play'"));
+  assert.ok(cauda.includes('verbo declarado sem tratamento'),
+            'a cauda do bloco de POST tem de ser um 404 explícito');
+  assert.equal(/rmSync\(stopFile[\s\S]*verbo declarado sem tratamento/.test(cauda), true,
+               'o /play tem de vir ANTES da cauda, dentro do seu próprio ramo');
 });

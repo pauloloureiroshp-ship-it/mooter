@@ -1,0 +1,75 @@
+﻿=== launch 2026-09-09T17:07:56.4302378-03:00 pid 57928 ===
+r24 ┬À diagn├│stico das pr├®-condi├º├Áes de --correr ┬À 2026-09-09T20:07:56.505Z ┬À node v24.14.0 ┬À win32
+
+  ┬À cwd  C:\Users\Paulo Loureiro\frugal
+  ok  ficheiros do R-24 presentes  5 de 5
+  ┬À repo resolvido pelo executor  C:\Users\Paulo Loureiro\frugal
+  ok  pr├®-registo CONGELADO  CONGELADO
+  ok  pr├®-registo fecha-se sobre si pr├│prio  9c2d37b1e6ceÔÇª
+  ok  limiar pr├®-registado bate com o recalculado  n=23 ┬À alfa=0.05 ┬À limiar=16
+  ok  congelamento dos ficheiros  9 entradas
+  ok  prim├írias leg├¡veis do manifest  23 tarefas ┬À 12 ON-primeiro ┬À 11 OFF-primeiro
+  ok  terminal fora de uma sess├úo Claude Code  apto
+  ok  execut├ível do agente responde --version  2.1.224 (Claude Code) ┬À C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+  ok  a sonda chega ao modelo  2091 ms ┬À 2 tokens de entrada
+  ok  router pinado bate com o pr├®-registo  b39c7da4aaa6ÔÇª vs b39c7da4aaa6ÔÇª
+  ┬À effort fixado  xhigh
+  BLOQUEIA  sem outra inst├óncia a correr  existe C:\Users\PAULOL~1\AppData\Local\Temp\r24-snapshots\.tranca: {"pid":31560,"agora":"n/d"} ÔÇö apaga-o se tens a certeza
+  ┬À ledger  ainda n├úo existe ┬À seria C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  ┬À snapshots de corrida  46: t01-2e7599e021-OFF, t01-2e7599e021-ON, t02-7bb45751d8-OFF, t02-7bb45751d8-ON
+
+VEREDICTO: --correr N├âO arranca. 1 pr├®-condi├º├úo(├Áes) a bloquear, marcadas acima.
+
+(relat├│rio guardado em C:\Users\Paulo Loureiro\frugal\_handoff\r24\ultimo-diagnostico.txt)
+=== --correr 2026-09-09T17:08:07.8726020-03:00 ===
+  a copiar node_modules de . (uma vez)ÔÇª
+  a copiar node_modules de tools/router (uma vez)ÔÇª
+  a copiar node_modules de packages/vscode-extension (uma vez)ÔÇª
+  tratamento: router pinado b39c7da4aaa6ÔÇª ┬À effort xhigh
+  ambiente: env 65f5240d ┬À estado vivo 8bfb056f ┬À cache 1baddb4b
+  arbitro: DESLIGADO (ANTHROPIC_* removida do ambiente do bra├ºo) ÔÇö declarado no pr├®-registo
+  sonda: chegou ao modelo em 2356 ms ┬À 2 tokens de entrada
+R-24 ┬À 23 tarefas ┬À 0 bra├ºos j├í no ledger ┬À ledger: C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  agente: C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe (2.1.224 (Claude Code))
+  ┬À t01-2e7599e021 OFF ÔÇö passa ┬À 782.4s
+  ┬À t01-2e7599e021 ON ÔÇö passa ┬À 255.7s
+  ┬À t02-7bb45751d8 ON ÔÇö passa ┬À 134.2s
+  ┬À t02-7bb45751d8 OFF ÔÇö passa ┬À 311.5s
+  ┬À t03-8014c12435 OFF ÔÇö passa ┬À 73.2s
+  ┬À t03-8014c12435 ON ÔÇö passa ┬À 47.6s
+  ┬À t04-8617d5fc95 ON ÔÇö passa ┬À 67.5s
+  ┬À t04-8617d5fc95 OFF ÔÇö passa ┬À 55.6s
+  ┬À t05-cc706fa255 ON ÔÇö passa ┬À 48.9s
+  ┬À t05-cc706fa255 OFF ÔÇö passa ┬À 98.8s
+  ┬À t06-e408ea0afe OFF ÔÇö passa ┬À 69.0s
+  ┬À t06-e408ea0afe ON ÔÇö passa ┬À 39.9s
+  ┬À t07-030073bef4 ON ÔÇö passa ┬À 81.0s
+  ┬À t07-030073bef4 OFF ÔÇö passa ┬À 115.4s
+  ┬À t08-1f5a793294 ON ÔÇö passa ┬À 104.4s
+  ┬À t08-1f5a793294 OFF ÔÇö passa ┬À 134.3s
+  ┬À t09-07bdf37783 ON ÔÇö passa ┬À 72.6s
+  ┬À t09-07bdf37783 OFF ÔÇö passa ┬À 122.3s
+  ┬À t10-a6bf1a20b0 ON ÔÇö passa ┬À 47.5s
+  ┬À t10-a6bf1a20b0 OFF ÔÇö passa ┬À 143.7s
+  ┬À t11-4bf34eb7c6 OFF ÔÇö passa ┬À 105.8s
+  ┬À t11-4bf34eb7c6 ON ÔÇö passa ┬À 60.3s
+  ┬À t12-bf358e765c OFF ÔÇö passa ┬À 691.5s
+  ┬À t12-bf358e765c ON ÔÇö passa ┬À 338.2s
+  ┬À t13-ddb0cf50e1 ON ÔÇö passa ┬À 143.3s
+  ┬À t13-ddb0cf50e1 OFF ÔÇö passa ┬À 229.8s
+node : P├üRA a meio: estado_vivo_sha mudou (8bfb056f1f12 -> 8b5b88f63949)
+At C:\Users\Paulo Loureiro\frugal\.claude\worktrees\pacote-provas-v1-255558\_handoff\provas-v1-2026-09-09\P7-usar-vs-na
+o-usar\launch-correr-3.ps1:12 char:1
++ node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --snap ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (P├üRA a meio: e...> 8b5b88f63949):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  o tratamento ou o terreno mudaram durante a corrida; as tarefas ja feitas e as seguintes deixariam de ser 
+comparaveis.
+=== --correr exit 2 2026-09-09T18:22:03.7471418-03:00 ===
+R-24 ┬À ENSAIO INVALIDO
+  pares v├ílidos 13 < 23 ÔÇö subpotenciado, diferen├ºa n├úo demonstrada
+  X=12 ┬À n=23 ┬À limiar=16 ┬À p=0.50000 ┬À pot├¬ncia=0.80370
+  pares v├ílidos: 13 ┬À inv├ílidos: 0
+=== --analisar exit 1 2026-09-09T18:22:03.7947982-03:00 ===

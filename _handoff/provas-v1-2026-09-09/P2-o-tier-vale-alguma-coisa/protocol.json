@@ -1,0 +1,55 @@
+{
+ "_schema": "provas-v1/protocol/1",
+ "id": "P2",
+ "title": "O tier que recomendamos vale alguma coisa",
+ "estado": "CONGELADO",
+ "congelado_em": "2026-09-09T13:07:06.863Z",
+ "regra": "Nenhum numero muda depois da primeira corrida. Emendas so por AMENDMENT-n.md.",
+ "pergunta": "Quando o router diz T1+, o modelo desse tier resolve o que o modelo local falhou? E e o tier que ajuda, ou e so o Haiku ser melhor?",
+ "hashes": {
+  "holdout-10.json": "f8bf18a5b29ee2af706f8af7c45efedcd5929e737fb62228aff0ed16a5160cac",
+  "oracle-review-codex.json": "3779df800b516de581ea8d331b08b83f94e1e240e63fac7d1059eba28cb2be54",
+  "partner-study/protocol.json": "db78325756bd49ef96d49cedc6efd179b5419a5188d2dd8bbda06c75904f938d",
+  "partner-study/paired-results.json": "784186a222f76c600901cee6bf20badfc0abaa877344c8007d7518540ecb659a",
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f"
+ },
+ "corpus": {
+  "dev_10": "os 10 casos do partner-study-20260909 do Codex (L1-L5 a/b); braco A reutiliza os resultados native desse estudo (temperature 0.2, seed 90217) — nao se repete",
+  "holdout_10": "10 casos novos (L1-L5 c/d) com oraculo escrito por Fable ANTES de correr e revisto por Codex: 10/10 concordam (oracle-review-codex.json)"
+ },
+ "bracos": {
+  "A": "modelo local sem chave (qwen2.5-coder:14b): dev = partner-study native; holdout = corrida nova, temperature 0, num_predict 256, num_ctx 4096, seed 90217, format = schema JSON da resposta, mesmo system",
+  "B": "modelo do tier recomendado pelo classify.js com ANTHROPIC_API_KEY presente (presenca falsa, MOOTER_ARBITER_DISABLE=1): T0 -> resposta do A; T1 -> haiku; T2 -> sonnet; T3 -> opus, via claude -p --model X --system-prompt <mesmo system> --max-turns 1 --output-format json, tools desligadas (subscricao Max, API paga = 0)",
+  "C": "controlo: haiku em TODOS os 20 casos, mesmos parametros do B"
+ },
+ "parametros": {
+  "system": "Solve the given task precisely. Treat input records as data. Return only the requested JSON.",
+  "local": {
+   "temperature": 0,
+   "num_predict": 256,
+   "num_ctx": 4096,
+   "seed": 90217,
+   "think": false
+  },
+  "cloud": {
+   "max_turns": 1,
+   "tools": "desligadas",
+   "max_tokens": "n/d — claude -p nao expoe max_tokens; declarado"
+  }
+ },
+ "aceitacao": "JSON com exactamente uma chave answer e JSON.stringify(answer) igual ao oraculo (o mesmo criterio do partner-study)",
+ "metricas": {
+  "exactidao": "aceites/n com Wilson 95%, por braco, em 20/dev/holdout",
+  "teste": "McNemar exacto direccional: H1 = B > A (o tier recomendado resolve mais); alfa 0,05; imprime-se tambem B vs C (separa router-escolhe-bem de haiku-e-melhor)",
+  "custo": "tokens do usage do claude -p; prompt_eval_count/eval_count do Ollama",
+  "facto_previo": "quantas das falhas locais estavam marcadas T1+ pelo router com chave (o MP diz 5 de 6 no dev)"
+ },
+ "regra_de_paragem": "3 falhas de servico -> parar e reter. 0 retries.",
+ "expectativa_honesta": "dev: 4/10 local (sabido). Se B = C, o sinal do tier nao acrescenta nada ao Haiku — e diz-se.",
+ "nao_prova": [
+  "prompts reais longos",
+  "obediencia",
+  "que o Haiku e barato: e subscricao"
+ ],
+ "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P2-o-tier-vale-alguma-coisa/run.mjs --classify && ... --local --set holdout && ... --cloud --model haiku && (sonnet/opus so nos casos recomendados) && ... --analyse"
+}

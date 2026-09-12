@@ -1,0 +1,371 @@
+You are the ADVERSARY (Codex, gpt-6-astra) for a pre-registered evidence package — proof P3. The author is a different engine (Claude). Your job is to KNOCK DOWN the numbers and the claims, not to comment on them. Attack: (1) the metric 'executed local delegation' (spawn of local-summarizer AND an Ollama call with eval_count in the same session): can it be satisfied by the hook's own Option A pre-answer call rather than the subagent? is attribution of Ollama calls to the subagent established? (2) the 3/20 vs 4/20 and 4 vs 8 comparisons with n=20 and no pre-registered test: any wording that implies effect? (3) the PreToolUse rewrite hook (pretooluse-route.js): 8/8 reached and rewritten — is 'reached' measured from the hook's own log (self-report)? could a rewrite have been ignored by the harness while still logged? (4) the corpus: 20 T0/T1 prompts chosen by the rule with a key present, run without a key — mismatch? the excluded n14? (5) live-hook state: decisions differed between arms on 4 prompts — does this invalidate the within-prompt comparison? (6) the disposable repo copy, --max-turns 12, 300 s cap, allowedTools: could these suppress delegation and bias toward 0? (7) 'obedience > 0' as a claim for the investor deck and the forbidden words (enforces, private/secure, savings, most accurate).
+For EACH attack give: id (P3-NN), severity (fatal|serious|minor), the exact claim attacked, why it may not hold, and what evidence would settle it. Then: SURVIVE / REWORD / DEAD lists, and a final line SLIDE PUBLISHABLE AS IS / WITH THESE EDITS (give the edits) / NOT PUBLISHABLE. Be concrete and merciless; a verdict that only approves has not run. Do not rewrite the package. You have no repo access: attack what is in front of you, and say explicitly what you could not verify.
+
+=== PROTOCOL (protocol.json) ===
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P3",
+  "title": "Obediência > 0 — a primeira delegação executada que não foi escrita à mão",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T13:47:54.000Z",
+  "regra": "Commitado ANTES da primeira corrida. Nenhum numero muda depois. Emendas so por AMENDMENT-n.md.",
+  "pergunta": "Uma recomendacao do Mooter (T0/T1) consegue ser EXECUTADA por um subagente local/barato sem o dono escrever o nome do subagente, e fica no recibo com tokens?",
+  "corpus": "os primeiros 20 prompts de P1/corpus-40.json (por ordem de id) que o classify.js com chave marca T0 ou T1 (P1/results/A-key.json, corrida 1). Lista fixada em corpus-20.json com sha. Prompts que mencionem push/deploy/delete/rm sao excluidos antes de contar 20 (blast radius).",
+  "ambiente": "cada corrida numa copia descartavel do repo (git archive HEAD, sem .git) em Temp; claude.exe -p --model sonnet --max-turns 12 --output-format stream-json --verbose; --allowedTools Read,Grep,Glob,Edit,Write,Agent,Bash(node *),Bash(npm test*),Bash(bash *ollama_call.sh*); hooks do dono LIGADOS (e o produto instalado); OLLAMA_HOST apontado a um proxy de contagem em loopback que encaminha para 127.0.0.1:11434 e regista modelo + prompt_eval_count + eval_count por chamada (a linha do recibo).",
+  "modelo_principal": "sonnet (declarado; opus custaria ~10x de quota nesta janela de 5 h). 5 dos 20 repetem-se com opus como sonda, se a quota deixar; senao n/d.",
+  "bracos": {
+    "A": "sessao nativa com o hook actual (UserPromptSubmit inject_context.js da runtime): o <router-hint> e injectado; o modelo principal decide sozinho se delega. Esperado pelo MP: ~0 delegacoes.",
+    "B": "A + um hook PreToolUse (matcher Agent|Task) — pretooluse-route.js — que REESCREVE subagent_type/model do spawn conforme ~/.claude/tools/router/last-subagent.json (a decisao do UserPromptSubmit): T0 -> local-summarizer, T1 -> cheap-triage/haiku, T2 -> sonnet; nunca sobe. Injectado por --settings <ficheiro>. Padrao tzachbon (MIT), citado no ficheiro."
+  },
+  "metricas": {
+    "recomendacoes": "20 por braco (uma por prompt): tier do last-subagent.json no momento do spawn",
+    "delegacoes": "spawns do tool Agent/Task no stream-json, com subagent_type e model finais (depois do hook em B)",
+    "executed": "delegacao cujo subagente FEZ uma chamada ao Ollama (proxy de contagem) — engine=local com prompt_eval_count/eval_count na linha do recibo; ou, para T1, cujo subagente correu com model haiku (visivel no stream-json do subagente: campo model das mensagens do assistant)",
+    "hook_reach": "em B, spawns em que o hook correu (P3_HOOK_LOG) vs spawns sem linha no log (o hook nao chegou) — e o argumento do ADR M1",
+    "custo": "usage do resultado (input/output/cache) por corrida; tokens Ollama por chamada",
+    "sem_teste_estatistico": "e uma contagem (K de 20) — o MP nao pede teste; imprime-se K/20 com Wilson por braco"
+  },
+  "regra_de_paragem": "3 corridas consecutivas com exit != 0 -> parar, reter, n/d com o erro. 0 retries. Uma corrida que exceda 300 s e morta e conta como 'sem delegacao' (intention-to-treat).",
+  "risco_declarado": "o hook vivo tem o defeito D1 (tecto de orcamento): last-subagent.json diz T0 para tudo. Mede-se o produto como esta instalado; declara-se.",
+  "expectativa_honesta": "A: 0-3 delegacoes em 20 (o modelo inlineia). B: o hook so reescreve spawns que o modelo FAZ; se o modelo nao delega, o hook nao chega — e o numero 'nao chegou' e o argumento do ADR M1 (proxy loopback opt-in).",
+  "nao_prova": [
+    "qualidade do trabalho delegado (P7)",
+    "obediencia com opus como modelo principal (sonda de 5, se houver quota)",
+    "enforce: e gated_best_effort, um hook nunca forca um spawn"
+  ],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --arm A && ... --arm B && ... --analyse",
+  "congelado_em_fonte": "git commit 5efd58ed (%cI 2026-09-09T10:47:54-03:00); o valor anterior '2026-09-09T14:20:00Z' era escrito a mao e errado — ERRATA-timestamps.md"
+}
+
+
+=== VERDICT (verdict.md) ===
+# P3 · Obediência > 0 — veredicto
+
+**Corrida:** 2026-09-09, 13:58–14:48Z · protocolo `5efd58ed` commitado 13:47:54Z, antes da primeira sessão · corpus `corpus-20.json` (sha no protocolo; n01–n21 sem n14, os 20 primeiros prompts reais do P1 que a regra marca T0/T1 e não tocam push/deploy/delete) · cada sessão numa cópia descartável do repo (`git archive`), `claude.exe -p --model sonnet --max-turns 12 --output-format stream-json`, **hooks do dono ligados** (o produto instalado), `OLLAMA_HOST` num proxy de contagem em loopback · bruto em `results/A-sonnet.json`, `results/B-sonnet.json`, `results/A-opus.json` (sonda), `results/analysis.json`.
+
+## Veredicto em uma linha
+
+**Obediência > 0, pequena e medida:** sem hook adicional, 3 de 20 sessões nativas delegaram para um subagente local que executou no Ollama com contagens no recibo; com um hook PreToolUse que reescreve o spawn conforme a decisão do router, 8 de 20 sessões delegaram, o hook chegou a **8/8** e reescreveu **8/8** para o tier local, e 4 de 20 executaram localmente com contagens. Nenhum dos 20 prompts foi delegado para Haiku em nenhum braço. n = 20 por braço, sem teste estatístico (não pré-registado).
+
+## Os números (20 sessões por braço, mesmos prompts, mesma ordem)
+
+| | **A · sessão nativa** (só o `UserPromptSubmit` vivo, que injecta o `<router-hint>`) | **B · A + `pretooluse-route.js`** (PreToolUse em `Agent|Task`: reescreve `subagent_type`/`model` conforme `last-subagent.json`; nunca sobe de tier) |
+|---|---|---|
+| Sessões com ≥ 1 delegação (spawn de subagente), Wilson 95 % | **4/20 · 20 % [8,1; 41,6]** | **8/20 · 40 % [21,9; 61,3]** |
+| Sessões com delegação **executada** localmente — spawn `local-summarizer`/`local-transformer` **e** chamada ao Ollama com `eval_count` na mesma sessão (a métrica do protocolo) | **3/20 · 15 % [5,2; 36,0]** | **4/20 · 20 % [8,1; 41,6]** |
+| Sessões com spawn de `cheap-triage`/Haiku | 0/20 | 0/20 |
+| Hook PreToolUse: sessões em que chegou / spawns reescritos | — (não instalado) | **8 / 8** — todos para `T0/local-summarizer` (os spawns originais eram `Explore`, `model-reasoner`, `local-summarizer`) |
+| Sessões com qualquer chamada ao Ollama (inclui o Option A do próprio hook — proxy largo) | 16/20 | 16/20 |
+| Chamadas ao Ollama, por modelo (com `eval_count`) | 18: `qwen3:30b` 15/15, `qwen2.5:3b` 1/1, `gemma4:e4b` 0/2 | 17: `qwen3:30b` 15/15, `qwen2.5:3b` 2/2 |
+| Tokens Ollama (prompt + eval) no recibo | 5 389 | 5 420 |
+| Decisão do router no spawn (`last-subagent.json`) | T0 ×17 · T3 ×3 | T0 ×16 · T3 ×3 · T2 ×1 |
+| Uso do modelo principal por sessão (média): entrada / saída / cache lida | 9,3 / 4 093 / 460 840 | 7,7 / 3 342 / 357 652 |
+| Duração média por sessão | 77,1 s | 75,7 s |
+| Exits | 19/20 = 0 (n07 exit 1, sem delegação — conta, ITT) | 20/20 = 0 |
+
+**Sonda com Opus como modelo principal** (braço A, 5 primeiros prompts, quota permitiu): delegação 1/5, executada 1/5 (n05), T0 5/5, exit 4/5; 60,5 s por sessão. Só descritivo.
+
+## Leitura honesta
+
+1. **O número que interessa ao roadmap é 3/20 → 4/20 executados, e 8/8 alcançados pelo hook.** A primeira delegação executada «que não foi escrita à mão» aconteceu — três vezes sem hook nenhum (o modelo seguiu a doutrina do `CLAUDE.md` do dono e chamou `local-summarizer`), e o hook PreToolUse chegou a **todos** os spawns que o modelo fez. O que o hook **não** consegue é criar spawns: 12/20 sessões em B não delegaram e ele não teve onde actuar — é exactamente o argumento do ADR M1 (o hook só reescreve o que o modelo decide fazer).
+2. **A diferença 4 → 8 delegações entre braços não é um efeito do hook por construção** (o hook não induz spawns); pode ser variância do modelo entre corridas. Não há teste pré-registado e n = 20; não se afirma causa.
+3. **T1 nunca aconteceu:** 0 spawns de `cheap-triage`/Haiku nos dois braços. Sem chave a runtime degrada T1→T0 e a decisão foi T0 em 33/40 — em parte pelo defeito D1 (tecto de orçamento). Os 3 T3 são pisos de risco.
+4. **A decisão no spawn variou entre braços para 4 prompts** (n02/n03 T3→T0, n04/n07 T0→T3, n11 T0→T2): o `last-subagent.json` é o do hook vivo, cujo estado (orçamento, sessão) muda entre corridas. Declarado; não corrigido.
+5. **O «proxy largo» (16/20 sessões com chamada ao Ollama) não é obediência:** inclui o Option A do próprio hook (`gemma4:e4b`, `qwen2.5:3b`). A métrica do protocolo exige spawn local **e** chamada com `eval_count`; é essa a linha impressa.
+6. **Custo:** cada sessão leu ~360–460 k tokens de cache do prefixo do Claude Code; o trabalho delegado ao Ollama foi ~5 k tokens por braço. Subscrição; API = 0.
+
+## O que isto NÃO prova
+
+- Qualidade do trabalho delegado (P7). Obediência com Opus além da sonda de 5. Que o hook *força* alguma coisa (é *gated best-effort*: nunca cria um spawn). Efeito causal do hook na taxa de delegação. Comportamento com chave (T1). Reprodutibilidade run-a-run (1 corrida por prompt por braço).
+
+## Reproduzir
+
+```
+node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --corpus
+node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --arm A --model sonnet
+node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --arm B --model sonnet
+node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --arm A --model opus --only n01,n02,n03,n04,n05
+node _handoff/provas-v1-2026-09-09/P3-obediencia/run.mjs --analyse
+```
+
+
+=== SLIDE (slide.md) ===
+# Slide P3 · Obedience is above zero and small: 3/20 native sessions executed a delegation locally with token counts on the receipt; with a spawn-rewrite hook, 4/20 — and the hook reached 8/8 spawns
+
+**Setup:** 20 real prompts the router marks T0/T1; each in a disposable copy of the repo; Claude Code `-p` with the owner's installed hooks on; Ollama behind a loopback counting proxy that records model and token counts per call (the receipt line). Pre-registered, committed before the first session. n = 20 per arm, no significance test.
+
+| | Native session (router hint only) | + PreToolUse hook that rewrites the spawn to the router's tier (never upward) |
+|---|---|---|
+| Sessions that spawned any subagent (95 % CI) | 4/20 · 20 % [8, 42] | 8/20 · 40 % [22, 61] |
+| **Delegation executed locally** (local subagent spawned *and* an Ollama call with token counts in the same session) | **3/20 · 15 % [5, 36]** | **4/20 · 20 % [8, 42]** |
+| Spawns to Haiku / cheap tier | 0/20 | 0/20 |
+| Hook reached / rewrote | — | **8 / 8** (Explore, model-reasoner → local-summarizer) |
+| Ollama tokens on the receipt | 5,389 | 5,420 |
+
+**What the hook can and cannot do:** it rewrote every spawn the model made; it cannot create a spawn — 12/20 sessions never delegated, so it had nothing to act on. The 4 → 8 spawn difference between arms is not attributable to the hook (it does not induce spawns); n = 20, one run per prompt.
+
+**Printed limits:** T1 never happened (no API key on this machine, and a live budget-cap defect pushed 33/40 decisions to T0); the router's decision at spawn time differed between arms on 4 prompts (live hook state); 16/20 sessions show *some* Ollama call, but that includes the hook's own pre-answer and is not obedience.
+
+*Does not prove: quality of delegated work (P7); that the hook enforces anything (it is gated best-effort); a causal effect of the hook on delegation rate; behaviour with an API key; run-to-run stability. Opus probe on 5 prompts: 1/5 executed locally (descriptive only).*
+
+
+=== ANALYSIS (results\analysis.json) ===
+{
+ "at": "2026-09-09T14:48:44.477Z",
+ "arms": {
+  "A-opus": {
+   "n": 5,
+   "exits": "0 0 0 0 1",
+   "recommendations_by_tier": {
+    "T0": 5
+   },
+   "sessions_with_delegation": {
+    "k": 1,
+    "p": 0.2,
+    "lo": 0.03622410822563066,
+    "hi": 0.6244653729700049
+   },
+   "sessions_with_any_ollama_call": {
+    "k": 3,
+    "p": 0.6,
+    "lo": 0.2307242794091186,
+    "hi": 0.8823792268590027,
+    "note": "proxy largo: inclui as chamadas do Option A do hook"
+   },
+   "sessions_with_EXECUTED_local_delegation": {
+    "k": 1,
+    "p": 0.2,
+    "lo": 0.03622410822563066,
+    "hi": 0.6244653729700049,
+    "definicao": "spawn local-summarizer|local-transformer E chamada Ollama com eval_count na mesma sessao (protocolo: executed)"
+   },
+   "ollama_calls_by_model": {
+    "qwen3:30b": {
+     "calls": 3,
+     "with_eval": 3
+    }
+   },
+   "sessions_spawning_local_subagent": 1,
+   "sessions_spawning_cheap_or_haiku": 0,
+   "hook_reached_sessions": 0,
+   "hook_rewrites": 0,
+   "ollama_calls_total": 3,
+   "ollama_tokens": 1046,
+   "usage_mean": {
+    "in": 10.8,
+    "out": 3141.4,
+    "cache_read": 491298.2
+   },
+   "mean_s": 60.5116,
+   "per_prompt": [
+    "n01:T0:0:0:",
+    "n02:T0:0:0:",
+    "n03:T0:0:1:",
+    "n04:T0:0:1:",
+    "n05:T0:1:1:"
+   ]
+  },
+  "A-sonnet": {
+   "n": 20,
+   "exits": "0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0",
+   "recommendations_by_tier": {
+    "T0": 17,
+    "T3": 3
+   },
+   "sessions_with_delegation": {
+    "k": 4,
+    "p": 0.2,
+    "lo": 0.0806576620177607,
+    "hi": 0.41601743409331715
+   },
+   "sessions_with_any_ollama_call": {
+    "k": 16,
+    "p": 0.8,
+    "lo": 0.583982565906683,
+    "hi": 0.9193423379822393,
+    "note": "proxy largo: inclui as chamadas do Option A do hook"
+   },
+   "sessions_with_EXECUTED_local_delegation": {
+    "k": 3,
+    "p": 0.15,
+    "lo": 0.05236874548672649,
+    "hi": 0.36041886664286427,
+    "definicao": "spawn local-summarizer|local-transformer E chamada Ollama com eval_count na mesma sessao (protocolo: executed)"
+   },
+   "ollama_calls_by_model": {
+    "qwen3:30b": {
+     "calls": 15,
+     "with_eval": 15
+    },
+    "qwen2.5:3b": {
+     "calls": 1,
+     "with_eval": 1
+    },
+    "gemma4:e4b": {
+     "calls": 2,
+     "with_eval": 0
+    }
+   },
+   "sessions_spawning_local_subagent": 3,
+   "sessions_spawning_cheap_or_haiku": 0,
+   "hook_reached_sessions": 0,
+   "hook_rewrites": 0,
+   "ollama_calls_total": 18,
+   "ollama_tokens": 5389,
+   "usage_mean": {
+    "in": 9.3,
+    "out": 4092.7,
+    "cache_read": 460839.95
+   },
+   "mean_s": 77.0801,
+   "per_prompt": [
+    "n01:T0:0:0:",
+    "n02:T3:1:0:",
+    "n03:T3:1:1:",
+    "n04:T0:0:1:",
+    "n05:T0:0:1:",
+    "n06:T0:0:1:",
+    "n07:T0:0:1:",
+    "n08:T0:0:0:",
+    "n09:T0:1:1:",
+    "n10:T0:0:1:",
+    "n11:T0:0:1:",
+    "n12:T0:0:1:",
+    "n13:T0:0:1:",
+    "n15:T3:1:1:",
+    "n16:T0:0:1:",
+    "n17:T0:0:1:",
+    "n18:T0:0:1:",
+    "n19:T0:0:0:",
+    "n20:T0:0:1:",
+    "n21:T0:0:1:"
+   ]
+  },
+  "B-sonnet": {
+   "n": 20,
+   "exits": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+   "recommendations_by_tier": {
+    "T0": 16,
+    "T3": 3,
+    "T2": 1
+   },
+   "sessions_with_delegation": {
+    "k": 8,
+    "p": 0.4,
+    "lo": 0.21880653127178018,
+    "hi": 0.6134185007652458
+   },
+   "sessions_with_any_ollama_call": {
+    "k": 16,
+    "p": 0.8,
+    "lo": 0.583982565906683,
+    "hi": 0.9193423379822393,
+    "note": "proxy largo: inclui as chamadas do Option A do hook"
+   },
+   "sessions_with_EXECUTED_local_delegation": {
+    "k": 4,
+    "p": 0.2,
+    "lo": 0.0806576620177607,
+    "hi": 0.41601743409331715,
+    "definicao": "spawn local-summarizer|local-transformer E chamada Ollama com eval_count na mesma sessao (protocolo: executed)"
+   },
+   "ollama_calls_by_model": {
+    "qwen3:30b": {
+     "calls": 15,
+     "with_eval": 15
+    },
+    "qwen2.5:3b": {
+     "calls": 2,
+     "with_eval": 2
+    }
+   },
+   "sessions_spawning_local_subagent": 4,
+   "sessions_spawning_cheap_or_haiku": 0,
+   "hook_reached_sessions": 8,
+   "hook_rewrites": 8,
+   "ollama_calls_total": 17,
+   "ollama_tokens": 5420,
+   "usage_mean": {
+    "in": 7.7,
+    "out": 3342.35,
+    "cache_read": 357651.8
+   },
+   "mean_s": 75.67905,
+   "per_prompt": [
+    "n01:T0:0:0:",
+    "n02:T0:1:0:rewrite->T0/local-summarizer",
+    "n03:T0:1:1:rewrite->T0/local-summarizer",
+    "n04:T3:1:1:rewrite->T0/local-summarizer",
+    "n05:T0:0:1:",
+    "n06:T0:0:1:",
+    "n07:T3:0:1:",
+    "n08:T0:1:0:rewrite->T0/local-summarizer",
+    "n09:T0:1:1:rewrite->T0/local-summarizer",
+    "n10:T0:0:1:",
+    "n11:T2:1:1:rewrite->T0/local-summarizer",
+    "n12:T0:0:1:",
+    "n13:T0:0:1:",
+    "n15:T3:1:1:rewrite->T0/local-summarizer",
+    "n16:T0:1:1:rewrite->T0/local-summarizer",
+    "n17:T0:0:1:",
+    "n18:T0:0:1:",
+    "n19:T0:0:0:",
+    "n20:T0:0:2:",
+    "n21:T0:0:1:"
+   ]
+  }
+ }
+}
+
+=== EXTRA (pretooluse-route.js) ===
+#!/usr/bin/env node
+// pretooluse-route.js — P3, braco B. Um hook PreToolUse (matcher Agent|Task) que
+// REESCREVE o spawn de um subagente conforme a ultima decisao do router
+// (~/.claude/tools/router/last-subagent.json, escrita pelo inject_context.js no
+// UserPromptSubmit). Padrao do tzachbon/claude-model-router-hook (MIT), que faz
+// o mesmo para haiku/opus; aqui o alvo e o TIER do Mooter:
+//
+//   T0 -> subagent_type local-summarizer (Ollama via ollama_call.sh)   model haiku (o invólucro)
+//   T1 -> subagent_type cheap-triage                                    model haiku
+//   T2 -> model sonnet         T3 -> model opus       (subagent_type intacto)
+//
+// Nunca sobe um tier: se a decisao e T0/T1 e o modelo pedido e superior, desce;
+// se a decisao e T2/T3 e o pedido e inferior, DEIXA (P3 mede obediencia para
+// baixo; o guardrail de risco vive no UserPromptSubmit). Um `model` explicito
+// escrito pelo dono no prompt (@opus etc.) e respeitado: o inject_context marca
+// user_override e o hook nao toca.
+//
+// Contrato de hooks: PreToolUse pode devolver hookSpecificOutput.updatedInput
+// (code.claude.com/docs/en/hooks-guide, lido 2026-09-09). Falha aberta: qualquer
+// erro -> sem output -> a chamada segue como estava.
+//
+// Regista cada decisao em $P3_HOOK_LOG (JSONL) para a prova contar o que fez.
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+function main() {
+  let raw = '';
+  try { raw = fs.readFileSync(0, 'utf8'); } catch { return; }
+  let ev; try { ev = JSON.parse(raw); } catch { return; }
+  if (!ev || (ev.tool_name !== 'Agent' && ev.tool_name !== 'Task')) return;
+  const input = ev.tool_input || {};
+  const routerDir = process.env.P3_ROUTER_DIR || path.join(os.homedir(), '.claude', 'tools', 'router');
+  let last = null; try { last = JSON.parse(fs.readFileSync(path.join(routerDir, 'last-subagent.json'), 'utf8')); } catch { /* sem decisao */ }
+  const log = (o) => { const f = process.env.P3_HOOK_LOG; if (!f) return; try { fs.appendFileSync(f, JSON.stringify({ at: new Date().toISOString(), session: ev.session_id, ...o }) + '\n'); } catch { /* */ } };
+  if (!last || !last.tier) { log({ action: 'no-decision', input: { subagent_type: input.subagent_type, model: input.model } }); return; }
+  const ageMs = Date.now() - Number(last.ts || 0);
+  const RANK = { haiku: 1, sonnet: 2, opus: 3, fable: 4 };
+  const asked = String(input.model || '').toLowerCase();
+  const askedRank = RANK[asked] || null;
+  let updated = { ...input }; let action = 'keep';
+  if (last.tier === 'T0') { updated.subagent_type = 'local-summarizer'; updated.model = 'haiku'; action = 'rewrite->T0/local-summarizer'; }
+  else if (last.tier === 'T1') { if (!askedRank || askedRank > 1) { updated.model = 'haiku'; action = 'rewrite->T1/haiku'; } if (!input.subagent_type || /model-architect|model-reasoner|general-purpose/.test(input.subagent_type)) { updated.subagent_type = 'cheap-triage'; action += '+cheap-triage'; } }
+  else if (last.tier === 'T2') { if (askedRank && askedRank > 2) { updated.model = 'sonnet'; action = 'rewrite->T2/sonnet'; } }
+  // T3: nada a descer
+  log({ action, tier: last.tier, decision_age_ms: ageMs, before: { subagent_type: input.subagent_type, model: input.model }, after: { subagent_type: updated.subagent_type, model: updated.model } });
+  if (action === 'keep') return;
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: updated } }));
+}
+try { main(); } catch { /* falha aberta */ }

@@ -17,7 +17,7 @@ export default function TerminalCard({
       style={{
         background: 'var(--color-term-bg)',
         border: '1px solid var(--color-term-border)',
-        borderRadius: 12,
+        borderRadius: 14,
         overflow: 'hidden',
         fontFamily: 'var(--mono)',
         ...style,

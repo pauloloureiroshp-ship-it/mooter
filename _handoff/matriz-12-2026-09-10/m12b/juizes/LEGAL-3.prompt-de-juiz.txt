@@ -1,0 +1,402 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Redige uma clausula de tratamento de dados pessoais conforme a LGPD para um contrato entre a minha empresa (controladora) e um fornecedor de software que vai processar dados dos meus clientes. Preciso que cubra finalidade, prazo de retencao, subcontratacao e o que acontece no fim do contrato.
+---
+
+Este pedido nao esta marcado como de risco.
+
+CANDIDATAS:
+
+<resposta id="R1">
+Segue uma cláusula redigida para inserção direta no contrato, com anexo de escopo. Os campos entre colchetes precisam ser preenchidos por você.
+
+---
+
+# CLÁUSULA [X] — PROTEÇÃO DE DADOS PESSOAIS (LEI Nº 13.709/2018 – LGPD)
+
+## [X].1 Definições e papéis
+
+[X].1.1. Os termos "dado pessoal", "dado pessoal sensível", "titular", "tratamento", "controlador", "operador", "encarregado", "eliminação", "anonimização" e "incidente de segurança" têm o significado atribuído pelo art. 5º da Lei nº 13.709/2018 ("LGPD").
+
+[X].1.2. Para os fins deste Contrato, as Partes reconhecem que a **CONTRATANTE atua como CONTROLADORA** e a **CONTRATADA atua como OPERADORA**, realizando o tratamento de dados pessoais exclusivamente em nome e sob as instruções documentadas da CONTRATANTE.
+
+[X].1.3. A CONTRATADA não poderá, sob nenhuma hipótese, tratar os dados pessoais para finalidades próprias, independentes ou distintas das previstas nesta Cláusula e no Anexo [Y]. Caso o faça, assumirá a condição de controladora em relação a tal tratamento, respondendo integral e exclusivamente pelas consequências, sem prejuízo da caracterização de inadimplemento contratual.
+
+## [X].2 Finalidade e escopo do tratamento
+
+[X].2.1. O tratamento de dados pessoais realizado pela CONTRATADA limita-se ao estritamente necessário à execução dos serviços objeto deste Contrato, quais sejam: **[descrever os serviços, ex.: hospedagem, processamento e disponibilização da plataforma de gestão de pedidos da CONTRATANTE]**.
+
+[X].2.2. As categorias de titulares, as categorias de dados pessoais, as operações de tratamento e a duração de cada operação estão descritas no **Anexo [Y] — Escopo do Tratamento de Dados Pessoais**, que integra este Contrato para todos os fins e somente poderá ser alterado mediante aditivo escrito ou registro formal aceito por ambas as Partes.
+
+[X].2.3. A CONTRATADA observará os princípios do art. 6º da LGPD, em especial os da finalidade, adequação, necessidade e segurança, abstendo-se de coletar ou reter dados além do necessário ao cumprimento do objeto contratual.
+
+[X].2.4. A CONTRATADA informará imediatamente a CONTRATANTE, por escrito, caso entenda que uma instrução recebida viola a LGPD ou demais normas de proteção de dados, podendo suspender a execução da instrução específica até manifestação da CONTRATANTE.
+
+[X].2.5. É vedado à CONTRATADA utilizar os dados pessoais para treinamento de modelos de inteligência artificial, elaboração de perfis, enriquecimento de bases, estatísticas comerciais próprias, benchmarking, comercialização ou compartilhamento com terceiros, salvo autorização prévia, específica e por escrito da CONTRATANTE. **[Se você quiser permitir uso de dados agregados/anonimizados, abra exceção expressa aqui.]**
+
+## [X].3 Obrigações gerais da CONTRATADA
+
+[X].3.1. Adotar medidas de segurança técnicas e administrativas aptas a proteger os dados pessoais, nos termos dos arts. 46 a 49 da LGPD, incluindo, no mínimo: controle de acesso baseado em perfis e no princípio do menor privilégio; autenticação multifator para acessos administrativos; criptografia dos dados em trânsito e em repouso; registro de logs de acesso e de operações, com retenção mínima de [6 (seis)] meses; segregação lógica dos dados da CONTRATANTE em relação aos de outros clientes; rotina de backup e plano de continuidade e recuperação de desastres.
+
+[X].3.2. Manter em sigilo os dados pessoais, submetendo empregados, prepostos e prestadores a obrigações de confidencialidade de mesma extensão, que subsistem após o término do vínculo.
+
+[X].3.3. Manter registro das operações de tratamento realizadas por conta da CONTRATANTE (art. 37 da LGPD) e disponibilizá-lo mediante solicitação.
+
+[X].3.4. Indicar e manter canal de contato de seu encarregado (DPO) ou responsável por proteção de dados, informando à CONTRATANTE qualquer alteração em até [10 (dez)] dias.
+
+[X].3.5. Auxiliar a CONTRATANTE no atendimento a requisições de titulares (art. 18 da LGPD), repassando-lhe qualquer pedido recebido diretamente em até **[2 (dois) dias úteis]**, sem respondê-lo por conta própria, e fornecendo as informações e os meios técnicos necessários (extração, correção, anonimização, portabilidade ou eliminação) em até **[5 (cinco) dias úteis]** do pedido da CONTRATANTE.
+
+[X].3.6. Auxiliar a CONTRATANTE em relatórios de impacto à proteção de dados, respostas à ANPD, a titulares, a órgãos de defesa do consumidor e a autoridades judiciais ou administrativas, prestando as informações sob sua esfera de controle nos prazos por estas fixados.
+
+[X].3.7. Comunicar a CONTRATANTE sobre qualquer incidente de segurança que possa acarretar risco ou dano relevante aos titulares em até **[24 (vinte e quatro) horas]** contadas do conhecimento do fato, informando a natureza dos dados afetados, os titulares envolvidos, as medidas técnicas adotadas, os riscos e as medidas de mitigação. A comunicação à ANPD e aos titulares (art. 48 da LGPD) caberá à CONTRATANTE, que definirá seu conteúdo e oportunidade; a CONTRATADA não fará comunicação pública sobre o incidente sem anuência prévia e escrita da CONTRATANTE, ressalvadas obrigações legais próprias.
+
+[X].3.8. Permitir e colaborar com auditorias de conformidade, realizadas pela CONTRATANTE ou por terceiro independente por ela indicado e sujeito a confidencialidade, mediante aviso prévio de **[15 (quinze) dias]**, em horário comercial, no limite de **[1 (uma)] auditoria por ano**, sem prejuízo de auditorias adicionais em caso de incidente de segurança ou de determinação de autoridade. Alternativamente, e mediante aceitação da CONTRATANTE, a CONTRATADA poderá apresentar relatórios de certificação vigentes (ex.: ISO/IEC 27001, SOC 2 Tipo II).
+
+## [X].4 Transferência internacional
+
+[X].4.1. A CONTRATADA somente poderá transferir ou permitir o acesso a dados pessoais fora do território nacional mediante autorização prévia e escrita da CONTRATANTE e desde que observada uma das hipóteses do art. 33 da LGPD, mantendo documentação do fundamento adotado.
+
+[X].4.2. Os países ou regiões de armazenamento e processamento atualmente autorizados estão listados no Anexo [Y]. Qualquer alteração observará o procedimento da subcláusula [X].5.
+
+## [X].5 Subcontratação (suboperadores)
+
+[X].5.1. A CONTRATADA **não poderá subcontratar**, no todo ou em parte, o tratamento de dados pessoais objeto deste Contrato sem **autorização prévia e por escrito da CONTRATANTE**.
+
+[X].5.2. Os suboperadores atualmente autorizados, com respectiva finalidade, localização e categorias de dados acessadas, constam do Anexo [Y].
+
+[X].5.3. A CONTRATADA comunicará à CONTRATANTE, com antecedência mínima de **[30 (trinta) dias]**, a pretensão de incluir ou substituir suboperador. A CONTRATANTE poderá opor-se de forma fundamentada dentro desse prazo; havendo oposição, a CONTRATADA manterá a prestação por meio do suboperador anterior ou por meios próprios e, não sendo isso viável, a CONTRATANTE poderá rescindir o Contrato ou a parcela afetada dos serviços, sem multa, ônus ou penalidade, mediante notificação escrita.
+
+[X].5.4. A CONTRATADA celebrará com cada suboperador contrato escrito que imponha obrigações de proteção de dados **no mínimo equivalentes** às previstas nesta Cláusula, e apresentará cópia ou extrato das cláusulas pertinentes quando solicitado.
+
+[X].5.5. A CONTRATADA **permanece integralmente responsável perante a CONTRATANTE** pelos atos e omissões de seus suboperadores, como se por ela próprios praticados.
+
+## [X].6 Prazo de retenção
+
+[X].6.1. Os dados pessoais serão mantidos pela CONTRATADA **apenas pelo tempo necessário ao cumprimento das finalidades descritas na subcláusula [X].2**, limitado à vigência deste Contrato, ressalvado o disposto nas subcláusulas seguintes.
+
+[X].6.2. Os prazos específicos de retenção por categoria de dado, quando aplicáveis, constam do Anexo [Y]. Na ausência de prazo específico, aplica-se o prazo geral de vigência contratual.
+
+[X].6.3. Registros de logs de acesso e de auditoria serão retidos pelo prazo de **[6 (seis) meses]**, ou por prazo superior determinado em lei ou por autoridade competente.
+
+[X].6.4. Cópias de segurança (backups) que contenham dados pessoais serão retidas conforme o ciclo de retenção de **[XX dias]** e sobrescritas ou eliminadas ao final desse ciclo, permanecendo sujeitas a esta Cláusula enquanto existirem.
+
+[X].6.5. A CONTRATADA excluirá ou anonimizará, de ofício, os dados pessoais que se tornarem desnecessários ao cumprimento da finalidade, na forma do art. 15 da LGPD, sem prejuízo do dever de informar previamente a CONTRATANTE quando a exclusão puder afetar a prestação dos serviços.
+
+## [X].7 Término do Contrato
+
+[X].7.1. Encerrado o Contrato, por qualquer motivo, a CONTRATADA, **conforme opção manifestada por escrito pela CONTRATANTE em até [30 (trinta)] dias do término**:
+
+&nbsp;&nbsp;&nbsp;&nbsp;**(i)** devolverá a integralidade dos dados pessoais em formato estruturado, de uso comum e leitura automática (ex.: **[CSV, JSON ou dump SQL]**), por meio seguro e cifrado; e/ou
+
+&nbsp;&nbsp;&nbsp;&nbsp;**(ii)** eliminará definitivamente os dados pessoais e suas cópias, inclusive as existentes em ambientes de suboperadores, backups, ambientes de homologação, teste e desenvolvimento.
+
+[X].7.2. Não havendo manifestação da CONTRATANTE no prazo da subcláusula [X].7.1, a CONTRATADA notificará a CONTRATANTE e, persistindo o silêncio por mais **[15 (quinze)] dias**, procederá à eliminação dos dados.
+
+[X].7.3. A eliminação será concluída em até **[30 (trinta)] dias** contados da opção da CONTRATANTE ou do decurso do prazo da subcláusula [X].7.2, exceto quanto aos backups, cuja eliminação ocorrerá ao término do ciclo de retenção previsto na subcláusula [X].6.4, período durante o qual permanecerão cifrados, inacessíveis para uso operacional e sujeitos a todas as obrigações desta Cláusula.
+
+[X].7.4. Concluída a eliminação, a CONTRATADA entregará à CONTRATANTE, em até **[10 (dez)] dias**, **declaração formal de eliminação** assinada por representante legal, identificando os ambientes e sistemas alcançados, inclusive os de suboperadores.
+
+[X].7.5. **Exceção legal.** A CONTRATADA poderá conservar dados pessoais estritamente na medida e pelo prazo exigidos para cumprimento de obrigação legal ou regulatória, ou para exercício regular de direitos em processo judicial, administrativo ou arbitral (art. 16 da LGPD), hipótese em que: (a) informará à CONTRATANTE, por escrito, a base legal, as categorias de dados retidas e o prazo de retenção; (b) restringirá o tratamento à exclusiva finalidade que justificou a conservação; e (c) eliminará os dados imediatamente após a cessação dessa finalidade, aplicando-se o disposto na subcláusula [X].7.4.
+
+[X].7.6. A CONTRATADA não poderá reter dados pessoais como forma de garantia, retenção ou meio de coerção para satisfação de créditos contratuais controvertidos ou por qualquer outro motivo não previsto na subcláusula [X].7.5.
+
+[X].7.7. **Período de transição.** Mediante solicitação da CONTRATANTE, a CONTRATADA manterá acesso aos dados e prestará suporte à migração por até **[60 (sessenta)] dias** após o término, mediante remuneração **[nas condições vigentes / conforme tabela do Anexo Z]**, permanecendo integralmente aplicável esta Cláusula durante o período.
+
+## [X].8 Responsabilidade
+
+[X].8.1. A CONTRATADA responderá pelos danos decorrentes do tratamento de dados pessoais quando descumprir as obrigações desta Cláusula, da LGPD ou das instruções lícitas da CONTRATANTE, nos termos do art. 42 e seguintes da LGPD.
+
+[X].8.2. A CONTRATADA ressarcirá a CONTRATANTE dos valores por esta despendidos a título de indenização a titulares, multas administrativas aplicadas pela ANPD ou por outras autoridades, custas e honorários, na proporção de sua culpa ou contribuição para o evento danoso, assegurados o contraditório e a comunicação prévia sobre a demanda, bem como a possibilidade de participação na defesa.
+
+[X].8.3. **[Opcional]** As obrigações desta Cláusula **não se sujeitam ao limite de responsabilidade** previsto na Cláusula [W] deste Contrato. **[Alternativa: sujeitam-se a limite específico e majorado de R$ XX.]**
+
+## [X].9 Disposições finais
+
+[X].9.1. As obrigações previstas nas subcláusulas [X].3.2 (sigilo), [X].6 (retenção), [X].7 (término) e [X].8 (responsabilidade) **sobrevivem ao término deste Contrato**, pelos prazos nelas indicados ou, na ausência de prazo, enquanto a CONTRATADA detiver dados pessoais da CONTRATANTE ou perdurar a responsabilidade legal correspondente.
+
+[X].9.2. Em caso de conflito entre esta Cláusula e as demais disposições contratuais quanto ao tratamento de dados pessoais, **prevalece esta Cláusula**.
+
+[X].9.3. Alterações legislativas ou regulamentares supervenientes, inclusive regulamentos da ANPD, serão incorporadas mediante aditivo, comprometendo-se as Partes a negociá-lo de boa-fé em até **[30 (trinta)] dias** da provocação de qualquer delas.
+
+---
+
+# ANEXO [Y] — ESCOPO DO TRATAMENTO DE DADOS PESSOAIS
+
+| Item | Descrição |
+|---|---|
+| **Finalidade específica** | [ex.: hospedagem e processamento de pedidos e cadastro de clientes da CONTRATANTE] |
+| **Categorias de titulares** | [ex.: clientes pessoa física da CONTRATANTE; representantes de clientes PJ] |
+| **Categorias de dados pessoais** | [ex.: nome, CPF, e-mail, telefone, endereço, histórico de compras, dados de pagamento] |
+| **Dados sensíveis** | [Não há / especificar — se houver, exigir controles reforçados] |
+| **Dados de crianças e adolescentes** | [Não há / especificar] |
+| **Operações realizadas** | [coleta, armazenamento, processamento, indexação, backup, eliminação] |
+| **Duração do tratamento** | Vigência do Contrato + prazos das subcláusulas [X].6 e [X].7 |
+| **Prazos específicos de retenção** | [categoria → prazo] |
+| **Local de armazenamento** | [país / região / provedor de nuvem] |
+| **Suboperadores autorizados** | [nome, CNPJ/jurisdição, finalidade, dados acessados, localização] |
+
+---
+
+## Pontos que exigem decisão sua antes de fechar
+
+1. **Limite de responsabilidade (X.8.3).** É o ponto que o fornecedor mais tentará negociar. Excluir LGPD do cap é a posição forte; um cap majorado (ex.: 3x o valor anual) costuma ser o meio-termo aceito.
+2. **Suboperadores (X.5.3).** O modelo acima usa autorização com direito de oposição. Se o fornecedor for uma SaaS grande, ele provavelmente só aceitará "lista pública + notificação". Nesse caso, mantenha ao menos o direito de rescisão sem multa.
+3. **Prazo de notificação de incidente (X.3.7).** 24h é agressivo; 48h ou 72h é o mais comum. Não aceite "prazo razoável".
+4. **Backups (X.6.4 e X.7.3).** Confirme o ciclo real do fornecedor antes de preencher — se ele mantém backups por 12 meses, o prazo de 30 dias da X.7.3 será descumprido já na assinatura.
+5. **Uso para treinamento de IA (X.2.5).** Se o software tem funcionalidades de IA, essa vedação provavelmente será objeto de negociação. Decida se aceita exceção para dados anonimizados.
+
+Recomendo revisão por advogado com prática em proteção de dados antes da assinatura, sobretudo quanto à interação desta cláusula com o limite de responsabilidade e as hipóteses de rescisão já existentes no seu contrato.
+</resposta>
+
+<resposta id="R2">
+Okay, the user needs a GDPR-compliant data processing clause for a contract between their company (as controller) and a software vendor. Wait, they mentioned LGPD, not GDPR. LGPD is Brazil's data protection law, similar to GDPR but specific to Brazil.
+
+First, I need to make sure the clause covers the required elements: purpose, retention period, subcontracting, and what happens at contract end. Let me recall LGPD's key points. LGPD requires that data processing is for a specific purpose, data minimization, security measures, and the processor must comply with the controller's instructions.
+
+Purpose: The clause should state that the vendor processes data only for the agreed services, like managing customer interactions. Must mention compliance with LGPD.
+
+Retention period: Need to specify how long data is kept, maybe until the contract ends plus any legal retention periods. But the user said "prazo de retencao," so I should include that the data is retained only as necessary for the purpose and in line with legal requirements.
+
+Subcontracting: LGPD requires the controller's prior written consent for subcontracting. So the clause must state that the vendor can't subcontract without the controller's approval and must ensure the sub-processor complies with LGPD.
+
+End of contract: Data must be returned or deleted. The vendor should delete or return all data upon termination, and provide a certificate of deletion.
+
+Wait, the user is in Portugal, but LGPD is Brazil's law. Wait, the user wrote "LGPD" which is Brazil's law, but they're asking for PT-PT. Maybe they're a Portuguese company operating in Brazil? Or maybe they confused GDPR with LGPD. But the question specifies LGPD, so I'll stick to that.
+
+Check if the clause should mention the specific data types, but the user didn't specify, so keep it general.
+
+Make sure the clause is concise, as per the user's request for short answers. They want a clause, not a whole contract. So just the clause text.
+
+Avoid any markdown, just plain text. Use English terms for the clause since legal terms are usually in English in such contexts, but the response should be in PT-PT. Wait, the user said "Respostas curtas e directas — nunca mais de 3 frases para perguntas simples. Não uses preâmbulo. Não repitas o que o user perguntou." So the answer should be the clause in Portuguese, but the clause itself would have legal terms in English? Wait, no, the clause should be written in Portuguese, but legal terms might be in English. Wait, the user is in Portugal, so the contract would be in Portuguese. But the clause needs to be in Portuguese.
+
+Wait, the user said "Redige uma clausula... em PT-PT". So the clause should be in Portuguese. But legal terms in contracts are often in the language of the jurisdiction. Since it's LGPD, which is Brazil's law, but the user is in Portugal. Hmm, but they specified PT-PT, so the clause should be in Portuguese (Portugal).
+
+Wait, but LGPD is Brazil's law, so the clause should reference LGPD, but the language of the contract is Portuguese (Portugal). So the clause would be written in Portuguese, using terms like "LGPD" and "controladora".
+
+Let me structure the clause:
+
+- Finalidade: Processamento dos dados apenas para os serviços contratados, em conformidade com a LGPD.
+
+- Prazo de retenção: Dados retidos apenas pelo tempo necessário para cumprir a finalidade e as obrigações legais, cessando após término do contrato.
+
+- Subcontratação: Subcontratação apenas com prévia autorização por escrito da controladora, com garantia de conformidade com a LGPD.
+
+- Fim do contrato: Devolução ou eliminação dos dados, com certificado de exclusão.
+
+Check if that covers all points. Need to make sure it's a clause, so maybe phrased as a sentence.
+
+Wait, the user wants a clause, so it should be a paragraph. Let me check standard clauses.
+
+In LGPD, the processor must process data only as per controller's instructions, so the clause should state that the vendor processes data only for the agreed purpose, as per the controller's instructions.
+
+Also, retention period: must not retain longer than necessary. So the clause should say data is retained only for the duration of the contract plus any legal retention periods, but the user didn't specify legal periods, so maybe just "até o término do contrato ou conforme exigido por lei".
+
+Subcontracting: must have prior written consent. So the clause should state that subcontracting requires prior written consent from the controller, and the sub-processor must comply with LGPD.
+
+End of contract: data must be returned or deleted, and the vendor must provide a certificate of deletion.
+
+Putting it all together in Portuguese, concise.
+
+Let me draft:
+
+"O fornecedor processará os dados pessoais exclusivamente para os fins contratados, em conformidade com a LGPD, e manterá os dados apenas pelo período necessário para cumprir a finalidade e as obrigações legais. Subcontratação só será permitida com prévia autorização por escrito da controladora, garantindo que o subfornecedor cumpra a LGPD. Ao término do contrato, os dados serão devolvidos ou eliminados, com certificação da exclusão."
+
+Check if that's under three sentences. Let's count:
+
+1. O fornecedor processará... (first sentence)
+2. Subcontratação só será permitida... (second sentence)
+3. Ao término do contrato... (third sentence)
+
+Yes, three sentences. Covers purpose, retention (implied in "apenas pelo período necessário"), subcontracting, and end of contract. Retention period is mentioned as "pelo período necessário para cumprir a finalidade e as obrigações legais", which covers the retention period. The user asked for "prazo de retencao", so this should be okay.
+
+Check if "obrigações legais" refers to legal retention periods, which is standard.
+
+Also, "certificação da exclusão" is the certificate of deletion.
+
+Looks good. Make sure it's in PT-PT. Words like "fornecedor", "controladora", "LGPD" are correct.
+
+Yes, this should meet the user's requirements.
+</think>
+
+O fornecedor processará dados exclusivamente para os fins contratados, em conformidade com a LGPD, mantendo-os apenas pelo período necessário e conforme obrigações legais. Subcontratação exige autorização prévia por escrito da controladora, com garantia de compliance LGPD pelo subfornecedor. Ao término do contrato, dados serão eliminados ou devolvidos, com certificação da exclusão.
+</resposta>
+
+<resposta id="R3">
+Vou consultar o texto oficial da LGPD para fundamentar a cláusula e deixar os campos que dependem do contrato por preencher.
+
+Segue uma minuta para adaptar ao serviço e aos dados envolvidos. **Os prazos de 30 e 90 dias são propostas contratuais, não prazos impostos pela LGPD.** Preenche os campos entre parênteses retos antes de assinar.
+
+**CLÁUSULA [X] — TRATAMENTO DE DADOS PESSOAIS**
+
+**1. Objeto e finalidade.** Para o tratamento dos dados pessoais dos clientes da CONTRATANTE abrangidos por este contrato, a CONTRATANTE atuará como **CONTROLADORA** e a CONTRATADA como **OPERADORA**. A OPERADORA tratará exclusivamente os dados pessoais [identificar categorias de dados], para [descrever a finalidade específica e as operações necessárias ao serviço], em conformidade com a Lei n.º 13.709/2018 — LGPD e com as instruções lícitas e documentadas da CONTROLADORA. Ficam proibidos a comercialização, o uso para publicidade própria, o treino de modelos de inteligência artificial e qualquer utilização para finalidade própria ou distinta da contratada.
+
+**2. Instruções e proteção.** Compete à CONTROLADORA definir e documentar as finalidades e bases legais aplicáveis. A OPERADORA comunicará prontamente qualquer instrução que considere contrária à legislação e adotará medidas técnicas e administrativas adequadas ao risco, assegurando acesso restrito a pessoas autorizadas e vinculadas ao dever de confidencialidade. Prestará assistência à CONTROLADORA no atendimento aos titulares e na demonstração do cumprimento desta cláusula.
+
+**3. Retenção.** Os dados serão conservados apenas durante o período necessário à finalidade contratada, observado o prazo de [indicar prazo ou critério objetivo por categoria de dados], nunca além da vigência contratual, salvo para os procedimentos de encerramento previstos abaixo ou para conservação legalmente exigida. A mera disponibilidade técnica de armazenamento não justificará a retenção.
+
+**4. Subcontratação.** A contratação ou substituição de terceiros que tratem estes dados, incluindo fornecedores de alojamento e infraestrutura, dependerá de autorização prévia e escrita da CONTROLADORA. O pedido identificará o suboperador, as atividades, os dados envolvidos e os países de tratamento. A OPERADORA imporá ao suboperador obrigações de proteção, confidencialidade, retenção e eliminação equivalentes às aqui previstas e permanecerá contratualmente responsável perante a CONTROLADORA pelo cumprimento dessas obrigações. Transferências internacionais dependerão também do atendimento aos requisitos legais aplicáveis.
+
+**5. Encerramento.** Com o término do contrato, por qualquer motivo, ou mediante instrução lícita de eliminação, a OPERADORA cessará o tratamento operacional. A CONTROLADORA poderá optar pela devolução dos dados seguida de eliminação, ou pela eliminação direta. A devolução ocorrerá em até **30 dias**, em formato estruturado, de uso corrente e legível por máquina, por canal seguro. A eliminação dos sistemas ativos ocorrerá no mesmo prazo ou, havendo devolução, até **30 dias após a confirmação da sua receção**.
+
+**6. Cópias e exceções.** As cópias de segurança serão eliminadas no prazo máximo de **90 dias após o encerramento**, permanecendo entretanto segregadas e sem utilização operacional. Se houver restauração para recuperação de desastre, a eliminação será reaplicada. Quando uma obrigação legal ou regulatória exigir conservação, a OPERADORA informará por escrito a CONTROLADORA sobre o fundamento, as categorias de dados e o prazo aplicável, salvo proibição legal. Esses dados terão acesso restrito, serão usados exclusivamente para cumprir tal obrigação e eliminados quando esta cessar.
+
+**7. Comprovação e continuidade.** A OPERADORA assegurará que os suboperadores cumpram os procedimentos de encerramento e entregará declaração escrita de eliminação, identificando eventuais dados ainda conservados e a data prevista para a sua eliminação. Os deveres de proteção e confidencialidade subsistirão enquanto qualquer dado pessoal permanecer sob a sua responsabilidade.
+
+A minuta apoia-se nos princípios e nas regras sobre término do tratamento, instruções ao operador e segurança dos artigos 6.º, 15.º, 16.º, 39.º e 46.º–47.º da [LGPD](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm). A adequação final depende, sobretudo, das categorias de dados, da finalidade concreta e das obrigações de conservação aplicáveis à tua atividade.
+</resposta>
+
+<resposta id="R4">
+# Cláusula de Tratamento de Dados Pessoais - LGPD
+
+## 1. DEFINIÇÕES E PAPÉIS
+
+1.1. A **CONTRATANTE** é a controladora de dados pessoais, responsável pela determinação das finalidades e meios de tratamento.
+
+1.2. A **CONTRATADA** é a processadora de dados, responsável pelo tratamento de dados pessoais em nome e sob as instruções da CONTRATANTE.
+
+1.3. "Dados Pessoais" significa qualquer informação de pessoa natural identificada ou identificável, conforme definido na LGPD.
+
+---
+
+## 2. FINALIDADE E ESCOPO DO TRATAMENTO
+
+2.1. A CONTRATADA processará os Dados Pessoais exclusivamente para as seguintes finalidades:
+- [Especificar: ex. provisão dos serviços de software contratados, análise de performance, suporte técnico]
+
+2.2. A CONTRATADA não pode utilizar os Dados Pessoais para finalidades diferentes das estabelecidas nesta cláusula sem prévia autorização escrita da CONTRATANTE.
+
+2.3. Toda instrução de tratamento deve ser documentada e comunicada previamente. Tratamentos não autorizados constituem violação contratual grave.
+
+---
+
+## 3. PRAZO DE RETENÇÃO DE DADOS
+
+3.1. A CONTRATADA manterá os Dados Pessoais pelo período necessário para cumprir as finalidades definidas na seção 2, não podendo exceder **[inserir prazo específico, ex.: 24 meses a partir do término do contrato]**.
+
+3.2. Após expirado o prazo, a CONTRATADA deverá:
+- **Eliminar completamente** os Dados Pessoais, ou
+- **Devolver** todos os dados à CONTRATANTE, conforme instrução desta
+
+3.3. Exceções legais (obrigações tributárias, processuais ou regulatórias) serão comunicadas por escrito à CONTRATANTE, com indicação do prazo legal obrigatório.
+
+---
+
+## 4. SUBCONTRATAÇÃO
+
+4.1. A CONTRATADA não poderá subcontratar o processamento de Dados Pessoais a terceiros sem **consentimento prévio, expresso e escrito** da CONTRATANTE.
+
+4.2. Caso autorizada a subcontratação, a CONTRATADA:
+- a) Permanece **integralmente responsável** perante a CONTRATANTE por qualquer falha do subcontratado;
+- b) Deve celebrar contrato escrito com o subcontratado contendo obrigações equivalentes às desta cláusula;
+- c) Fornecerá lista atualizada de subcontratados à CONTRATANTE;
+- d) Notificará qualquer alteração (inclusão ou exclusão) com **15 dias de antecedência**.
+
+4.3. A CONTRATANTE tem o direito de rejeitar ou solicitar a substituição de subcontratados que violem requisitos de segurança ou conformidade com a LGPD.
+
+---
+
+## 5. TÉRMINO DO CONTRATO E DEVOLUÇÃO/ELIMINAÇÃO DE DADOS
+
+5.1. Ao término deste contrato, por qualquer motivo, a CONTRATADA deverá, no prazo de **[inserir prazo, ex.: 30 dias]**:
+
+**a) Opção 1 - Devolução:**
+- Devolver todos os Dados Pessoais em formato estruturado, legível e de uso comum;
+- Garantir a integridade e confidencialidade durante a transferência;
+- Fornecer certificado comprovando a devolução completa.
+
+**OU**
+
+**b) Opção 2 - Eliminação:**
+- Eliminar permanentemente e irreversivelmente todos os Dados Pessoais;
+- Não manter cópias, registros ou backups, salvo se exigido por lei;
+- Fornecer declaração escrita comprovando a eliminação.
+
+5.2. A escolha entre devolução ou eliminação será da **exclusiva decisão da CONTRATANTE**, comunicada por escrito.
+
+5.3. A CONTRATADA não poderá utilizar os Dados Pessoais após o término, mesmo durante período de aviso prévio ou transição.
+
+---
+
+## 6. OBRIGAÇÕES COMPLEMENTARES
+
+6.1. **Segurança:** A CONTRATADA implementará medidas técnicas e organizacionais apropriadas para proteger os Dados Pessoais contra acessos não autorizados, alterações, destruição ou vazamento.
+
+6.2. **Auditorias:** A CONTRATANTE pode, sem aviso prévio, auditar os sistemas da CONTRATADA para verificar conformidade com esta cláusula.
+
+6.3. **Notificação de Incidentes:** A CONTRATADA notificará imediatamente (não superior a 24 horas) qualquer incidente de segurança ou vazamento de Dados Pessoais.
+
+6.4. **Confidencialidade:** Todos os funcionários da CONTRATADA acessando Dados Pessoais devem estar vinculados por obrigação de confidencialidade.
+
+---
+
+## 7. RESPONSABILIDADE
+
+7.1. A CONTRATADA é responsável por danos decorrentes de:
+- Violação das obrigações desta cláusula;
+- Processamento não autorizado de Dados Pessoais;
+- Falhas em cumprir instruções da CONTRATANTE.
+
+7.2. A CONTRATANTE pode rescindir este contrato imediatamente em caso de violação grave das obrigações de proteção de dados, sem prejuízo de direitos adicionais.
+
+---
+
+**Observações importantes:**
+
+- Preencha os trechos em **[colchetes]** com informações específicas do seu caso
+- Considere revisar esta cláusula com um advogado especializado em LGPD
+- Adapte conforme seu modelo de negócio (dados de clientes, funcionários, etc.)
+- Tenha documentação comprovando instruções ao processador
+
+Precisa ajustar algo nesta redação?
+</resposta>
+
+<resposta id="R5">
+**Clausula de Tratamento de Dados Pessoais**
+
+**Artigo 1: Finalidade do Tratamento**
+
+O Fornecedor de Software concorda em processar os Dados Pessoais dos Clientes exclusivamente para as finalidades específicas e legítimas estabelecidas no presente contrato, incluindo mas não se limitando a fornecer, manter, atualizar e eliminar os Dados Pessoais conforme solicitado pela Controladora.
+
+**Artigo 2: Prazo de Retenção**
+
+O Fornecedor de Software manterá os Dados Pessoais dos Clientes por um período não superior a [prazo específico], a contar da data da última vez que a Controladora solicitou o processamento desses dados. Após o término deste prazo, o Fornecedor de Software eliminará os Dados Pessoais dos Clientes, exceto quando necessário para cumprir obrigações legais ou regulamentares.
+
+**Artigo 3: Subcontratação**
+
+O Fornecedor de Software não subcontratará o processamento dos Dados Pessoais dos Clientes sem o consentimento prévio e por escrito da Controladora. Qualquer subcontratante adicional deverá estar sujeito aos mesmos termos e condições de tratamento de dados previstos neste contrato e deverá ser obrigado a cumprir as obrigações de segurança e confidencialidade estabelecidas pela LGPD.
+
+**Artigo 4: Fim do Contrato**
+
+No caso de rescisão, término ou expiração deste contrato, o Fornecedor de Software compromete-se a retornar ou eliminar todos os Dados Pessoais dos Clientes sob sua posse ou controle, a menos que a LGPD ou outras leis aplicáveis exijam o armazenamento dos dados por um período mais longo. O Fornecedor de Software também compromete-se a informar a Controladora sobre a eliminação ou devolução dos Dados Pessoais.
+
+**Artigo 5: Responsabilidade**
+
+O Fornecedor de Software será responsável por qualquer violação da LGPD decorrente do processamento dos Dados Pessoais dos Clientes, incluindo mas não se limitando a incidentes de segurança que resultem na exposição, alteração, destruição ou acesso não autorizado aos Dados Pessoais.
+
+**Artigo 6: Disposições Gerais**
+
+Esta cláusula de tratamento de dados pessoais substitui quaisquer acordos anteriores entre as partes relacionados ao processamento de Dados Pessoais dos Clientes e constitui a totalidade do acordo entre as partes sobre o assunto. Qualquer modificação ou adição a esta cláusula deve ser feita por escrito e assinada por ambas as partes.
+
+**Assinaturas:**
+
+_________________________  
+[Nome da Controladora]  
+[Data]
+
+_________________________  
+[Nome do Fornecedor de Software]  
+[Data]
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

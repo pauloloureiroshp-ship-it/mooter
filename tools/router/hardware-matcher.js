@@ -17,6 +17,8 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { spawnSync } = require('child_process');
+const capModelo = require('./capacidades-modelo');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const INTEL_PATH = path.join(__dirname, 'model-intelligence.json');
@@ -57,7 +59,21 @@ function run() {
   }
 
   // What's installed on Ollama?
-  const installed = (hw && hw.available_ollama_models || []).map(m => m.name || m);
+  // `hw.available_ollama_models` NUNCA e escrito por ninguem — o gpu-probe grava
+  // `t0_models_available` (tabela estatica de VRAM), nao a lista do disco. Enquanto
+  // isto foi a unica fonte, `installed` era falso para tudo. Passa a perguntar ao
+  // Ollama, como o check-local-models.js e o catalogo-local.js ja faziam; a lista
+  // do hw-capability fica como fallback. Medido 2026-08-29.
+  function ollamaInstalled() {
+    try {
+      const r = spawnSync('ollama', ['list'], { encoding: 'utf8', timeout: 5000 });
+      if (r.status !== 0 || !r.stdout) return null;
+      return r.stdout.split('\n').slice(1)
+        .map(l => l.trim().split(/\s+/)[0]).filter(Boolean);
+    } catch { return null; }
+  }
+  const installed = ollamaInstalled()
+    || (hw && hw.available_ollama_models || []).map(m => m.name || m);
 
   // What does the tier recommend?
   const recommended = tierConfig.recommended_models;
@@ -72,18 +88,38 @@ function run() {
   for (const [subtier, modelName] of Object.entries(recommended)) {
     const modelDef = intel.models.local[modelName];
     if (modelDef) {
-      const avgQuality = Object.values(modelDef.quality).reduce((a, b) => a + b, 0) / Object.values(modelDef.quality).length;
+      // `quality` pode ser null: um modelo entra no catalogo antes de ter notas
+      // medidas. Sem esta guarda o unico jeito de o registar era inventar as notas
+      // — e "numero nao medido = n/d, nunca inventado" e regra do projecto.
+      const q = modelDef.quality && typeof modelDef.quality === 'object'
+        ? Object.values(modelDef.quality) : [];
+      const avgQuality = q.length ? q.reduce((a, b) => a + b, 0) / q.length : null;
+      // O que este modelo sabe fazer, MEDIDO. O catálogo declarava `tools` para
+      // o `qwen2.5-coder:14b` e a medição de 2026-08-29 mostrou 0 chamadas em
+      // 20 tarefas que as exigiam. Uma recomendação que não diz isto manda
+      // trabalho agêntico para um modelo que não o consegue fazer.
+      const tools = capModelo.verificaTools(capModelo.capacidadesDe(modelName));
+      const json = capModelo.verificaJson(capModelo.capacidadesDe(modelName));
       subtierAssessment[subtier] = {
         model: modelName,
         installed: installed.includes(modelName),
-        avg_quality: Math.round(avgQuality * 10) / 10,
+        avg_quality: avgQuality === null ? null : Math.round(avgQuality * 10) / 10,
         vram_mb: modelDef.vram_required_mb,
         strengths: modelDef.strengths,
+        tool_calling: tools.estado,
+        tool_calling_porque: tools.porque,
+        json_schema: json.estado,
       };
     }
   }
 
+  const desmentidas = capModelo.declaracoesDesmentidas();
+
   const result = {
+    // Onde o catálogo DECLARA uma capacidade que a medição desmente. Vazio é a
+    // resposta boa; não-vazio é um catálogo a mentir, e isso tem de ser visível
+    // sem ninguém ter de ir procurar.
+    declaracoes_desmentidas: desmentidas,
     hardware: {
       tier: hwTier,
       label: tierConfig.label,
@@ -124,7 +160,10 @@ function run() {
     for (const [subtier, detail] of Object.entries(subtierAssessment)) {
       const status = detail.installed ? '✅' : '❌';
       const vramGb = (detail.vram_mb / 1024).toFixed(1);
-      lines.push(`  ${status} ${subtier.padEnd(8)} → ${detail.model.padEnd(28)} (${vramGb}GB, quality: ${detail.avg_quality}/10)`);
+      const qLabel = detail.avg_quality === null ? 'quality: n/d' : `quality: ${detail.avg_quality}/10`;
+      const tMark = detail.tool_calling === 'cumpre' ? 'tools ✅' : detail.tool_calling === 'nao-cumpre' ? 'tools ❌' : 'tools n/d';
+      lines.push(`  ${status} ${subtier.padEnd(8)} → ${detail.model.padEnd(28)} (${vramGb}GB, ${qLabel}, ${tMark})`);
+      if (detail.tool_calling === 'nao-cumpre') lines.push(`       ⚠️  ${detail.tool_calling_porque}`);
     }
 
     lines.push('');

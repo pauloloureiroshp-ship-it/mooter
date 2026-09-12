@@ -1,0 +1,170 @@
+You are labeling software-task prompts for a routing benchmark. Assign each prompt EXACTLY ONE tier using this ladder (the same definitions the benchmark labels use):
+
+T0 = trivial, mechanical, one file, no risk (rename, format, move, change a colour, a short factual question, coordination chat like "tell me when done")
+T1 = small text or short explanation (commit message, docstring, regex, explain an error, a small transform, a summary)
+T2 = reasoning (investigate a bug, compare approaches, technical plan, decompose a feature, run and interpret an experiment)
+T3 = architecture, multi-file change, production, secrets, CI, migrations, release, deploy, merge, push
+
+Conventions that the labels use (do not guess them; they are here):
+- high risk forces T3: deploy, push, merge, release, migrations, secrets, .env, CI
+- an explicit request for more care ("pensa bem", "e critico", "think hard", "preciso do teu melhor") raises one tier
+- naming a model (@opus, @haiku, "usa o sonnet") pins the tier of that model (haiku=T1, sonnet=T2, opus=T3)
+- touching more than 3 files, or deciding architecture, is T3
+- a prompt that asks an agent to run a failing test file and make it pass without touching frozen files is a code change: T2 unless it clearly spans many files or CI (then T3)
+- prompts are in Portuguese or English; some are conversational coordination with an agent ("avisa quando terminar") - label those by what the agent would have to DO next (usually T0 if nothing, T1/T2 if it implies analysis)
+
+Return ONLY JSON matching the schema: an array of {"id","tier","reason"} with a reason of at most 12 words. Label every id. Do not skip any.
+
+PROMPTS:
+--- id: r13
+No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/alignment.test.mjs` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd . && node --test tools/cockpit/runner/alignment.test.mjs
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r14
+No repositório em que estás, o ficheiro de teste `packages/slack-spike/cartao.test.js` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd ./packages/slack-spike && node --test cartao.test.js
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r15
+No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd . && node --test tools/cockpit/runner/runner-core.test.mjs
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r16
+No repositório em que estás, o ficheiro de teste `packages/slack-spike/ensaio.test.js` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd ./packages/slack-spike && node --test ensaio.test.js
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r17
+No repositório em que estás, o ficheiro de teste `packages/slack-spike/ensaio.test.js` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd ./packages/slack-spike && node --test ensaio.test.js
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r18
+No repositório em que estás, o ficheiro de teste `packages/slack-spike/despacho.test.js` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd ./packages/slack-spike && node --test despacho.test.js
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r19
+No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd . && node --test tools/cockpit/runner/runner-core.test.mjs
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r20
+No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd . && node --test tools/cockpit/runner/runner-core.test.mjs
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r21
+No repositório em que estás, o ficheiro de teste `design/tools/moo-design-check.test.mjs` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd . && node --test design/tools/moo-design-check.test.mjs
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r22
+No repositório em que estás, o ficheiro de teste `design/tools/moo-design-check.test.mjs` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd . && node --test design/tools/moo-design-check.test.mjs
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.
+
+
+--- id: r23
+No repositório em que estás, o ficheiro de teste `design/tools/moo-visual-audit.test.mjs` está a falhar.
+
+Corre-o e faz com que passe:
+
+    cd . && node --test design/tools/moo-visual-audit.test.mjs
+
+Regras:
+  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.
+  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.
+  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.
+  - Quando o comando acima sair com 0, terminaste.

@@ -1,0 +1,378 @@
+{
+ "at": "2026-09-09T14:06:36.987Z",
+ "priced_at": "2026-08-03",
+ "A_ledger_actual": {
+  "at": "2026-09-09T14:06:36.982Z",
+  "note": "protocolo: decisions.log (classified, executed) e ledger (done); o corte all do ledger e exploratorio",
+  "decisions_log": {
+   "classified": {
+    "total": 939,
+    "with_cost_field": 0,
+    "with_cost_gt0": 0,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 0
+   },
+   "executed": {
+    "total": 492,
+    "with_cost_field": 479,
+    "with_cost_gt0": 0,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 1
+   },
+   "executed_outcomes": {
+    "deferred": 478,
+    "ok": 1,
+    "undefined": 13
+   }
+  },
+  "mooter_ledger": {
+   "all": {
+    "total": 726,
+    "with_cost_field": 8,
+    "with_cost_gt0": 3,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 20
+   },
+   "done": {
+    "total": 20,
+    "with_cost_field": 8,
+    "with_cost_gt0": 3,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 20
+   }
+  }
+ },
+ "B_lines": {
+  "total": 156,
+  "with_cost_field": 156,
+  "with_cost_source": 156,
+  "with_cost_and_source": 156,
+  "with_tokens": 93,
+  "nd": 0,
+  "by_source": {
+   "rule_local": 63,
+   "ollama_local": 73,
+   "subscription_included": 20
+  },
+  "by_completeness": {
+   "complete": 136,
+   "partial_no_cache_pricing": 20
+  },
+  "note": "P6-02: a presenca de cost_usd+cost_source e garantida pelo instrumento (formato); as 63 linhas rule tem 0/0 por politica, nao por contagem. O que se mede e COBERTURA nesta amostra, nao exactidao financeira."
+ },
+ "reconciliation_haiku_20": {
+  "basis": "list",
+  "lines": 20,
+  "included": 20,
+  "excluded": 0,
+  "incomplete": false,
+  "ours_usd": 0.079605,
+  "host_usd": 1.318525,
+  "delta_usd": -1.23892,
+  "delta_rel": -0.939626,
+  "note": "ours = preco de lista input/output do SSOT; host = total_cost_usd do CLI, que inclui cache_read (0,10/M) e cache_creation (2,00/M, TTL 1 h) — o Δ e esperado e fica impresso; a versao 1 desta nota dizia 1,25x (TTL 5 min), errado: AMENDMENT-1",
+  "cache_read_tokens_total": 354357,
+  "cache_creation_tokens_total": 601742
+ },
+ "reconciliation_haiku_20_per_call": {
+  "cache_pricing_declared": {
+   "read_per_M": 0.1,
+   "write_1h_per_M": 2,
+   "source": "platform.claude.com/docs/en/about-claude/pricing, lido pelo adversario (Codex) em 2026-09-09; NAO esta em tools/router/pricing.js"
+  },
+  "rows": [
+   {
+    "id": "L1-a",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 142,
+    "cache_read": 48096,
+    "cache_creation": 0,
+    "ours_io_usd": 0.00072,
+    "host_usd": 0.005529600000000001,
+    "delta_io_usd": -0.0048096,
+    "reconstructed_with_cache_1h_usd": 0.0055296,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L1-b",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 211,
+    "cache_read": 16119,
+    "cache_creation": 31984,
+    "ours_io_usd": 0.001065,
+    "host_usd": 0.06664489999999999,
+    "delta_io_usd": -0.0655799,
+    "reconstructed_with_cache_1h_usd": 0.0666449,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L2-a",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 252,
+    "cache_read": 16119,
+    "cache_creation": 31080,
+    "ours_io_usd": 0.00127,
+    "host_usd": 0.0650419,
+    "delta_io_usd": -0.0637719,
+    "reconstructed_with_cache_1h_usd": 0.0650419,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L2-b",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 283,
+    "cache_read": 16119,
+    "cache_creation": 32028,
+    "ours_io_usd": 0.001425,
+    "host_usd": 0.0670929,
+    "delta_io_usd": -0.0656679,
+    "reconstructed_with_cache_1h_usd": 0.0670929,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L3-a",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 187,
+    "cache_read": 16119,
+    "cache_creation": 31670,
+    "ours_io_usd": 0.000945,
+    "host_usd": 0.0658969,
+    "delta_io_usd": -0.0649519,
+    "reconstructed_with_cache_1h_usd": 0.0658969,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L3-b",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 292,
+    "cache_read": 16119,
+    "cache_creation": 33357,
+    "ours_io_usd": 0.00147,
+    "host_usd": 0.0697959,
+    "delta_io_usd": -0.0683259,
+    "reconstructed_with_cache_1h_usd": 0.0697959,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L4-a",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 384,
+    "cache_read": 16119,
+    "cache_creation": 32031,
+    "ours_io_usd": 0.00193,
+    "host_usd": 0.0676039,
+    "delta_io_usd": -0.0656739,
+    "reconstructed_with_cache_1h_usd": 0.0676039,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L4-b",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 460,
+    "cache_read": 16119,
+    "cache_creation": 32116,
+    "ours_io_usd": 0.00231,
+    "host_usd": 0.0681539,
+    "delta_io_usd": -0.0658439,
+    "reconstructed_with_cache_1h_usd": 0.0681539,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L5-a",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 1965,
+    "cache_read": 16119,
+    "cache_creation": 33395,
+    "ours_io_usd": 0.009835,
+    "host_usd": 0.0782369,
+    "delta_io_usd": -0.0684019,
+    "reconstructed_with_cache_1h_usd": 0.0782369,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L5-b",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 5435,
+    "cache_read": 16119,
+    "cache_creation": 31008,
+    "ours_io_usd": 0.027185,
+    "host_usd": 0.0908129,
+    "delta_io_usd": -0.0636279,
+    "reconstructed_with_cache_1h_usd": 0.0908129,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L1-c",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 176,
+    "cache_read": 16119,
+    "cache_creation": 31038,
+    "ours_io_usd": 0.00089,
+    "host_usd": 0.0645779,
+    "delta_io_usd": -0.0636879,
+    "reconstructed_with_cache_1h_usd": 0.0645779,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L1-d",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 147,
+    "cache_read": 16119,
+    "cache_creation": 31973,
+    "ours_io_usd": 0.000745,
+    "host_usd": 0.0663029,
+    "delta_io_usd": -0.0655579,
+    "reconstructed_with_cache_1h_usd": 0.0663029,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L2-c",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 261,
+    "cache_read": 16119,
+    "cache_creation": 32017,
+    "ours_io_usd": 0.001315,
+    "host_usd": 0.06696089999999999,
+    "delta_io_usd": -0.0656459,
+    "reconstructed_with_cache_1h_usd": 0.0669609,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L2-d",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 216,
+    "cache_read": 16119,
+    "cache_creation": 31312,
+    "ours_io_usd": 0.00109,
+    "host_usd": 0.06532589999999999,
+    "delta_io_usd": -0.0642359,
+    "reconstructed_with_cache_1h_usd": 0.0653259,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L3-c",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 183,
+    "cache_read": 16119,
+    "cache_creation": 31289,
+    "ours_io_usd": 0.000925,
+    "host_usd": 0.06511489999999999,
+    "delta_io_usd": -0.0641899,
+    "reconstructed_with_cache_1h_usd": 0.0651149,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L3-d",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 173,
+    "cache_read": 16119,
+    "cache_creation": 29007,
+    "ours_io_usd": 0.000875,
+    "host_usd": 0.0605009,
+    "delta_io_usd": -0.0596259,
+    "reconstructed_with_cache_1h_usd": 0.0605009,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L4-c",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 782,
+    "cache_read": 16119,
+    "cache_creation": 32021,
+    "ours_io_usd": 0.00392,
+    "host_usd": 0.06957390000000001,
+    "delta_io_usd": -0.0656539,
+    "reconstructed_with_cache_1h_usd": 0.0695739,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L4-d",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 517,
+    "cache_read": 16119,
+    "cache_creation": 31368,
+    "ours_io_usd": 0.002595,
+    "host_usd": 0.0669429,
+    "delta_io_usd": -0.0643479,
+    "reconstructed_with_cache_1h_usd": 0.0669429,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L5-c",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 2246,
+    "cache_read": 16119,
+    "cache_creation": 30997,
+    "ours_io_usd": 0.01124,
+    "host_usd": 0.07484589999999999,
+    "delta_io_usd": -0.0636059,
+    "reconstructed_with_cache_1h_usd": 0.0748459,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   },
+   {
+    "id": "L5-d",
+    "model_key_used": "claude-haiku-4-5-20251001",
+    "prompt_eval_count": 10,
+    "eval_count": 1569,
+    "cache_read": 16119,
+    "cache_creation": 32051,
+    "ours_io_usd": 0.007855,
+    "host_usd": 0.0735689,
+    "delta_io_usd": -0.0657139,
+    "reconstructed_with_cache_1h_usd": 0.0735689,
+    "residual_usd": 0,
+    "completeness": "partial_no_cache_pricing"
+   }
+  ],
+  "reconstructed_total_usd": 1.3185247,
+  "host_total_usd": 1.3185247,
+  "residual_total_usd": 0,
+  "status": "EXPLORATORIO — nao pre-registado; a base pre-registada e reconciliation_haiku_20 (input/output do SSOT)"
+ },
+ "reconciliation_ollama": {
+  "note": "a fonte das contagens e o proprio Ollama: Δ = 0 por construcao; nao e uma verificacao independente",
+  "lines": 73
+ }
+}
