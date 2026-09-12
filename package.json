@@ -18,7 +18,7 @@
     "runner:once": "node tools/cockpit/runner/moo-runner.mjs --once",
     "skills:doctor": "node tools/cockpit/runner/skills-doctor.mjs",
     "skills:doctor:strict": "node tools/cockpit/runner/skills-doctor.mjs --strict",
-    "test:cockpit-runner": "node --test \"tools/cockpit/*.test.mjs\" \"tools/cockpit/runner/*.test.mjs\"",
+    "test:cockpit-runner": "node --test \"tools/cockpit/*.test.mjs\" \"tools/cockpit/runner/*.test.mjs\" tools/cockpit/build-snapshot.test.js",
     "test:guarda-home": "node --test tools/guarda-home.test.mjs",
     "test:cli-guardado": "node tools/guarda-home.mjs --cwd packages/cli -- npm test",
     "test:docs-hygiene": "node --test tools/docs-hygiene.test.js",
@@ -60,7 +60,12 @@
     "score:sombra": "node tools/cockpit/runner/score-sombra.mjs",
     "watchdog": "node tools/cockpit/runner/watchdog.mjs",
     "test:router:quick": "node tools/router/correr-suite.mjs --quick",
-    "test:router:full": "node tools/router/correr-suite.mjs"
+    "test:router:full": "node tools/router/correr-suite.mjs",
+    "test:audit": "node --test tools/audit/varredura-segredos.test.mjs tools/audit/varredura-historico.test.mjs tools/audit/varredura-historico.e2e.test.mjs",
+    "indice": "node tools/cockpit/runner/indice-do-harness.mjs",
+    "indice:escrever": "node tools/cockpit/runner/indice-do-harness.mjs --escrever",
+    "testes:fora-do-ci": "node tools/cockpit/runner/teste-fora-do-ci.mjs",
+    "testes:fora-do-ci:linha-base": "node tools/cockpit/runner/teste-fora-do-ci.mjs --linha-base"
   },
   "engines": {
     "node": ">=22"
