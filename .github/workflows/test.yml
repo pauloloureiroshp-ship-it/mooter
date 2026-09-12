@@ -7,6 +7,9 @@ on:
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
+      # Onboarding v2 W2 — sem esta linha o launcher .mcpb nascia fora do CI, que
+      # e exactamente como a suite do cockpit passou a correr a solta ate 2026-08-18.
+      - 'packages/launcher/**'
       # Sem esta linha, a suite do cockpit nunca corria em CI: um push que
       # partisse o runner passava verde. Medido a 2026-08-18. (Nao se escreve
       # aqui o NUMERO de testes: a primeira versao dizia 174, a suite cresceu
@@ -56,6 +59,9 @@ on:
       - 'tools/router/**'
       - 'packages/cli/**'
       - 'packages/mooter-bridge/**'
+      # Onboarding v2 W2 — sem esta linha o launcher .mcpb nascia fora do CI, que
+      # e exactamente como a suite do cockpit passou a correr a solta ate 2026-08-18.
+      - 'packages/launcher/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/cockpit/**'
       # O `render_medir` (F3) vive em tools/verify/ mas a sua suite corre a partir
@@ -353,6 +359,19 @@ jobs:
       - name: Test mooter-bridge
         working-directory: packages/mooter-bridge
         run: node --test
+
+      # ── launcher .mcpb: a suite e o empacotamento ──────────────────────
+      # Zero dependencias, como o bridge. O `pack-mcpb.mjs` corre aqui e nao so
+      # na release porque ele RECUSA empacotar um launcher que deixou de o ser
+      # (tecto de linhas, dependencias, token pre-preenchido). Um portao que so
+      # corre no dia da release descobre o problema no pior dia possivel.
+      - name: Test launcher (.mcpb)
+        working-directory: packages/launcher
+        run: node --test launcher.test.js pack.test.mjs
+
+      - name: Pack launcher (.mcpb) — prova que o bundle sai
+        working-directory: packages/launcher
+        run: node pack-mcpb.mjs --out "$RUNNER_TEMP/mooter-launcher.mcpb"
 
       # O gate de conteúdo isolado, para o vermelho dizer JÁ o que se partiu:
       # se uma entrega declarada foi regredida, isto falha com o ficheiro e o

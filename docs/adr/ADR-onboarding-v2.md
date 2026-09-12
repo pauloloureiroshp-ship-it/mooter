@@ -35,6 +35,29 @@ cada uma, o que o adversário conseguiu derrubar.
 | **D5** | **Motor local: modelo pequeno primeiro** (para o 1.º recibo existir depressa), 14b descarregado em background. | sem objecção | Aceite tal como está. |
 | **D6** | **Recibo:** usage nativo por balde + quota + custo + egresso é a **verdade primária**. O Moo Token é um contador técnico **secundário**, sem nome financeiro. | «C · Moo Token como odómetro principal: **refutada**» — 4 chars não conservam latência, energia, quota nem custo; o usage nativo já existe em `recibo.js` e `ledger-turn-io.js` | **A hipótese original foi derrubada.** O MT desce a secundário e ganha regras anti-dupla-contagem. |
 
+### D3.1 — o `.mcpb` **não** vai pré-preenchido (decidido em W2, 2026-09-10)
+
+O kickoff da W2 deixou isto explicitamente em aberto: «token no `user_config.default`
+**ou** deixado vazio para o diálogo pedir — decidir no ADR; default: pré-preenchido,
+single-use». Fica **vazio**.
+
+**Porquê.** O veredicto do adversário sobre o `.mcpb` pessoal foi **refutada**, e a
+frase exacta foi «bundle copiável = credencial copiável; o token actual é single-use/24 h
+e **nunca entra no artefacto**». Pré-preencher é reintroduzir precisamente aquilo, com o
+argumento de que a janela é pequena. Mas a janela não é o risco: o **artefacto** é. Um
+`.mcpb` descarregado aterra em `~/Downloads`, que em muitas máquinas está sincronizado
+com iCloud ou OneDrive; é reenviado a um colega quando alguém pergunta «como instalaste
+isso?»; e fica em cópias de segurança. Um segredo dentro de um ficheiro que a pessoa
+trata como um instalador vai ser tratado como um instalador.
+
+**O que custa não pré-preencher:** uma colagem. O Claude Desktop já mostra o diálogo de
+`user_config`; o campo é `sensitive: true`, portanto não fica escrito em claro na
+configuração. O código de bootstrap é copiado do site para esse campo.
+
+**O que se ganha:** o artefacto deixa de ser um segredo. Pode ser servido em cache,
+espelhado, e reenviado sem que isso comprometa ninguém — e o único momento em que a
+credencial existe fora do site é dentro do diálogo do próprio host.
+
 ### Decisões que este ADR **não** toma
 
 Pricing público (exige definição de "seat" + tabela de comparáveis M12 + ata

@@ -1,0 +1,14 @@
+{
+  "name": "@mooter/launcher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "O launcher .mcpb do Mooter — garante o payload e passa-lhe o stdio. Zero lógica de produto, zero dependências.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "node --test launcher.test.js pack.test.mjs",
+    "pack": "node pack-mcpb.mjs"
+  }
+}
