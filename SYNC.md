@@ -50,6 +50,32 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-12 · A/B do Moo Audit — 6 de 7 fundidos em `main`; #505 parado na licença das regras
+
+Ordem e commits de merge (merge commits, sem force-push; cada PR actualizado com `main` e
+com os 5 checks obrigatórios verdes antes de entrar): #411 `4bd4eb52` · #412 `56591f14` ·
+#413 `e9eee9d8` · #414 `fd6d99a4` · #506 `2d3b4416` · #415 `c0724479`. `main` @ c0724479:
+7 workflows de push verdes (test, design-gate, wave-gate, docs-hygiene, ratchet, slack-spike,
+install-reliability). Gate de pré-merge (`final-reviewer`) antes do primeiro merge: 2 BLOCK.
+
+- **#506** tocava 4 ficheiros de `packages/cli` (onda 34) sem a entrada de allowlist que o
+  `AGENTS.md` § Invariants exige no mesmo PR — acrescentada em `CLAUDE.md` (bd15e40a) antes do merge.
+- **#505 (F2) não fundido.** Os 4 `_handoff/ab-audit/regras-semgrep/p-*.yaml` (409 regras,
+  1 017 001 bytes) trazem, regra a regra, `license: Semgrep Rules License v1.0`; o texto
+  (semgrep.dev/legal/rules-license, lido 12/09) diz «You may use the rules only for your own
+  internal business purposes» e «This license does not allow you to distribute the rules».
+  O repo é PUBLIC + MIT. O branch está no GitHub desde 26/08 (a exposição já existe); fundir
+  em `main` estende-a. **Só o dono:** (a) reconstruir o PR sem os yaml — o `MANIFESTO.json`
+  com os sha256 fica como registo do §2.1 e `ab-vendorizado.mjs` passa a distinguir «ausente
+  por licença» de «adulterado» — ou (b) aceitar a exposição por escrito. O veredicto da F2
+  (`_handoff/AB_MOO_AUDIT_F2.md`) não muda em nenhum dos casos. Cabeça actual 994c18e0
+  (fundida com `main`, 59/60 + 1 skip, catraca 677/491/186 exit 0).
+- Vercel a vermelho em #414/#506/#415 por `build-rate-limit` (quota de builds de preview);
+  não obrigatório; 0 ficheiros de `landing/` nos três.
+- #414: mudar a base de um PR (`edited`) não dispara `pull_request: branches: [main]` —
+  ficou `BLOCKED` com os 4 obrigatórios por correr; fechar/reabrir correu-os (25/25).
+- Worktrees temporárias removidas: `frugal-ab-pre`, `frugal-ab-f01`, `frugal-ab-f02`.
+
 ## 2026-09-11 · A/B do Moo Audit — retoma 16 dias depois: 7 PRs abertos, **nada merged**
 
 Os cinco PRs de 2026-08-26 (#411-#415) ficaram parados com o `main` a andar ~90
@@ -80,7 +106,7 @@ como recurso, com o peso baixo escrito.
 — o `recibo.js` de main (28/08) refuta essa chave. O hook Stop deixou de ser
 preciso. Worktree `~/frugal-ab-tokens` pode ser removida.
 
-**Só o dono:** merge dos 7 (ordem sugerida #411 → #412 → #413 → #414 → #506 → #415 → #505);
+**Só o dono:** merge dos 7 — **feito a 12/09 para 6** (bloco acima); #505 aguarda a decisão sobre a licença das regras;
 F2 — **decidido a 12/09: publicado o INCONCLUSIVO sem emendar**; um resultado conclusivo exige outro pré-registo;
 fan-out — probes genéricos ou auto-auditoria assumida; `git pull` no mac e no paulo-desktop.
 
