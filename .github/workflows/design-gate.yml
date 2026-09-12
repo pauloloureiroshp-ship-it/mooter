@@ -142,6 +142,19 @@ jobs:
           fi
 
 
+      # 1c · O GERADOR DO DECK também morde — e até 2026-09-11 ninguém o corria.
+      #
+      # `design/deck/moo-deck-build.test.mjs` planta os defeitos que o gerador
+      # do deck existe para apanhar (janela cortada no travessão, título a 40
+      # caracteres, extremo errado). O `test:deck` da raiz existia desde
+      # 2026-08-27 e nenhum workflow o invocava: 51 testes verdes que só
+      # corriam quando alguém se lembrava. Foi a catraca dos testes fora do CI
+      # (`teste-fora-do-ci.mjs`) que o listou como órfão, e este é o workflow
+      # do design — o sítio dele. Zero dependências: `node --test` sobre
+      # ficheiros do repo, como o passo 1.
+      - name: O gerador do deck morde? (design/deck)
+        run: npm run test:deck
+
       # 2b · O AUDITOR VISUAL, sobre as superfícies REAIS.
       #
       # Até 2026-08-30 este job corria as mordidas do auditor e nunca o auditor.

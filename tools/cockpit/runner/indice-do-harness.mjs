@@ -501,9 +501,26 @@ export function argumentosDe(comando) {
   return out;
 }
 
-export function testesGateados({ raiz = RAIZ_REPO, runImpl = execFileSync, readImpl = fs.readFileSync, readdirImpl = fs.readdirSync } = {}) {
+export function testesGateados({
+  raiz = RAIZ_REPO, runImpl = execFileSync, readImpl = fs.readFileSync, readdirImpl = fs.readdirSync,
+  /**
+   * Inclui ficheiros ainda NAO versionados (mas nao ignorados).
+   *
+   * O INDICE usa `false`: o numero tem de ser reproduzivel, e um ficheiro de
+   * rascunho na arvore de alguem nao pode mexer numa metrica publicada.
+   *
+   * O GUARDA (`teste-fora-do-ci.mjs`) usa `true`, e a razao esta medida: com
+   * `false`, criar um `.test.mjs` novo e correr o guarda dava VERDE — `git
+   * ls-files` so ve o que ja esta no indice do git. Um guarda que so morde
+   * depois do commit chega tarde ao unico momento em que corrigir custa dois
+   * minutos. E um guarda que nunca mordeu e indistinguivel de um partido: foi
+   * um teste de mordida que apanhou isto, nao uma revisao.
+   */
+  incluirNaoVersionados = false,
+} = {}) {
   const gitLs = (padroes) => {
-    const out = String(runImpl('git', ['ls-files', '-z', ...padroes], {
+    const extra = incluirNaoVersionados ? ['--cached', '--others', '--exclude-standard'] : [];
+    const out = String(runImpl('git', ['ls-files', '-z', ...extra, ...padroes], {
       cwd: raiz, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, windowsHide: true,
     }) || '');
     return out.split('\0').map((s) => s.trim()).filter(Boolean);

@@ -20,6 +20,66 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-11-um-pr-parado-16-dias-mediu-tres-coisas-que-um-pr-fundido-nao-media
+
+**Contexto:** os cinco PRs do A/B do Moo Audit (#411-#415) ficaram parados de
+26/08 a 11/09 à espera da decisão de IP, com o `main` a andar ~90 PRs. Ao
+retomá-los, o simples acto de os fundir com o `main` de hoje e correr os
+guardas produziu três medições que um merge no dia teria escondido.
+
+**Observado:**
+
+1. **A catraca mediu o que a sua ausência custa.** `teste-fora-do-ci.mjs`
+   contra a árvore de hoje: 180 → **193 órfãos** (666 testes versionados). Em
+   16 dias entraram 15 ficheiros de teste que nenhum workflow corre, 5 deles em
+   `tools/router/` (motor), incluindo `budget-cap.test.js` — o teste do D1 das
+   provas-v1 (o `applyBudgetCap` que mandava HIGH-RISK para T0). A lista de
+   `test` desse pacote continua escrita à mão, com 97 ficheiros.
+
+2. **A mordida da catraca morreu debaixo da premissa, não do guarda.** A
+   mordida plantava o ficheiro em `tools/cockpit/runner/`; entretanto o
+   `test:cockpit-runner` de main trocou a lista por um glob e o ficheiro
+   plantado passou a ser *coberto*. O teste deu vermelho e a leitura óbvia
+   («a catraca partiu») estava errada. Um teste de mordida depende do mundo
+   tanto como o guarda que testa — e um mundo que muda em 16 dias muda a
+   mordida sem tocar no guarda.
+
+3. **A parcela de telemetria media a coisa errada, e o número parecia
+   verdadeiro porque era.** `0/4830` decisões com `tokens_in > 0` — verdadeiro
+   e sem significado: o hook escreve essa linha *antes* de o modelo responder.
+   Um contador que só pode dar zero não mede cobertura. O `recibo.js` que
+   entrou em main a 28/08 (a58b8c49) lê os tokens dos transcripts e casa-os
+   com a decisão pela cadeia `parentUuid`; a parcela passou a medir isso:
+   **81/1686** turnos com custo medido casam com uma decisão (4,8 %). O branch
+   paralelo `ab-audit/telemetria`, que publicava tokens por `session_id`,
+   morreu sem ser empurrado — o próprio `recibo.js` explica que essa chave
+   reconstrói o defeito dos «25 por prompt».
+
+4. **O adversário noutro motor bloqueou todos os PRs de código à primeira.**
+   `codex` (OpenAI) sobre #413, #414, #415, #505, #506: 5 × BLOQUEIA, todas com
+   reprodução. A mais grave: **o braço A do A/B varreu S1 fora do sha
+   pré-registado** (`2d5fd762` em vez de `97ad846b`; ficheiros que não existem
+   no sha entraram na corrida) — uma violação do §10.2 que o manifesto declarava
+   (`no_sha_preregistado: false`) e que ninguém tinha lido como violação. A
+   segunda: a prova de rede da F1 caiu pela 3.ª vez (`process.binding`, worker
+   sem `NODE_OPTIONS`, UDP entre amostras) — uma sentinela dentro do processo
+   não prova zero rede; só um namespace do SO prova.
+
+5. **O sandbox do codex não cria processos nesta máquina**
+   (`CreateProcessAsUserW … 5 Access is denied`, em `read-only` e
+   `workspace-write`). Correu com o sandbox desligado em worktrees limpas com
+   tudo commitado, `git status` vazio verificado no fim de cada ronda.
+
+**Hipótese:** um PR de guarda que espera mais de uma semana por merge deve ser
+re-corrido contra o `main` do dia *antes* de o dono decidir — o número que ele
+dá nesse dia é o argumento para o merge, e o número de 16 dias antes já não
+descreve nada. **Experimento:** ao abrir um PR de guarda, anotar no corpo o
+número do dia; ao pedir merge, re-correr e anotar o novo; se diferirem, o delta
+vai para o corpo do PR. Critério: em 3 PRs de guarda seguidos, o delta aparecer
+escrito antes do merge.
+
+---
+
 ### 2026-09-01-o-instrumento-errava-cinco-vezes-e-so-a-quinta-nos-favorecia
 
 **Contexto:** o dono pediu um A/B «Mooter vs sem Mooter». Não existia nenhum.
@@ -91,6 +151,78 @@ literal, 29/35 contra 29/35. O 91,4% passa a ser dito como score de **treino**.
    A janela tem de começar *antes de os rótulos existirem* — não num ponto
    qualquer do histórico que me pareça antigo. Refutar mal é pior do que não
    refutar: dá confiança onde não há.
+
+### 2026-08-26-tres-guardas-que-nao-mordiam-e-so-o-teste-de-mordida-o-disse
+
+**Contexto:** ao construir a F0 do A/B do Moo Audit (varredura de histórico, índice
+do arnês, catraca de testes), três peças passaram a revisão e falharam ao primeiro
+contacto com a realidade. As três falhavam **para verde**, que é o modo de falha
+que ninguém vê.
+
+1. **A regex do scanner de limiares comia o alvo principal.**
+   `^export const ([A-Z][A-Z0-9_]*(?:LIMIAR|LIMIARES|…))` — o `[A-Z]` consome o
+   `L` de `LIMIARES`, e o grupo nunca consegue casar o nome inteiro. Resultado:
+   de 24 limiares no código, o único que o scanner **não** via era o
+   `LIMIARES` do `portao.mjs` — o mais importante do repositório.
+   Um denominador construído por regex não falha ao acaso: falha primeiro no
+   caso que mais interessa, porque os nomes importantes são os que começam pelo
+   próprio termo.
+
+2. **A catraca deu verde com um ficheiro órfão à frente.**
+   `git ls-files` só lista o que já está no índice do git. Um teste novo, ainda
+   por commitar, era invisível — e o guarda só acordava depois do commit, que é
+   depois do único momento em que corrigir custa dois minutos.
+   Descoberto por um **teste de mordida** (criar o ficheiro, correr o guarda,
+   exigir exit 1), não por leitura do código. A leitura tinha passado.
+
+3. **Um patch por `String.replace` não aplicou e imprimiu `ok` na mesma.**
+   `t.replace(a, b)` devolve a string intacta quando `a` não coincide. O script
+   escreveu o ficheiro sem alteração nenhuma, disse `ok`, e o teste seguinte
+   passou pela razão errada. Três edições por script foram silenciosamente
+   perdidas nesta sessão pela mesma razão.
+
+**O padrão comum:** as três peças foram **lidas** e aprovadas. Nenhuma leitura
+apanhou nada. O que apanhou as três foi executá-las contra um caso construído
+para as fazer falhar.
+
+**Corolário desagradável:** um guarda que nunca falhou é indistinguível de um
+guarda partido, e um guarda novo está sempre nesse estado até alguém lhe pôr um
+caso à frente de propósito. **Um guarda sem teste de mordida não é um guarda —
+é um comentário que corre.**
+
+---
+
+### 2026-08-26-o-adversario-em-motor-diferente-encontrou-bugs-que-a-revisao-nao
+
+**Contexto:** política do MP — adversário em motor diferente por PR, veredicto
+publicado. Corrido com `codex exec` (motor OpenAI) contra trabalho escrito por
+Claude, instruído a **refutar**, com default «há um problema».
+
+**Medido em quatro passagens:**
+
+| alvo | veredicto | do que serviu |
+|---|---|---|
+| pré-registo, 1.ª | BLOQUEIA (4 HIGH + 1 MED) | apanhou um **erro de álgebra**: `(precisão × volume) ÷ (volume × s ÷ 3600)` simplifica para `precisão × 3600 ÷ s` — o `volume` cancela-se, e a métrica dizia «combina as duas» |
+| pré-registo, 2.ª | BLOQUEIA (4 MAQUILHADO + 3 novas) | apanhou objecções **abertas pela própria emenda** |
+| F0.1, 1.ª | BLOQUEIA (6 HIGH + 1 MED) | apanhou o **título a afirmar mais do que a prova** («0 segredos reais» vs «0 críticos não declarados») |
+| F0.1, 2.ª | BLOQUEIA (3 bugs) | apanhou **três defeitos de código**: severidade a descer por ignorância do caminho, `parseBatch` a aceitar corpo truncado, `--refs origin` cego às tags |
+
+**O que isto sugere:** o valor não está no adversário «ter razão» — está em ele
+**não partilhar os pontos cegos do autor**. As quatro passagens bloquearam, e
+nenhuma das objecções úteis era uma questão de gosto.
+
+**E o custo real:** a 4.ª passagem esgotou os créditos do motor. Uma prática de
+qualidade que depende de um recurso pago tem um limite de escala que precisa de
+ser dito antes de ser descoberto a meio.
+
+**Ponta solta:** a correcção *óbvia* ao bug da severidade (falhar fechado,
+tratar um objecto sem caminho como sensível) produziu **101 alarmes HIGH**, os
+101 da mesma classe heurística. Ler o detector mostrou que chaves com forma de
+fornecedor já são críticas em qualquer caminho — a sentinela não protegia nada
+e só inflacionava ruído. **Falhar fechado nem sempre é a resposta certa; é a
+resposta certa quando a ignorância esconde risco, não quando esconde ruído.**
+
+---
 
 ### 2026-08-25-a-forma-comparar-tambem-falha-e-o-sinal-esta-invertido
 
