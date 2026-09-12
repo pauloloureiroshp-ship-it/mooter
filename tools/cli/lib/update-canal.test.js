@@ -116,15 +116,41 @@ test('o profile.json esta proibido como fonte de canal, e o erro diz porque', ()
 // ── 2. o manifesto ────────────────────────────────────────────────────────
 
 test('sem ancora nao ha update — falha FECHADA, nao aviso', () => {
-  comTmp((dir) => {
-    const m = assinarManifesto(manifestoBase(), par.privateKey);
-    const r = verificarManifesto(m, {
-      canalPedido: 'beta',
-      caminho: path.join(dir, 'nao-existe.json'),
-    });
-    assert.equal(r.ok, false);
-    assert.equal(r.codigo, 'sem-ancora');
-  });
+  // A ancora existe desde 2026-09-11, mas o comportamento sem ela continua a
+  // ser o que importa guardar: um cliente cujo `release-pubkey.js` desapareca
+  // ou fique vazio nao instala NADA. Nunca "avisa e continua".
+  const m = assinarManifesto(manifestoBase(), par.privateKey);
+  const r = verificarManifesto(m, { canalPedido: 'beta', chavesImpl: { publicas: () => [] } });
+  assert.equal(r.ok, false);
+  assert.equal(r.codigo, 'sem-ancora');
+});
+
+test('a ancora real esta la, e e a que o kid activo diz', () => {
+  const k = require('./release-pubkey.js');
+  assert.ok(k.KID_ACTIVO, 'sem kid activo');
+  assert.equal(typeof k.CHAVES[k.KID_ACTIVO], 'string');
+  assert.ok(k.publicas().includes(k.CHAVES[k.KID_ACTIVO]));
+  // O kid e' sha256(pub) truncado — se alguem trocar a chave e esquecer o kid,
+  // a mensagem de erro passa a apontar para a chave errada.
+  const calc = crypto.createHash('sha256').update(k.CHAVES[k.KID_ACTIVO]).digest('hex').slice(0, 16);
+  assert.equal(calc, k.KID_ACTIVO, 'o kid nao corresponde ao sha256 da propria chave');
+});
+
+test('ROTACAO · com duas publicas, uma assinatura de qualquer uma passa', () => {
+  const antiga = crypto.generateKeyPairSync('ed25519');
+  const nova = crypto.generateKeyPairSync('ed25519');
+  const b64 = (kp) => kp.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
+  const duas = { publicas: () => [b64(antiga), b64(nova)], CHAVES: {} };
+
+  for (const kp of [antiga, nova]) {
+    const m = assinarManifesto(manifestoBase(), kp.privateKey);
+    const r = verificarManifesto(m, { canalPedido: 'beta', chavesImpl: duas });
+    assert.equal(r.ok, true, 'uma das duas publicas da rotacao nao foi aceite');
+  }
+  // E uma TERCEIRA chave continua a nao passar — aceitar duas nao e aceitar todas.
+  const intruso = crypto.generateKeyPairSync('ed25519');
+  const mau = assinarManifesto(manifestoBase(), intruso.privateKey);
+  assert.equal(verificarManifesto(mau, { canalPedido: 'beta', chavesImpl: duas }).codigo, 'assinatura-invalida');
 });
 
 test('assinatura valida + canal certo -> ok, e diz que ha versao nova', () => {
@@ -418,11 +444,21 @@ test('o URL do manifesto e o do canal, com o canal escapado', () => {
 
 // ── 5. o cliente nao traz chave inventada ─────────────────────────────────
 
-test('o repo NAO commita uma chave de release — a ancora tem de estar ausente', () => {
+test('o repo commita a PUBLICA e NUNCA a privada', () => {
+  // 2026-09-11 — este teste dizia «a ancora tem de estar AUSENTE», o que era
+  // verdade enquanto nao havia chave nenhuma. Agora ha, e a pergunta certa
+  // mudou: nao e «existe um ficheiro de chave?», e «alguma vez entra aqui uma
+  // chave PRIVADA?». Uma publica commitada e o objectivo; uma privada
+  // commitada e uma chave que deixa de valer no segundo em que o e.
   const { FICHEIRO_ANCORA } = require('./manifesto.js');
-  assert.equal(
-    fs.existsSync(FICHEIRO_ANCORA),
-    false,
-    'release-pubkey.json existe no repo: uma chave de release commitada e uma chave que nao vale nada',
-  );
+  const cru = fs.readFileSync(FICHEIRO_ANCORA, 'utf8');
+  for (const proibido of ['BEGIN PRIVATE KEY', 'BEGIN OPENSSH PRIVATE', 'BEGIN EC PRIVATE', 'privateKey']) {
+    assert.ok(!cru.includes(proibido), `a ancora contem '${proibido}' — isso e uma chave privada no git`);
+  }
+  // E a publica tem de ser mesmo utilizavel como SPKI Ed25519, nao um texto
+  // qualquer com ar de base64.
+  for (const pub of require('./release-pubkey.js').publicas()) {
+    const k = crypto.createPublicKey({ key: Buffer.from(pub, 'base64'), format: 'der', type: 'spki' });
+    assert.equal(k.asymmetricKeyType, 'ed25519');
+  }
 });

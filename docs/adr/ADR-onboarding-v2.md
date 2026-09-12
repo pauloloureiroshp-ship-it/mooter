@@ -58,6 +58,62 @@ configuração. O código de bootstrap é copiado do site para esse campo.
 espelhado, e reenviado sem que isso comprometa ninguém — e o único momento em que a
 credencial existe fora do site é dentro do diálogo do próprio host.
 
+### D7 — a chave de release: onde vive, e como se roda (2026-09-11)
+
+**O problema que a criou.** O kickoff da W1 mandava assinar «com a chave pública
+já embutida nos beacons». Não havia nenhuma — procurado no repo a 2026-09-10:
+zero chaves públicas embutidas. E as duas que existiam não serviam: o HMAC do
+`assinatura.js` é **simétrico** (quem verifica assina, logo pregá-lo no cliente
+é distribuir a chave de assinar releases), e o Ed25519 do mesmo ficheiro é **por
+device**, verificado contra um registo que vive no vault pessoal do dono — que
+um cliente instalado não tem.
+
+**A decisão.** Uma terceira chave, só para releases: **pública pregada no
+cliente, privada só com quem corta releases**.
+
+| | onde |
+|---|---|
+| Pública | `tools/cli/lib/release-pubkey.js` — **no git de propósito**; com ela só se verifica |
+| Privada · pessoa | Keychain do macOS, serviço `mooter-release-key`, **sem aplicação de confiança** (`-T ""`) |
+| Privada · CI | secret do GitHub Actions `MOOTER_RELEASE_KEY` |
+
+Gerada no Mac mini do dono a 2026-09-11. `kid` **`4be1bf1d6017e10f`**
+(= `sha256(pub base64)` truncado a 16 hex). A cópia local do ficheiro privado foi
+destruída depois de instalada nos dois sítios.
+
+O `-T ""` faz o `security find-generic-password -w` pedir autorização explícita
+a cada leitura — e **prender à espera dessa autorização é o comportamento
+pretendido**, não um defeito.
+
+**Provado, não afirmado:** assinar um manifesto com a privada real e verificá-lo
+com a pública commitada devolve `assinatura valida`; adulterar o `sha256` depois
+de assinado devolve `assinatura-invalida`.
+
+#### Rotação — e a ordem que não se pode inverter
+
+1. Gerar o par novo. Calcular o `kid`.
+2. **Acrescentar a pública nova ao `CHAVES` do `release-pubkey.js`, mantendo a
+   antiga.** Publicar uma release assinada ainda **com a antiga**, para os
+   clientes instalarem a versão que já conhece as duas.
+3. Esperar que essa versão esteja disseminada.
+4. Trocar `KID_ACTIVO` e o secret `MOOTER_RELEASE_KEY` para a nova. Assinar com
+   a nova a partir daqui.
+5. Quando não restarem clientes na versão antiga, remover a pública antiga.
+
+**Porque é que a ordem importa e não é burocracia:** ao contrário — assinar com
+a nova antes de a pública nova ter chegado aos clientes — todos os clientes com
+a pública antiga recusariam a release que traz a pública nova. E ficariam
+**presos para sempre**, porque a única forma de saírem seria instalar uma
+release que eles já não aceitam. É por isto que `ancora()` devolve uma **lista**
+de públicas e `verificarManifesto()` as tenta todas: durante uma rotação há duas
+válidas ao mesmo tempo. Há teste para isso — e para que uma **terceira** chave
+continue a ser recusada: aceitar duas não é aceitar todas.
+
+**Se a privada for comprometida:** não há revogação a sério (um cliente offline
+não sabe de nada). O que existe é a rotação acima, o mais depressa possível, e
+um aviso público. É por isso que a privada nunca sai do Keychain e do secret, e
+é por isso que o passo que a lê pede autorização.
+
 ### Decisões que este ADR **não** toma
 
 Pricing público (exige definição de "seat" + tabela de comparáveis M12 + ata

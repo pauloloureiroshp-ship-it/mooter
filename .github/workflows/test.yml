@@ -372,22 +372,15 @@ jobs:
         working-directory: packages/mooter-bridge
         run: node --test
 
-      # ── onboarding v2: a suite que corre SEM --test-force-exit ─────────
-      # Nao e uma preferencia de estilo. Medido a 2026-09-10 nesta bancada, o
-      # `--test-force-exit` do script `test` corta testes ASSINCRONOS a meio e
-      # o processo sai VERDE:
-      #     ledger-turn-io   7 com a flag,  16 sem ela
-      #     provider-health  7 com a flag,  14 sem ela
-      #     ollama-host      9 com a flag,  11 sem ela
-      #     recibo          10 com a flag,  11 sem ela
-      # Os ficheiros desta onda testam caminhos async (fetch injectado, troca de
-      # payload, enrolment) e perdiam metade dos casos em silencio. Ate a causa
-      # do force-exit ser fechada (`_handoff/onboarding-v2/DEFEITOS.md` W3-D1),
-      # correm num script proprio — porque um teste que nao corre e pior do que
-      # um teste que falha: parece cobertura.
-      - name: Test onboarding v2 (sem force-exit)
-        working-directory: tools/router
-        run: npm run test:onboarding-v2
+      # ⚠️ NAO ACRESCENTAR AQUI UM PASSO COM `--test-force-exit`.
+      # A W3.5 (2026-09-11) tirou essa flag do script `test` depois de medir o
+      # que ela custava: 1110 testes com ela, **1377** sem ela — 267 testes que
+      # nunca corriam, e 6 falhas escondidas, com o CI a sair VERDE.
+      # A flag existia por causa de UM ficheiro que faz a suite pendurar
+      # (`pin-timeout.test.js`, que exercita o `codex exec`); esse mudou-se para
+      # `npm run test:integration`, que e opt-in e NAO corre aqui porque precisa
+      # de motores reais. A guarda esta em `tools/router/suite-honesta.test.js`.
+      # Ver `_handoff/onboarding-v2/DEFEITOS.md` W3-D1.
 
       # ── launcher .mcpb: a suite e o empacotamento ──────────────────────
       # Zero dependencias, como o bridge. O `pack-mcpb.mjs` corre aqui e nao so

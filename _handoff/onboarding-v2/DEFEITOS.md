@@ -66,7 +66,7 @@ de uma alteração ao acaso, e passa a esconder o defeito real.
 
 ---
 
-## W1-D2 · `npm audit` HIGH em três pacotes — dívida de `main`, não desta onda (aberto)
+## W1-D2 · `npm audit` HIGH em três pacotes — ⚠️ **o portão é não-determinista no tempo** (2026-09-12)
 
 **Encontrado:** 2026-09-10, no CI do PR #492.
 **Decisão do dono:** deixar em aberto e seguir para W2.
@@ -149,7 +149,7 @@ apanha.
 
 ---
 
-## W3-D1 · `--test-force-exit` esconde **206 testes e 6 falhas** — e a suite sai VERDE (aberto)
+## W3-D1 · `--test-force-exit` escondia **267 testes e 6 falhas** — ✅ **FECHADO na W3.5** (2026-09-11)
 
 **Encontrado:** 2026-09-10, ao ligar os testes desta onda ao script `test` do `tools/router`.
 **Severidade:** **alta.** O número que o CI publica não é o número de testes que existem.
@@ -238,3 +238,122 @@ histórico do git), nem que estes dois são os únicos ficheiros a fazê-lo.
 
 **Fora do âmbito da W3, e deliberadamente não tocado:** mexer nisto às cegas pode pendurar o CI
 inteiro, e essa decisão é do dono.
+
+
+---
+
+## W3.5 · o fecho do W3-D1 — medido, e metade da hipótese estava errada
+
+**Fechado:** 2026-09-11 · branch `feat/onboarding-v2-w35`.
+
+### Os números, antes e depois
+
+| | testes | pass | fail | termina? |
+|---|---|---|---|---|
+| antes (`--test-force-exit`) | 1110 | 1109 | 0 | sim, em 3,4 s — porque matava os filhos |
+| depois (sem a flag) | **1377** | **1376** | **0** | sim |
+| `test:integration` (opt-in) | 20 | 20 | 0 | sim |
+
+**+267 testes passam a correr mesmo.** O `1` de `skipped` é pré-existente.
+
+### A hipótese estava meio errada, e a medição desfê-la
+
+O plano dizia mover **dois** ficheiros para a suite de integração: `pin-timeout.test.js` e
+`backtest.test.js`. Medido antes de mexer:
+
+| corrida | resultado |
+|---|---|
+| suite sem **ambos** | termina — 1199 testes |
+| suite **com** `backtest`, sem `pin-timeout` | **termina** — 1293 testes |
+
+**Só o `pin-timeout.test.js` pendura.** O `backtest.test.js` parecia culpado por aparecer sempre
+ao lado dele na lista de processos vivos — mas era só a vítima de estar na mesma corrida. Movê-lo
+teria custado **~94 testes de cobertura no CI** por uma suposição que a medição desfez. Ficou onde
+estava.
+
+`pin-timeout.test.js` exercita `executePinned` contra o `codex exec` — o próprio cabeçalho do
+ficheiro chama-lhe «an agentic loop, not a chat», com um caso medido de 283 s e
+`timeoutMs: 600000`. É esse o ficheiro que justificava a flag.
+
+### As 5 falhas de `mooter-doctor.test.js`: reconfirmadas, e **não eram defeito**
+
+Corrido **fora** da sandbox: `mooter-doctor.test.js` dá **5/5 pass**. As 5 falhas eram
+`listen EPERM 127.0.0.1` — a sandbox desta bancada a recusar um listen local, e nada mais. Ficam
+arquivadas como artefacto de ambiente, não como defeito. (Era por isto que não lhes chamei defeito
+no dia em que apareceram.)
+
+Sobrava **uma** falha real das 6, e essa era minha — o `probe.js` a normalizar `OLLAMA_HOST` à
+mão —, já corrigida na W3.
+
+### A correcção não foi «tirar a flag»
+
+Foi, por esta ordem: **medir** o que a flag escondia · **isolar** o ficheiro que a justificava ·
+**mudá-lo** para `npm run test:integration` (opt-in, precisa de motores reais, não corre em CI) ·
+e só então **tirar a flag**. Tirá-la primeiro teria pendurado o CI inteiro.
+
+### O que impede a volta
+
+`tools/router/suite-honesta.test.js`, dentro da própria suite, com 6 guardas: a flag não pode
+voltar ao `test` nem a **nenhum** script `test*`; o `pin-timeout` não pode regressar à suite
+normal; o `backtest` não pode sair dela; a lista de ficheiros não pode encolher abaixo de um chão;
+e nenhum ficheiro listado pode deixar de existir no disco — um ficheiro renomeado sem actualizar o
+script **não dá erro**, o `node --test` ignora-o em silêncio.
+
+### Fica por medir (`n/d`)
+
+Os **20** testes de `test:integration` deixam de correr em CI, porque precisam de motores reais que
+o runner não tem. Antes disto corriam **truncados** (o `pin-timeout` dava 9 de 20 com a flag), o
+que não é melhor — mas é uma diferença e fica escrita. Fechá-la a sério exige um runner com
+`codex`/`ollama`, e isso é uma decisão de infraestrutura, não desta onda.
+
+
+---
+
+## W1-D2 · reaberto com uma conclusão diferente (2026-09-12)
+
+**O que eu tinha escrito:** «dívida pré-existente de `main`, três pacotes com HIGH». Isso descrevia
+o sintoma. A causa é outra, e é mais interessante.
+
+### Medido
+
+| quando | onde | resultado |
+|---|---|---|
+| 2026-09-10 | CI, PR #492 | `1 high severity vulnerability` → **FALHA** |
+| 2026-09-12 | CI, PR #503 | `found 0 vulnerabilities` → **PASSA** (nos três pacotes) |
+| 2026-09-12 | esta bancada, cache limpa | `js-yaml 4.0.0 - 4.3.1 · high` → reporta |
+
+E o que **não** mudou, verificado no git:
+
+- `git log --since=2026-09-09 origin/main -- '*package-lock.json'` → **vazio**. Os lockfiles são
+  os mesmos.
+- `tools/router/package-lock.json` fixa `js-yaml` em **4.3.1**, que está **dentro** do intervalo
+  declarado pelo aviso (`4.0.0 - 4.3.1`).
+
+### A conclusão honesta
+
+**A mesma entrada deu resultados opostos com dois dias de intervalo.** O `npm audit` não é uma
+função do repositório: é uma função do repositório **e** de uma base de avisos viva que muda sem
+commit nenhum. O portão pode ficar vermelho sem ninguém ter tocado em código, e verde outra vez
+pela mesma razão.
+
+**O que não sei, e não invento:** não consegui explicar porque é que esta bancada continua a
+reportar o aviso enquanto o CI já não o reporta — mesma versão de npm (10.9.2 / Node 22), cache
+limpa, mesmo lockfile. Fica `n/d`. As hipóteses (resposta em cache do lado do registry, aviso
+actualizado com propagação desigual) não foram verificadas e por isso não são afirmadas.
+
+### O que isto muda na prática
+
+1. **O `npm audit` não vai bloquear os PRs empilhados** — hoje passa. O que eu disse ao dono
+   («espero que apanhe o npm audit») estava errado.
+2. **Não se deve "arrumar" este vermelho com um bump feito à pressa.** O bump certo continua a
+   fazer sentido por si (uma dependência de dev numa versão com aviso), mas fazê-lo *porque o CI
+   está vermelho hoje* é agir sobre um sinal que se move sozinho.
+3. **Vale a pena o portão registar a data da base de avisos** que usou. Sem isso, dois resultados
+   opostos são indistinguíveis de um teste instável — e a primeira reacção de quem apanha um
+   vermelho destes é desconfiar do próprio portão.
+
+### O que fica aberto
+
+`js-yaml@4.3.1` (transitiva de dev, via `eslint` → `@eslint/eslintrc`) e `sharp` no `landing`
+continuam nas versões que o aviso nomeia. Subir continua a ser boa ideia; deixa de ser urgente.
+Para `packages/cli` continua a exigir entrada de allowlist — é pacote de motor congelado.
