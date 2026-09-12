@@ -38,8 +38,11 @@ jobs:
         # nobody audits is not green, it is invisible. `packs` joined the same
         # way minutes later, same day (#501 follow-up): js-yaml 4.1.1 sat inside four
         # advisories there, unaudited, while the same package was being fixed
-        # everywhere else.
-        pkg: [tools/router, packages/cli, hub, packages/router, packs]
+        # everywhere else. The repo root ('.', the claude-agent-sdk anchor) and
+        # `dashboard` joined last (#504 follow-up): the dashboard's next@15.5.15
+        # sat inside two CRITICAL unauthenticated-RCE advisories, one of them
+        # specifically for Windows-hosted servers — which is exactly how it runs.
+        pkg: [tools/router, packages/cli, hub, packages/router, packs, '.', dashboard]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

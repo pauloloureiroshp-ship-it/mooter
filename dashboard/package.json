@@ -20,5 +20,9 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.4.0"
+  },
+  "_overrides_rationale": "2026-09-11 (seguimento #489/#501/#504) — postcss ^8.5.23 limpa <=8.5.22 (GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849). O next@15.5.x fixa postcss 8.4.31 EXACTO e o unico caminho que o npm propoe e next@16 (major). O override e a alternativa nao-breaking: 8.5.x e minor de 8.4.x, e a prova e o `next build` a fechar em 0. Mesmo gesto do hub/package.json.",
+  "overrides": {
+    "postcss": "^8.5.23"
   }
 }
