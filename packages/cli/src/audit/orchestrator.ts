@@ -162,16 +162,40 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
     opts.facets.map((f) =>
       limit(async (): Promise<Finding> => {
         const input = f.gather(opts.root, io);
+        // Sem fontes nao ha auditoria. Medido a 2026-08-26 e outra vez a
+        // 2026-09-11 contra um repo que nao e o Mooter (fastify): os 6 facets
+        // leram 0 ficheiros, o prompt foi na mesma ao worker, e o worker
+        // devolveu achados a citar install.sh / classify.js / isolated-vm que
+        // nao existem la — com ok:true e exit 0. Um achado sem fonte e
+        // invencao; o worker nao e chamado.
+        if (input.sources === 0) {
+          return {
+            facet: f.name,
+            sources: 0,
+            backend: "ollama",
+            model,
+            cost_usd: 0,
+            text: "",
+            ok: false,
+            error: `0 source(s) read — nothing to audit under ${opts.root} (this facet's probes found no files)`,
+          };
+        }
         const r = await worker({ model, system: AUDIT_SYSTEM, prompt: f.prompt(input), backend: "ollama" });
+        // Transport success is not a finding. The Ollama worker returns
+        // ok:true with an empty `response`; treating that as a finding let the
+        // (paid) synthesis run over one blank section and five "no finding"s.
+        // "Blank" = no letter or digit at all: "   " and "...!!!" alike. A
+        // reply of pure punctuation was still counted as a finding (round 3).
+        const blank = r.ok && !/[\p{L}\p{N}]/u.test(String(r.text ?? ""));
         return {
           facet: f.name,
           sources: input.sources,
           backend: r.backend,
           model: r.model,
           cost_usd: r.cost_usd,
-          text: r.text,
-          ok: r.ok,
-          error: r.error,
+          text: blank ? "" : r.text,
+          ok: r.ok && !blank,
+          error: blank ? "worker returned no text" : r.error,
         };
       }),
     ),
@@ -180,7 +204,13 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
   let synthesis: string | null = null;
   let synthCost = 0;
   let synthDidRun = false;
-  if (maxCost > 0) {
+  // A sintese resume achados; sem nenhum facet ok:true nao ha nada para
+  // resumir e a chamada cloud (paga) devolveria um sumario de erros — ou, com
+  // `--max-cost 1` num repo sem fontes, um sumario inventado. Nao se chama.
+  const anyFinding = findings.some((f) => f.ok);
+  if (maxCost > 0 && !anyFinding) {
+    synthesis = "(synthesis skipped — no facet produced a finding)";
+  } else if (maxCost > 0) {
     const synthModel = opts.synthModel ?? DEFAULT_SYNTH_MODEL;
     const joined = findings
       .map((f) => `## ${f.facet}\n${f.ok ? f.text : `(no finding — ${f.error})`}`)
@@ -207,7 +237,8 @@ export async function runFanOut(opts: RunFanOutOptions): Promise<FanOutReport> {
     facets: findings,
     synthesis,
     totalCostUsd,
-    localCount: findings.filter((f) => f.backend === "ollama").length,
+    // Conta workers despachados; um facet saltado por 0 fontes nao correu worker nenhum.
+    localCount: findings.filter((f) => f.backend === "ollama" && f.sources > 0).length,
     cloudCount: findings.filter((f) => f.backend === "claude-api").length + (synthDidRun ? 1 : 0),
     concurrency,
   };

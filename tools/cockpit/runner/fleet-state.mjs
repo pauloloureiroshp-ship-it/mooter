@@ -198,6 +198,7 @@ import {
   MOTIVOS, ORIGEM_DETECTOR,
 } from './triagem.mjs';
 import { verReserva } from './reserva.mjs';
+import { lerProdutores } from './produtores.mjs';
 
 function detectorND(porque) {
   return {
@@ -289,6 +290,13 @@ export function buildFleetState({
   engineAlive = false,
   alignment = null,
   fleet = null,
+  /**
+   * O indice do arnes, LIDO de um instantaneo por quem chama — nunca calculado
+   * aqui. `buildFleetState` corre a cada pedido do painel; calcular o indice
+   * custa segundos. `null` publica-se como ausente com o porque, nunca como
+   * zero: "ninguem calculou" e "o arnes vale zero" sao afirmacoes diferentes.
+   */
+  indice = null,
   now = Date.now(),
   readImpl = fs.readFileSync,
   existsImpl = fs.existsSync,
@@ -319,15 +327,29 @@ export function buildFleetState({
   const filaModelo = porTriar(receipts, decisoes);
   const detectorLido = lerDetector({ baseDir, repoRoot, decisoes, readImpl, existsImpl });
   const { fila: filaDetector, ...detector } = detectorLido;
+  // Os tres produtores da F1 (semgrep · jscpd · knip). Porta propria, corte
+  // proprio e CONTAGEM PROPRIA POR ORIGEM — e o gate da F1 exige as tres coisas.
+  // Ausente = `n/d` com razao, nunca zero: ninguem correu os produtores neste
+  // device e isso e diferente de "os produtores nao acharam nada".
+  const produtoresLido = lerProdutores({ baseDir, repoRoot, decisoes, readImpl, existsImpl });
+  const { fila: filaProdutores, ...produtores } = produtoresLido;
   // Cada porta conserva o seu corte de 50. Fundi-las sem um segundo corte
   // impede que 50 recibos recentes tornem o detector invisivel outra vez.
-  const fila = [...filaDetector, ...filaModelo];
+  const fila = [...filaProdutores, ...filaDetector, ...filaModelo];
+  // `ok` (as tres correram limpas) e `parcial` (correu alguma) TEM contagem.
+  // `falhou` nao tem: as ferramentas correram e rebentaram, portanto quantos
+  // achados havia e DESCONHECIDO — e desconhecido nao e zero.
+  const produtoresContam = produtores.estado === 'ok' || produtores.estado === 'parcial';
   const porTriarTotal = detector.estado === 'ok'
-    ? contasTriagem.por_triar + detector.por_triar
+    ? contasTriagem.por_triar + detector.por_triar + (produtoresContam ? produtores.por_triar : 0)
     : null;
   const alertaAchados = contasTriagem.por_triar > 0 || detector.por_triar > 0
+    || (produtoresContam && produtores.por_triar > 0)
     ? true
-    : (detector.estado === 'ok' ? false : null);
+    // Com `falhou`, `false` seria afirmar "nao ha nada a triar" a partir de tres
+    // ferramentas que nao chegaram a olhar. `n/d` (ninguem correu os produtores
+    // neste device) mantem o comportamento de quem nunca os correu.
+    : (detector.estado === 'ok' && produtores.estado !== 'falhou' ? false : null);
 
   const tally = tallyVerdicts(receipts);
   const tallyToday = tallyVerdicts(todays);
@@ -337,6 +359,18 @@ export function buildFleetState({
   return {
     device: state.device || device || 'device-sem-nome',
     running,
+    /**
+     * O indice do arnes, com as sete parcelas e a IDADE do instantaneo.
+     *
+     * `null` publica-se como ausente **com o porque**, nunca como zero. As duas
+     * frases sao diferentes e o painel tem de as poder distinguir: "ninguem
+     * calculou o indice nesta maquina" e "o arnes vale zero" levam a decisoes
+     * opostas, e um zero em vez de uma ausencia levaria a errada.
+     */
+    indice: indice && indice.presente ? indice : {
+      presente: false,
+      porque: (indice && indice.porque) || 'indice nao lido por quem construiu este estado',
+    },
     // $0 is structural: `runner-core.assertLocalEngine` refuses any non-loopback
     // engine, so this field cannot drift away from the truth.
     usd: 0,
@@ -391,6 +425,7 @@ export function buildFleetState({
       por_triar_modelo: contasTriagem.por_triar,
       por_triar: porTriarTotal,
       detector,
+      produtores,
       // O painel nao pode inventar a lista: ela e fechada no motor.
       motivos: MOTIVOS,
       ...(triagemPartidas ? { linhas_partidas: triagemPartidas } : {}),

@@ -1833,6 +1833,28 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
   const SEV_ROTULO = { high: 'high', med: 'medium', low: 'low' };
 
   /**
+   * Que INSTRUMENTO produziu este achado. Tabela fechada, uma linha por origem
+   * que o motor sabe emitir (`ORIGEM_MODELO`, `ORIGEM_DETECTOR` e as tres de
+   * `produtores.mjs`).
+   *
+   * Era um ternario — "detector ou GPU" — e por isso qualquer origem nova saia
+   * do ecra rotulada `GPU · model`. Uma origem que este painel nao conheca sai
+   * agora com o seu proprio nome e a marca de desconhecida: dizer "nao sei o que
+   * isto e" custa uma palavra; dizer "GPU" quando foi um linter de CPU custa a
+   * confianca no ecra todo.
+   */
+  const PROCEDENCIA = {
+    'modelo-local':           { rotulo: 'GPU · model',      cls: 'ok',   doModelo: true },
+    'detector-deterministico':{ rotulo: 'detector · regex', cls: 'warn', doModelo: false },
+    semgrep:                  { rotulo: 'semgrep · linter', cls: 'warn', doModelo: false },
+    jscpd:                    { rotulo: 'jscpd · linter',   cls: 'warn', doModelo: false },
+    knip:                     { rotulo: 'knip · linter',    cls: 'warn', doModelo: false },
+  };
+  function procedencia(origem) {
+    return PROCEDENCIA[origem] || { rotulo: (origem || 'origem desconhecida') + ' · ?', cls: 'warn', doModelo: false };
+  }
+
+  /**
    * O cartao do Autopilot.
    *
    * Regra dura: um nivel bloqueado NUNCA e um botao cinzento e mudo. Traz o
@@ -2010,12 +2032,19 @@ body.shipping .cow{animation:breathe 4.5s ease-in-out infinite}
       d.classList.add('sev-' + sv.k);
       const chipSev = el("span", "sev " + sv.k, SEV_ROTULO[sv.k]);
       chipSev.title = sv.porque;
-      const doDetector = a.origem === 'detector-deterministico';
-      const chipOrigem = el("span", doDetector ? "chip warn" : "chip ok",
-        doDetector ? "detector · regex" : "GPU · model");
-      cab.append(chipSev, chipOrigem);
-      if (doDetector) cab.appendChild(el("span", "chip warn", a.regra || "regex"));
-      else cab.appendChild(el("span", "chip ok", a.pilar || "—"));
+      // A PROCEDENCIA VEM DA `origem`, E NAO DE "TUDO O QUE NAO E O DETECTOR".
+      // O ramo antigo era `doDetector ? "detector · regex" : "GPU · model"`, e o
+      // resultado medido a 2026-08-26 foi o cockpit a afirmar ao dono que 104
+      // achados de tres linters de CPU — zero GPU, zero modelo, zero rondas —
+      // vieram da GPU e do modelo. Num produto cuja tese e "corre a $0 na tua
+      // GPU e nunca inventa", esta e a etiqueta que nao pode estar errada.
+      const proc = procedencia(a.origem);
+      cab.append(chipSev, el("span", "chip " + proc.cls, proc.rotulo));
+      // A `regra` e o UNICO sitio do ecra onde `jscpd/duplicate:yaml` se
+      // distingue de `knip/devDependencies`, e so era desenhada no ramo do
+      // detector — portanto para os produtores nunca aparecia.
+      if (proc.doModelo) cab.appendChild(el("span", "chip ok", a.pilar || "—"));
+      else cab.appendChild(el("span", "chip warn", a.regra || proc.rotulo));
       cab.append(el("code", "ev", a.ficheiro + ":" + a.janela), el("span", "nd", hhmm(a.ts)));
       cab.appendChild(el("span", "nd sev-porque", sv.porque));
       // Um achado mal citado NAO desaparece — fica, marcado. Pode ser verdade
