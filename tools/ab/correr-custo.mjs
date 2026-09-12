@@ -94,6 +94,11 @@
  * com provas verdes não é contraditório numa claude-p sem JSON) — decisão do
  * dono, registada por AMENDMENT, não deste ficheiro.
  *
+ * Da mesma classe, declarado: uma aceitação de A morta pelo tecto de 600 s
+ * (`aceitacao_sinal: SIGTERM`, contagens null) é 27c na análise («aceite:
+ * false em A sem prova») → INVÁLIDA; exige que a reparação deixe a suite
+ * pendurada — raro, e visível na linha.
+ *
  * Declarado também: `tokens_transcript` soma só o ficheiro do `session_id`;
  * subagentes em Opus vivem noutro ficheiro e o JSON agrega-os — a
  * `divergencia_json_vs_transcript` (só marca) vai disparar nessas linhas.
@@ -734,8 +739,9 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   } catch (e) { saidaErro = `saidas:${e.code || e.message}`; }
 
   const j = r.json;
-  // 3 do cabeçalho: arrancou por evidência
-  const transcriptPath = encontrarTranscript(sessionId, ctx.home);
+  // 3 do cabeçalho: arrancou por evidência; se o CLI ignorou o --session-id, procura-se tambem pelo id do JSON (165) e fica registado
+  const sessionIdDivergente = !!(j && typeof j.session_id === 'string' && j.session_id !== sessionId);
+  const transcriptPath = encontrarTranscript(sessionId, ctx.home) || (sessionIdDivergente ? encontrarTranscript(j.session_id, ctx.home) : null);
   const tr = transcriptPath ? tokensDoTranscript(transcriptPath) : null;
   const tokens_transcript = tr ? tr.total : 0;   // 99/103: 0 = procurado, não encontrado
   let arrancou, motivo_se_nao, session_id;
@@ -777,7 +783,7 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
     ...amb,
     worktree_listagem_sha_antes: listAntes, worktree_listagem_sha_depois: listagemSha(snapshot),
     // extras (nenhuma é obrigatória; nenhuma substitui uma obrigatória)
-    tokens_transcript, transcript: transcriptPath, num_turns: j && Number.isInteger(j.num_turns) ? j.num_turns : null,
+    tokens_transcript, transcript: transcriptPath, session_id_pedido: sessionId, session_id_divergente: sessionIdDivergente, num_turns: j && Number.isInteger(j.num_turns) ? j.num_turns : null,
     is_error: j ? j.is_error === true : null, subtype: j && typeof j.subtype === 'string' ? j.subtype : null, cli_exit: r.exit_status, cli_sinal: r.sinal,
     tecto_estourado: tectoEstourado, parede_ms: r.parede_ms, sinal_depois_do_json: !!(j && r.sinal), arvore_morta: arvoreMorta, aceitacao_sinal: prova && !prova.erro ? prova.aceitacao_sinal : null, aceitacao_duration_ms: prova ? prova.aceitacao_duration_ms : null, aceitacao_erro: prova && prova.erro ? prova.erro : null,
     motivo_cli: j ? null : r.stderr_tail.slice(-200) || null,   // 86: distinguir crash de tecto
@@ -948,14 +954,17 @@ export async function correr(ctx) {
   // 154: o sentinela e tambem a TRANCA — `wx` e atomico; dois --correr a passar o pre-voo na mesma janela nao pagam duas sondas nem entrelacam o ledger
   try { fs.writeFileSync(caminhoDoSentinela(ctx.routerDirVivo), SENTINELA_CONTEUDO, { encoding: 'utf8', flag: 'wx' }); }
   catch (e) { log(`o sentinela ${caminhoDoSentinela(ctx.routerDirVivo)} apareceu entre o pre-voo e o arranque (${e.code}) — outra instancia? nao arranca`); return 2; }
+  // 165: um Ctrl+C durante o aquecimento ou a sonda nao pode deixar o sentinela posto (o cache do dono ficava congelado ate remocao manual)
+  const onSinalCedo = () => { tirarSentinela(); process.exit(130); };
+  process.on('SIGINT', onSinalCedo); process.on('SIGTERM', onSinalCedo);
   const aq = await (ctx.aquecerImpl || aquecerModeloLocal)(ctx.ollama, ctx.modeloLocal);   // 140
   log(`aquecimento do modelo local ${ctx.modeloLocal}: ${aq.ok ? `ok em ${aq.ms} ms` : `FALHOU (${aq.motivo || aq.http})`}`);
-  if (!aq.ok) { tirarSentinela(); return 2; }
+  if (!aq.ok) { tirarSentinela(); process.removeListener('SIGINT', onSinalCedo); process.removeListener('SIGTERM', onSinalCedo); return 2; }
   log('sonda paga (1 chamada)…');
   const sonda = sondar(ctx);
   for (const f of sonda.falhas) log(`  ✖ ${f}`);
   if (sonda.aviso) log(`  · ${sonda.aviso}`);
-  if (!sonda.ok) { tirarSentinela(); return 2; }
+  if (!sonda.ok) { tirarSentinela(); process.removeListener('SIGINT', onSinalCedo); process.removeListener('SIGTERM', onSinalCedo); return 2; }
   log(`  sonda ok: ${sonda.json.modelUsage[MODELO_OPUS].inputTokens}+${sonda.json.modelUsage[MODELO_OPUS].outputTokens}+cache ${sonda.cache_opus} tokens, ${sonda.json.total_cost_usd} USD, transcript ${sonda.tokens_transcript} tokens`);
 
   const manifesto = escreverManifesto(ctx, { sonda: { session_id: sonda.session_id, ts_inicio: sonda.ts_inicio, ts_fim: sonda.ts_fim, usage: sonda.json.usage, modelUsage: sonda.json.modelUsage, total_cost_usd: sonda.json.total_cost_usd ?? null, duration_ms: sonda.json.duration_ms ?? null, num_turns: sonda.json.num_turns ?? null, transcript: sonda.transcript, tokens_transcript: sonda.tokens_transcript, cache_opus: sonda.cache_opus, aviso: sonda.aviso } });
@@ -963,11 +972,12 @@ export async function correr(ctx) {
 
   const tarefas = ctx.prereg.corpus.tarefas.slice().sort((a, b) => a.ordem - b.ordem);
   const alvo = ctx.so !== null ? tarefas.slice(0, ctx.so) : tarefas;
-  const suplentes = ctx.prereg.corpus.suplentes.filter((id) => !ctx.overrides.excluir.includes(id));   // pela ordem da lista (9.º/6); um suplente excluido por emenda (159) nunca entra
+  const suplentes = ctx.prereg.corpus.suplentes.slice();   // pela ordem da lista (9.º/6); um suplente excluido por emenda (159) fica na lista e e REGISTADO como tarefa_excluida no momento em que seria consumido — a analise so o conta como indisponivel se o vir no ledger (5.º revisor)
   const excluidas = new Set();
   let terminouNormalmente = false;
   const pararCom = (motivo) => { if (!ledger.fechado) ledger.paragem(motivo); };   // 134: n/ultima_tarefa vêm do que o Ledger escreveu
   const onSinal = () => { pararCom('sinal: interrompido pelo operador'); tirarSentinela(); process.exit(130); };
+  process.removeListener('SIGINT', onSinalCedo); process.removeListener('SIGTERM', onSinalCedo);
   process.on('SIGINT', onSinal); process.on('SIGTERM', onSinal);
   process.on('exit', () => { if (!terminouNormalmente) pararCom('processo terminou sem fim normal (exit handler, 75)'); });
   try {

@@ -579,6 +579,48 @@ test('pre-voo da corrida (regras 9, sem git/CLI/rede): --so acima de SO_MAXIMO, 
   assert.match(src, /if \(sentinelaPresente\(ctx\.routerDirVivo\)\) \{/, 'sentinela orfao e falha, nunca apagado em silencio');
   assert.match(src, /if \(fs\.existsSync\(ctx\.ledgerPath\)\) falhas\.push/, 'UMA corrida');
   assert.match(src, /flag: 'wx'/, '154: o sentinela e a tranca');
-  // e a exclusao de um suplente por emenda retira-o da lista e do controlo (159)
-  assert.match(src, /suplentes\.filter\(\(id\) => !ctx\.overrides\.excluir\.includes\(id\)\)/);
+  // e a exclusao de um suplente por emenda retira-o do CONTROLO do filho, mas NAO da lista: fica registada no ledger quando seria consumido (5.º revisor)
+  assert.match(src, /const suplentes = ctx\.prereg\.corpus\.suplentes\.slice\(\)/);
+  assert.match(src, /\.filter\(\(id\) => !ctx\.overrides\.excluir\.includes\(id\)\);\n  const fc = /, 'o controlo do filho salta o excluido');
+});
+
+/** Um `correr()` hermetico: tudo injectado, so o loop de tarefas/suplentes e real. */
+function driverCorrer(h, { suplentes, prepararFalhaEm = [] }) {
+  const ctx = h.ctx;
+  ctx.raiz = path.join(ctx.home, 'raiz'); ctx.cache = path.join(ctx.raiz, 'cache');
+  ctx.ledgerPath = path.join(ctx.home, 'custo-ledger.jsonl'); ctx.manifestoPath = path.join(ctx.home, 'manifesto.json'); ctx.analysisPath = path.join(ctx.home, 'analysis.json');
+  ctx.preregSha = 'p'.repeat(64); ctx.analiseSha = 'a'.repeat(64); ctx.controladorSha = 'c'.repeat(64); ctx.head = 'h'; ctx.originMain = 'o'; ctx.runtime = { router_execute_sha256: 'r', inject_context_sha256: 'i' }; ctx.classificacoes = {}; ctx.classifyRecomenda = [];
+  fs.rmSync(path.join(ctx.routerDirVivo, '.budget-freeze'), { force: true });
+  fs.writeFileSync(path.join(ctx.routerDirVivo, 'classify.js'), ''); fs.writeFileSync(path.join(ctx.routerDirVivo, 'patterns.js'), ''); ctx.classifyPath = path.join(ctx.routerDirVivo, 'classify.js');
+  ctx.preVooImpl = async () => ({ ok: true, falhas: [], avisos: [] }); ctx.cacheNmImpl = () => []; ctx.controloImpl = () => []; ctx.aquecerImpl = async () => ({ ok: true, ms: 1 });
+  ctx.emendaSha = 'e'.repeat(64);
+  ctx.prereg = { ...ctx.prereg, corpus: { ...ctx.prereg.corpus, suplentes } };
+  const prepOrig = ctx.prepararImpl;
+  ctx.prepararImpl = (c, tarefa) => (prepararFalhaEm.includes(tarefa.task_id) ? { ok: false, motivo: 'A:git_archive:128' } : prepOrig(c, tarefa));
+  const inner = ctx.spawnImpl;
+  ctx.spawnImpl = (exe, args, opts) => { if (String(args[0]).endsWith('custo-analise.mjs')) return { status: 0, stdout: '', stderr: '' }; const r = inner(exe, args, opts); if (args[0] === '-p' && args[1] === 'Responde apenas: OK') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), JSON.stringify({ type: 'assistant', uuid: 'a', message: { id: 'msg_s', model: 'claude-opus-5', usage: SONDA.usage } }) + '\n'); } return r; };
+  const logs = []; ctx.log = (m) => logs.push(String(m));
+  return { ctx, logs, eventos: () => lerLedger(fs.readFileSync(ctx.ledgerPath, 'utf8')).eventos, julgar: () => { const { eventos, linhasInvalidas } = lerLedger(fs.readFileSync(ctx.ledgerPath, 'utf8')); return analisar(ctx.prereg, eventos, { linhasInvalidas }); } };
+}
+
+test('correr() com --excluir de um SUPLENTE por emenda: fica na lista e e registado como tarefa_excluida quando seria consumido; a analise da valida (5.º revisor) — e a mordida: o pre-filtro silencioso dava suplente_fora_do_protocolo', async () => {
+  const h = harness({ argv: ['--correr', '--excluir', 't02-7bb45751d8', '--emenda', 'C:/x/AMENDMENT-1.md'] });
+  const d = driverCorrer(h, { suplentes: ['t02-7bb45751d8', 't09-07bdf37783'], prepararFalhaEm: ['t21-96171ef138'] });
+  assert.equal(await correr(d.ctx), 0, d.logs.join(' | '));
+  const ex = d.eventos().filter((e) => e.evento === 'tarefa_excluida');
+  assert.deepEqual(ex.map((e) => [e.task_id, e.suplente_usado, e.motivo.split(':')[0]]), [['t21-96171ef138', 't02-7bb45751d8', 'worktree'], ['t02-7bb45751d8', 't09-07bdf37783', 'emenda']], 'o salto do suplente excluido fica no ledger');
+  assert.ok(d.eventos().some((e) => e.evento === 'tentativa_fim' && e.task_id === 't09-07bdf37783'), 't09 correu no slot');
+  const r = d.julgar();
+  assert.equal(r.corrida_valida, true, JSON.stringify(r.corrida_invalida_por)); assert.equal(r.marcas_por_tipo.tarefa_substituida, 2); assert.equal(r.marcas_por_tipo.suplente_fora_do_protocolo, undefined);
+  // mordida: o mesmo ledger SEM a linha da exclusao do t02 (o pre-filtro da 4.ª ronda) — a analise invalida
+  const semRegisto = d.eventos().filter((e) => !(e.evento === 'tarefa_excluida' && e.task_id === 't02-7bb45751d8')).map((e) => (e.evento === 'tarefa_excluida' && e.task_id === 't21-96171ef138' ? { ...e, suplente_usado: 't09-07bdf37783' } : e));
+  const rm = analisar(d.ctx.prereg, semRegisto, { linhasInvalidas: [] });
+  assert.equal(rm.corrida_valida, false); assert.ok(rm.marcas.some((m) => m.tipo === 'suplente_fora_do_protocolo' && /t02-7bb45751d8/.test(m.motivo)));
+  // e o unico suplente excluido + slot a cair: paragem «sem suplentes», sem veredicto (honesto)
+  const h2 = harness({ argv: ['--correr', '--excluir', 't02-7bb45751d8', '--emenda', 'C:/x/AMENDMENT-1.md'] });
+  const d2 = driverCorrer(h2, { suplentes: ['t02-7bb45751d8'], prepararFalhaEm: ['t21-96171ef138'] });
+  assert.equal(await correr(d2.ctx), 3);
+  const p = d2.eventos().at(-1);
+  assert.equal(p.evento, 'paragem'); assert.match(p.motivo, /sem suplentes/); assert.equal(fs.existsSync(caminhoDoSentinela(d2.ctx.routerDirVivo)), false);
+  assert.equal(d2.julgar().primaria.limiar_descritivo_cumprido, null);
 });
