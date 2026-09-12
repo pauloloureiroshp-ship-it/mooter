@@ -326,18 +326,28 @@ export function encontrarTranscript(sessionId, home = os.homedir()) {
  * Tokens de Opus de UM transcript (prereg secundaria.cruzamento): soma das 4
  * categorias, UMA VEZ POR RESPOSTA DA API. O Claude Code escreve uma linha por
  * bloco de conteúdo da mesma resposta (thinking + text, text + tool_use), cada
- * uma a repetir o mesmo `message.id` e o `usage` completo — somar linhas dava
- * 1,4×–2,4× o facturado (3.º revisor do controlador, medido em transcripts
- * reais deste corpus: 2715 linhas / 1541 ids = 1,75×). A chave é `message.id`
- * (fallback `requestId`, depois `uuid`); `linhas_repetidas` fica no objecto.
- * Só ESTE ficheiro — subagentes noutro ficheiro não entram (declarado; o JSON
- * é a fonte primária, isto é o cruzamento).
+ * uma a repetir o mesmo `message.id` — somar linhas dava 1,4×–2,4× o facturado
+ * (3.º revisor do controlador, medido em transcripts reais deste corpus: 2715
+ * linhas / 1541 ids = 1,75×). A chave é `message.id` (fallback `requestId`,
+ * depois `uuid`); `linhas_repetidas` fica no objecto.
+ *
+ * E o `usage` de cada resposta é o MÁXIMO por campo das suas linhas, não a 1.ª:
+ * nos transcripts de subagentes (`<sessão>/subagents/agent-*.jsonl`) o
+ * `output_tokens` das primeiras linhas é o contador em streaming (1–7) e só a
+ * última traz o total — first-wins subcontava o output em 18,3% na janela dos
+ * 40 (final-reviewer do #509, 2026-09-12; o mesmo defeito corrigido em
+ * `tools/router/recibo.js`). Nos transcripts principais — os únicos que esta
+ * função lê — mediram-se 0 desvios entre linhas do mesmo id (2026-09-12: 0 em
+ * 442 principais, 1.551 em 99 de subagentes), portanto hoje o número não muda
+ * — a correcção é para o formato não nos apanhar quando mudar. Só ESTE
+ * ficheiro — subagentes noutro ficheiro não entram (declarado; o JSON é a
+ * fonte primária, isto é o cruzamento).
  */
 export function tokensDoTranscript(ficheiro) {
   let bruto = '';
   try { bruto = fs.readFileSync(ficheiro, 'utf8'); } catch { return null; }
   const t = { input: 0, output: 0, cache_creation: 0, cache_read: 0, registos: 0, registos_opus: 0, respostas_opus: 0, linhas_repetidas: 0, linhas_ilegiveis: 0 };
-  const vistos = new Set();
+  const respostas = new Map();   // chave → máximo por campo das linhas da mesma resposta
   for (const l of bruto.split('\n')) {
     if (!l.trim()) continue;
     let o; try { o = JSON.parse(l); } catch { t.linhas_ilegiveis++; continue; }
@@ -347,13 +357,15 @@ export function tokensDoTranscript(ficheiro) {
     if (!/^claude-opus/i.test(String(o.message.model || ''))) continue;
     t.registos_opus++;
     const chave = (o.message && o.message.id) || o.requestId || o.uuid || `linha:${t.registos}`;
-    if (vistos.has(chave)) { t.linhas_repetidas++; continue; }
-    vistos.add(chave);
+    const n = { input: Number(u.input_tokens) || 0, output: Number(u.output_tokens) || 0, cache_creation: Number(u.cache_creation_input_tokens) || 0, cache_read: Number(u.cache_read_input_tokens) || 0 };
+    const r = respostas.get(chave);
+    if (!r) { respostas.set(chave, n); continue; }
+    t.linhas_repetidas++;
+    for (const k of Object.keys(n)) if (n[k] > r[k]) r[k] = n[k];
+  }
+  for (const r of respostas.values()) {
     t.respostas_opus++;
-    t.input += Number(u.input_tokens) || 0;
-    t.output += Number(u.output_tokens) || 0;
-    t.cache_creation += Number(u.cache_creation_input_tokens) || 0;
-    t.cache_read += Number(u.cache_read_input_tokens) || 0;
+    t.input += r.input; t.output += r.output; t.cache_creation += r.cache_creation; t.cache_read += r.cache_read;
   }
   t.total = t.input + t.output + t.cache_creation + t.cache_read;
   return t;

@@ -246,10 +246,9 @@ function fundirUsage(alvo, u) {
  * facturado (medido a 2026-09-11 em 3 transcripts reais: 294/495/99 linhas
  * para 162/278/54 ids). A chave é `message.id` (fallback `requestId`, depois
  * `uuid`), a mesma de `tokensDoTranscript` em `tools/ab/correr-custo.mjs`
- * (#508) — com uma diferença: aqui o usage da resposta é o MÁXIMO por campo
- * das suas linhas, porque nos subagentes a 1.ª linha traz o `output_tokens`
- * em streaming (ver o cabeçalho); o `tokensDoTranscript` fica com a 1.ª e
- * herda essa subcontagem. `linhas_repetidas` fica no resultado para o
+ * (#508), e a mesma fusão: o usage da resposta é o MÁXIMO por campo das suas
+ * linhas, porque nos subagentes a 1.ª linha traz o `output_tokens` em
+ * streaming (ver o cabeçalho). `linhas_repetidas` fica no resultado para o
  * impresso o dizer.
  *
  * @returns {{sessao:string, turnos:Array, orfas:number, linhas_repetidas:number}}
