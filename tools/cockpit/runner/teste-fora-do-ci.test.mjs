@@ -107,21 +107,41 @@ test('linha de base ilegivel = ausente, e ausente nao passa', () => {
 
 // ── MORDIDA: o guarda a serio, contra o repositorio a serio ─────────────────
 
-test('MORDIDA: um ficheiro de teste novo na arvore faz o guarda falhar com codigo 1', () => {
-  const alvo = path.join(AQUI, 'zz-prova-da-mordida.test.mjs');
+test('MORDIDA: um ficheiro de teste novo na arvore faz o guarda falhar com codigo 1 e NOMEIA-O', () => {
+  // ⚠️ Esta mordida passou VERDE durante 16 dias a testar a coisa errada.
+  // Plantava o ficheiro AO LADO deste, em tools/cockpit/runner/, e a 2026-08-26
+  // isso era um orfao porque o `test:cockpit-runner` era uma lista escrita a
+  // mao. Entretanto main trocou a lista por um glob (`tools/cockpit/runner/
+  // *.test.mjs`) e o ficheiro plantado passou a ser COBERTO: o guarda dava 0,
+  // o teste dava vermelho, e a leitura dizia «a catraca partiu». Nao partiu —
+  // a premissa da mordida e que morreu debaixo dela. Um teste de mordida
+  // depende do mundo tanto como o guarda que testa.
+  //
+  // Agora planta-se num SUBDIRECTORIO, que o glob de um nivel nao alcanca
+  // (o `*` do node --test nao atravessa `/`), e afirma-se que o guarda nomeia
+  // exactamente esse ficheiro — se um dia alguem cobrir o subdirectorio, o
+  // teste diz qual foi a premissa que caiu em vez de so dar vermelho.
+  const dir = path.join(AQUI, 'zz-prova-da-mordida');
+  const alvo = path.join(dir, 'zz-prova-da-mordida.test.mjs');
+  const rel = 'tools/cockpit/runner/zz-prova-da-mordida/zz-prova-da-mordida.test.mjs';
   // Nome com `zz-` para nao colidir com nada, e apagado no `finally` mesmo que
   // o assert rebente — um teste que deixa lixo na arvore parte o proximo.
   try {
+    fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(alvo, "import test from 'node:test';\ntest('so existe para a catraca morder', () => {});\n");
     let codigo = 0;
+    let saida = '';
     try {
-      execFileSync(process.execPath, [GUARDA], { encoding: 'utf8', windowsHide: true });
+      saida = execFileSync(process.execPath, [GUARDA, '--json'], { encoding: 'utf8', windowsHide: true });
     } catch (e) {
       codigo = e.status;
+      saida = String(e.stdout || '');
     }
     assert.equal(codigo, 1, 'o guarda TEM de falhar com um teste orfao novo na arvore');
+    const r = JSON.parse(saida);
+    assert.deepEqual(r.novos, [rel], `o guarda tem de nomear o ficheiro plantado; se nao o ve, a premissa «subdirectorio nao e coberto» caiu — ver o cabecalho deste teste`);
   } finally {
-    try { fs.rmSync(alvo, { force: true }); } catch { /* o SO que trate */ }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* o SO que trate */ }
   }
 });
 

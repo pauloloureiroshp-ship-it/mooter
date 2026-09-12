@@ -150,7 +150,7 @@ export function testesGateados({
   }
 
   const cobertos = new Set();
-  const dirsDescoberta = new Set();
+  const dirsDescoberta = new Map(); // dir -> recursivo
   const juntar = (base, rel) => path.posix.normalize(base ? `${base}/${rel}` : rel).replace(/^\.\//, '');
 
   /**
@@ -166,13 +166,27 @@ export function testesGateados({
     const c = String(cmd).trim();
     if (profundidade > 3) return; // scripts a chamarem-se uns aos outros
     for (const m of c.matchAll(/[\w./@-]+\.test\.(?:mjs|js|ts|cjs)/g)) cobertos.add(juntar(base, m[0]));
-    const dirDo = (d) => dirsDescoberta.add(d ? juntar(base, d) : (base || '.'));
+    // `recursivo`: um runner que descobre sozinho (`node --test` sem
+    // argumentos, vitest, jest) e um `**` descem a arvore toda; um glob de um
+    // nivel (`dir/*.test.mjs`) NAO desce — o `*` do node --test nao atravessa
+    // `/`. A primeira versao tratava os dois como recursivos, e um ficheiro em
+    // `dir/sub/x.test.mjs` contava como coberto sem ninguem o correr. A
+    // 2026-09-11 nao havia nenhum nesse caso (medido), mas era exactamente o
+    // sitio onde o proximo orfao se esconderia — e a mordida da catraca
+    // precisava de um sitio destes para plantar o ficheiro depois de o
+    // `test:cockpit-runner` de main ter passado a glob.
+    const dirDo = (d, recursivo) => {
+      const k = d ? juntar(base, d) : (base || '.');
+      dirsDescoberta.set(k, Boolean(dirsDescoberta.get(k)) || recursivo);
+    };
     // Runners que DESCOBREM ficheiros sozinhos cobrem um directorio inteiro, e
     // lista-los um a um daria zero para um pacote inteiramente coberto.
-    if (/(^|[\s/])(node|tsx) --test\s*$/.test(c)) dirDo('');
-    if (/\b(vitest|jest)\b/.test(c)) dirDo('');
-    for (const g of c.matchAll(/([\w./@-]*)\*[\w.*-]*\.test\.(?:mjs|js|ts|cjs)/g)) {
-      dirDo(String(g[1] || '').replace(/\/$/, ''));
+    if (/(^|[\s/])(node|tsx) --test\s*$/.test(c)) dirDo('', true);
+    if (/\b(vitest|jest)\b/.test(c)) dirDo('', true);
+    // O `/` dentro da parte com asterisco e para o `dir/**/*.test.mjs`: sem
+    // ele a regex so via o `*.test.mjs` final, com directorio vazio.
+    for (const g of c.matchAll(/([\w./@-]*)\*[\w.*/-]*\.test\.(?:mjs|js|ts|cjs)/g)) {
+      dirDo(String(g[1] || '').replace(/\/$/, ''), /\*\*/.test(g[0]));
     }
     // Um wrapper com `--cwd X -- <cmd>` corre `<cmd>` DENTRO de X. E o caso do
     // `test:cli-guardado`, que corre o `npm test` do `packages/cli` a partir da
@@ -241,11 +255,14 @@ export function testesGateados({
 
   const estaCoberto = (rel) => {
     if (cobertos.has(rel)) return true;
-    for (const d of dirsDescoberta) {
+    for (const [d, recursivo] of dirsDescoberta) {
       // A raiz cobriria o repositorio inteiro, e nada corre `node --test` na
       // raiz. Assumi-lo daria 100% a esta parcela sem ninguem correr um teste.
       if (d === '.' || d === '') continue;
-      if (rel.startsWith(d.endsWith('/') ? d : d + '/')) return true;
+      const pref = d.endsWith('/') ? d : d + '/';
+      if (!rel.startsWith(pref)) continue;
+      if (recursivo) return true;
+      if (!rel.slice(pref.length).includes('/')) return true; // um nivel so
     }
     return false;
   };
