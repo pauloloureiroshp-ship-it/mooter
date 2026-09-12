@@ -1,0 +1,62 @@
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P7",
+  "title": "Usar vs não usar — R-24: 23 tarefas reais, TVA, Z pré-registado, ITT",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T14:27:07.538Z",
+  "congelado_em_fonte": "new Date() ao gerar; a anterioridade que conta e a do pre-registo do R-24 (2026-09-04) e o commit deste ficheiro",
+  "regra": "O protocolo desta prova E o pre-registo do dono (tools/ab/r24-prereg.json, CONGELADO 2026-09-04, seed fornecida por ele). Nada aqui o altera; este ficheiro fixa apenas o lancamento. Emendas so por AMENDMENT-n.md.",
+  "pergunta": "Usar o Mooter (router pinado + este ambiente) e diferente de nao usar, em 23 tarefas reais do repo, medido em tempo-ate-verde (TVA) com teste mecanico e sem juiz?",
+  "pre_registo": {
+    "path": "tools/ab/r24-prereg.json (checkout do dono, ~/frugal)",
+    "sha256": "5ddd527ece9ac3a24a223f92a3cc20d84d12d6f67878a1d204942b3246d81f28",
+    "fecha_se_sobre_si_proprio": "9c2d37b1e6ce…",
+    "manifest_sha256": "d79957ccbfa51ced56e9e6c6d056ceab470a9c1fb2d4195ced2a2d9f310284ab",
+    "experiment_id": "use-vs-none-v1",
+    "congelado_em": "2026-09-04",
+    "seed": 42,
+    "n": 23,
+    "limiar_X": 16,
+    "alfa": 0.05,
+    "H0": "p <= 0.50",
+    "H1": "p = 0.75",
+    "teste": "binomial exacto unilateral, cauda superior",
+    "analise": "intention-to-treat: a não-obediência conta como aconteceu",
+    "metrica_Z": "Z=1 sse TVA_ON <= 0.8*TVA_OFF E o braço ON passa mecanicamente",
+    "variavel": "TVA (s), tecto 1800 s, penaliza com tecto: timeout, crash, recusa, patch_invalido, teste_falhado",
+    "proibido": [
+      "avaliacao_humana",
+      "llm_juiz",
+      "precisao_routing",
+      "custo_estimado"
+    ],
+    "atribuicao": "sha256(seed:task_id), ordenado, primeira metade ON-primeiro; 12 ON-primeiro, 11 OFF-primeiro; sha 9dff8395dfd6"
+  },
+  "aparelho": {
+    "verificar": "node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --verificar — 23/23 (corrida de 2026-09-09 nesta sessao, consola; re-corrida com log em _handoff/r24/verificar-2026-09-09.log)",
+    "controlo": "node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --controlo — 23/23 (idem; log em _handoff/r24/controlo-2026-09-09.log)",
+    "diagnostico": "_handoff/r24/ultimo-diagnostico.txt: --correr pode arrancar.; sonda ao modelo: 2127 ms · 2 tokens de entrada; router pinado b39c7da4aaa6…",
+    "executor": "2.1.224 (Claude Code) · C:\\Users\\Paulo Loureiro\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe",
+    "repo_do_dono": "C:/Users/Paulo Loureiro/frugal @ 0575c5cc (branch feat/r24-controlador)"
+  },
+  "execucao": {
+    "onde": "checkout do dono (~/frugal) — o executor resolve o repo a partir do cwd; o worktree deste pacote nao serve (medido: o controlador recusa)",
+    "como": "launch-correr.ps1: processo separado (Start-Process powershell -File), com as marcas de sessao Claude Code removidas do ambiente (CLAUDE_CODE_CHILD_SESSION, CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH, CLAUDE_CODE_SESSION_ID, CLAUDECODE). A guarda ambienteApto() do controlador recusa correr DENTRO de uma sessao (medido pelo dono 2026-09-03: claude -p devolvia is_error com exit 0). O diagnostico com o ambiente limpo diz apto e a sonda do proprio controlador chega ao modelo — declarado, nao escondido.",
+    "quando": "ULTIMO e SOZINHO: so depois de P3, P4 e P5 terem largado o claude.exe (o TVA e tempo de parede; concorrencia contamina)",
+    "retoma": "o controlador retoma sozinho (um par ja no ledger nao repete); 0 retries manuais; nada se apaga do ledger",
+    "log": "_handoff/r24/correr-2026-09-09.log + ledger _handoff/r24/ledger.jsonl (checkout do dono, nao versionado ali; copiado para results/ deste pacote no fim)"
+  },
+  "semantica_do_resultado": {
+    "GANHOU": "X >= 16 em 23 (binomial exacta unilateral, alfa 0,05) — e diz-se «neste ambiente, com este router pinado», nunca «o Mooter poupa X%»",
+    "PERDEU": "X < 16 com corridas validas — imprime-se com a mesma tipografia",
+    "INVALIDA": "o proprio controlador declara a corrida invalida (falha de autenticacao, spawn, executor) — nao e derrota nem vitoria; imprime-se o motivo literal",
+    "ITT": "nao-obediencia conta como aconteceu; um braco ON que nao delega e um ON que nao delega, e entra"
+  },
+  "nao_prova": [
+    "poupanca em $ ou % (proibido)",
+    "qualidade alem do teste mecanico",
+    "generalizacao para outro repo/maquina/modelo",
+    "obediencia (P3) — aqui e ITT"
+  ],
+  "comando_reproduzir": "cd ~/frugal && node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --correr && node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --analisar"
+}

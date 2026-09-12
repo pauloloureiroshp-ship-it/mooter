@@ -219,18 +219,61 @@ test('C4: sem beacons ou sem sha de referencia e NAO MEDIDO', () => {
   assert.equal(devicesNoMesmoSha({ frota: [{ device: 'a' }], shaAlvo: null }).valor, null);
 });
 
-// ── C5 · telemetria ─────────────────────────────────────────────────────────
+test('C4: tres beacons TODOS rejeitados nao e «vault nao montado» — e uma frota que deixou de emitir, e diz-se qual', () => {
+  // Medido a 2026-09-11: 3 ficheiros em 50-fleet/, os 3 com assinatura
+  // expirada (o mais recente com 8 dias), e a parcela culpava a montagem.
+  const p = devicesNoMesmoSha({ frota: null, shaAlvo: 'abc', rejeitados: [
+    { device: 'desktop-j26409q', codigo: 'expirada', ts: '2026-08-27T20:58:30.829Z' },
+    { device: 'paulo-desktop', codigo: 'expirada', ts: '2026-09-03T13:23:53.880Z' },
+  ] });
+  assert.equal(p.valor, null);
+  assert.ok(p.porque.includes('2 beacon(s), todos rejeitados'), p.porque);
+  assert.ok(p.porque.includes('paulo-desktop: expirada (2026-09-03)'), p.porque);
+  assert.ok(!p.porque.includes('nao esta montado'), 'nao pode culpar a montagem quando os ficheiros existem');
+});
 
-test('C5: uma decisao com o campo a ZERO nao conta como instrumentada', () => {
-  // E o caso real deste repo: 4 830 decisoes, o campo existe em todas, e vale
-  // 0 em todas. Contar a presenca da CHAVE daria 100% a uma metrica cega.
-  const linhas = [
-    { tokens_in: 0, tokens_out: 0 },
-    { tokens_in: 10, tokens_out: 5 },
-  ].map((x) => JSON.stringify(x)).join('\n');
-  const p = coberturaDeTelemetria({ readImpl: () => linhas });
-  assert.equal(p.num, 1);
-  assert.equal(p.den, 2);
+// ── C5 · telemetria ─────────────────────────────────────────────────────────
+//
+// A primeira versao desta parcela contava `tokens_in > 0` no decisions_v2.jsonl
+// e dava 0/4830 — verdadeiro e sem sentido: o hook escreve essa linha ANTES de
+// o modelo responder. A parcela passou a ler o recibo (tools/router/recibo.js):
+// turnos humanos com custo medido, e quantos deles casam com uma decisao.
+
+test('C5: o numerador e o turno COM decisao casada; o denominador e todo o turno com custo medido', () => {
+  const p = coberturaDeTelemetria({ reciboImpl: () => ({ turnos: 240, comDecisao: 53, transcriptsLidos: 40, transcriptsTotais: 524, chamadas: 5958 }) });
+  assert.equal(p.num, 53);
+  assert.equal(p.den, 240);
+  assert.ok(p.fonte.includes('recibo.js — 40/524 transcripts'), p.fonte);
+  assert.match(p.porque, /187 turnos com custo medido sem decisao/);
+});
+
+test('C5: MORDIDA — um recibo que nao consegue casar NADA da 0/N, nunca n/d', () => {
+  // 0 casados com N turnos medidos e um zero MEDIDO (custo real sem dono),
+  // e tem de entrar no indice como zero. n/d seria esconder o pior caso.
+  const p = coberturaDeTelemetria({ reciboImpl: () => ({ turnos: 1686, comDecisao: 0, transcriptsLidos: 524, transcriptsTotais: 524, chamadas: 44607 }) });
+  assert.equal(p.num, 0);
+  assert.equal(p.den, 1686);
+  assert.equal(p.valor, 0);
+});
+
+test('C5: sem turnos medidos nao ha denominador — a parcela sai n/d e diz porque', () => {
+  const p = coberturaDeTelemetria({ reciboImpl: () => ({ turnos: 0, comDecisao: 0, transcriptsLidos: 0, transcriptsTotais: 0, chamadas: 0 }) });
+  assert.equal(p.valor, null);
+  assert.match(p.porque, /0 turnos humanos com custo medido/);
+});
+
+test('C5: recibo.js a lancar nao vira zero — vira n/d com a excepcao escrita', () => {
+  const p = coberturaDeTelemetria({ reciboImpl: () => { throw new Error('ENOENT projects'); } });
+  assert.equal(p.valor, null);
+  assert.ok(p.porque.includes('recibo.js indisponivel: ENOENT projects'), p.porque);
+});
+
+test('C5: a parcela real le o recibo REAL desta maquina e devolve um par num/den ou um porque', () => {
+  // Contra a maquina, sem fakes: e a unica forma de apanhar um require()
+  // partido entre ESM e CJS, que os testes com reciboImpl nunca exercitam.
+  const p = coberturaDeTelemetria({ limite: 3 });
+  if (p.valor === null) assert.ok(p.porque, 'n/d sem porque nao e permitido');
+  else { assert.ok(p.den > 0); assert.ok(p.num <= p.den); }
 });
 
 // ── C7 · limiares ───────────────────────────────────────────────────────────

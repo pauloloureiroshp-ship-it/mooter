@@ -112,6 +112,15 @@ tools/router/.sentry.json
 !.planning/**/*.jsonl
 !docs/benchmarks/**/*.jsonl
 !packages/router/scripts/**/*.jsonl
+# O pacote de provas de 2026-09-09: os 23 .jsonl (ledgers do R-24, taps de rede, linhas de
+# custo) e os .log das corridas SAO a prova, nao lixo de execucao. Entraram por `git add -f`
+# a 2026-09-09 (defeito D12: 30 ficheiros de prova nunca tinham chegado ao indice porque os
+# padroes largos acima os apanhavam). O `add -f` corrige o sintoma UMA vez; sem estas duas
+# linhas, o primeiro `git rm --cached` de uma limpeza futura re-ignora-os na hora e sem aviso,
+# e leva com eles os 5 ledgers do P7 -- os unicos ficheiros que sustentam o veredicto do R-24.
+!_handoff/provas-v1-2026-09-09/**/*.jsonl
+!_handoff/provas-v1-2026-09-09/**/*.log
+!_handoff/matriz-12-2026-09-10/**/*.jsonl
 training-*.json
 model-weights/
 *.onnx
@@ -169,6 +178,11 @@ _handoff/piloto/quarentena/
 
 # Multi-agent operational ledger projections (generated locally; source is tools/router/agent-sync-ledger.js).
 _handoff/agent-sync/
+
+# Live Preview trust receipt — a PROJECTION of an `npm run lp:trust` run, written locally.
+# Never commit: a committed receipt is a stale claim that outlives the run that earned it.
+# tools/lp-trust-runner.js fail-closes if this path is not ignored.
+_handoff/live-preview/trust-receipt.json
 
 # Local Guardian handoff projections (Ledger is truth; UUID Markdown is regenerated).
 _handoff/guardian/????????-????-????-????-????????????.md
@@ -241,9 +255,30 @@ tools/ancora/package-lock.json
 # O conector escreve um boot log no _handoff a cada arranque. Nao versionar,
 # e manter fora do topo (conta para o ratchet de higiene).
 _handoff/*.log
+# Saidas GERADAS do MooterBench e da experiencia de acoplamento. Sao artefactos,
+# nao pacotes de handoff — a propria docs-hygiene avisa que "logs/scripts/generated
+# artifacts" nao devem viver ao lado dos pacotes activos. O recibo que interessa vai
+# para o vault (50-fleet/), que e onde e lido.
+_handoff/mooterbench-*.md
+_handoff/mooterbench-*.json
+_handoff/mooterbench-*.jsonl
+_handoff/acoplamento-*.md
+_handoff/acoplamento-*.jsonl
 _handoff/logs/
 
 # Scripts .command soltos na raiz: sao atalhos locais do dono, nunca artefactos
 # do repo. Sem esta linha ficam 34 ficheiros untracked na raiz — a armadilha
 # exacta do `git add -A`, com um ABRIR-PR-AUTO.command la no meio.
 /*.command
+
+# Saída por-corrida do portão do design. A LINHA DE BASE
+# (design/.design-baseline.json) é versionada — é a referência do ratchet —
+# mas o relatório reescreve-se a cada corrida e versioná-lo dava ruído em
+# todos os diffs sem acrescentar informação nenhuma.
+design/.design-check.json
+# Idem para a reconciliacao token-vs-producao: e uma medicao por corrida.
+design/.reconciliacao.json
+# Idem para a auditoria visual: 75 KB de medicao por corrida, e precisa de
+# browser — nao corre no CI, portanto versiona-la seria congelar um numero que
+# ninguem regenera.
+design/.visual-audit.json

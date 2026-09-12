@@ -60,6 +60,30 @@ export const MOTIVOS = Object.freeze([
   // produzir — a escolha entre "o defeito esta na PERGUNTA" e "esta na
   // RELEVANCIA". Um numero que se estraga a si proprio nao e um numero.
   'instrumento-nao-discrimina',
+  // Acrescentado a 2026-09-01, e outra vez a lista era fechada de proposito —
+  // por isso a razao fica escrita.
+  //
+  // `instrumento-nao-discrimina` e um juizo sobre a MAQUINA: ela responderia o
+  // mesmo perante codigo limpo. Este e um juizo sobre a RESPOSTA: o modelo
+  // escreveu o que supostamente estava numa linha, e nao esta la — nem nessa
+  // linha, nem em nenhuma outra do ficheiro. Nao e opiniao de ninguem; e
+  // determinístico, $0, e `tools/cockpit/runner/receipts-check.mjs` re-confere
+  // contra o disco.
+  //
+  // Precisa de balde proprio pela mesma razao que o anterior precisou: sao
+  // diagnosticos OPOSTOS e pedem trabalho oposto. "A pergunta nao discrimina"
+  // ataca-se mudando a pergunta; "a transcricao e inventada" ataca-se com um
+  // verificador antes da triagem — que e este. Somar os dois destruiria a
+  // escolha entre eles.
+  //
+  // Medido a 2026-09-01 contra os 1072 achados do ledger deste device:
+  //   evidencia-bate 264 (24,6%) · sem-evidencia 175 (16,3%) ·
+  //   linha-errada  202 (18,8%) · sem-alegacao  431 (40,2%)
+  // ⚠️ Estes baldes sao uma classificacao MEDIDA, nao validada contra rotulos
+  // do dono. O replay de 50 (`replay-sample.mjs`) existe exactamente para isso,
+  // e ate ele acontecer nenhum destes numeros e um veredicto sobre a qualidade
+  // do instrumento — so sobre o que ele consegue conferir sozinho.
+  'sem-evidencia',
 ]);
 
 /**
@@ -86,6 +110,40 @@ export function chaveDoRecibo(r) {
   if (r.chave) return String(r.chave);
   if (r.ficheiro) return `${r.ficheiro}:${r.janela ?? '?'}@${r.ts ?? '?'}`;
   return null;
+}
+
+/** O prefixo do id curto. Um id sem prefixo e indistinguivel de um sha qualquer. */
+export const ID_PREFIXO = 'f';
+
+/**
+ * O identificador CURTO e ESTAVEL de um achado — `f` + 12 hex.
+ *
+ * A `chaveDoRecibo` e a identidade a serio e continua a ser o que se escreve no
+ * `triagem.jsonl`. O que ela nao serve e para viajar: e um caminho de ficheiro
+ * com linhas e um sha colados, muda de comprimento a cada achado, e mete o
+ * caminho do disco do dono dentro de um atributo de HTML.
+ *
+ * Este id resolve as duas coisas de uma vez — cabe num rotulo e nao diz onde
+ * o ficheiro vive — e e derivado da chave, portanto o mesmo achado da o mesmo
+ * id em qualquer device da frota, sem coordenacao nenhuma.
+ */
+export function idDoAchado(r) {
+  const chave = chaveDoRecibo(r);
+  if (!chave) return null;
+  return ID_PREFIXO + createHash('sha256').update(chave).digest('hex').slice(0, 12);
+}
+
+/**
+ * O id e MESMO estavel para este recibo?
+ *
+ * So quando a chave e enderecada pelo conteudo (`ficheiro:linhas:sha`). Um
+ * recibo antigo cai no ramo `...@ts` do `chaveDoRecibo`, e um instante nunca se
+ * repete: o id existe, e util dentro desta pagina, e NAO sobrevive a proxima
+ * ronda. Quem o mostrar como referencia permanente tem de perguntar isto
+ * primeiro — senao promete ao dono uma etiqueta que amanha aponta para nada.
+ */
+export function idEstavel(r) {
+  return Boolean(r && r.chave);
 }
 
 /** Um achado e uma ronda em que o modelo AFIRMOU alguma coisa e a citacao resolveu. */

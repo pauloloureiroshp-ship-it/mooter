@@ -82,7 +82,8 @@ async function main() {
   const prompt = process.argv.slice(2).join(' ').trim();
   if (!prompt) sair('sem_prompt');
 
-  const hostUrl = process.env.OLLAMA_HOST || 'http://localhost:11434';
+  // Sem esquema, o `new URL('/api/generate', hostUrl)` abaixo lança `Invalid URL`.
+  const hostUrl = require('./ollama-host.js').ollamaHostFromEnv('http://localhost:11434');
   const model   = process.env.OLLAMA_OPTION_A_MODEL || 'qwen2.5:3b';
 
   const body = JSON.stringify({

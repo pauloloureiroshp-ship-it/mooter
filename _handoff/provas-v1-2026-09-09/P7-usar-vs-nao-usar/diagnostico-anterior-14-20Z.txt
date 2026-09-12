@@ -1,0 +1,20 @@
+r24 · diagnóstico das pré-condições de --correr · 2026-09-09T14:20:32.932Z · node v24.14.0 · win32
+
+  · cwd  C:\Users\Paulo Loureiro\frugal
+  ok  ficheiros do R-24 presentes  5 de 5
+  · repo resolvido pelo executor  C:\Users\Paulo Loureiro\frugal
+  ok  pré-registo CONGELADO  CONGELADO
+  ok  pré-registo fecha-se sobre si próprio  9c2d37b1e6ce…
+  ok  limiar pré-registado bate com o recalculado  n=23 · alfa=0.05 · limiar=16
+  ok  congelamento dos ficheiros  9 entradas
+  ok  primárias legíveis do manifest  23 tarefas · 12 ON-primeiro · 11 OFF-primeiro
+  ok  terminal fora de uma sessão Claude Code  apto
+  ok  executável do agente responde --version  2.1.224 (Claude Code) · C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+  ok  a sonda chega ao modelo  2127 ms · 2 tokens de entrada
+  ok  router pinado bate com o pré-registo  b39c7da4aaa6… vs b39c7da4aaa6…
+  · effort fixado  xhigh
+  ok  sem outra instância a correr  livre
+  · ledger  ainda não existe · seria C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  · snapshots de corrida  nenhum — o --correr nunca chegou a preparar um
+
+VEREDICTO: --correr pode arrancar.

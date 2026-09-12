@@ -1,0 +1,216 @@
+{
+ "arm": "A",
+ "at": "2026-09-09T13:42:06.709Z",
+ "hook": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\inject_context.js",
+ "keys_present": {
+  "ANTHROPIC_API_KEY": false,
+  "MOOTER_ARBITER_DISABLE": null
+ },
+ "tap_file": "C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\provas-p5-gDX4oa\\tap.jsonl",
+ "tap": {
+  "processes_tapped": 75,
+  "connections": 35,
+  "by_host": {
+   "127.0.0.1:7821": {
+    "n": 20,
+    "bytes_out": 0,
+    "bytes_in": 0,
+    "blocked": 0
+   },
+   "127.0.0.1:11434": {
+    "n": 15,
+    "bytes_out": 0,
+    "bytes_in": 0,
+    "blocked": 0
+   }
+  },
+  "external": []
+ },
+ "proxy": {
+  "by_host": {},
+  "total": 0
+ },
+ "hook_log_events": {},
+ "rows": [
+  {
+   "id": "n01",
+   "exit": 0,
+   "ms": 274.9551,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": "user_override_vetoed",
+   "arbiter": false
+  },
+  {
+   "id": "n02",
+   "exit": 0,
+   "ms": 251.431,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": "haiku_unavailable_no_provider_degraded_to_local",
+   "arbiter": false
+  },
+  {
+   "id": "n03",
+   "exit": 0,
+   "ms": 1319.0405,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n04",
+   "exit": 0,
+   "ms": 1332.5535,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n05",
+   "exit": 0,
+   "ms": 1332.0164,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n06",
+   "exit": 0,
+   "ms": 1346.4655,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n07",
+   "exit": 0,
+   "ms": 1329.9596,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n08",
+   "exit": 0,
+   "ms": 270.0253,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": "haiku_unavailable_no_provider_degraded_to_local",
+   "arbiter": false
+  },
+  {
+   "id": "n09",
+   "exit": 0,
+   "ms": 1334.5519,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": "haiku_unavailable_no_provider_degraded_to_local",
+   "arbiter": false
+  },
+  {
+   "id": "n10",
+   "exit": 0,
+   "ms": 1341.1144,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n11",
+   "exit": 0,
+   "ms": 1332.6345,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n12",
+   "exit": 0,
+   "ms": 1334.6355,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n13",
+   "exit": 0,
+   "ms": 1318.3958,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n14",
+   "exit": 0,
+   "ms": 255.0101,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": "budget_cap",
+   "arbiter": false
+  },
+  {
+   "id": "n15",
+   "exit": 0,
+   "ms": 1308.1819,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n16",
+   "exit": 0,
+   "ms": 1322.336,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n17",
+   "exit": 0,
+   "ms": 1304.5894,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n18",
+   "exit": 0,
+   "ms": 1325.2327,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n19",
+   "exit": 0,
+   "ms": 275.893,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  },
+  {
+   "id": "n20",
+   "exit": 0,
+   "ms": 1314.6407,
+   "tier": "T0",
+   "max_tier": "T0",
+   "escalation": null,
+   "arbiter": false
+  }
+ ]
+}

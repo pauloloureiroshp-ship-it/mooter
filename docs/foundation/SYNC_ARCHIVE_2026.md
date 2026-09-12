@@ -8674,3 +8674,926 @@ para `docs/foundation/SYNC_ARCHIVE_2026.md` (path canónico do `AGENTS.md`), nã
 partilhado: confirmou-se que `desktop-j26409q` não lhe tocou desde a base comum (`git diff $(git merge-base
 …)` vazio; o `-6` do `git diff main` era o main à frente). **Este aviso saiu depois do rolo** — o plano pedia
 antes; fica como foi. Regra: SYNC é snapshot; quem passar das ~220 enrola e anuncia **aqui, antes**.
+
+<!-- rolado do SYNC.md a 2026-08-29 para o SYNC voltar a caber no orcamento -->
+### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
+
+**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
+MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
+Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
+`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
+readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
+que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
+
+**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
+(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
+`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
+`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
+auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
+instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
+
+**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
+(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
+`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
+
+### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
+
+**#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
+conflitos: os dois `package.json` por **união** (escolher um lado desligava testes dos dois lados);
+o painel com a **arquitectura do #396 e a regra do #401 lá dentro** — a premissa de que "o #396 já
+antecipa o #401" **não se confirma**, o ramo da pausa vinha antes do teste de morte e tomá-lo tal e
+qual reintroduzia o defeito do beacon a 3592 s; e o `SYNC.md` do #396, que era o correcto (219 vs
+390 linhas) mas tinha deixado de fora **uma** das quatro entradas de 25/08 do main — a do PC, com a
+hipótese do autor refutada contra 57 etiquetas. Resgatada para o arquivo.
+
+**O P1 do kickoff inverteu-se.** Pedia religar P4 e P5 apagando `activo: false`. O P4 não é
+"zero-LLM": é um enunciado de GPU para um defeito com **0 ocorrências** neste repo (0 de 443 `.md`
+acabam a meio de uma palavra). O P5 não mede modelos: é `falso-em-ambos`. E as **"+603 linhas de
+ledger da madrugada, $0" não eram saúde** — o processo vivo era de 25/08 08:13, tinha o catálogo
+antigo em memória, e passou ~15 h a produzir **P2/P3**, os dois pilares de que o dono decidiu 19
+achados à mão e não guardou nenhum.
+
+Em vez disso, a correcção um nível acima: **a rotação passou a derivar de medição**
+(`portao.mjs` + `podeEntrar`, o mesmo portão que o #389 pôs nas regras do ancorado na véspera
+*"porque foi assim que o P11 entrou"* — e que aos pilares, de onde o problema veio, nunca foi
+aplicado). Forçar `activo: true` nos onze dá **zero**, cada recusa com o seu número. Cinco
+comentários que diziam "reversível numa linha" passaram a ser falsos e foram corrigidos.
+
+**Loop relançado** sob launchd (PID 11825) com o código de `main` — o `ai.mooter.runner` estava
+carregado mas **não era ele que corria** (PID `-`; o processo real fora lançado à mão e segurava o
+lock). A objecção que ontem bloqueou o relançamento (`nextPillar(n,[])` a falhar em silêncio) era
+um **defeito corrigível**: com `ids=[]` o escalonador dizia `all capped / paused / suspended`, falso
+nas três coisas que nomeia e a mandar o dono triar uma fila que não existe. Corrigido. Ao vivo às
+11:18Z o painel pinta `holding · zero pilares na rotacao — nenhum passa o portao de medicao`.
+
+⚠️ **O ledger NÃO cresce, e é o resultado certo** — declarado, não disfarçado. Sem pilar não há
+ronda. Voltar a crescer exige um pilar que passe o portão (≥10 reais, ≥30 %, triados à mão): onda
+de medição, não booleano. #400/#402 avaliados e **não merjidos** — continuam 🔴 por adversário
+externo, e o codex não está nesta máquina.
+
+Vermelhos: espelho do cockpit **42 ficheiros atrás** e o LaunchAgent aponta **directo ao checkout** ·
+`.mooter/pilares.json` **contorna o portão** novo · a condição do #400 é uma linha no `SYNC.md`, não
+o veto em código.
+
+gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
+detalhe em `_handoff/cc-perfeito-progress.md`
+
+### 2026-08-27 (Win · CC · design) · o portão nasceu cego, e o 3,41 era 1,5 de nada
+
+O pacote `mooter-brand-v2.0.0` aterrou em `design/`. A onda O0 não era copiar ficheiros: era pôr um
+portão a morder — e o portão que veio no pacote **não mordia**.
+
+**`marca-unica` dava 1,5/1,5 — «um só desenho» — com 8 cópias da vaca vivas no repo.** `.svg` não
+estava em `EXT_TEXTO`, o walker nunca devolvia um SVG, e a linha seguinte filtrava por
+`extname(f) !== '.svg'`: descartava 100% do que recebia (2783 ficheiros, 0 svg, `variantes: []`
+**sempre**). E pior — `MOO_REPO` apontado a uma pasta sem superfícies punha as três verificações
+pesadas a `n/d`, tirava-as do denominador, e o índice **subia de 3,41 para 8,75 com `--ci` a sair
+0**. O portão pontuava melhor quanto menos via.
+
+Seis defeitos corrigidos com o número que os justifica: `numero-honesto` marcava `savings_usd`
+(coluna D1 viva) e os comentários que registam a retirada — incluindo o teste
+`expect(src).not.toContain('up to 90% less cost')`, a prova da decisão marcada como violação dela —
+**243 achados, ~2 reais**; o regex de `@keyframes` engolia o próprio ficheiro gerado e fabricava 45
+propriedades que escondiam **3 violações reais**; e `moo-tokens-build.mjs`, o comando publicado no
+README, era um **no-op silencioso** (`file://${process.argv[1]}` nunca coincide com `import.meta.url`).
+
+**Índice: 3,41 → 3,18 → 5,68 → 6,36 → 8,18 → 9,09.** A descida inicial é a correcção (o 3,41
+contava 1,5 pontos de uma verificação cega); o resto é trabalho. O **`--ci` está LIGADO** no limiar
+8 — o limiar nunca se moveu, foi o índice que subiu até ele. **53 testes de mordida.**
+
+**A gramática está nas superfícies.** Cartucho, grelha de 8px, coluna de margem e hairlines em vez
+de caixas, em 10 folhas: home (DES. 001), methodology (002), packs (003), compare (004), commands
+(005), cockpit (006), under-the-hood (007), workflow (008), moo-pilot (010), cockpit.html (011). As
+margens são **contadas do próprio ficheiro**, nunca escritas à mão. Os 2 cockpits deixaram a paleta
+própria — o `moo-pilot-shell` usava `--accent: #2b5ede`, **azul**, contra a rosa da marca.
+
+**Superfície pública sem um único claim de poupança.** Saíram: `One bill is 47% smaller` (corpo
+gigante na home, sobre preços de tabela em seis prompts inventados), `~30% less` ×2,
+`{savings_pct}% saved vs all-Opus` nos packs, três cifras fabricadas na API `analyse`, e o cartão
+`Est. savings ~$8–15/day` do dashboard.
+
+⚠️ **Recusei um 10,00.** Separar «publicar» de «mostrar a quem entrou» é defensável — mas o índice saltou para a nota cheia no mesmo minuto em que mudei a régua, e a decisão de 27/08 nomeia isso. A verificação vale **metade** enquanto houver 15 estimativas na shell autenticada; contadas e impressas, não escondidas.
+
+gate: design **53/53** · landing **219/219** · cockpit-runner 943/941/**0** · cockpit-invariants 215/4 (baseline) · auditor visual: contraste **178 → 30** · PR #416, CI verde
+
+
+---
+
+### 2026-08-28 · v1.51.0 EM PRODUÇÃO — a onda que começou em design e acabou na tese
+
+**29 commits, 100 ficheiros, +11.607/−1.494. PR #416 fundida, tag `v1.51.0`, mooter.ai a servir.**
+
+**Retirado por não ser verdade — e verificado ao vivo no site depois do deploy:**
+`/privacy` afirmava «Differential privacy noise (ε=1.0)» **com visto verde**, e não há
+implementação nenhuma no repo (o único resultado é `quality.ts:32` — «lands in Wave 31»). O
+`k-anonymity ≥50` **ficou**, porque é real (`hub/routes/federated.js:22`, com testes que plantam
+49 e 60) e agora diz onde. `/packs/[id]` renderizava **«Savings vs Opus 89%»** — um dos cinco
+números mortos — a um clique da página que publicava a ressalva. O seed público trazia **805
+instalações** contra os **2 developers** que `/api/community/pulse` devolve ao vivo. `/workflow`
+gritava um **160×** que dividia um medido por um estimado.
+
+**A latência, que ninguém tinha medido apesar de o medidor existir no repo:**
+`classify()` **0,001 ms** p50 (5.000 chamadas) · o hook em prompts reais **121,6 ms** p50
+(660 amostras do `decisions.log`). O `14ms` publicado em três ficheiros não era nenhum dos dois.
+
+**O site não abria em telemóvel.** `moo-ui.css` tinha **uma** media query
+(`prefers-reduced-motion`) e **zero** breakpoints de largura. `/compare` media **901px** num ecrã
+de 375. Agora **375px em todas as rotas**, com navegação (`<details>` nativo, sem client state).
+
+**No Windows não havia caminho nenhum.** O one-liner `irm|iex` imprimia «private friends-beta» e
+saía **0**; `install-windows.ps1` era **404**; `mooter` dava `ENOENT` porque `where claude` devolve
+duas linhas. Smoke real: `claude.cmd → cmd /d /c → 2.1.224`, exit 0.
+
+**A escada de fallback tinha a lógica certa e memória nenhuma.** `resolveFallbackChain()` sempre
+existiu; `execute()` fazia `deps.providerState || {}` e **nada jamais preencheu esse campo**.
+`provider-health.js` dá-lhe memória **com decaimento** (sem isso vira lápide) e default
+**«disponível», não «morto»** (o custo dos dois erros não é simétrico). O `<router-hint>` passa a
+dizer quem está em baixo e até quando.
+
+**E o achado que muda a tese: os tokens sempre estiveram no disco.**
+O projecto publicou meses a fio «no tokens are logged» — verdade sobre a telemetria do Mooter,
+**falsa sobre a máquina**. `~/.claude/projects/**/*.jsonl` tem `message.usage` completo. 282
+transcripts; só nos 40 mais recentes, **7,57 mil milhões de tokens de cache lido**, que o modelo
+de poupança ignorava por inteiro.
+
+⚠️ **A chave de atribuição não é `session_id`.** Medido antes de escrever código: 387 prompts ↔
+9.692 chamadas = **25 por prompt** — o defeito exacto que matou o `0%` («o denominador eram
+chamadas Bash, não prompts»). Um adversário noutro fornecedor (codex) apanhou-o. A chave é a cadeia
+**`parentUuid`** até ao turno humano: **318 turnos ← 9.420 chamadas, 0 órfãs**.
+`mooter recibo` imprime-o, e a etiqueta é `EQUIVALENTE A PREÇO DE TABELA`, **nunca** `custo` — os
+tokens correm dentro de uma subscrição de valor fixo, e chamar-lhe despesa seria a poupança
+fabricada virada ao contrário. Há um teste que falha se a palavra voltar.
+
+**Dois bugs que esta onda criou e fechou, ambos registados:** `provider-health.js` gravou as falhas
+SIMULADAS dos testes no `~/.mooter` **real** (3.ª ocorrência desta armadilha no repo) — guarda posta
+com mordida; e acrescentei um sítio ao piso de Node sem o pôr no `paths:` do CI, o que o
+`piso-de-node.test.mjs` apanhou por mim.
+
+**E um que desbloqueou o repositório inteiro:** `F5/2` em `autopilot.test.mjs` **dependia da hora
+do dia** — o fixture usava base 30, e a queda só dispara depois das **08:00** na hora do dono.
+Estava vermelho no `main` e a protecção do ramo recusava **todos** os merges. Provado com o relógio
+fixado à meia-noite; fixture determinístico, detector intacto.
+
+gate: **12 workflows verdes, zero falhas** · classify.js sha `427d8c0b` intacto · design **53/53**,
+índice **9,09** · landing **219/219** · CLI **30/30** · router **1217** · cockpit **943, 0 fail** ·
+piso de Node **14 sítios** (era 13) · instaladores byte-a-byte · `packages/` com 3 linhas
+registadas na allowlist do `CLAUDE.md` no mesmo PR
+
+**Aberto:** as 15 estimativas de poupança na shell autenticada (decisão de produto do dono, e a
+verificação 3 do portão dá metade enquanto lá estiverem) · o cruzamento recomendação↔custo casa
+**22 de 710** turnos, porque o `decisions.log` só tem sessão em 1.350 das 1.916 linhas e a maioria
+dos transcripts é anterior · `/methodology` ainda grita **91%** numa calculadora hipotética ·
+o site ainda tem duas gramáticas visuais (8 folhas novas, 8 antigas, 1 scaffold)
+
+
+---
+
+---
+
+## Rolado de `SYNC.md` em 2026-08-31 (22:37 São Paulo)
+
+Motivo: `SYNC.md` tinha 565 linhas contra o tecto de ~200 (§4 do MP 2026-08-31;
+AGENTS.md § Information architecture: «snapshot, not a log»). Movidas as entradas de
+2026-08-28 e as duas primeiras de 2026-08-29; ficou no SYNC a última sessão + a nova.
+### 2026-08-29 (Mac · CC · executar) · o conector passa a acusar a varredura que nao pode fazer
+
+Detalhe por extenso no PR **#432** e no journal `~/paulo-vault/10-projects/2026-08-29-mac-cc-executar-*`.
+
+**T1 · `aviso_fabricacao` (A6).** O guard A4 exige evidencia ZERO; o job `job-mtea5wou-f2b3` tinha 304 das
+1131 linhas injectadas, logo escapou-lhe **por construcao**, e respondeu "0 chamadores em TODO o repo".
+A condicao estava amarrada a QUANTIDADE de evidencia em vez de a RELACAO entre a evidencia e a pergunta:
+contexto injectado e uma amostra, um quantificador de varredura e uma afirmacao sobre o universo.
+Regra nova: quantificador no goal **E** (`diferem===true` **OU** efectivas vazias) ⇒ `sem_ferramentas`,
+`aviso_fabricacao` nao-nulo **no despacho** e prefixo `SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO` no
+collect. Reutiliza a mecanica do A4 e o mesmo campo. ⚠️ **`sem_adversario` NAO EXISTE** (grep = 0); a
+regra com essa mecanica e `veredictoSemEvidencia`. **Prova ponta-a-ponta, job real, $0**
+(`job-mtebrb36-2af0`): recibo acusou antes de o modelo responder, entrega saiu prefixada.
+
+**T2 · `tools/radar/vigia.mjs`.** 1.a ronda com rede: 3/3 alvos, base 239/396/3. `ai.mooter.radar` no
+launchd (segunda 09:00; maquina em -03, medido). **1 defeito corrigido na revisao:** digestao vazia ou em
+erro virava snapshot e envenenava a base. **Nao ha rotina de pitch no launchd** (grep = 0). **Achado do
+kimi refutado** com o JSON completo (396 modelos, nao 88): nao sao 3 fontes, sao **modelos diferentes** —
+`kimi-k3` $3,00/$15,00 (o `pricing.js` nem o lista); `kimi-k2.6` $0,95/$4,00 hoje contra $0,60/$2,50 no
+codigo. **`pricing.js` NAO tocado** — fora do enunciado.
+
+**T3 · o orfao 1 nao e o filtro, e quem o alimenta.** Grep re-corrido por mim (L7): `providerState` **e**
+construido (`harness.js:64,135`; `.test.js:794`) e `filterDegraded` (`:181-192`) esta correcto. So
+`if (MOCK_PROVIDERS==='1')` (`:1067-1075`) o preenche; em producao chega `undefined`, a `:662` aplica
+`|| {}` e nada e excluido. **Falta o PRODUTOR.** Corrigido no `ADENDO` A1.
+- ⚠️ **Fora do meu alcance:** `claude/ARQUITETURA_ONBOARDING_E_SAAS_2026-08-28.md` nao existe neste
+  checkout e mantem o diagnostico errado. **Fica para o Cowork.**
+
+**T4 · o gate de versao era a fonte da deriva** (nao estava no enunciado; apareceu a caminho do deploy).
+Conector instalado **1.49.4**, repo **1.50.0**, ultima release **v1.51.0**. Run `33164279461`: o
+`Version Sync` constroi o commit certo e leva `GH006: Protected branch update failed · 5 of 5 required
+status checks` — **falha em TODAS as tags** desde que a proteccao de ramo entrou. A v1.51.0 foi publicada
+com os cinco ficheiros a dizer 1.50.0, incluindo o `manifest.json` que rotula o `.mcpb`. Corrigido: abre
+PR em vez de empurrar para `main` (+`pull-requests: write`); os cinco vao a **1.52.0**. O portao de
+entrega recusou o bump ate a entrega estar declarada — **funcionou como devia**. `pack-mcpb.mjs` produz
+`mooter-v1520.mcpb` (335 verificacoes OK) e o bundle **contem** o A6; o instalado **nao**.
+
+**T5 · os 4 vermelhos do router guardavam contratos mortos — 1498/4 → 1503/0**, zero linhas de producao.
+`sparkline.test.js` fixava o `COLUMNS` e lia o `~/.mooter/preferences.json` do dono real (`opts.home` ja
+existia, faltava usa-la). Dois `sub-tier` exigiam modelos que o `classify.js` FROZEN nao produz — a
+escolha **saiu** para o `inject_context.js`, de proposito. O `TUNED` exigia um bloco DENTRO do
+`classify.js`: exactamente o que o freeze proibe; o tuner escreve em `tuning-state.json`. Passa a afirmar
+o inverso, que e mais forte: correr o tuner nao pode mexer no sha `427d8c0b`.
+
+**Gates.** bridge **1102/0** · cockpit **941/0** · router **1503/0** · `classify.js` `427d8c0b` intacto ·
+`varredura.test.js` **7/8 falham em `main`**, 8/8 passam depois.
+- ⚠️ **Flake da bridge: 1 vermelho em 9 corridas** (5 dedicadas, 1126/0 cada). **Nao reproduzido, nao
+  identificado.** Fica dito, nao fica resolvido.
+- ⚠️ **O corte deste SYNC levou por engano a linha de destrave do `slack-spike`** e o
+  `guardas.test.js` ficou vermelho no CI — que e para o que ele existe. Restaurado verbatim; a decisao
+  (`GO CONDICIONADO`) e a linha continuam a viver juntas.
+- `MP-LIGAR`, `MP-MOOTER`, `KICKOFF` e `18-CC-PERFEITO.command` continuam **untracked**, por decidir.
+
+### 2026-08-28 (tarde) · A GRAMÁTICA NAS 17 FOLHAS — e o que apareceu ao medir
+
+**PR #419 e #420 fundidas, em produção. O site deixou de estar partido ao meio.**
+
+Antes: **8 de 17 rotas** na gramática do Papel Milimétrico, 8 na antiga com
+`<Card>` e `<Eyebrow>`, e a `/spawn` em scaffold cru. Agora **17/17**, cartuchos
+DES. 001–019, zero números duplicados.
+
+Nove agentes em paralelo, ficheiros disjuntos. **Nenhum** tocou em `globals.css`,
+`design/tokens/`, `design/tools/` ou no `Cartucho` — quando precisaram,
+reportaram em vez de editar.
+
+**As margens são contadas, não escritas.** `{STEPS.length}`,
+`{pack.models.length}`, `{entries.length}` — acrescentar uma entrada ao array
+move a cota sozinho. O agente do `/changelog` foi mais longe: `loadEntries`
+devolvia `Entry[]` e a lista de reserva era indistinguível da real, portanto a
+margem **não tinha como** dizer a verdade sobre a proveniência. Passou a devolver
+`{ entries, ao_vivo }`.
+
+⚠️ **O defeito grande apareceu ao medir, não ao planear.** 55 margens renderizadas
+ao público, **38 em PORTUGUÊS**, num site inteiramente inglês. Um agente
+levantou-o em vez de decidir sozinho, e tinha razão: é o defeito que `e0187e35`
+corrigiu na home, e que ficou escrito em `canonical-metrics.ts:97-106` — «uma
+ressalva que o leitor não entende não é uma ressalva; é ruído que faz duvidar de
+tudo o resto na página». Aqui era pior, porque a margem é **onde vive a
+honestidade**: `não é medição`, `não é média da manada`, `números do fornecedor
+— não medidos aqui`. Numa língua que o leitor não lê, a honestidade é
+decorativa. **55/55 em inglês**, sem suavizar nenhuma, zero expressões tocadas.
+
+⚠️ **E depois o mesmo defeito outra vez, um elemento acima.** Os 17 cartuchos
+diziam `MOOTER · A PRIVACIDADE · DES. 014`. Apanhei-o **a olhar para o site
+depois do deploy** — o aferidor que escrevi conta cartuchos, não lê o que eles
+dizem. Um instrumento que mede a presença não mede a correcção. PR #420.
+
+**Telemóvel medido em build de PRODUÇÃO, rota a rota: 17/17 com
+`scrollWidth === 375`.** A `/methodology` media 380 — terceira ocorrência do
+mesmo `min-width: auto` nesta landing (os `input[type=range]` a 356px, com o
+cursor a transbordar). Colapsar para uma coluna não chega quando a coluna se
+recusa a encolher.
+
+gate: design **53/53** · índice **9,09** (limiar 8, inalterado) · landing tsc
+limpo · **219/219** · 8 workflows verdes em cada PR · zero ficheiros partilhados
+tocados
+
+**Aberto:** dois `<Card>` em componentes irmãos que ficaram fora de âmbito por
+instrução — `compare/MultiSessionTable.tsx` e `rankings/RankingsExplorer.tsx`
+(este tem excepção declarada no portão, a única cifra de poupança do projecto).
+São as duas últimas superfícies com caixas · o interior do `RankingsExplorer`
+continua no vocabulário antigo (pills de raio 999, faixas tingidas) e vale uma
+folha de serviço própria.
+
+
+---
+
+### 2026-08-28 (fim) · AS CAIXAS ACABARAM — e três instrumentos meus estavam cegos
+
+PRs **#422** e **#423** fundidas, em produção. O `<Card>` da landing ficou **sem
+um único importador**.
+
+| medido na superfície de marketing inteira | |
+|---|---|
+| `<Card>` | **0** |
+| fundos tingidos | **0** |
+| pílulas `999px` em `/rankings` (produção) | **0** |
+
+**RankingsExplorer** — a pílula do TierBadge virou legenda de folha de desenho
+(quadrado de amostra 6×6 na cor do tier, sem raio, sem fundo). As pílulas de
+categoria deixaram de ser rosa: um estado activo não é um CTA. A faixa verde da
+poupança saiu — e a razão vale mais do que o gesto: **a tinta verde aparecia
+também no ramo NÃO-medido**, ou seja insinuava um sinal que não existia. Tirá-la
+é menos sinal falso, não menos sinal. A cifra ficou intacta atrás de
+`seed.savings.measured &&`, com a sua excepção declarada.
+
+A linha recomendada passou a `box-shadow: inset` e não a `border` na `<tr>`, por
+uma razão medida: com `border-collapse: collapse` o empate resolve-se por
+precedência célula > linha (CSS 2.1 §17.6.2.1), e o `<th>` comia a régua de cima.
+
+⚠️ **Três instrumentos meus estavam cegos, e cada um mentiu de maneira diferente.**
+
+1. **O aferidor contou 1 `<Card>` no `MultiSessionTable` e havia 5 caixas.** Três
+   faixas tingidas e um painel com fundo, borda e `borderRadius: 12` eram caixas
+   na prática sem usarem o componente. Um grep pelo componente apanha uma em
+   cinco. Foi o agente que mo devolveu.
+2. **O `grep -c` disse-me que o `/compare` ainda tinha rosa em produção.** Conta
+   LINHAS, e o HTML servido é uma linha só. A página estava limpa; a régua é que
+   não sabia contar. Mas a busca que fiz para perceber isso mostrou o que eu não
+   procurava: os dois selectores do `/methodology` marcavam o seleccionado com um
+   **azulejo rosa** — o mesmo padrão, na folha ao lado, no mesmo dia (#423).
+3. **O portão não vê `borderRadius:` nem `background:` em JSX** — só a sintaxe
+   CSS. Há **45 raios em JSX** que ele nunca olhou. Foi por isso que estas
+   superfícies sobreviveram à onda anterior com o índice a 9,09.
+
+Não aleguei o portão. O comentário dele (`moo-design-check.mjs:645-648`) diz que
+unificar a escala «é trabalho de desenho, com o dono, e tem de vir com a lista de
+sítios a mudar — não com um `Set` novo», e alargá-lo produziria 45 achados de uma
+vez, que é o erro que esta onda já cometeu (78 não-problemas, revertidos).
+
+**A distinção que ficou desenhada, e que não atravessei:** restam 5 ficheiros com
+rosa tingido — `CockpitShowcase`, `CmdKPalette`, `TwoTerminalDemo`,
+`WorkflowPipeline`, `ConductorVisual`. Nenhum é chrome de folha: são **maquetas
+do produto**. A folha é o desenho; a maqueta é o objecto desenhado. Uma prancha
+técnica de um automóvel não pinta o automóvel de cinzento para combinar com o
+papel.
+
+gate: tsc limpo · **219/219** · design **53/53** · índice **9,09** · 7 workflows
+verdes em cada PR. Produção: `/rankings` e `/compare` a **375px**, tabelas a
+rolar dentro de si.
+
+**Por decidir (não decidi sozinho):** `landing/components/Card.tsx` ficou órfão,
+zero importadores — apagá-lo é teu · duas usages de rosa no `RankingsExplorer`
+que são SINAL e não decoração: `T5: var(--color-accent)` (não existe
+`--color-tier-5`) e o texto «✦ mooter routes here» · a escala de raios, que o
+portão aceita larga de propósito.
+
+
+---
+
+### 2026-08-28 (noite) · O T5 E A ESCALA DE RAIOS — as duas por medição
+
+PR **#426** fundida, em produção. `mooter.ai` serve `--color-tier-5: #D9A441` e
+**zero** ocorrências de `border-radius:12px`.
+
+**O T5 usava a marca.** `RankingsExplorer:40` tinha `T5: var(--color-accent)` —
+rosa é para o `?` do wordmark, as cotas e o CTA, e usar a marca para dizer
+«tier» confunde *o modelo mais caro* com *a acção principal*. Não havia
+`--color-tier-5` para usar.
+
+A cor saiu de uma medição, não de gosto. Critério: o T5 aparece sempre ao lado
+dos outros quatro, logo o que conta é a **menor** distância perceptual dentro de
+{T0..T3,T5}. Os quatro actuais têm entre si um mínimo de **dE 29,8** (T1/T2).
+Seis candidatos em CIELAB; **âmbar `#D9A441` deu dE mín 43,8** — separa-se melhor
+do que o pior par da própria rampa —, contraste 8,80 e dE 50,0 ao accent.
+
+E há uma razão de desenho por cima da medição: **não existe T4.** O T5 é opt-in
+via `@fable` e nunca é auto-rotado, portanto não é um quinto degrau da escada —
+e a cor diz isso ao ser o único tom quente. Lê-se como estando *fora* da rampa.
+
+⚠️ **Achado colateral, com número e sem acção:** os quatro tiers de **papel**
+estão todos abaixo de AA e nunca foram medidos porque nunca foram declarados —
+t0 **3,53** · t1 **4,42** · t2 **4,47** · t3 **4,13**. Não lhes toquei: escurecê-los
+é mexer na paleta clara inteira, que serve impressão e superfícies que não vi.
+Os dois pares do T5 entram já a passar, para não acrescentar dívida.
+
+**A escala de raios: o código não estava errado.** O portão tinha um `RAIO_OK`
+de 15 valores escrito à mão contra os 5 do token, e o comentário dizia que
+unificar «tem de vir com a lista de sítios a mudar — não com um `Set` novo».
+
+A prova de que a **escala** é que falhava estava na própria saída do sistema: o
+`moo-ui.css` **gerado** trazia `border-radius: 2px` no anel de `:focus-visible`,
+cravado no gerador, com o 2 fora da escala. Cinco degraus cujo mais pequeno é 6
+não descrevem chrome real — um raio de 6 numa barra de 3px está errado.
+
+Medido antes de decidir: **166 ocorrências em 24 ficheiros**, com 8 (44×),
+4 (26×) e 7 (22×) no topo. Acrescentados `hairline 2`, `tight 4`, `panel 8` — e
+**não o 12**, para não virar uma rampa de 2 em 2. Depois os **54 sítios**, cada
+empate decidido a olhar para o elemento: `3→2` nas barras finas (com 4 a barra
+virava estádio), `3→4` nos balões de conversa (têm área, e são um par
+espelhado), `12→10` num halo com `inset:-1px` (concentricidade, não tamanho),
+`12→14` no `.term` (tem barra de título e corpo — é uma janela).
+
+**E o portão deixa de poder divergir.** `RAIO_OK` deriva de `T.radius`, e a
+regex passa a ver **as duas sintaxes** — só via `border-radius: Npx`, e
+`borderRadius: 999` em JSX passava invisível. Foi assim que uma pílula
+sobreviveu a uma onda inteira com o índice a 9,09.
+
+4 mordidas novas, e a que interessa: **tira `panel: 8` do TOKEN, sem tocar no
+portão, e exige que ele passe a acusar quem usa 8.** Se alguém voltar a pôr um
+`Set` paralelo, esse teste falha.
+
+gate: design **57/57** · índice **9,09** · contraste **22 pares**, todos ≥ 4.5 ·
+reconciliação token/produção **0 divergem, 30 iguais** · landing **219/219** ·
+cockpit-runner 943, **0 fail** · 9 workflows verdes
+
+**Aberto:** os 4 tiers de papel abaixo de AA (acima) · o `linguagem-visual` só
+varre 5 superfícies + `design/` — os `.tsx` da landing nunca estiveram no âmbito,
+e há lá raios que ninguém mede. Alargar o âmbito precisa da lista de sítios
+primeiro, que é a regra que esta onda acabou de honrar.
+
+
+---
+
+### 2026-08-28 (fecho) · O PORTÃO PASSA A VER OS `.tsx` — 10 ficheiros → 123
+
+PR **#428** fundida, em produção. O último buraco de âmbito, e o maior.
+
+A `linguagem-visual` varria 5 superfícies HTML/CSS mais `design/`. **Os `.tsx` da
+landing nunca estiveram na lista** — e não era só a regex que não via
+`borderRadius:` em camelCase: os ficheiros nem eram abertos. Foi assim que uma
+pílula de raio 9999 sobreviveu a uma onda inteira com o índice a 9,09, e como o
+T5 pôde usar a rosa da marca sem ninguém dar por isso.
+
+**A lista de sítios veio primeiro, que era a regra.** O próprio portão exigia,
+por escrito, que alargar viesse «com a lista de sítios a mudar, não com um `Set`
+novo». Medidos antes de lhe tocar: **32 raios fora da escala em 13 ficheiros**,
+0 curvas, 0 barras. (As 3 «curvas» da primeira contagem eram falsos positivos
+meus — o portão aceita `.2,.8,.2,1` e `0.2, 0.8, 0.2, 1` como a mesma curva e o
+meu script só tinha a forma longa.)
+
+Três empates que valem a pena guardar:
+
+- **`layout.tsx:489`, calha de 6px, `3 → 2` e não 4** — o browser limita o raio a
+  metade da dimensão, portanto `4` num elemento de 6px renderiza como **3**:
+  ficava dentro da escala no código e idêntico ao valor antigo no ecrã. O `2` é a
+  única das duas que muda mesmo alguma coisa.
+- **`CockpitShowcase:324`, `5 → 4`** — o popover tem raio 8 e padding 4, logo o
+  raio concêntrico exacto do filho é 8−4=4. A 6 as curvas deixavam de ser paralelas.
+- **`lp-error-tap`, dois `3 → 4`** — três overlays sobre o *mesmo* rectângulo,
+  sobrepostos; a irmã já estava a 4.
+
+**E só depois o âmbito abriu:**
+
+```
+linguagem-visual:  10 ficheiros  ->  123
+achados novos no momento em que abriu:  ZERO
+```
+
+É o que se quer de um alargamento: o portão vê doze vezes mais e continua verde
+**porque o trabalho foi feito**, não porque a régua foi afrouxada.
+
+**As três sub-regras derivam agora todas do token** — raios, curvas e barras.
+O `EAS_OK` era o último `Set` à mão (as quatro curvas escritas duas vezes cada,
+por causa do `0.` opcional) e passou a sair de `T.motion`.
+
+gate: design **61/61** (53 → 57 → 61 ao longo do dia) · índice **9,09** ·
+linguagem visual **123 ficheiros**, 1.0/1.0 · landing **219/219** · cockpit 943,
+**0 fail** · 7 workflows verdes
+
+**Aberto:** os 4 tiers de **papel** abaixo de AA (t0 3,53 · t1 4,42 · t2 4,47 ·
+t3 4,13), medidos e não declarados — escurecê-los é mexer na paleta clara inteira,
+que serve impressão · as **15 estimativas de poupança na shell autenticada**, que
+são decisão de produto e mantêm a verificação 3 em metade da nota.
+
+### 2026-08-29 · OS DOIS ABERTOS FECHARAM — e o 10,00 vem com a régua declarada
+
+Fecharam os dois pontos que a entrada anterior deixou em «Aberto», por PRs
+separados. O segundo obriga a uma ressalva que não se pode esconder no meio.
+
+**Os 4 tiers de papel passaram a AA** (PR #430). A dificuldade era real —
+escurecê-los mexe na paleta clara inteira, que serve impressão. Resolveu-se com
+o objectivo certo: **desvio mínimo sujeito a AA e a separação perceptual
+preservada**, não separação máxima. A primeira tentativa optimizou o errado e
+levou o t2 a dE 19,9 — deixava de ser a mesma cor — e foi rejeitada. Pares de
+contraste: 22 → 26, todos ≥ 4,5:1.
+
+**As 13 cifras da shell autenticada passaram a dizer de onde vêm** (PR #431).
+Não saíram, e a razão não é conveniência: o `recibo` mede tokens reais mas lê a
+máquina de quem o corre; a shell mostra dados sincronizados de outros devices, e
+**nenhum servidor pode medir tokens que nunca lhe passaram pelas mãos** — os
+prompts nunca saem da máquina, que é a tese. O número é modelado por construção
+(`savings-tracker.js:441-451`: `saved = naive − real`, os dois derivados do
+comprimento do prompt). O que mudou é que deixou de ser mudo: cada cifra
+renderiza colada à proveniência, de uma fonte única (`_modelado.tsx`), e aponta
+para o medido (`mooter recibo`).
+
+Três números fabricados apanhados pelo caminho: **«40× cheaper»** era 5,0×,
+**«5× cheaper»** era 2,5×, e **«90% of the capability»** não tinha fonte nenhuma
+além de um masterprompt arquivado de Abril — apagado. E a defesa escrita no
+dashboard, «real token counts require API access mooter doesn't have», tinha
+deixado de ser verdade no dia em que o `recibo` nasceu.
+
+**⚠️ A RÉGUA MEXEU-SE, e isso fica escrito.** A verificação 3 passou de contar
+«cifras na shell» para «cifras SEM proveniência declarada». Sem essa mudança o
+mesmo trabalho valeria 1,0/2,0 — a régua é *load-bearing*, e a 27/08 este
+projecto **recusou** um 10,00 exactamente por isso. A diferença é que desta vez o
+trabalho foi feito primeiro e **a régua morde**:
+`design/tools/moo-proveniencia.test.mjs` (7 testes) planta uma cifra sem marca e
+exige que apareça, planta a mesma com marca e exige a nota cheia, e prova que a
+marca noutra linha não conta. Se falhar, o 10,00 deixa de valer. Quem discordar
+da régua tem o argumento todo escrito no ficheiro — foi para isso que lá ficou.
+
+**E mordeu logo, em mim.** Eu tinha «marcado» três cifras com um comentário JSX,
+que satisfaz a regex e **não renderiza nada** — «documentar não corrige» na forma
+mais pura, dentro do commit que criava a marca. A leitura passou a ser feita na
+linha já sem comentários, com mordida própria.
+
+**O instrumento estava cego, outra vez.** `test:design` era uma lista escrita à
+mão e tinha perdido o `moo-visual-audit.test.mjs`: **corriam 61 de 72**. O «design
+61/61» da entrada anterior lia-se como cobertura e não era. Passou a varrer a
+pasta — e o primeiro teste que voltou a correr falhou em CI: o auditor importava
+o `playwright` no topo, portanto rebentava com código 1 antes de validar
+argumentos, e a sua recusa («esse canvas não existe») estava refém de um browser
+instalado. Import preguiçoso, provado numa pasta sem playwright. O rótulo do
+passo de CI dizia «53 testes» — número cravado à mão que envelhecia em silêncio;
+saiu.
+
+Também: o portão somava **coincidências de padrão** e dizia «14 modeladas» de 13
+cifras — passa a contar por `ficheiro:linha`. E `wave12-dashboard.test.ts`
+guardava o sufixo `(est.)`; passa a exigir o mecanismo, com mordida provada.
+
+índice **9,09 → 10,00** · ratchet base promovida · design **74/74** (era 61 a
+correr) · landing **220/220** + tsc + build · cockpit **906**, 0 fail · portão
+`--ci` exit 0
+
+**Aberto:** o `moo-visual-audit.mjs` tem a sua própria cópia à mão da escala de
+raios e da família de curvas (`RAIOS_OK` inclui o 12, que a escala canónica
+recusa) — é a quarta fonte de verdade, e ficou para trás porque os seus testes
+nunca corriam. Derivá-la dos tokens torna o auditor mais estrito e precisa da
+lista de sítios medida primeiro, numa máquina com playwright.
+
+
+
+### 2026-08-29 (tarde) · O RESIDENTE LOCAL NÃO CHAMA FERRAMENTAS — medido, 0 em 20
+
+O dia começou com um estudo de LLMs locais e acabou a desmentir três coisas que
+este projecto tinha escritas. Todas caíram pela mesma razão: **ninguém tinha
+medido**.
+
+**Primeiro caiu a máquina.** O radar de 28/08 dizia «Mac mini 16GB, tecto Metal
+~11-12 GB», e daí concluía por aritmética que o `gpt-oss:20b` (13 GB) **NÃO
+CABE**. São **24 GB (M4 Pro)**. O modelo corre a 100% GPU com 12 GB carregados, a
+39,16 tok/s. A aritmética estava certa; o input é que nunca tinha sido medido. E
+o meu próprio estudo da manhã repetiu o erro, porque leu a RAM no vault em vez de
+a perguntar à máquina.
+
+**Depois caiu a recomendação.** Com os tok/s na mão eu propus trocar o residente
+`qwen2.5-coder:14b` (22,22 tok/s, 15 GB — «o pior em todos os eixos») pelos
+Granite 4.2. O MooterBench, N=100 emparelhado no P2, disse o contrário:
+
+```
+B1 citação-ok    qwen2.5-coder:14b  99%   granite4.2:8b  1%   granite4.2:3b  1%
+```
+
+Os Granite bateram no tecto de 700 tokens em 20/20 rondas. O qwen tem mediana de
+54. Não é qualidade — é o contrato de saída. **A régua que eu usei (velocidade
+bruta) era a errada.**
+
+**E depois caiu o catálogo.** B3 e B6 não existiam — o `runRound` nunca
+exercitou ferramentas nem saída estruturada, por isso o portão de promoção do
+mapa §3 **nunca podia fechar, com modelo nenhum**. A lacuna era do instrumento.
+Construídos (`tools/cockpit/runner/bench-b3b6.mjs`, 12 testes sem rede), a
+primeira medição inverteu a leitura:
+
+```
+B3 tool-calling  qwen2.5-coder:14b  20%   granite4.2:8b 100%   granite4.2:3b 100%
+```
+
+Os 20% do qwen são inteiramente da tarefa de IRRELEVÂNCIA — que ele acerta por
+nunca chamar. Detalhe das 20 tarefas que exigiam uma chamada: **`20x "não chamou
+ferramenta nenhuma"`**. E o catálogo declarava, por escrito,
+`capabilities: ['completion','tools']`.
+
+**Não é «qual dos dois». São dois motores para dois trabalhos:** citação → qwen
+(99%); qualquer coisa com ferramentas → `granite4.2:3b` (100%, 2,2 GB, e ainda
+mais rápido: p50 15s contra 19s).
+
+**O órfão `require_parameters` do radar §2 (#4) deixou de ser texto.**
+`tools/router/capacidades-modelo.js` (13 testes) com três estados e duas regras:
+*medido vence declarado* e *ausência não é negação* — um modelo sem recibo dá
+`n/d`, nunca `false`. E o veredicto exige DUAS condições, porque a nota sozinha
+premeia quem nunca chama. O `hardware-matcher` passa a publicar
+`declaracoes_desmentidas`, que hoje traz exactamente uma linha.
+
+**Também nesta tarde:** o `gpu-probe` devolvia `vramMB: null` em Apple e
+compensava com um tecto de **9216 MB cravado para toda a frota Apple** — errado
+por quase o dobro, e sem um único teste que o pudesse contradizer (agora tem 6).
+O `test:cockpit-runner` era uma lista à mão e já tinha perdido um ficheiro; passa
+a varrer as duas pastas (0 perdidos, 1 ganho, 43 → 44). E a varredura fez cair um
+teste que exigia o próprio nome no `package.json` — a intenção mantém-se, a
+verificação passa a aceitar lista OU varredura.
+
+PRs **#436** e **#441** fundidos. Testes: router 0 fail · cockpit **948/0** ·
+`classify.js` FROZEN intacto (`427d8c0b`).
+
+**Aberto:** o `gpu-probe` ainda crava `req <= 9216` para o resto da frota Apple —
+corrigi-lo mexe em todos os devices e é decisão do dono · Ollama 0.32.5 → 0.33.1
+travado porque o `moo-runner` está vivo e pará-lo é um `/stop` · **um pilar de
+onze (P2) e um device de quatro** — generalizar daqui é o erro que este dia
+inteiro documenta · a doutrina «NUNCA agentic <30B» (16/07) não sobreviveu ao
+contacto: o 14B não chama ferramentas e o 3B chama 100%.
+
+### 2026-08-31 → 09-01 · TRÊS ARTEFACTOS FANTASMA, E A MESMA CLASSE DE DEFEITO EM CADA CAMADA
+
+O SUPER MASTERPROMPT «NO TALO» mandava usar três ficheiros que **nunca existiram** — busca exaustiva
+citada em cada caso (`git log --all`, `find` na home inteira, `grep -rl`, vault). Dois foram
+desenhados de raiz porque o repo tinha com que os reconstruir; o terceiro não.
+
+**F1 · `probe-frota.mjs`** (`23655073`) — compõe `providers/*.isAvailable()`, `quota-honesta.js` e
+`provider-health.js` (o cooldown que a F1 pedia **já existia**). A regra «n/d de quota = esgotada» é
+aplicada à letra mas nunca em silêncio: `excluido_por_nd` ≠ `esgotado_medido`, e sem candidatos a
+etapa sai `BLOQUEADA` — nunca o mais barato por defeito. **Na 1.ª corrida encontrou o motor $0 dado
+por morto:** `OLLAMA_HOST=127.0.0.1:11434` (o formato canónico do Ollama) e o adaptador concatenava
+sem normalizar. O Ollama estava **vivo, com 10 modelos**.
+
+**A cadeia que isso abriu** (#454 → #458 → #459): o `callOllama()` devolvia **`null` mudo** (o
+`catch` engolia o `Failed to parse URL`); eram **11 sítios** a ler `OLLAMA_HOST` cru, não 5 nem 3; e
+**cinco** definições de «runtime», não três — os dois instaladores, o Step 5 do update e as duas
+cópias servidas pelo site, que o `piso-de-node.mjs` apanhou quando eu já julgava ter fechado o drift.
+Pelo meio meti eu próprio a mesma classe de defeito com o sinal trocado (#456: o espelho arrastava
+`coverage/` e 12 `.json` de **estado local**, entre eles o `router-tuning.json` que o backtest
+escreve no runtime). Corri o sync errado 1×: 13 estados ficaram iguais ao repo e **não consigo provar
+quais sobrepus** — sem backup; dano material ~0.
+
+**O que fechou o assunto não foi nenhuma correcção** — foi passar a haver, em cada camada, **um teste
+de cobertura que morde**: a varredura do `OLLAMA_HOST` (dos dois lados da fronteira do bundle), o
+`sync-runtime --check`, e o `paridade-instaladores` (os três ficheiros pediam «keep in lockstep» *em
+comentário*, e ninguém verificava).
+
+**Medido no fim:** `runtime em dia` · acumulador OK · `TEST=pass` · motor $0 `available:true` · cli
+**668/669 (0 fail)** · router **1285/1288** · audit **5/6** (as 3 pré-existentes) · ratchet 215 ·
+`classify.js` FROZEN intacto. Detalhe completo no journal do vault.
+
+**F3 · o `render_medir` desenhado de raiz** (#462) — o segundo artefacto fantasma do MP. Busca
+citada: uma só ocorrência de `render_medir` no repo, e é o `SYNC.md` a dizer que não existia. O
+critério («rascunho B sai fail») era inverificável, e **o repo devolveu-o**: o #450 mediu que
+pontuar `body.thinking` em vez de `body.response` valia **0% contra 83%** — logo *um rascunho tem de
+sair `falha`, e pelo critério certo*. **Não implementa critérios: compõe quatro** que já existiam,
+cada um com um número atrás (#450 0→83% · **209/275** rondas que nunca chegaram ao modelo · **174**
+achados alucinados · **62** achados com `citacao-ok` e **0 de 78** verdadeiros). «Render» era a
+metade que faltava: os verificadores do repo devolvem JSON para máquinas, e o fosso é «work a non-dev
+can check» — cada critério sai com o medido, o limiar e a prova. `n/d` é estrutural: só n/d nunca
+reprova; uma falha medida ganha a um n/d. 24 testes, **2 de integração real CJS→ESM**; mordida com 4
+defeitos plantados → **3, 1, 1, 1**. E `tools/verify/**` entrou nos paths do `test.yml` — sem isso um
+PR que só lhe tocasse nunca acordava o job (o defeito do #398).
+
+**A leitura foi minha e pode estar errada:** um fan-out de 6 agentes propôs um verificador *visual*
+(playwright/contraste). Não segui — o F3 está entre F2 e F4, ambos de motor, e «rascunho»/«ronda» é
+vocabulário do runner. Se o duelo era visual, o eixo está trocado; o desenho alternativo está no
+journal do workflow.
+
+**Aberto:** a **§5 continua inexequível** — o gauntlet aponta para um `mapa-e-roadmap.md` que não
+existe, e é o único dos três fantasmas sem substituto, porque as «10 perguntas» não são deriváveis
+de nada medido.
+
+### 2026-09-01 (madrugada) · O MOO LEDGER — e os números saem do HTML
+
+A v4 do Moo Pilot chegou dogfoodada e com o instantâneo **cravado no HTML** (2094 citações,
+$24.29 de padrão, 16 GB de VRAM): verdadeiros no minuto em que foram escritos, mentiras silenciosas
+no dia seguinte. Adoptada ao contrário — `moo-ledger-shell.html` é uma **casca sem um número
+dentro** e `runner/build-ledger-snapshot.mjs` mede-os (ledger · triagem · beacons · `git worktree
+list` · eta-index · portões do `autopilot`); sem payload a página **diz-o e pára**. F10 ganha
+`GET /ledger`; o `/panel` v1 fica **intacto** (vista do operador, com os controlos), guarda de rota
+nos dois. **26 testes**, metade a correr a casca contra um DOM de bolso. Cockpit **976/0** · router
+**1126/0** · design **10,00/10** (o `SUPERFICIES_UI` não tinha a vista do dono: entrou e mordeu,
+10,00 → 7,27). Onde **"sem medição = null"** doeu: `vram_total_gb` → `n/d`, e a pastagem mostra
+**1 device, não 3** — os recusados viajam em `fleet_rejected` **com o motivo**. G1 entregue como
+molde. **PR #461; detalhe no journal do vault.**
+**REFUTADO — o bump do conector para 1.53.0:** a `FILES` do `pack-mcpb.mjs` não leva uma única skill
+(vão por `/mooter-update`) e nada nesta onda toca em `packages/mooter-bridge/`. Fica em **1.52.0**.
+**Aberto:** `npm run sync:cockpit` depois do merge (espelho desta máquina **vazio**, pré-existente) ·
+instalar o LaunchAgent (gesto do dono) · **`version-sync.yml` vermelho por erro de ficheiro de
+workflow**, também em `main` e desde antes desta onda — a rede sob o protocolo de release está caída.
+
+---
+
+# Rolado do SYNC.md em 2026-09-09 (entradas 2026-08-31 → 2026-09-01, verbatim; SYNC.md tinha 386 linhas contra o tecto de ~200)
+
+### 2026-08-31 → 09-01 · O MASTERPROMPT CITAVA TRÊS FICHEIROS QUE NUNCA EXISTIRAM
+
+Busca exaustiva e citada em cada caso (`git log --all`, `find` na home inteira, `grep -rl`, vault).
+**Dois foram desenhados de raiz; o terceiro afinal existia com outro nome.**
+
+**F1 · `probe-frota.mjs`** (`23655073`) — compõe `isAvailable()`, `quota-honesta.js` e
+`provider-health.js` (o cooldown que a F1 pedia **já existia**). A regra «n/d = esgotada» aplica-se à
+letra mas nunca em silêncio: `excluido_por_nd` ≠ `esgotado_medido`, e sem candidatos sai `BLOQUEADA`.
+**Na 1.ª corrida encontrou o motor $0 dado por morto:** `OLLAMA_HOST=127.0.0.1:11434` (o formato
+canónico do Ollama) e o adaptador concatenava sem normalizar. O Ollama estava **vivo, com 10 modelos**.
+
+**A cadeia que isso abriu** (#454 → #458 → #459): o `callOllama()` devolvia **`null` mudo**; eram
+**11 sítios** a ler `OLLAMA_HOST` cru, não 5 nem 3; e **cinco** definições de «runtime», não três — os
+dois instaladores, o Step 5 do update e as duas cópias servidas pelo site, que o `piso-de-node.mjs`
+apanhou quando eu já julgava ter fechado o drift. Pelo meio meti eu a mesma classe com o sinal trocado
+(#456: o espelho arrastava `coverage/` e 12 `.json` de **estado local**). Corri o sync errado 1×: 13
+estados ficaram iguais ao repo e **não consigo provar quais sobrepus** — sem backup; dano material ~0.
+
+**F3 · `render_medir.js`** (#462) — o critério («o rascunho B sai fail») era inverificável, e **o repo
+devolveu-o**: o #450 mediu que pontuar `body.thinking` em vez de `body.response` valia **0% contra
+83%**. Não implementa critérios: **compõe quatro**, cada um com o seu número (#450 · **209/275** rondas
+que nunca chegaram ao modelo · **174** achados alucinados · **62** achados com `citacao-ok` e **0 de
+78** verdadeiros). «Render» era a metade que faltava: os verificadores do repo devolvem JSON para
+máquinas, e o fosso é «work a non-dev can check».
+
+**§5 · o gauntlet — o meu erro** (#464, #465). Escrevi que as perguntas «não são deriváveis de nada
+medido». **Falso:** `docs/foundation/MEO_GAUNTLET.md` tem **18** (G1–G18), é **v6** (o «MEO v6» do MP),
+versionado. Procurei pelo nome do índice e **concluí do ficheiro para o conteúdo**; foi o retrieval do
+vault que me corrigiu. Não acrescentei perguntas — «um agente nunca eleva o tecto sozinho». O que
+faltava era o **estágio 2 que o documento pede**: medido, **zero** ficheiros verificavam a declaração
+`gauntlet:`. Dezoito regras escritas, nenhuma aplicada. O portão **lê a lista do documento**, tem três
+estados (`carimbado` com exit próprio: sem 2.º motor «nunca sai limpo») e distingue uma **instrução**
+de uma **declaração**. E o mesmo defeito noutro sítio (#465): o `handoff-preflight` valida as **8** do
+red-team gate e **nenhum workflow o invocava** — ligado, com o `AGENTS.md` nos paths.
+
+**O que fechou cada camada não foi a correcção** — foi passar a haver **um teste de cobertura que
+morde**: a varredura do `OLLAMA_HOST` (dos dois lados da fronteira do bundle), o `sync-runtime --check`,
+o `paridade-instaladores`, e agora o portão do gauntlet.
+
+**Medido no fim:** `runtime em dia (221)` · acumulador OK · `TEST=pass` · motor $0 `available:true` ·
+cli **668/669** · router **1285/1288** · audit **5/6** (as 3 pré-existentes) · ratchet 215 ·
+`classify.js` FROZEN intacto. **Aberto:** o estágio 3 (juiz O-1) não existe · a **D8** é do dono
+(C1–C4 entram? quais das 18 saem?) · detalhe completo no journal do vault.
+
+### 2026-09-01 (manhã) · A 1.53.0 — os botões do Ledger deixaram de ser maquetas
+
+Três verbos POST a sério no F10, todos com a **mesma guarda de origem do kill-switch**: `/triage`
+(a **mesma porta** que o `/triagem` — um só escritor, um só ficheiro), `/assist` (a doca do Moo:
+relay ao Ollama local, **sem tool-calls, sem escalada, sem memória**; medido ao vivo, 7,3 s e $0 no
+`qwen2.5-coder:14b`) e `/update` (aponta o `.mcpb` e **não instala** — a recusa viaja no payload).
+**G8 fechado:** o arranque deixou de ECOAR o bind e passou a medi-lo (`lsof -nP -iTCP:4290`) —
+`1 socket(s), todos locais`, escrito no log; sem `lsof` fica `n/d`, nunca um «está seguro».
+
+**A prosa que citava uma fonte inexistente.** O Ledger dizia «the closed routing table (C0–C5)».
+Procurada no repo inteiro: **não existia ficheiro nenhum**. Não era mentira sobre o comportamento
+(as rondas correm mesmo local, o git é mesmo custódia do CC) — era pior: um facto verdadeiro
+afirmado por uma fonte que não existe. Agora existe (`runner/rota.mjs`), cada classe carrega a
+**prova** de quem a impõe, e as duas que este loop não exercita dizem-no em vez de serem inventadas
+para a escala fechar em seis. **G6 fechado** com o resto: `finding_id` estável, `triage.items[]`,
+`route`, `publish`, `feed[].device` — e o capítulo V passou a mostrar **decisões a sério** em vez de
+dois recibos `citacao-ok` quaisquer carimbados «closed · self-curated» sem nunca terem sido triados.
+Nada é dado por escrito num 200: cada escrita **relê a contagem** do servidor e só então diz
+`confirmed by re-read`; se não mexer, di-lo.
+
+**REFUTADA A REFUTAÇÃO DE ONTEM** («o bump para 1.53.0 não entrega nada»). A premissa estava certa —
+nada nesta onda toca em `packages/mooter-bridge/` — e a conclusão estava errada sobre o **artefacto**:
+o `mooter-v1520.mcpb` foi construído a 29/08 às **09:00**, e o fix de acessibilidade do `fleet-ui.html`
+(#442, quatro animações `infinite` a correr para quem pediu ao SO que não corressem) entrou às
+**15:51 do mesmo dia**. O bundle mais novo em disco estava **6h51m** atrás do fix. O
+`mooter-v1530.mcpb` é o primeiro que o leva (335 verificações, sha `9100e0df…`).
+
+**REFUTADO — a perf do Ledger.** A premissa do kickoff era que o fundo pontilhado fazia o capture CDP
+expirar. **Medido** (Chrome headless, 3 corridas cada): 1280×20000 → antes 2,88/4,62/3,10 s, depois
+3,29/2,93/2,93 s; 1280×60000 → 8,13/8,15 s vs 7,60/8,01 s. ~3% no melhor caso, **dentro do ruído**.
+O custo cresce com a ÁREA capturada e nenhuma folha de estilos o encurta. A textura passou a camada
+`fixed` na mesma (é grátis, correcta e visualmente idêntica), mas o remédio é capturar por fatias ou
+subir o tecto do CDP — está escrito no CSS para ninguém voltar a supô-lo.
+
+**G3 entregue como CÓDIGO, não como agente a correr.** O `beacon-renew.mjs` re-assina o **mesmo
+corpo** antes da janela de 24 h fechar — o `ts` do device **nunca** se re-carimba, senão um cron
+punha uma máquina morta a dizer «awake · heartbeat 3m ago», que é a mentira que a correcção viria
+introduzir (e há um teste que reprova essa alteração). Mais `seq` monotónico **dentro** do payload
+assinado, que passou a decidir a corrida disco-vs-remoto em vez do relógio. Instalar é duplo-clique
+(`_handoff/operar/47-INSTALAR-RENOVACAO-BEACON.command`) e **só arruma esta máquina**: até correr no
+`desktop-j26409q` e no `paulo-desktop`, esses dois beacons continuam a expirar exactamente como hoje
+(553 768 s e 496 375 s contra uma janela de 86 400 s).
+
+**A REVISÃO ADVERSARIAL ANTES DO PUSH APANHOU UM BLOQUEANTE MEU.** A casca tinha
+`const F10 = 'http://127.0.0.1:4290'` cravado, e a porta é configurável — o próprio servidor manda
+usar `MOO_PORT` num segundo projecto. Com dois F10 vivos, o Ledger do projecto B (servido na :4291)
+escrevia a chave de B no `triagem.jsonl` de **A** — e como a contagem de A subia mesmo, a releitura
+CONFIRMAVA. Uma confirmação que certifica o alvo errado é pior do que não haver confirmação nenhuma.
+Agora o alvo é `location.origin`; provado ao vivo a servir o Ledger na :4292 (arranca em `live`, fala
+com a :4292) e há um teste que **morde** (repor o endereço cravado reprova). Mais três da mesma
+revisão: o `seq` passou de decisor a **veto** (a decidir, um contador de época antiga declarava
+`morto` um device a trabalhar — reproduzido); o `proximoSeq` deixou de reinventar `1` sobre um
+contador ilegível (agora `null`, escrita atómica); e o `publicacao.mjs` deixou de chamar «publicado»
+a um commit que não foi empurrado (`por_empurrar`, medido contra `@{u}`).
+
+**E um incidente meu, registado porque a regra o exige:** a prova manual do `/triage` correu contra o
+`MOOTER_HOME` REAL e escreveu no `triagem.jsonl` do dono uma decisão assinada `por:'dono'` que ele
+nunca tomou. As contagens não mexeram (a chave não tinha recibo) — isso foi sorte, não desenho. A
+linha foi removida (era a última, e provavelmente minha: `PROVA-DA-PORTA-1530`), as contagens foram
+reconferidas antes e depois (`achados 1071 · aceite 3`, iguais), e o aviso ficou no `smoke.test.mjs`.
+
+Cockpit **1078/0** · bridge **1126/0** · design **10,00/10** · `classify.js` FROZEN intacto.
+Congelamento registado em `CLAUDE.md` (3 ficheiros do bridge, versão apenas).
+**Aberto:** instalar os dois LaunchAgents (G1 e G3, gesto do dono) · `npm run sync:cockpit` ·
+`version-sync.yml` continua vermelho por erro de ficheiro de workflow, também em `main`.
+
+---
+
+## 2026-09-01 · o A/B que faltava, e o bloqueio da 1.53.0
+
+**Construído, NÃO fundido.** Dois ramos, ambos à espera do gesto do dono:
+`feat/ab-mooter-vs-sem` (2 commits) · `fix/ci-version-sync-yaml` (1 commit).
+
+**O A/B existe pela primeira vez.** Até hoje o produto dizia que poupava e a única prova
+era ele próprio a dizê-lo. `tools/ab/mooter-vs-sem.mjs` corre três braços sobre o mesmo
+conjunto — sem router (tudo em T3) · router por LLM (qwen2.5-coder local, chamada real) ·
+Mooter. O gold é **anterior ao ensaio** (sai do `validation-set.json`, escrito para outro
+fim), os preços vêm do SSOT `pricing.js`. Recibos em `_handoff/ab-2026-09-01/`.
+
+**Holdout limpo, n=60** (6 corridas, todas idênticas): **40,0% · 71,7% · 81,7%** ·
+tokens **0 · 23 182 · 0** · p50 **— · 76,1ms · 1,61ms** · sobrestimou **36 · 7 · 1**.
+Gold, n=84: 16,7% · 75,0% · **96,4%**. Por secção: canonical **90,0% empatado** ·
+adversarial **92,0%** vs 80,0% · historical **68,0%** vs 56,0% — esta última é a fraqueza.
+
+**O portão adversarial de pré-merge (70 agentes) derrubou três alegações**, e as três
+correcções foram contra o nosso interesse:
+
+1. **84,3% → 81,7%.** 10 das 70 amostras foram escritas nos commits `4b6e4548` e
+   `bc4f84f1`, que alteram o `classify.js` **no mesmo commit**. O Mooter fazia **10/10**
+   exactamente nessas. Saíram; n passa a 60. A frase «o corte que ninguém afinou» era falsa.
+2. **«+36 pontos» nas adversariais → +12.** O prompt do juiz não dava ao adversário as
+   convenções privadas do repo (piso de risco, pin de modelo, sinal de qualidade) que ~9
+   rótulos codificam. Passaram a ir por escrito: o LLM sobe de 56,0% para **80,0%**.
+3. **«Só o nosso é reprodutível» — retirado.** Corríamos o adversário a `temperature 0,2`
+   e publicávamos que ele oscilava. A zero dá o mesmo nas 6 corridas, como o nosso. O painel
+   caiu: determinismo deixou de ser diferenciador.
+
+Também derrubou dois bloqueios no ramo de CI, corrigidos: uma **injecção de shell** que o
+próprio conserto armava (`${{ github.ref_name }}` dentro de um `run:`, num workflow que ia
+correr na tag v1.53.0), e o facto de os `paths:` do `test.yml` **não cobrirem
+`.github/workflows/**`** — a guarda nova nunca correria quando um workflow mudasse.
+
+**O que o ensaio NÃO prova, dito por escrito:** mede a *decisão* de encaminhamento, não a
+poupança em euros. Nesta sessão o router classificou 112 pedidos, marcou 43 como trabalho
+de graça e houve **0 delegações**. O motor acerta; a obediência é o próximo trabalho.
+
+**Material de divulgação:** `_handoff/ab-2026-09-01/banco-de-ensaio.html` — as duas peças
+(1080×1920 e 1920×1080) temporizadas e graváveis em ecrã, com guião e dossiê. Não são
+`.mp4`: é a página que se grava.
+
+**A 1.53.0 não podia sair.** `main` está em 1.53.0, a última release é a **v1.51.0** (78
+commits atrás) e o `version-sync.yml` **não era YAML válido** desde 2026-08-29 — um corpo
+de PR multilinha à coluna 0 dentro de um `run:`. 12 corridas em falha, **nenhuma numa tag**,
+que era a única coisa para que existia. O commit que o partiu chama-se «fix(ci): o Version
+Sync deixa de falhar em todas as tags». Este `SYNC.md` já o dava como vermelho — sabido,
+escrito, nunca corrigido: **documentar não corrige** (3.ª vez).
+
+Consertado com `--body-file`, e a guarda que faltava: `blocoPartido()` +
+`workflows-parseiam.test.mjs` — que é a **única** verificação do repo a apontar o
+`ci-coerencia.mjs` aos workflows reais. Descoberta pelo caminho: os outros 5 exports desse
+módulo nunca são invocados fora dos próprios testes sintéticos. Runner **1087/0**.
+
+**Fechado no mesmo dia:** os dois ramos fundidos (#471, #472) · **v1.53.0 etiquetada e
+publicada**, com `mooter-v1530.mcpb` anexado — e o `Version Sync` correu nessa tag e passou,
+pela primeira vez desde 2026-08-29 · o harness A/B passou a ter **22 testes + mordida de
+13 defeitos plantados**, ligados ao CI (#473).
+
+Três buracos da mesma família, encontrados a **provar** que os testes novos corriam mesmo:
+o `test.yml` não cobria `.github/workflows/**`; o `paths-ignore` do `test-skip.yml` tinha
+**7 padrões contra 14** da referência; e o `package.json` — que define *o que os testes são* —
+estava fora dos dois. Em qualquer deles o par reportava os checks obrigatórios a verde
+**sem correr nada**. O espelho passa a ser exigido por teste, porque a deriva era silenciosa
+por construção: cada padrão novo no `test.yml` nascia em falta no espelho e nada gritava.
+
+E a mordida pagou-se à primeira: dos 13 defeitos plantados, **1 passou** — o teste das
+convenções casava com a linha que define os tiers em vez do bloco que devia guardar.
+22 testes verdes, e um deles não verificava nada.
+
+### O fecho do dia — a alegação que se pode fazer, e a que não se pode
+
+O PC reiniciou a meio; a cadeia de prova foi corrida **a frio** e reproduz em
+**32 segundos** (testes 4s, ensaio 6 corridas 32s), com o `classify.js` de sha
+intacto e o `OLLAMA_HOST` sem esquema a normalizar bem.
+
+| | sem router | por LLM | **MOOTER** |
+|---|---|---|---|
+| precisão (35 ground truth) | 40,0% | 82,9% | **91,4%** |
+| tokens para decidir | 0 | 23 182 | **0** |
+| latência p50 | — | 74,5 ms | **1,85 ms** |
+| idêntico em 6 corridas | sim | sim | sim |
+
+**A quinta correcção, encontrada ao fechar:** publicávamos «+8,5 pontos» sem
+nunca ter testado se a diferença existia. McNemar exacto emparelhado:
+
+- **vs sem router: 19 discordantes a 1, p < 0,0001 — PROVADO**
+- vs router-por-LLM: 5 a 2, p = 0,4531 — **não distinguível de ruído com n=35**
+
+Ou seja: em precisão **empatamos com o adversário até prova em contrário**, e a
+alegação que o produto realmente faz — *vs não ter router* — é a única provada,
+e está provada com folga. Contra o adversário o que sobra não é estatístico e não
+precisa de ser: 0 tokens contra 23 182, 47× mais rápido, 0 bytes para a rede.
+
+**Mais duas, da auditoria de 6 lentes ao próprio ensaio:** sem Ollama o adversário
+marcava 0,0% em silêncio (o banco **fabricava** a vitória para quem não a podia
+verificar), e o comando publicado como reprodução imprimia 81,7% — o valor
+anterior à correcção nº4. Os dois fechados; o comando imprime agora o número
+publicado e o veredicto McNemar por baixo.
+
+**A SEXTA correcção — e eu tinha-a refutado por engano.** Um agente afirmou que o
+holdout fora afinado pelo `patterns.js`, que o `classify.js` FROZEN importa e que
+não tinha sha nenhum. Medi, dei 91,4/94,3, e escrevi aqui que «não se reproduz».
+**Não fui suficientemente atrás:** testei revertendo a `~1` de quatro commits, e o
+mais antigo já continha o `9530efae`, que é onde está o salto.
+
+A escada real (`classify.js` congelado, só o `patterns.js` a variar, 35 rótulos):
+**74,3% → 94,3%**, com o último ponto *antes* de os rótulos nascerem em **82,9%**.
+Cinco commits afinaram padrões contra o `validation-set` depois disso, e dizem-no
+por escrito («three classifier safety fixes **found by validation-set**»,
+«Adversarial accuracy: 80% → 92%»). Um deles acrescenta `// "mergea na main"` —
+texto literal de `adversarial-17`.
+
+| `patterns.js` | Mooter | vs sem router | vs router-LLM |
+|---|---|---|---|
+| **anterior aos rótulos** | **82,9%** | 18 a 3 · **p = 0,0015** | 5 a 5 · p = 1,000 |
+| de hoje (**treino**) | 91,4% | 19 a 1 · p < 0,0001 | 5 a 2 · p = 0,45 |
+
+**A alegação sobrevive nos dois extremos.** O 91,4% passa a ser dito como score de
+treino. Fechado estruturalmente: `patterns.js.sha256` + passo próprio no CI —
+congelar um ficheiro que delega o que interessa a outro não congelado permitia
+mover **20 pontos** de comportamento sem o sha mexer um bit.
+
+Instrumento: **35 testes, 23 mordidas** (`test:ab`, `test:ab-morde`), ambos no CI.
+
+**Aberto:** ligar as 5 guardas inertes do `ci-coerencia` (tarefa lançada, commit
+`4b7c44cb` em `claude/sweet-wescoff-32b706`, sem PR) · **o holdout está queimado —
+precisa de rótulos novos que os padrões nunca tenham visto** · n=35 é pequeno demais
+para separar routers (efeito mínimo detectável ~20 pts) · nenhuma medição válida
+de prompts reais e longos — precisa de rótulos humanos · a obediência a 0%
+(43 de 112 pedidos marcados como trabalho de graça, 0 delegações).

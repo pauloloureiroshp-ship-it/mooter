@@ -7,8 +7,17 @@ description: Moo Pilot — o cockpit por device do Mooter. Levanta o motor local
 
 > **Nome oficial:** Moo Pilot. **Um cockpit por device**, nunca um agregador central.
 > Código canónico: `tools/cockpit/runner/` (com testes: `npm run test:cockpit-runner`).
-> Shell: `tools/cockpit/moo-pilot-shell.html`. Nada disto vive numa skill — a skill
-> só sabe conduzir o que já está no repo.
+> Nada disto vive numa skill — a skill só sabe conduzir o que já está no repo.
+>
+> **Duas vistas, duas rotas, e não se substituem uma à outra:**
+>
+> | Vista | Rota | Shell canónico | Para quê |
+> |---|---|---|---|
+> | **Moo Ledger** (o dono) | `/ledger` | `tools/cockpit/moo-ledger-shell.html` | ler o que a máquina fez, em linguagem de quem não escreve código |
+> | **Painel** (o operador) | `/panel` | `tools/cockpit/moo-pilot-shell.html` | conduzir: ▶/⏸, foco por pilar, triagem |
+>
+> O Ledger ainda **não tem os controlos**. Trocar um pelo outro tirava botões ao
+> dono sem lhe dar nada em troca, por isso ambos são servidos pelo mesmo F10.
 
 ## Uma máquina que nunca correu isto
 
@@ -47,6 +56,33 @@ tarefa do `schtasks` conforme a máquina. **O que muda é só a sintaxe da linha
 comandos.** Se estiveres a conduzir uma máquina Windows, NUNCA mandes `export VAR=x`
 nem caminhos com `~/` — em PowerShell é `$env:VAR = "x"` e `$HOME\frugal`.
 
+## Devolve SEMPRE o endereço vivo, clicável
+
+No fim de cada invocação desta skill, escreve as duas linhas abaixo — **tal e
+qual, com o `http://`**, para o terminal as tornar clicáveis:
+
+```
+Cockpit (operador): http://127.0.0.1:4290/panel
+Ledger (dono):      http://127.0.0.1:4290/ledger
+```
+
+Não é decoração e não é redundante com o `npm run pilot` (que abre o browser
+uma vez, no arranque). O que acontece a seguir é o Paulo mudar de janela, fechar
+o separador, ou voltar horas depois — e o endereço deixa de estar em lado
+nenhum. É por isso que existem `.command` no `_handoff/` a fazer o que uma linha
+de texto faz. Repetir o endereço custa duas linhas por sessão.
+
+Se o F10 não estiver de pé, diz isso **em vez** de dar o endereço — um link que
+não abre é pior do que nenhum:
+
+```bash
+npm run pilot:status   # reporta sem arrancar nada
+```
+
+O `/ledger` tem uma **faixa OPERATE** fixa em baixo: estado do loop, atalho para
+o cockpit, o comando que reconstrói a página, e **há quanto tempo** ela foi
+carimbada (passadas 24 h o número pinta-se, em vez de continuar cinzento).
+
 **O lançamento NUNCA levanta o STOP.** Lançar é "mostra-me os controlos"; trabalhar é o
 ▶ do dono. Se o STOP estiver activo, o cockpit abre com a máquina parada e o botão pronto.
 
@@ -54,9 +90,10 @@ nem caminhos com `~/` — em PowerShell é `$env:VAR = "x"` e `$HOME\frugal`.
 
 1. **Ao vivo** — `GET http://127.0.0.1:4290/fleet.json`, poll 3s. É o único modo que
    **conduz**: ▶/⏸ e o foco por pilar precisam do endpoint.
-2. **Instantâneo** — `node tools/cockpit/runner/build-shell-snapshot.mjs` injecta
-   `window.__MOOTER_SNAPSHOT__` num HTML autónomo. Abre em qualquer lado, **não controla
-   nada**, e diz isso num banner permanente.
+2. **Instantâneo** — `node tools/cockpit/runner/build-shell-snapshot.mjs` (painel) ou
+   `node tools/cockpit/runner/build-ledger-snapshot.mjs` (Ledger) injecta o payload num
+   HTML autónomo. Abre em qualquer lado, **não controla nada**, e diz isso no carimbo do
+   cabeçalho.
 3. **Silêncio honesto** — sem endpoint e sem snapshot, a página mostra o endereço vivo e o
    comando que o levanta. Nunca um número inventado, nunca um botão morto.
 
@@ -64,6 +101,36 @@ nem caminhos com `~/` — em PowerShell é `$env:VAR = "x"` e `$HOME\frugal`.
 > sandboxed não alcança o `127.0.0.1` — os controlos ficam inertes e parece que o produto
 > está partido. Custou-nos exactamente isso uma vez. Snapshot é para arquivar ou partilhar,
 > nunca para conduzir.
+
+**Vivo vs instantâneo, e porque é que a diferença não é uma opção tua.** Um artefacto
+publicado no claude.ai é **sempre** um instantâneo: a CSP do sandbox não deixa a página
+alcançar `127.0.0.1`, portanto o `fetch` ao F10 falha e a casca cai — honestamente — em
+`snapshot`. O **vivo é só o F10 desta máquina**, em `127.0.0.1:4290/ledger`. Não é uma
+limitação a contornar: é a mesma parede que impede qualquer site que o Paulo visite de
+falar com o runner dele. Diz-lhe qual das duas está a ver; nunca deixes um instantâneo
+passar por vivo.
+
+## Os verbos do F10 — e a regra que os governa (1.53.0)
+
+O Ledger deixou de ter botões com o carimbo «proposed endpoint». Três verbos POST
+passaram a existir a sério, todos com a **mesma guarda de origem do kill-switch**
+(um site que o Paulo visite leva 403; um `curl` desta máquina passa):
+
+| Verbo | O que faz | O que **não** faz |
+|---|---|---|
+| `POST /triage` | grava uma decisão no `triagem.jsonl` — é a **mesma porta** que o `/triagem` do painel v1, com o nome em inglês | não é um segundo escritor: um só bloco de código, um só ficheiro |
+| `POST /assist` | a doca do Moo — relay ao Ollama local, resposta em texto puro | **sem tool-calls, sem escalada, sem memória.** Motor local em baixo ⇒ 503 com o porquê, nunca um motor pago |
+| `POST /update` | diz onde está o `.mcpb` mais novo e o que fazer com ele | **não instala.** O payload declara-o (`instala_sozinho: false`) |
+
+> **Nada é dado por escrito só porque o servidor respondeu 200.** Depois de cada
+> escrita o Ledger volta a **ler a contagem** do `/fleet.json` e só então diz
+> «recorded · confirmed by re-read». Se a contagem não mexer, a página di-lo em
+> vez de fingir. Um 200 é o endpoint a aceitar o pedido; não é o ledger a
+> confirmar a linha.
+
+E o arranque deixou de ECOAR o `bind`: o F10 corre `lsof -nP -iTCP:4290 -sTCP:LISTEN`
+e escreve no log o que o sistema operativo respondeu. Sem `lsof` fica `n/d` — nunca
+um «está seguro» por omissão.
 
 ## O que fazes, por ordem
 
@@ -73,6 +140,7 @@ nem caminhos com `~/` — em PowerShell é `$env:VAR = "x"` e `$HOME\frugal`.
    um cockpit apontado a uma GPU morta é pior que nenhum.
 3. **Confirma que o painel é o canónico:** a resposta do `/panel` traz
    `X-Moo-Panel-Source: tools/cockpit/moo-pilot-shell.html`. Se vier outro ficheiro, diz qual.
+   O `/ledger` traz `X-Moo-Panel: ledger` e a versão da casca em `X-Moo-Ledger-Shell`.
 4. **Lê o que o painel diz** e resume ao Paulo em linguagem dele: quantas rondas, quantas com
    citação conferida, GPU medida, alinhamento do repo, quem está na frota e com que idade.
 5. **Device novo:** confirma `nvidia-smi` (Windows/Linux) ou `ioreg` (macOS) e o vault montado —
@@ -138,6 +206,10 @@ existem. Não se reescrevem e não se disfarçam de dado que nunca foram.
 - **Um device por cockpit.** A frota é lida de beacons no vault, nunca sondando outras
   máquinas: um endpoint de controlo alcançável da rede seria um kill-switch remoto.
 - **A frescura de outros devices vale o que o sync valer** — e isso vai escrito no painel.
+- **A casca do Ledger não tem um único número dentro.** Tudo o que ela mostra entra por
+  `window.__SNAPSHOT__`, que o `build-ledger-snapshot.mjs` mede. Campo sem medição sai
+  `null` e a página pinta `n/d` — nunca um zero, nunca um valor de cabeça. Se vires um
+  número cravado no HTML, é bug, e `build-ledger-snapshot.test.mjs` devia tê-lo apanhado.
 - **GPU% é utilização, nunca valor entregue.** O valor mede-se em recibos com citação
   conferida. As duas coisas aparecem lado a lado, e nenhuma substitui a outra.
 - Nada de prompts, segredos ou caminhos com username no payload.

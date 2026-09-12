@@ -1,0 +1,156 @@
+{
+ "id": "OPS-3",
+ "chave": {
+  "R1": "A",
+  "R2": "D",
+  "R3": "B2",
+  "R4": "B",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Resolve e cobre várias fugas, mas afirma incorretamente que importar um módulo no cliente inclui automaticamente o valor de uma variável privada no bundle.",
+     "total": 10,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Indica onde guardar a chave, como usá-la no servidor e como evitar exposição no browser, no Git e na configuração.",
+     "total": 12,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "A orientação final resolve o essencial, mas trata os riscos de forma limitada e inclui uma longa deliberação desnecessária.",
+     "total": 8,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Recomenda NEXT_PUBLIC_ para uma chave secreta, expondo-a precisamente ao browser e contrariando o objetivo do pedido.",
+     "total": 0,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Fornece instruções seguras e práticas para desenvolvimento e produção, mas alonga-se com exemplos públicos e repete recomendações.",
+     "total": 11,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Resolve e cobre várias fugas, mas afirma incorretamente que importar um módulo no cliente inclui automaticamente o valor de uma variável privada no bundle.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Indica onde guardar a chave, como usá-la no servidor e como evitar exposição no browser, no Git e na configuração.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"A orientação final resolve o essencial, mas trata os riscos de forma limitada e inclui uma longa deliberação desnecessária.\"},\"R4\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Recomenda NEXT_PUBLIC_ para uma chave secreta, expondo-a precisamente ao browser e contrariando o objetivo do pedido.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Fornece instruções seguras e práticas para desenvolvimento e produção, mas alonga-se com exemplos públicos e repete recomendações.\"}}",
+   "custo_tokens": {
+    "in": 29353,
+    "out": 353,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Resposta completa e correta, cobre casos subtis de fuga (props para client component, imports partilhados) mas e bastante extensa.",
+     "total": 11,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Directa, correta, cobre .env.local, proxy, gitignore e producao sem excesso.",
+     "total": 12,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "A resposta final esta correta mas vem precedida de um extenso rascunho de raciocinio interno que nunca deveria ser mostrado.",
+     "total": 6,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Instrui a usar NEXT_PUBLIC_, que expoe a chave no browser — exactamente o oposto do pedido.",
+     "total": 0,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Clara, correta, distingue publico/privado, cobre gitignore, producao e proxy sem se alongar demasiado.",
+     "total": 12,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Resposta completa e correta, cobre casos subtis de fuga (props para client component, imports partilhados) mas e bastante extensa.\"},\n\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Directa, correta, cobre .env.local, proxy, gitignore e producao sem excesso.\"},\n\"R3\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"A resposta final esta correta mas vem precedida de um extenso rascunho de raciocinio interno que nunca deveria ser mostrado.\"},\n\"R4\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Instrui a usar NEXT_PUBLIC_, que expoe a chave no browser — exactamente o oposto do pedido.\"},\n\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Clara, correta, distingue publico/privado, cobre gitignore, producao e proxy sem se alongar demasiado.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 3103,
+    "cache_write": 9570,
+    "cache_read": 3298
+   }
+  }
+ }
+}

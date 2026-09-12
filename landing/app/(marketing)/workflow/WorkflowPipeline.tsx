@@ -55,7 +55,7 @@ export default function WorkflowPipeline() {
                 style={{
                   width: 26,
                   height: 26,
-                  borderRadius: 7,
+                  borderRadius: 8,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

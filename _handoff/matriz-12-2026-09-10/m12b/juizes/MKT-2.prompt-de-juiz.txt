@@ -1,0 +1,202 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Escreve um email de 120 palavras para os clientes actuais a anunciar que a nossa app passou a ter modo escuro. Tom directo, sem exageros, com uma frase de fecho a convidar a experimentar.
+---
+
+Este pedido nao esta marcado como de risco.
+
+CANDIDATAS:
+
+<resposta id="R1">
+**Assunto:** Modo escuro disponível
+
+Olá [Nome],
+
+A partir de hoje, a [App] tem modo escuro. Foi um dos pedidos mais frequentes que recebemos no último ano, sobretudo de quem trabalha à noite.
+
+Pode activá-lo em Definições > Aspecto, escolhendo entre três opções: claro, escuro ou automático. No modo automático, a aplicação segue a definição do seu sistema e muda sozinha ao fim do dia.
+
+O modo escuro aplica-se a todos os ecrãs, incluindo relatórios e gráficos. Se encontrar algum ecrã com cores fora do sítio, avise-nos através de [email de suporte] — corrigimos rapidamente.
+
+Não é preciso actualizar nada na versão web. Na aplicação móvel, instale a versão mais recente na loja.
+
+Experimente e diga-nos o que acha.
+
+Com os melhores cumprimentos,
+[Nome] — [Equipa]
+
+---
+
+Cerca de 115 palavras no corpo. Deixei entre parênteses rectos o nome da app, o email de suporte e o caminho das definições — se me disser os valores reais (e se o menu se chama mesmo "Aspecto"), ajusto o texto.
+</resposta>
+
+<resposta id="R2">
+Assunto: Novidade na [Nome da App]: Modo Escuro
+
+Olá [Nome do Cliente],
+
+Agradecemos o seu apoio contínuo. Com grande satisfação, anunciamos que a [Nome da App] agora tem um novo modo escuro. Esteja à frente das tendências e experimente a interface mais confortável e visualmente agradável. 
+
+Experimente já agora e deixe-nos saber o que acha!
+
+Até breve,
+[Seu Nome]
+[Seu Cargo]
+[Nome da Empresa]
+</resposta>
+
+<resposta id="R3">
+Okay, the user wants a 120-word email in Portuguese for current customers announcing a dark mode feature. Let me start by making sure I understand the requirements.
+
+First, the email needs to be direct, no fluff. It's for existing customers, so I should address them as "Queridos clientes" or something similar. The main point is announcing the new dark mode. I need to mention it's now available, maybe highlight benefits like eye comfort or battery savings, but keep it concise.
+
+Wait, the user said "modo escuro" which is dark mode. I should use that term. The closing should invite them to try it. Need to keep it under 120 words. Let me check the example response they provided. Oh, the example they gave in the problem statement is in Portuguese, so I need to follow that.
+
+Wait, the user's instruction says to respond in PT-PT, so the email should be in Portuguese. Let me make sure the terms are correct. "Modo escuro" is the right term. Avoid exageros, so no "revolutionary" or anything like that.
+
+Start with a greeting, state the update, mention the benefits briefly, then a call to action. Let me count the words. Let's draft:
+
+"Queridos clientes,
+
+Agora a nossa app inclui modo escuro, para uma experiência mais confortável à vista e com menor consumo de bateria. Ative-o nas configurações e aproveite a nova opção em qualquer ambiente luminoso.
+
+Experimente já e descubra a diferença!"
+
+Wait, that's probably too short. Let me check the word count. Maybe add a bit more. Wait, the user said 120 words. Let me count.
+
+"Queridos clientes,
+
+Agora a nossa app inclui modo escuro, para uma experiência mais confortável à vista e com menor consumo de bateria. Ative-o nas configurações e aproveite a nova opção em qualquer ambiente luminoso.
+
+Experimente já e descubra a diferença!"
+
+Hmm, that's about 40 words. Need to get to 120. Maybe add a sentence about how it's been requested or something. Wait, but the user said no exageros, so don't make it sound like a big deal. Maybe just state it clearly.
+
+Wait, maybe the example they provided in the problem statement is the correct structure. Let me check the example response they gave. Wait, the user provided an example in the problem statement, but I need to create a new one. Wait, no, the user is asking me to write the email.
+
+Wait, the user's instruction says "Escreve um email de 120 palavras..." so I need to make sure it's exactly around 120 words. Let me count again.
+
+Let me write a draft:
+
+Queridos clientes,
+
+Estamos felizes por anunciar que a nossa aplicação agora oferece modo escuro, uma funcionalidade solicitada para melhorar a experiência de uso em ambientes com pouca luz e reduzir o cansaço ocular. Ative-o facilmente nas configurações da app e aproveite uma interface mais suave para os olhos, especialmente durante a noite.
+
+Esta atualização está disponível já para todos os utilizadores. Experimente agora e descubra como o modo escuro pode tornar a sua experiência mais agradável.
+
+Atenciosamente,
+[Equipa da App]
+
+Now count the words. Let's see:
+
+Queridos clientes,
+
+Estamos felizes por anunciar que a nossa aplicação agora oferece modo escuro, uma funcionalidade solicitada para melhorar a experiência de uso em ambientes com pouca luz e reduzir o cansaço ocular. Ative-o facilmente nas configurações da app e aproveite uma interface mais suave para os olhos, especialmente durante a noite.
+
+Esta atualização está disponível já para todos os utilizadores. Experimente agora e descubra como o modo escuro pode tornar a sua experiência mais agradável.
+
+Atenciosamente,
+[Equipa da App]
+
+Let me count the words. In Portuguese, each word counts. Let's see:
+
+First paragraph: 30 words. Second: 20. Third: 10. Total around 60. Need to get to 120. Maybe add more details without being verbose.
+
+Wait, maybe the user's example in the problem statement is a good reference. Wait, the user provided a sample response in their instructions, but I need to create a new one. Let me check the example they gave. Wait, no, the user's instruction is to write the email, so I need to make sure it's 120 words.
+
+Wait, maybe I should use a more detailed structure. Let's try again.
+
+Queridos clientes,
+
+Estamos entusiasmados em anunciar que a nossa app agora inclui modo escuro, uma atualização que facilita a leitura em ambientes com pouca luz e prolonga a vida da bateria do seu dispositivo. Esta funcionalidade está disponível nas configurações da app, permitindo uma experiência mais personalizada e confortável.
+
+Muitos de vocês solicitaram esta opção, e estamos felizes por poder oferecê-la. Experimente já o modo escuro e descubra como pode tornar a sua utilização diária mais agradável e suave para os olhos.
+
+Não perca tempo, ative agora e aproveite a nova funcionalidade!
+
+Atenciosamente,
+A Equipa da App
+
+Now count the words. Let's see:
+
+First paragraph: 40 words. Second: 30. Third: 15. Total around 85. Still short. Maybe add a sentence about how it's been tested or something. But the user said no exageros, so avoid "tested and approved" or similar.
+
+Wait, maybe the key is to be concise but hit 120 words. Let's count precisely.
+
+"Queridos clientes,
+
+Estamos entusiasmados em anunciar que a nossa app agora inclui modo escuro, uma atualização que facilita a leitura em ambientes com pouca luz e prolonga a vida da bateria do seu dispositivo. Esta funcionalidade está disponível nas configurações da app, permitindo uma experiência mais personalizada e confortável.
+
+Muitos de vocês solicitaram esta opção, e estamos felizes por poder oferecê-la. Experimente já o modo escuro e descubra como pode tornar a sua utilização diária mais agradável e suave para os olhos.
+
+Não perca tempo, ative agora e aproveite a nova funcionalidade!
+
+Atenciosamente,
+A Equipa da App"
+
+Let me count each word:
+
+Queridos (1) clientes, (2)
+
+Estamos (3) entusiasmados (4) em (5) anunciar (6) que (7) a (8) nossa (9) app (10) agora (11) inclui (12) modo (13) escuro, (14) uma (15) atualização (16) que (17) facilita (18) a (19) leitura (20) em (21) ambientes (22) com (23) pouca (24) luz (25) e (26) prolonga (27) a (28) vida (29) da (30) bateria (31) do (32) seu (33) dispositivo. (34)
+
+Esta (35) funcionalidade (36) está (37) disponível (38) nas (39) configurações (40) da (41) app, (42) permitindo (43) uma (44) experiência (45) mais (46) personalizada (47) e (48) confortável. (49)
+
+Muitos (50) de (51) vocês (52) solicitaram (53) esta (54) opção, (55) e (56) estamos (57) felizes (58) por (59) poder (60) oferecê-la. (61)
+
+Experimente (62) já (63) o (64) modo (65) escuro (66) e (67) descubra (68) como (69) pode (70) tornar (71) a (72) sua (73) utilização (74) diária (75) mais (76) agradável (77) e (78) suave (79) para (80) os (81) olhos. (82)
+
+Não (83) perca (84) tempo, (85) ative (86) agora (87) e (88) aproveite (89) a (90) nova (91) funcionalidade! (92)
+
+Atenciosamente, (93)
+A (94) Equipa (95) da (96) App (97)
+
+That's 97 words. Still need 23 more. Maybe add a sentence about the benefits again or mention it's available on all platforms. Wait, the user said "app", so maybe specify iOS and Android, but the user didn't mention that. Let's add a line like "Disponível para iOS e Android"
+</resposta>
+
+<resposta id="R4">
+Olá,
+
+A nossa app já tem modo escuro. Esta opção permite usar a interface com um fundo mais escuro, para quem prefere esse aspecto no dia a dia.
+
+O modo escuro é uma alternativa de apresentação: as funcionalidades que já conhece continuam disponíveis. Pode continuar a utilizar a app como habitualmente, agora com mais uma opção para adaptar a experiência à sua preferência.
+
+Se prefere o modo claro, pode manter essa escolha. A novidade dá mais liberdade para escolher o aspecto da app, conforme o seu gosto e a forma como a utiliza.
+
+Obrigado por continuar a usar a nossa app e por fazer parte deste percurso connosco.
+
+Experimente o modo escuro e veja se combina com a sua rotina.
+</resposta>
+
+<resposta id="R5">
+**Assunto: Modo Escuro já disponível**
+
+---
+
+Olá,
+
+Temos o prazer de informar que a nossa app recebeu uma atualização com uma funcionalidade muito pedida: o modo escuro.
+
+A partir de agora, pode alternar facilmente entre o tema claro e escuro nas definições da aplicação. Isto não só oferece uma experiência visual mais confortável em ambientes com pouca luz, como também reduz a fadiga ocular durante o uso prolongado.
+
+A mudança é simples: aceda às preferências, selecione o tema que prefere e a aplicação adapta-se instantaneamente. Todos os seus dados e funcionalidades permanecem exatamente como estão.
+
+Teste já o novo modo escuro e veja como melhora a sua experiência. Feedback é sempre bem-vindo.
+
+Obrigado pela confiança.
+
+---
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

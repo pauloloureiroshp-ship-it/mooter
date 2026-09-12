@@ -1,0 +1,58 @@
+mooter-01-M B TP ACHADO tools/router/_model-resolver.js:40 cit-ok 15s
+mooter-01-C B TN SEM ACHADO - cit-x 15s
+mooter-02-M B FN SEM ACHADO - cit-x 17s
+mooter-02-C B TN SEM ACHADO - cit-x 14s
+mooter-03-M B TP ACHADO tools/router/agent-focus-status.js:43 cit-ok 16s
+mooter-03-C B TN SEM ACHADO - cit-x 14s
+mooter-04-M B TP ACHADO tools/router/agent-focus-status.js:47 cit-ok 16s
+mooter-04-C B TN SEM ACHADO - cit-x 15s
+mooter-05-M B TP ACHADO tools/router/agents-progress-status.js:62 cit-ok 16s
+mooter-05-C B FP ACHADO tools/router/agents-progress-status.js:62 cit-ok 18s
+mooter-06-M B TP ACHADO tools/router/agents-progress-status.js:63 cit-ok 16s
+mooter-06-C B TN SEM ACHADO - cit-x 20s
+mooter-07-M B TP ACHADO tools/router/assinatura.js:72 cit-ok 15s
+mooter-07-C B TN SEM ACHADO - cit-x 15s
+mooter-08-M B TP ACHADO tools/router/assinatura.js:113 cit-ok 22s
+mooter-08-C B TN SEM ACHADO - cit-x 21s
+mooter-09-M B TP ACHADO tools/router/badge.js:38 cit-ok 19s
+mooter-09-C B TN SEM ACHADO - cit-x 19s
+mooter-10-M B TP ACHADO tools/router/badge.js:39 cit-ok 20s
+mooter-10-C B TN SEM ACHADO - cit-x 17s
+fastify-01-M B TP ACHADO lib/content-type.js:97 cit-ok 19s
+fastify-01-C B TN SEM ACHADO - cit-x 30s
+fastify-02-M B TP ACHADO lib/content-type.js:104 cit-ok 25s
+fastify-02-C B TN SEM ACHADO - cit-x 16s
+fastify-03-M B TP ACHADO lib/hooks.js:61 cit-ok 15s
+fastify-03-C B TN SEM ACHADO - cit-x 16s
+fastify-04-M B TP ACHADO lib/hooks.js:62 cit-ok 16s
+fastify-04-C B TN SEM ACHADO - cit-x 14s
+fastify-05-M B FN SEM ACHADO - cit-x 18s
+fastify-05-C B FP ACHADO lib/noop-set.js:8 cit-ok 15s
+fastify-06-M B TP ACHADO lib/server.js:34 cit-ok 18s
+fastify-06-C B TN SEM ACHADO - cit-x 17s
+fastify-07-M B TP ACHADO lib/server.js:42 cit-ok 20s
+fastify-07-C B FP ACHADO lib/server.js:42 cit-ok 20s
+fastify-08-M B TP ACHADO lib/wrap-thenable.js:63 cit-ok 17s
+fastify-08-C B TN SEM ACHADO - cit-x 16s
+hono-01-M B TP ACHADO src/utils/accept.ts:3 cit-ok 17s
+hono-01-C B TN SEM ACHADO - cit-x 16s
+hono-02-M B TP ACHADO src/utils/accept.ts:8 cit-ok 18s
+hono-02-C B TN SEM ACHADO - cit-x 16s
+hono-03-M B TP ACHADO src/utils/basic-auth.ts:11 cit-ok 17s
+hono-03-C B TN SEM ACHADO - cit-x 16s
+hono-04-M B TP ACHADO src/utils/basic-auth.ts:21 cit-ok 18s
+hono-04-C B TN SEM ACHADO - cit-x 15s
+hono-05-M B TP ACHADO src/utils/body.ts:16 cit-ok 16s
+hono-05-C B TN SEM ACHADO - cit-x 14s
+hono-06-M B TP ACHADO src/utils/body.ts:26 cit-ok 17s
+hono-06-C B TN SEM ACHADO - cit-x 21s
+hono-07-M B TP ACHADO src/utils/buffer.ts:9 cit-ok 18s
+hono-07-C B TN SEM ACHADO - cit-x 15s
+hono-08-M B TP ACHADO src/utils/buffer.ts:10 cit-ok 19s
+hono-08-C B TN SEM ACHADO - cit-x 15s
+hono-09-M B TP ACHADO src/utils/concurrent.ts:9 cit-ok 16s
+hono-09-C B FP ACHADO src/utils/concurrent.ts:9 cit-ok 17s
+hono-10-M B TP ACHADO src/utils/concurrent.ts:21 cit-ok 19s
+hono-10-C B TN SEM ACHADO - cit-x 15s
+(node:8168) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
