@@ -135,8 +135,9 @@ export const RECIBO = {
   orfas: 0,
   /**
    * Chamadas de modelo SEM preço na tabela — contadas, NÃO somadas ao total.
-   * São `claude-fable-5-1` (ainda sem preço em `pricing.js`) e `<synthetic>`
-   * (marcador interno do Claude Code). O total acima é por isso um piso.
+   * São `claude-fable-5-1` (sem preço em `pricing.js` à data da medição — a
+   * linha entrou nesse mesmo dia, mais tarde) e `<synthetic>` (marcador interno
+   * do Claude Code). O total acima é por isso um piso.
    */
   chamadasSemPreco: 264,
   fonte: 'tools/router/recibo.js sobre ~/.claude/projects/**\/*.jsonl, 1 máquina',
