@@ -50,6 +50,34 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-10 · MATRIZ 12 — o Mooter contra a escolha real do utilizador, e perdeu
+
+`_handoff/matriz-12-2026-09-10/` (branch `claude/matriz-12-mooter-comparison-3c2b8e`). Índice em `verdict.md` (v3); cópia no vault `20-mooter/artifacts/matriz-12-2026-09-10/`; 17 linhas no `INBOX.md` do livro.
+
+**Perdeu, e está impresso:** 12 prompts, 4 braços, juízes cegos de duas famílias (Codex, Sonnet 5) com ordem sorteada. **A rota do Mooter 56,5/128 · Haiku 4.5 80,5 · Opus 5 100,5 · Codex 109,0.** O Haiku custou **menos** em lista imputada ($0,1527 contra $0,1620, cache incluído; sem cache a distância alarga). 10 dos 12 foram para local, 2 para Opus, **0 para T1/T2**. No OPS-3 («onde guardo a chave da API no Next.js para não ficar exposta no browser») a rota foi local e a resposta não trata o `NEXT_PUBLIC_`.
+
+**M12-b, corrido a seguir:** só a linha «nunca mais de 3 frases» do system prompt local trocada — **+1,5 em 104**, do tamanho da deriva dos braços que não mudaram (A +0,5, C +2,0, D +1,0). Não era a causa. Sem a linha, o mesmo modelo passou a **recomendar** `NEXT_PUBLIC_` no OPS-3 (0/12). A correcção que a matriz pede é a rota, não o prompt; o D10 vai em PR rascunho separado, marcado «não mergear isolado».
+
+**Adversário (Codex, 17 ataques, todos aceites):** ruído não é calibração; B é Qwen em 10/12, logo o viés de família do J2 pesa *contra* o Mooter; MKT-3 cumpre o critério registado (6/12 previsões, não 5); a conclusão «30b é pior» morreu (sem os 2 truncados a ordem inverte); pré-registo **não ancorado em commit** — falha de processo, declarada.
+
+**11 defeitos** (`09-DEFEITOS-APANHADOS.md`). D1 (o pin local cortava aos 256 tokens) foi fundido por outra sessão como **#498** durante o julgamento — esta pasta foi rebaseada para cima dele. D7: o arbiter de Haiku é no-op nesta máquina (sem `ANTHROPIC_API_KEY`); 7 dos 12 caíam nele. J3 (humano) por preencher, mas a chave está em claro no pacote: cego já não é possível para o autor.
+
+**Não toca no #495** («o router como está»): nenhum ficheiro do motor muda neste PR.
+
+## 2026-09-09 · Pacote de provas v1 — as hipóteses do deck trocadas por medições
+
+`_handoff/provas-v1-2026-09-09/` (branch `claude/pacote-provas-v1-255558`, **por fundir e por empurrar**). Índice em `08-PACOTE.md`; cópia no vault `20-mooter/artifacts/`.
+
+**Ganhou por construção:** classificar custa 0 tokens e não registou destino externo (1 176 classificações); o routing por custo do LiteLLM escolheu o motor a $0 **0 de 40 vezes**; o protótipo do recibo faz 156/156 com custo, origem e tokens.
+
+**Perdeu, e está impresso:** precisão da regra em prompts reais **35 %** [22, 51] contra 52,5 % de um juíz local e 45 % de «T2 sempre»; obediência executada **0/20 nos dois braços**; recibo com custo e origem no ledger vivo **0/1 451**; com chave, o árbitro monta o pedido com o prompt inteiro (20/20); o hook custa 207 ms de mediana. Empate: crítico noutro motor 26/28 contra 27/28 do Opus, p = 1,0.
+
+**P7 (R-24, usar vs não usar) fechou à quarta corrida: `GANHOU`, 18 de 23 tarefas com trabalho aceite em ≤ 0,8× do tempo** (limiar pré-registado 16, p nominal 0,00531, 23/23 pares válidos). Os dois braços passaram o teste congelado em 23/23 — mexeu o tempo, não a qualidade observável (mediana 77 s contra 145 s). **O estatuto confirmatório não se reclama:** a regra de paragem foi quebrada (a 4.ª corrida arrancou depois de 3 não-resultados, com parciais favoráveis à vista), e isso está no próprio título do cartão. As quatro corridas ficam publicadas inteiras. As duas rondas finais de adversário deram **35 ataques, 5 fatais, todos aceites**; a tabela P8 perdeu as «vitórias por construção» por serem tautologias e deixou de se apresentar como cabeça-a-cabeça. **8 de 8 provas com veredicto e com adversário.**
+
+**15 defeitos apanhados** (`09-DEFEITOS-APANHADOS.md`). Dois que valem para além deste pacote: **D1**, o `applyBudgetCap` compara um objecto com números e manda tudo para T0 — inclusive HIGH-RISK — e o PR continua por fundir; **D12**, o `.gitignore` apanhava `*.log` e `*.jsonl` dentro de `results/` e **30 ficheiros de prova nunca entraram no git**, apesar de uma emenda escrita no dia anterior prometer «preservada e publicada, inteira». Uma promessa de preservação verifica-se contra o índice, não contra o disco.
+
+**Poluição declarada:** as corridas do P3 e do P5 escreveram no `decisions.log` **vivo** do dono (D6 — o hook não honra `MOOTER_DECISIONS_LOG`); as linhas ficam, identificáveis por `session_id` e janela horária.
+
 ## ⏳ PENDENTE — o que continua aberto
 
 > Promovido para aqui a 2026-08-23, ao rolar a história para
@@ -102,13 +130,15 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 `slack-spike` não corre em CI nenhum.
 
 <!-- slack-spike — o GO CONDICIONADO que autoriza a linha de destrave -->
-### ✅ Fechados a 25/08 — detalhe em `docs/foundation/SYNC_ARCHIVE_2026.md`
+### ✅ Fechados a 25/08
 
-- **Frota em Ed25519, 2 de 2 devices.** `prova_frota: true`, `verificados: 2`, `rejeitados: 0`, os dois
-  ancorados no registo. A privada nunca sai da máquina. Multi-user é desenho sem código
-  (`docs/strategy/IDENTIDADE_MULTI_USER.md`).
-- **A suite `tools/router` já conta sempre o mesmo.** Era o `--test-force-exit` a matar o reporter; sem
-  ele, 1160 ×3, `fail 0`. O `fail 0` original era artefacto — havia 3 falhas verdadeiras cortadas.
+Os fechados rolaram para `docs/foundation/SYNC_ARCHIVE_2026.md` a 2026-08-29 — a secção já apontava para
+lá e o SYNC é snapshot, não log. Frota em Ed25519 (2/2 devices) · suite `tools/router` estabilizada.
+
+> ⚠️ **O que está abaixo NÃO é história e não rola.** A primeira volta deste corte levou-o por engano e
+> `packages/slack-spike/guardas.test.js` ficou vermelho no CI — que é exactamente o que ele existe para
+> fazer. A linha de destrave e o `GO CONDICIONADO` que a autoriza vivem juntos de propósito: uma linha
+> sozinha seria indistinguível de alguém a passá-la para o ficheiro para calar o gate.
 
 **Continua ABERTO (não é história):** beacon do `desktop-j26409q` com **66 min** (tecto 30) — `morto`: ou o loop parou lá, ou o publicador parou de empurrar. Gargalo do Mac: **1054 achados por triar**, loop em pausa por `human queue full (524/6)` — nenhum dos PRs lhe tocou.
 
@@ -138,66 +168,6 @@ exposta. · demo agendada (gate nº1, **ainda aberto**) ·
 *(os 25 links de sessoes de Abril-Maio foram para o arquivo)*
 kimi-egress FECHADA — slack-spike destravado
 
-### 2026-08-26 (Mac · CC · "rodar perfeito") · o pedido inverteu-se ao abrir o ficheiro
-
-**#396 MERJIDO** (`0a2c172d`, 11:20:59Z) — CI **22/22** verde, o rate-limit do Vercel passou. Cinco
-conflitos: os dois `package.json` por **união** (escolher um lado desligava testes dos dois lados);
-o painel com a **arquitectura do #396 e a regra do #401 lá dentro** — a premissa de que "o #396 já
-antecipa o #401" **não se confirma**, o ramo da pausa vinha antes do teste de morte e tomá-lo tal e
-qual reintroduzia o defeito do beacon a 3592 s; e o `SYNC.md` do #396, que era o correcto (219 vs
-390 linhas) mas tinha deixado de fora **uma** das quatro entradas de 25/08 do main — a do PC, com a
-hipótese do autor refutada contra 57 etiquetas. Resgatada para o arquivo.
-
-**O P1 do kickoff inverteu-se.** Pedia religar P4 e P5 apagando `activo: false`. O P4 não é
-"zero-LLM": é um enunciado de GPU para um defeito com **0 ocorrências** neste repo (0 de 443 `.md`
-acabam a meio de uma palavra). O P5 não mede modelos: é `falso-em-ambos`. E as **"+603 linhas de
-ledger da madrugada, $0" não eram saúde** — o processo vivo era de 25/08 08:13, tinha o catálogo
-antigo em memória, e passou ~15 h a produzir **P2/P3**, os dois pilares de que o dono decidiu 19
-achados à mão e não guardou nenhum.
-
-Em vez disso, a correcção um nível acima: **a rotação passou a derivar de medição**
-(`portao.mjs` + `podeEntrar`, o mesmo portão que o #389 pôs nas regras do ancorado na véspera
-*"porque foi assim que o P11 entrou"* — e que aos pilares, de onde o problema veio, nunca foi
-aplicado). Forçar `activo: true` nos onze dá **zero**, cada recusa com o seu número. Cinco
-comentários que diziam "reversível numa linha" passaram a ser falsos e foram corrigidos.
-
-**Loop relançado** sob launchd (PID 11825) com o código de `main` — o `ai.mooter.runner` estava
-carregado mas **não era ele que corria** (PID `-`; o processo real fora lançado à mão e segurava o
-lock). A objecção que ontem bloqueou o relançamento (`nextPillar(n,[])` a falhar em silêncio) era
-um **defeito corrigível**: com `ids=[]` o escalonador dizia `all capped / paused / suspended`, falso
-nas três coisas que nomeia e a mandar o dono triar uma fila que não existe. Corrigido. Ao vivo às
-11:18Z o painel pinta `holding · zero pilares na rotacao — nenhum passa o portao de medicao`.
-
-⚠️ **O ledger NÃO cresce, e é o resultado certo** — declarado, não disfarçado. Sem pilar não há
-ronda. Voltar a crescer exige um pilar que passe o portão (≥10 reais, ≥30 %, triados à mão): onda
-de medição, não booleano. #400/#402 avaliados e **não merjidos** — continuam 🔴 por adversário
-externo, e o codex não está nesta máquina.
-
-Vermelhos: espelho do cockpit **42 ficheiros atrás** e o LaunchAgent aponta **directo ao checkout** ·
-`.mooter/pilares.json` **contorna o portão** novo · a condição do #400 é uma linha no `SYNC.md`, não
-o veto em código.
-
-gate: cockpit 938/0 (2 todo pré-existentes) · router 977/0 · classify.js `427d8c0b` intacto ·
-detalhe em `_handoff/cc-perfeito-progress.md`
-
-### 2026-08-25 (Mac · construir) · os LLMs do talo, medidos — e a condição que não estava cumprida
-
-**A condição `kimi-egress FECHADA` foi verificada, e não quer dizer o que parece.** É o destrave do
-MODO VIVO do *spike*, não a correcção do ALTO; o commit que a repôs (`94a0d3e8`) escreve-o por extenso.
-Procurado em `main`: o **veto de egress no caminho kimi/Moonshot NÃO existe** — o ALTO (a recusa por
-`agent:"kimi"` deixa um plano no disco que o recibo não declara) continua aberto. Por isso o kimi foi
-readmitido (PR #400) atrás de **linha própria** — `kimi-egress VETO EM MAIN — kimi readmitido na rota`,
-que ainda não existe. Consequência dita: hoje o kimi continua recusado, mas a uma linha de distância.
-
-**codex/gemini/kimi: instalados, protocolo confirmado, SEM LOGIN.** A matriz do plano dizia `codex ❌ n/d
-(não instalado)` no Mac — **errado**: `@openai/codex@0.149.1`, `@google/gemini-cli@0.57.0` e
-`@moonshot-ai/kimi-code@0.38.0` estão em `~/.local/node/bin` (fora do PATH da shell do circuito).
-`codex exec --json` emite o JSONL certo e morre em **401**; `gemini --output-format json` pede método de
-auth; `kimi -p` diz `No model configured`. Falta **um gesto do dono** (`11-LOGINS-LLMS.command`), não uma
-instalação. Até lá: refutador local do Mac = Ollama; gemini no MooterBench = **n/d**.
-
-**A6d — premissa falsa:** o `kimi-adapter.js` do bridge **não usa o CLI** — fala a API HTTP da Moonshot
-(`api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `kimi-k3`). O CLI novo é outra superfície (`stream-json`,
-`/login`). Não há schema a divergir; e `MOONSHOT_API_KEY` não está definida nesta máquina.
+<!-- 2026-09-09: historia 2026-08-31→09-01 rolada para docs/foundation/SYNC_ARCHIVE_2026.md -->
 
 <!-- HUMANO:FIM -->

@@ -1,0 +1,40 @@
+n01 A exit 0 37s delegations 0  ollama 0 hook 
+-> results\A-sonnet.json
+n02 A exit 0 249s delegations 1 model-reasoner/- ollama 0 hook 
+-> results\A-sonnet.json
+n03 A exit 0 68s delegations 1 local-summarizer/- ollama 1 hook 
+-> results\A-sonnet.json
+n04 A exit 0 98s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n05 A exit 0 100s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n06 A exit 0 17s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n07 A exit 1 60s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n08 A exit 0 230s delegations 0  ollama 0 hook 
+-> results\A-sonnet.json
+n09 A exit 0 44s delegations 1 local-summarizer/- ollama 3 hook 
+-> results\A-sonnet.json
+n10 A exit 0 14s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n11 A exit 0 108s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n12 A exit 0 17s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n13 A exit 0 51s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n15 A exit 0 71s delegations 1 local-summarizer/- ollama 1 hook 
+-> results\A-sonnet.json
+n16 A exit 0 114s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n17 A exit 0 20s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n18 A exit 0 22s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n19 A exit 0 117s delegations 0  ollama 0 hook 
+-> results\A-sonnet.json
+n20 A exit 0 38s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json
+n21 A exit 0 67s delegations 0  ollama 1 hook 
+-> results\A-sonnet.json

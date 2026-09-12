@@ -38,7 +38,12 @@ const BLOG_PATH = path.join(AUDIT_DIR, 'BLOG_POST_DRAFT.md');
 const BENCHMARK_PATH = path.join(REPO_ROOT, 'AUDIT_BENCHMARK.md');
 const PHASE_TOKENS_PATH = path.join(AUDIT_DIR, 'phase_tokens.json'); // phase3/4 tokens (recorded by orchestrator)
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://host.docker.internal:11434';
+// `new URL('/api/generate', OLLAMA_HOST)` (linha ~199) lança `Invalid URL` se o
+// host vier sem esquema, e `OLLAMA_HOST=127.0.0.1:11434` é o formato canónico
+// do Ollama. Ver `../router/ollama-host.js`.
+const { ollamaHostFromEnv } = require('../router/ollama-host.js');
+
+const OLLAMA_HOST = ollamaHostFromEnv('http://host.docker.internal:11434');
 const OPUS_KEY = 'claude-opus-4-6';
 
 function readJson(p, dflt = null) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return dflt; } }
@@ -52,7 +57,7 @@ function round(n) { return Math.round(n * 10000) / 10000; }
 
 // ── cost breakdown ─────────────────────────────────────────────────────────--
 
-function costBreakdown() {
+function costBreakdown(opts = {}) {
   const corpus = readJson(STATS_PATH) || {};
   const valStats = readJson(VALIDATION_STATS_PATH) || {};
   const phaseTok = readJson(PHASE_TOKENS_PATH) || {};
@@ -110,7 +115,15 @@ function costBreakdown() {
   // Vazio quando tudo foi medido. Com conteudo, os totais acima incluem fases
   // que contribuiram 0 por AUSENCIA de dados e nao por nao terem gasto nada.
   const out = { rows, totals, fases_sem_tokens: semTokens };
-  ensureDir(); fs.writeFileSync(COST_PATH, JSON.stringify(out, null, 2));
+  // `{ write: false }` calcula sem tocar no disco.
+  //
+  // Sem isto, `npm test` do audit escrevia em `audit/cost_breakdown.json` — um
+  // ficheiro VERSIONADO. Medido a 2026-08-31: correr a suite deixava o repo
+  // sujo (`fases_sem_tokens: []` acrescentado), e quem fizesse `git add -A` a
+  // seguir commitava saída de teste como se fosse trabalho. É a mesma família
+  // do `npm test` do CLI que apagava o `~/.mooter` — uma suite não pode alterar
+  // o estado que está a medir.
+  if (opts.write !== false) { ensureDir(); fs.writeFileSync(COST_PATH, JSON.stringify(out, null, 2)); }
   return out;
 }
 

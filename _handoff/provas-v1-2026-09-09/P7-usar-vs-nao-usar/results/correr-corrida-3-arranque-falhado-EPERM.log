@@ -1,0 +1,65 @@
+﻿=== launch 2026-09-09T17:04:45.7004834-03:00 pid 56792 ===
+r24 ┬À diagn├│stico das pr├®-condi├º├Áes de --correr ┬À 2026-09-09T20:04:45.782Z ┬À node v24.14.0 ┬À win32
+
+  ┬À cwd  C:\Users\Paulo Loureiro\frugal
+  ok  ficheiros do R-24 presentes  5 de 5
+  ┬À repo resolvido pelo executor  C:\Users\Paulo Loureiro\frugal
+  ok  pr├®-registo CONGELADO  CONGELADO
+  ok  pr├®-registo fecha-se sobre si pr├│prio  9c2d37b1e6ceÔÇª
+  ok  limiar pr├®-registado bate com o recalculado  n=23 ┬À alfa=0.05 ┬À limiar=16
+  ok  congelamento dos ficheiros  9 entradas
+  ok  prim├írias leg├¡veis do manifest  23 tarefas ┬À 12 ON-primeiro ┬À 11 OFF-primeiro
+  ok  terminal fora de uma sess├úo Claude Code  apto
+  ok  execut├ível do agente responde --version  2.1.224 (Claude Code) ┬À C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+  ok  a sonda chega ao modelo  2072 ms ┬À 2 tokens de entrada
+  ok  router pinado bate com o pr├®-registo  b39c7da4aaa6ÔÇª vs b39c7da4aaa6ÔÇª
+  ┬À effort fixado  xhigh
+  ok  sem outra inst├óncia a correr  livre
+  ┬À ledger  ainda n├úo existe ┬À seria C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  ┬À snapshots de corrida  46: t01-2e7599e021-OFF, t01-2e7599e021-ON, t02-7bb45751d8-OFF, t02-7bb45751d8-ON
+
+VEREDICTO: --correr pode arrancar.
+
+(relat├│rio guardado em C:\Users\Paulo Loureiro\frugal\_handoff\r24\ultimo-diagnostico.txt)
+=== --correr 2026-09-09T17:04:57.5297490-03:00 ===
+  tratamento: router pinado b39c7da4aaa6ÔÇª ┬À effort xhigh
+  ambiente: env 65f5240d ┬À estado vivo 8bfb056f ┬À cache 1a0d60e3
+  arbitro: DESLIGADO (ANTHROPIC_* removida do ambiente do bra├ºo) ÔÇö declarado no pr├®-registo
+  sonda: chegou ao modelo em 2076 ms ┬À 2 tokens de entrada
+R-24 ┬À 23 tarefas ┬À 0 bra├ºos j├í no ledger ┬À ledger: C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  agente: C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe (2.1.224 (Claude Code))
+node : node:fs:1221
+At C:\Users\Paulo Loureiro\frugal\.claude\worktrees\pacote-provas-v1-255558\_handoff\provas-v1-2026-09-09\P7-usar-vs-na
+o-usar\launch-correr-3.ps1:12 char:1
++ node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --corr ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (node:fs:1221:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  return binding.rmSync(getValidatedPath(path), opts.maxRetries, opts.recursive, opts.retryDelay);
+                 ^
+
+Error: EPERM, Permission denied: \\?\C:\Users\PAULOL~1\AppData\Local\Temp\r24-snapshots\t01-2e7599e021-OFF 
+'\\?\C:\Users\PAULOL~1\AppData\Local\Temp\r24-snapshots\t01-2e7599e021-OFF'
+    at Object.rmSync (node:fs:1221:18)
+    at prepararSnapshot (file:///C:/Users/Paulo%20Loureiro/frugal/tools/ab/correr-r24.mjs:390:10)
+    at prepararTarefa (file:///C:/Users/Paulo%20Loureiro/frugal/tools/ab/correr-r24.mjs:446:16)
+    at correrUmBraco (file:///C:/Users/Paulo%20Loureiro/frugal/tools/ab/correr-r24.mjs:530:16)
+    at main (file:///C:/Users/Paulo%20Loureiro/frugal/tools/ab/correr-r24.mjs:953:21)
+    at file:///C:/Users/Paulo%20Loureiro/frugal/tools/ab/correr-r24.mjs:971:16
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:661:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  errno: 1,
+  code: 'EPERM',
+  path: '\\\\?\\C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\r24-snapshots\\t01-2e7599e021-OFF',
+  syscall: 'rm'
+}
+
+Node.js v24.14.0
+=== --correr exit 1 2026-09-09T17:05:09.0969773-03:00 ===
+R-24 ┬À ENSAIO INVALIDO
+  pares v├ílidos 0 < 23 ÔÇö subpotenciado, diferen├ºa n├úo demonstrada
+  X=0 ┬À n=23 ┬À limiar=16 ┬À p=1.00000 ┬À pot├¬ncia=0.80370
+  pares v├ílidos: 0 ┬À inv├ílidos: 0
+=== --analisar exit 1 2026-09-09T17:05:09.1464736-03:00 ===

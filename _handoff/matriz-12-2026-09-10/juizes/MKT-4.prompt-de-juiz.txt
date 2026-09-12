@@ -1,0 +1,471 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Faz-me o plano de lancamento do quarto trimestre. Somos quatro pessoas, o produto e uma app de gestao de obras para pequenas construtoras, e a meta e chegar a 200 clientes pagantes ate ao fim do ano. Quero saber o que fazer em cada mes e o que medir.
+---
+
+Este pedido nao esta marcado como de risco.
+
+CANDIDATAS:
+
+<resposta id="R1">
+# Plano de Lançamento Q4 2026 – App de Gestão de Obras
+
+## Contexto & Realidade
+
+Com 4 pessoas e 3 meses, precisas de focar em **aquisição + retention** paralelas. Assumo que tens produto em MVP ou versão inicial. Antes de seguir, valida:
+- Quantos clientes pagantes tens agora?
+- Qual é o CAC (custo de aquisição) e LTV atuais?
+- Em que canal estão vindo mais conversões?
+
+Dito isto, aqui está o plano:
+
+---
+
+## **OUTUBRO – Validação & Produto**
+
+**Objetivo:** 50 clientes pagantes | Produto robusto para esse volume
+
+**Atividades:**
+- Entrevistar 10-15 construtores atuais (feedback loops curtos)
+- Fixar bugs críticos & edge cases reportados
+- Começar outreach direto: LinkedIn + email outbound para construtoras (50-100 prospects)
+- Criar case study de 1 cliente bem-sucedido (video ou texto)
+- Testar landing page / pricing em 3 variações
+
+**A medir:**
+- Churn (% de clientes que saem)
+- NPS ou satisfaction score
+- Tempo onboarding → "momento aha"
+- CAC por canal (quanto custa trazer cada cliente?)
+- MRR (revenue mensal recorrente)
+
+---
+
+## **NOVEMBRO – Growth & Tração**
+
+**Objetivo:** 120 clientes pagantes | Validar canais de crescimento
+
+**Atividades:**
+- Escalar o que funciona: se LinkedIn dá certo, contrata alguém só para isso (ou roda mais vós)
+- Parcerias: falar com fornecedores/consultores que servem construtoras (material, seguros, etc)
+- Webinar/live demo: 1 session com 5-10 prospects (dar demo ao vivo = conversão alta)
+- Referrals program: pedir aos atuais clientes que indiquem (reward simples: desconto)
+- Content: 2-3 posts/vídeos sobre "problemas de construtoras" no LinkedIn ou YouTube
+
+**A medir:**
+- Taxa conversão por canal
+- Clientes via referral (%)
+- Churn (deve estar a baixar com produto mais estável)
+- Tempo de contract-to-activation
+
+---
+
+## **DEZEMBRO – Aceleração & Retenção**
+
+**Objetivo:** 200 clientes pagantes | Consolidar base & preparar 2027
+
+**Atividades:**
+- Blitz final de outbound (30 dias para converter os últimos 80)
+- Black Friday/ano novo promo: desconto ou "primeiros 3 meses de graça" (aperta depois)
+- On-boarding em grupo: se há volume, faz sessions de onboarding de lote (eficiência)
+- Win-back: alcançar clientes que saíram (sabe porquê saíram?)
+- Roadmap 2027: comunicar aos clientes atuais o que vem (loyalty + retention)
+
+**A medir:**
+- MRR total
+- Churn acumulado
+- CAC médio final do trimestre
+- Lifetime value por cohort (quando entraram)
+- Tamanho do pipeline de 2027
+
+---
+
+## **Dashboard Mensal (Acompanhamento)**
+
+Cria uma tabela simples (spreadsheet) com estes números toda a semana:
+
+| Métrica | Out | Nov | Dez | Meta |
+|---------|-----|-----|-----|------|
+| Clientes pagantes | 50 | 120 | 200 | ✓ |
+| MRR | ? | ? | ? | - |
+| Churn (%) | <5% | <4% | <3% | ✓ |
+| CAC (€) | ? | ? | ? | Reduzir |
+| Conversão (%) | ? | ? | ? | Aumentar |
+| NPS/Satisfação | ? | ? | ? | >40 |
+
+---
+
+## **Distribuição de 4 Pessoas**
+
+- **1 pessoa:** Produto + suporte (onboarding, bugs, features)
+- **1 pessoa:** Vendas + outreach (LinkedIn, email, calls)
+- **1 pessoa:** Content + partnerships (marketing, webinars, liaisons)
+- **1 pessoa:** Admin/ops (contratos, pagamentos, reportes, você talvez?)
+
+Roda tarefas: se vendas fica com muitos prospects, suporte ajuda em onboarding.
+
+---
+
+**Próximo passo:** Confirma quantos clientes tens agora e qual é o CAC atual — daí ajustamos o plano para ser mais realista.
+</resposta>
+
+<resposta id="R2">
+Okay, the user is asking for a Q4 launch plan for their construction management app targeting small contractors. They have a team of four and want to reach 200 paying customers by year-end. Let me break this down.
+
+First, I need to outline monthly actions and key metrics. Since they're a small team, the plan should be focused and actionable. Let's think about each month.
+
+October: Maybe focus on finalizing the product and starting outreach. They need to get the app ready for launch, so maybe a beta with a few clients. Metrics could be beta sign-ups and feedback.
+
+November: Ramp up marketing and sales. Maybe run targeted ads or email campaigns. Track conversion rates from leads to paying customers.
+
+December: Close deals and maybe offer holiday discounts. Measure the number of new paying customers each week.
+
+Wait, they need 200 by year-end, so they need to hit about 50 per month. But October might be a bit slow, so maybe 30 in Oct, 60 in Nov, 70 in Dec? Wait, 200 total. Let me check: 200 divided by 3 months is about 66 per month. But October might have fewer, so maybe 40, 70, 90? But the user said four people, so they need to prioritize.
+
+Wait, the user said "quarto trimestre" which is Q4, so October, November, December. So three months. 200 customers in three months. So roughly 66-67 per month. But they might need to start building momentum in October.
+
+Key metrics: Monthly sign-ups, conversion rate from trial to paid, customer acquisition cost (CAC), churn rate (but maybe not relevant for new customers yet).
+
+Wait, the user is a small team, so they might not have a big marketing budget. So focus on organic growth, referrals, maybe partnerships with construction suppliers or local associations.
+
+October: Finalize product, launch beta with 20-30 early adopters. Track beta feedback and conversion rate. Maybe get testimonials.
+
+November: Scale outreach via LinkedIn, email, maybe a webinar. Target 60 customers. Track lead-to-customer conversion rate.
+
+December: Offer limited-time discount for early sign-ups. Aim for 100 customers. Measure monthly revenue and CAC.
+
+Wait, but 200 total. So October: 30, November: 70, December: 100? Wait, 30+70+100=200. But maybe October is a bit slower. Let me adjust.
+
+Wait, the user wants to reach 200 by the end of the year, so they need to have 200 by December 31. So October, November, December.
+
+Let me structure each month with specific actions and metrics.
+
+October: Product polish, beta launch (target 20 beta users), measure feedback and retention. Maybe get 5 paying customers from beta.
+
+November: Paid campaigns, partnerships, target 60 customers. Track CAC and conversion rate.
+
+December: Holiday promotions, focus on closing deals, target 135 more (but 200 total, so 200 - 5 -60 = 135). Wait, but maybe better to say 200 total, so 20 in Oct, 70 in Nov, 110 in Dec. But need to check.
+
+Wait, the user said "chegar a 200 clientes pagantes até ao fim do ano", so 200 by year-end. So the total should be 200. So maybe:
+
+October: 30 customers (beta conversions + initial sales)
+November: 70
+December: 100
+
+But need to make sure the numbers add up. Let's say 30+70+100=200.
+
+But the user might need to track metrics each month. So for each month, list actions and metrics.
+
+Also, the team is four people, so they need to split tasks: maybe one handles sales, one marketing, one product, one support.
+
+Wait, the user is asking for a plan, so I should keep it concise. The answer should be in Portuguese, short, three sentences max.
+
+So, October: Finalize product, launch beta (target 20 beta users), measure conversion rate from beta to paid.
+
+November: Scale sales via LinkedIn/email, target 60 customers, track CAC and lead-to-customer rate.
+
+December: Run holiday promo, focus on closing deals, aim for 100 new customers, measure monthly revenue.
+
+Wait, but need to make sure the numbers add up. Let me check:
+
+If October: 20 beta users, maybe 5 convert to paid (but the user wants 200 total, so maybe the beta is part of the 200). Wait, the beta users might be the first customers. So maybe October: 30 paying customers (from beta and initial sales), November: 70, December: 100.
+
+But the user said "clientes pagantes", so the beta might be free, then they convert. So the 200 are paying customers, so the beta might be a trial, then they pay.
+
+So October: Launch beta (free trial), aim for 30 paying customers by end of month. Metrics: trial-to-paid conversion rate.
+
+November: Paid campaigns, target 70 new paying customers. Metrics: CAC, conversion rate.
+
+December: Promotions, target 100. Metrics: Monthly revenue, customer count.
+
+Wait, but 30+70+100=200. So that's the plan.
+
+But the user is a small team, so they need to prioritize. Maybe the answer should be:
+
+Outubro: Finalizar produto, lançar beta (20 usuários), medir taxa de conversão para pagamento.
+
+Novembro: Escalar vendas via LinkedIn/email (60 clientes), medir CAC e taxa de conversão.
+
+Dezembro: Promoção de Natal (100 clientes), medir receita mensal e crescimento.
+
+Wait, but the user said "quatro pessoas", so the team is four, so they can handle these tasks.
+
+Check if the numbers make sense. 20 beta users, but how many convert? If they aim for 30 paying customers in October, maybe 20 beta users convert, plus 10 from initial sales.
+
+But the answer should be concise. So the key points are:
+
+- October: Beta launch, track conversion rate.
+
+- November: Sales scaling, track CAC.
+
+- December: Promotions, track revenue.
+
+So the answer in Portuguese, short.
+
+Wait, the user asked for "o que fazer em cada mes e o que medir."
+
+So for each month, action and metric.
+
+October: Finalizar produto, lançar beta (20 usuários), medir taxa de conversão para pagamento.
+
+November: Ativar campanhas pagas (LinkedIn/email), visando 60 clientes, medir CAC e taxa de conversão.
+
+December: Oferta de Natal, visando 100 clientes, medir receita mensal e crescimento.
+
+But need to make sure the numbers add up. 20 (beta) + 60 + 100 = 180, which is less than 200. Wait, maybe the beta is part of the 200. So October: 30, November: 70, December: 100. So 30+70+100=200.
+
+So adjust the numbers.
+
+October: 30 clientes (beta + initial sales), measure conversion rate.
+
+November: 70, measure CAC.
+
+December: 100, measure revenue.
+
+So the answer should list each month with actions and metrics.
+
+But the user wants it concise. So:
+
+Outubro: Finalizar produto, beta com 30 clientes, medir taxa de conversão.
+
+Novembro: Campanhas pagas para 70 clientes, medir CAC.
+
+Dezembro: Promoção de Natal para 100 clientes, medir receita mensal.
+
+Wait, but the beta is usually free, so the 30 might be from beta conversions. So maybe:
+
+Outubro: Lançar beta (20 usuários), visando 30 clientes pagantes, medir conversão.
+
+Novembro: Escalar vendas (70 clientes), medir CAC.
+
+Dezembro: Fechar 100 clientes com promoção, medir receita.
+
+But the user said "200 clientes pagantes até ao fim do ano", so total 200. So October: 30, November: 70, December: 100. Total 200.
+
+So the answer should be:
+
+Outubro: Finalizar produto, lançar beta (30 clientes), medir taxa de conversão.
+
+Novembro: Campanhas pagas (70 clientes), medir CAC.
+
+Dezembro: Promoção de Natal (100 clientes), medir receita mensal.
+
+But need to check if the numbers are correct. 30+70+100=200. Yes.
+
+So the answer should be in three lines, each month with action and metric.
+</think>
+
+Outubro: Finalizar produto, lançar beta (30 clientes), medir taxa de conversão.  
+Novembro: Campanhas pagas (70 clientes), medir CAC e conversão.  
+Dezembro:
+</resposta>
+
+<resposta id="R3">
+A meta é terminar dezembro com **200 clientes pagantes ativos**. Vou assumir que cada cliente é uma construtora, que começam sem clientes e que a app estará pronta para utilização real em outubro. Se já têm clientes, o esforço de aquisição diminui.
+
+É uma meta exigente para quatro pessoas. O plano deve validar a venda em outubro, repetir o que funciona em novembro e concentrar dezembro em conversão e retenção.
+
+### Divisão da equipa
+
+| Pessoa | Responsabilidade principal |
+|---|---|
+| 1 — Produto e tecnologia | Fiabilidade, correção de erros e melhorias que desbloqueiem vendas |
+| 2 — Clientes | Onboarding, apoio e acompanhamento da utilização |
+| 3 — Comercial | Prospecção, demonstrações e fecho |
+| 4 — Aquisição | Campanhas, conteúdos práticos e parcerias |
+
+Cada área tem um responsável, mas toda a equipa participa nas primeiras conversas com clientes.
+
+### O que fazer em cada mês
+
+| Mês | Ações prioritárias | Meta de clientes ativos |
+|---|---|---:|
+| **Outubro — Validar** | Escolher um segmento inicial específico, como pequenas construtoras com várias obras em simultâneo. Entrevistar 15–20 empresas. Vender uma promessa concreta, centrada no problema mais recorrente. Simplificar preço, demonstração e onboarding. Angariar os primeiros clientes com contacto direto e rede existente. | **20** |
+| **Novembro — Repetir** | Concentrar esforços nos dois canais que trouxeram clientes com melhor utilização. Publicar dois casos reais com resultados autorizados. Testar parcerias com contabilistas, fornecedores ou associações do setor. Pedir referências a clientes satisfeitos. Automatizar os passos repetidos do onboarding. | **80** |
+| **Dezembro — Converter e reter** | Fechar oportunidades já trabalhadas, sobretudo na primeira quinzena. Acompanhar avaliações pendentes e clientes pouco ativos. Fazer sessões coletivas de onboarding. Limitar novas funcionalidades às que resolvam bloqueios de compra ou utilização. | **200** |
+
+Os aumentos mensais são **20, 60 e 120 clientes líquidos**: qualquer cancelamento exige uma venda adicional.
+
+### O que medir todas as semanas
+
+| Métrica | Para que serve |
+|---|---|
+| Contactos qualificados → demonstrações → avaliações → pagamentos | Encontrar onde se perdem potenciais clientes |
+| Clientes pagantes ativos e crescimento líquido | Acompanhar diretamente a meta |
+| Ativação nos primeiros sete dias | Confirmar que o cliente criou uma obra real e executou a tarefa principal |
+| Empresas com utilização semanal | Detetar abandono antes do cancelamento |
+| Cancelamentos e respetivos motivos | Corrigir problemas de produto, preço ou adequação |
+| Receita mensal recorrente e custo de aquisição por canal | Avaliar se o crescimento é sustentável |
+| Tempo de onboarding e apoio por cliente | Garantir capacidade para servir 200 empresas |
+
+**Teste de capacidade:** com uma conversão hipotética de 25% entre demonstração e pagamento, seriam necessárias 800 demonstrações para conquistar 200 clientes, antes de cancelamentos. Para quatro pessoas, isso obriga a testar cedo avaliações autónomas, demonstrações coletivas ou parceiros.
+
+No fim de outubro, usem as conversões e o tempo de apoio reais para recalcular novembro e dezembro. **Não aumentem investimento num canal enquanto os clientes que ele traz não começarem a usar a app regularmente.**
+</resposta>
+
+<resposta id="R4">
+# Plano de lançamento Q4 2026 — app de gestão de obras
+
+Antes do plano, as premissas em que assenta. Corrige-me as que estiverem erradas e eu ajusto os números:
+
+- **Ponto de partida:** perto de zero clientes pagantes (alguns pilotos/beta, não mais de 10). Se já tiverem 40-60, o plano fica muito mais confortável e a parte de outbound reduz-se.
+- **Mercado:** Portugal, construtoras com 3 a 30 trabalhadores, decisor = dono/gerente.
+- **Preço:** ~50-80 €/mês por empresa. 200 clientes ≈ 10-16 k€ MRR.
+- **Produto:** já está utilizável em obra real (incluindo telemóvel com sinal fraco).
+
+---
+
+## 1. A conta que manda em tudo
+
+Esta é a parte que decide o plano, mais do que qualquer ideia de marketing.
+
+Para 200 clientes com uma conversão demo→pago de 35-40% (realista com onboarding assistido, neste segmento), são precisas **~500-550 demos feitas** no trimestre. Em 11 semanas úteis dá **~50 demos por semana**, ou seja **~10 por dia**.
+
+Duas pessoas a fazer 5 demos/dia cada, todos os dias, durante todo o trimestre. **A restrição não é o produto nem o tráfego: é capacidade humana de vender.** Isso obriga a uma decisão desconfortável: metade da equipa não faz mais nada senão vender e integrar clientes, de Outubro a Dezembro.
+
+Auto-serviço puro não chega lá. Para 200 clientes por inbound precisariam de ~20.000 visitas/trimestre num site que hoje não tem audiência. Não se constrói isso em 12 semanas com 4 pessoas.
+
+**Planeiem para 220, não para 200.** Uma margem de 10% absorve o churn precoce e o mês de Dezembro que encolhe.
+
+## 2. Definir já o que conta como "cliente pagante"
+
+Sem isto, a meta é contornável e vocês chegam a Dezembro com 200 nomes e 6 k€ de MRR.
+
+> Cliente pagante = empresa com **pelo menos uma fatura paga a preço de tabela** (desconto máximo 20%, o do plano anual), fora de trial, com **≥1 obra activa** na plataforma.
+
+Pilotos gratuitos, contas a 1 €, e clientes de amigos não contam.
+
+## 3. Equipa (4 pessoas)
+
+| Pessoa | Papel no Q4 |
+|---|---|
+| **P1 — Fundador/vendas** | Demos e fecho, parcerias (associações, contabilistas, fornecedores), preço |
+| **P2 — Vendas + onboarding** | Prospecção, demos, importação do Excel do cliente, suporte |
+| **P3 — Engenharia** | Estabilidade, mobile/offline, fricção de onboarding, billing |
+| **P4 — Engenharia + marketing** | Landing page, conteúdo, anúncios, integrações, dashboard de métricas |
+
+Regra de protecção: **nada de desenvolvimento à medida em Q4 a não ser que ≥10 clientes peçam a mesma coisa.** Cada construtora vai pedir "só um campozinho". É assim que se perde o trimestre.
+
+---
+
+## 4. Setembro (10-30) — três semanas de preparação
+
+Não é tempo morto; é o que decide se Outubro corre.
+
+- Fechar **preço e planos** (mensal + anual com -20%, para caixa e para retenção).
+- **Billing a funcionar** de ponta a ponta, incluindo faturação portuguesa. Se a app emitir documentos que alimentam faturação, confirmem os requisitos de software certificado — não descubram isso em Novembro.
+- **Lista de 1.500-2.000 empresas-alvo** com telefone e nome do gerente. O registo público de alvarás/títulos de construção do IMPIC é o ponto de partida natural, complementado com bases comerciais tipo Racius/Informa. *(Verifiquem a forma de acesso e as condições de uso de dados — não pude confirmar nada disto nesta sessão.)*
+- **Guião de chamada** (90 segundos) e **guião de demo de 20 minutos**, com ambiente de demonstração cheio de dados de obra realistas — não uma conta vazia.
+- **5-8 clientes-piloto convertidos em prova social**: vídeo curto, nome da empresa, foto da obra, um número ("deixámos de perder 6 horas por semana em folhas de horas").
+- **Landing page** com esses casos e um vídeo de 90 s.
+- **CRM montado** (Pipedrive ou HubSpot free) com 5 fases. Folha de Excel não aguenta 500 demos.
+- **Corrigir os 3 maiores bloqueios de onboarding** conhecidos + garantir o modo offline no estaleiro.
+- **Abrir conversas de parceria:** 2-3 associações do sector (AICCOPN, AECOPS e afins), 10 contabilistas com carteira de construção, 5 fornecedores de materiais/aluguer de equipamento. *(Confirmem também se há feira do sector no Outono — a Concreta, no Porto, é a candidata óbvia, mas é preciso verificar se há edição em 2026 e as datas.)*
+
+**Medir em Setembro:** lista construída (nº), pilotos convertidos em testemunho (nº), tempo de onboarding de um cliente novo (horas), taxa de sucesso do fluxo de pagamento em teste.
+
+## 5. Outubro — provar o motor · meta +45 (total 45)
+
+- **P1 e P2 em modo vendas a tempo inteiro:** ~60 chamadas/dia combinadas, 8-10 demos/dia.
+- **Onboarding concierge:** "mandem-nos o vosso Excel, nós carregamos as obras". A 30 min por cliente é comportável a esta escala e é provavelmente a maior alavanca de conversão que têm.
+- **Testar 3 canais a sério, com CAC medido separadamente:** (1) outbound telefónico, (2) parceiros — contabilistas e fornecedores, (3) anúncios pagos em pesquisa/local.
+- **Isco de inbound:** template gratuito de "mapa de custos por obra" em Excel + 4 artigos. Quem descarrega é lead qualificado.
+- **Programa de referência** a partir da semana 3: 1 mês grátis por indicação convertida, para ambos. Este sector é uma rede fechada — os donos conhecem-se.
+- **Fim de Outubro: matar o canal mais fraco** e realocar tudo.
+
+**Medir semanalmente:** chamadas feitas, demos agendadas, demos realizadas, no-show %, demo→pago %, pagantes novos, CAC por canal, **activação a 7 dias** (1 obra criada + 3 registos de diário + 2 utilizadores).
+
+## 6. Novembro — escalar o que funcionou · meta +85 (total 130)
+
+- **Duplicar só o vencedor.** Nada de canais novos em Novembro.
+- **Narrativa sazonal:** "entrar em 2027 com as obras sob controlo". É o momento certo para empurrar o **plano anual** — as empresas estão a fechar contas e a orçamentar.
+- **2 sessões presenciais regionais** com associação ou fornecedor parceiro (Norte tem a maior densidade de construtoras pequenas). Uma sala com 30 gerentes vale uma semana de chamadas.
+- **Onboarding em turmas semanais** em vez de individual, para a equipa não se afogar.
+- **Caso de estudo com números reais** de um cliente de Outubro.
+- **Primeira coorte faz 30 dias:** medir retenção e cancelamentos. Se a coorte de Outubro estiver a perder 10%/mês, 200 em Dezembro é ilusório.
+
+**Medir:** tudo o de Outubro + **churn mensal**, MRR, ARPA, % de clientes em plano anual, tickets de suporte por cliente.
+
+## 7. Dezembro — fechar · meta +70 (total 200)
+
+**O prazo real é 19 de Dezembro, não 31.** O sector pára, muita empresa fecha entre o Natal e o Ano Novo, e os gerentes estão em fecho de contas. Planeiem com 3 semanas úteis, não 4.
+
+- **Semanas 1-2:** sprint de fecho. Campanha de plano anual com prazo ("preço de 2026 até dia 19"), e **reactivação de todos os trials perdidos de Outubro e Novembro** — é a lista mais barata que têm.
+- **Semana 3:** fechar, faturar, e garantir que ninguém entra em Janeiro sem estar activado. Um cliente que paga em Dezembro e nunca usa cancela em Fevereiro.
+- **Semana 4:** sem vendas. Retrospectiva, dívida de produto, plano de Q1.
+
+**Medir:** total acumulado, MRR, mix anual/mensal, activação dos clientes de Dezembro, previsão de churn de Janeiro.
+
+---
+
+## 8. Painel semanal (só isto, todas as segundas, 30 min)
+
+| Métrica | Alvo Out | Alvo Nov | Alvo Dez |
+|---|---|---|---|
+| Demos realizadas / semana | 40 | 55 | 55 |
+| Demo → pago | ≥30% | ≥35% | ≥40% |
+| Clientes novos / semana | 10 | 20 | 23 |
+| **Acumulado** | **45** | **130** | **200** |
+| Activação a 7 dias | ≥50% | ≥60% | ≥65% |
+| Churn mensal | — | ≤4% | ≤4% |
+| CAC (melhor canal) | medir | < 3× ARPA mensal | < 3× ARPA mensal |
+
+Segunda de manhã: os números. Sexta à tarde: 45 min sobre *porquê* — objecções que se repetem, motivos de perda, o que travou a activação.
+
+## 9. Pontos de decisão
+
+- **20 de Outubro:** se demo→pago < 25% ou demos < 30/semana, **parem de adicionar canais** e arranjem a conversão (demo, preço, ou o produto). Escalar um funil partido só queima a lista.
+- **10 de Novembro:** se o acumulado < 90, cortem o canal mais fraco, reforcem o concierge onboarding e considerem um plano de entrada mais barato.
+- **1 de Dezembro:** se o acumulado < 140, mudem a meta declarada para "acabar o ano com pipeline forte + base saudável". **170 clientes que ficam valem mais que 200 comprados com 60% de desconto** — os descontos ficam no livro para sempre e destroem o Q1.
+
+## 10. Riscos principais
+
+1. **Churn invisível.** Contar 200 brutos e ter 175 líquidos. Meça-se activação desde a primeira semana.
+2. **Engenharia sugada por pedidos à medida.** Regra dos 10 clientes.
+3. **Suporte a afogar a equipa em Dezembro**, precisamente quando é preciso vender.
+4. **Burnout.** Dois meses e meio de 60 chamadas/dia é duro; alternem tarefas às sextas.
+5. **Adopção no estaleiro.** Quem compra é o gerente, quem usa é o encarregado. Se a app não funcionar bem offline e em 2 minutos, o cliente paga um mês e sai.
+
+---
+
+Para afinar isto e trocar os alvos genéricos pelos vossos, preciso de saber cinco coisas: **quantos clientes pagantes têm hoje**, **qual é o preço actual**, **se a app móvel já funciona offline**, **que geografia cobrem**, e **quantos meses de caixa têm**. Diz-me e refaço os números mensais em cima da vossa realidade.
+</resposta>
+
+<resposta id="R5">
+**Janeiro:**
+- **Tarefas:** Concluir desenvolvimento básico da app, realizar testes internos, preparar documentação.
+- **Medir:** Progresso de desenvolvimento, feedback interno.
+
+**Fevereiro:**
+- **Tarefas:** Lançar versão beta, começar campanha de marketing inicial.
+- **Medir:** Número de inscritos beta, feedback de usuários.
+
+**Março:**
+- **Tarefas:** Aperfeiçoar baseado no feedback, preparar versão final.
+- **Medir:** Engajamento beta, ajustes necessários.
+
+**Abril:**
+- **Tarefas:** Lançamento oficial, iniciar campanha de marketing de massa.
+- **Medir:** Número de downloads, taxa de conversão.
+
+**Maio:**
+- **Tarefas:** Expansão de marketing, suporte ao cliente.
+- **Medir:** Novos clientes, satisfação do cliente.
+
+**Junho:**
+- **Tarefas:** Monitorizar desempenho, otimizar.
+- **Medir:** Retenção de clientes, feedback contínuo.
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

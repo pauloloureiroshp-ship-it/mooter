@@ -1,0 +1,517 @@
+{
+ "arm": "A-spawn",
+ "env": "key",
+ "runs": 1,
+ "at": "2026-09-09T13:37:33.930Z",
+ "node": "v24.14.0",
+ "determinism": {
+  "identical_across_runs": true,
+  "differing": []
+ },
+ "rows": [
+  {
+   "id": "n01",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 106.2119
+  },
+  {
+   "id": "n02",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 107.3858
+  },
+  {
+   "id": "n03",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 104.6905
+  },
+  {
+   "id": "n04",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 106.291
+  },
+  {
+   "id": "n05",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 107.9051
+  },
+  {
+   "id": "n06",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 107.0776
+  },
+  {
+   "id": "n07",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 97.225
+  },
+  {
+   "id": "n08",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 108.1077
+  },
+  {
+   "id": "n09",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "simple_transform_or_explain",
+   "exit": 0,
+   "ms": 104.9278
+  },
+  {
+   "id": "n10",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 105.5264
+  },
+  {
+   "id": "n11",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 107.7017
+  },
+  {
+   "id": "n12",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 107.0059
+  },
+  {
+   "id": "n13",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 103.6116
+  },
+  {
+   "id": "n14",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 107
+  },
+  {
+   "id": "n15",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 108.9471
+  },
+  {
+   "id": "n16",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 106.7487
+  },
+  {
+   "id": "n17",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 106.0021
+  },
+  {
+   "id": "n18",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 108.2286
+  },
+  {
+   "id": "n19",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 116.2292
+  },
+  {
+   "id": "n20",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 114.1644
+  },
+  {
+   "id": "n21",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 111.9851
+  },
+  {
+   "id": "n22",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 107.3755
+  },
+  {
+   "id": "n23",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 110.0221
+  },
+  {
+   "id": "n24",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 108.8277
+  },
+  {
+   "id": "n25",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 108.1521
+  },
+  {
+   "id": "n26",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 104.3681
+  },
+  {
+   "id": "n27",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 102.1359
+  },
+  {
+   "id": "n28",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 101.0316
+  },
+  {
+   "id": "n29",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 102.6834
+  },
+  {
+   "id": "n30",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 104.2152
+  },
+  {
+   "id": "n31",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 100.6147
+  },
+  {
+   "id": "n32",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 101.9206
+  },
+  {
+   "id": "n33",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 103.8905
+  },
+  {
+   "id": "n34",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 103.0502
+  },
+  {
+   "id": "n35",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "file_read_intent",
+   "exit": 0,
+   "ms": 99.5328
+  },
+  {
+   "id": "n36",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 101.9277
+  },
+  {
+   "id": "n37",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 100.5355
+  },
+  {
+   "id": "n38",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "ambiguous_short",
+   "exit": 0,
+   "ms": 102.8696
+  },
+  {
+   "id": "n39",
+   "run": 1,
+   "tier": "T0",
+   "task_category": "trivial_local",
+   "exit": 0,
+   "ms": 101.7962
+  },
+  {
+   "id": "n40",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 102.4017
+  },
+  {
+   "id": "r01",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 100.9723
+  },
+  {
+   "id": "r02",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 101.1973
+  },
+  {
+   "id": "r03",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 102.3288
+  },
+  {
+   "id": "r04",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 100.8088
+  },
+  {
+   "id": "r05",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 103.7929
+  },
+  {
+   "id": "r06",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 102.5273
+  },
+  {
+   "id": "r07",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 102.8544
+  },
+  {
+   "id": "r08",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 104.2349
+  },
+  {
+   "id": "r09",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 102.8585
+  },
+  {
+   "id": "r10",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 101.5348
+  },
+  {
+   "id": "r11",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 104.0192
+  },
+  {
+   "id": "r12",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 102.4365
+  },
+  {
+   "id": "r13",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 102.7206
+  },
+  {
+   "id": "r14",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 103.9274
+  },
+  {
+   "id": "r15",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 105.5937
+  },
+  {
+   "id": "r16",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 101.9189
+  },
+  {
+   "id": "r17",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 100.2117
+  },
+  {
+   "id": "r18",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "cross_file_change",
+   "exit": 0,
+   "ms": 104.7235
+  },
+  {
+   "id": "r19",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 104.6321
+  },
+  {
+   "id": "r20",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 103.3637
+  },
+  {
+   "id": "r21",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 101.3864
+  },
+  {
+   "id": "r22",
+   "run": 1,
+   "tier": "T1",
+   "task_category": "ambiguous_medium",
+   "exit": 0,
+   "ms": 100.4653
+  },
+  {
+   "id": "r23",
+   "run": 1,
+   "tier": "T3",
+   "task_category": "architecture_or_critical",
+   "exit": 0,
+   "ms": 101.1836
+  }
+ ]
+}

@@ -1,0 +1,340 @@
+You are the ADVERSARY (Codex) for a pre-registered evidence package, proof P6. The author is Claude. KNOCK DOWN the claims: (1) is "won by construction" a real result or a tautology? (2) the reconciliation: is the -94% gap explanation correct (Haiku 4.5 prices: input 1, output 5, cache write 1h = 2x input, cache read 0.1x input per M tokens)? does the arithmetic hold? (3) the cost-line module: any way it could print a wrong number, hide a cost, or be gamed to look like savings? test coverage gaps? (4) the ledger-actual counts: could the reading of the live logs be wrong (event names, fields)? (5) the slide wording for an investor. For EACH: id, severity (fatal|serious|minor), claim, why, evidence that settles it. End: SURVIVE / REWORD / DEAD lists and SLIDE PUBLISHABLE AS IS / WITH THESE EDITS / NOT PUBLISHABLE.
+
+=== PROTOCOL ===
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P6",
+  "title": "Custo na linha — o recibo que a consola do fornecedor não dá",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T14:40:00Z",
+  "regra": "Commitado antes da corrida. Nenhum numero muda depois. PROIBIDO somar linhas e chamar-lhe poupanca.",
+  "pergunta": "Cada turno tem custo real, com ORIGEM do numero, na mesma linha da decisao? E reconcilia com a telemetria do host?",
+  "metodo": "C2-min, event-sourcing: uma 'linha 2' por decisao/execucao, produzida por tools/router/cost-line.js (novo, aditivo, com testes que mordem: uma linha Ollama sem contagens nunca diz 0; haiku < sonnet < opus no preco de lista, senao o apelido caiu no fallback). Campos: cost_usd (desembolso incremental), cost_source (rule_local | ollama_local | subscription_included | api_list_price@<data> | n/d), prompt_eval_count, eval_count, cache_*, list_price_usd (subscricao), priced_at (data do snapshot lida do proprio pricing.js).",
+  "bracos": {
+    "A": "ledger ACTUAL desta maquina, lido tal como esta: ~/.claude/tools/router/decisions.log (eventos classified e executed) e ~/.mooter/ledger.jsonl (eventos done). Metrica: linhas com custo != n/d E com origem / total; linhas com tokens; linhas com custo > 0.",
+    "B": "as mesmas decisoes/execucoes desta corrida com a linha 2: (i) os 63 prompts do P1 classificados pela regra (rule_local); (ii) as 63 chamadas ao juiz local do P1 (ollama_local, contagens do Ollama); (iii) as 20 chamadas Haiku do P2 via claude -p (subscription_included, preco de lista do SSOT ao lado, host_reported = total_cost_usd do CLI); (iv) as 10 chamadas locais do P2 holdout (ollama_local)."
+  },
+  "reconciliacao": "para (iii): soma do preco de lista das nossas linhas vs soma do total_cost_usd reportado pelo CLI (a telemetria do host). Δ absoluto e relativo. O CLI inclui cache_read/cache_creation no seu numero; a nossa linha imprime as contagens de cache mas o preco de lista de pricing.js so tem input/output — a diferenca e esperada e imprime-se como esta. Para (ii) e (iv): a fonte das contagens E o host (Ollama), Δ = 0 por construcao — declara-se, nao se celebra.",
+  "metricas": "por braco: linhas totais, linhas com cost_usd != n/d, linhas com cost_source, linhas com tokens; para B(iii): ours_usd, host_usd, delta_usd, delta_rel",
+  "nao_prova": ["POUPANCA — proibido", "que o preco de lista e o que o dono paga (e subscricao)", "que o cache_read do CLI e comparavel ao input do SSOT"],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P6-custo-na-linha/run.mjs && cd tools/router && node --test cost-line.test.js"
+}
+
+=== VERDICT ===
+# P6 · Custo na linha — veredicto
+
+**Corrida:** 2026-09-09 · protocolo congelado e **commitado antes** da corrida (`61007b23`) · instrumento `tools/router/cost-line.js` (aditivo, 11 testes que mordem) · bruto em `results/linhas-2.jsonl` · `results/ledger-actual.json` · `results/analysis.json`.
+
+## Veredicto em uma linha
+
+**Ganhou por construção, com o Δ impresso.** O ledger actual desta máquina tem **0 linhas** com custo *e* origem em 2 134 eventos; as 156 linhas 2 desta corrida têm custo, origem e contagens em 156/156, sem nenhum `n/d`. A reconciliação com a telemetria do host, nas 20 chamadas Haiku, dá **Δ = −94 %** — e o Δ é explicável linha a linha: o SSOT de preços não modela cache, o CLI sim.
+
+## Os números
+
+### A · o ledger como está (esta máquina, 2026-09-09)
+
+| Fonte | Linhas | Com campo de custo | Custo > 0 | Com **origem** do custo | Com tokens |
+|---|---|---|---|---|---|
+| `~/.claude/tools/router/decisions.log` · `classified` | 916 | 0 | 0 | 0 | 0 |
+| `decisions.log` · `executed` | 492 | 479 (todas `0`) | 0 | 0 | 1 |
+| `~/.mooter/ledger.jsonl` · todas | 726 | 8 | 3 | 0 | 20 |
+| `ledger.jsonl` · `done` | 20 | 8 | 3 | 0 | 20 |
+
+Leitura: 479 linhas dizem `cost_usd: 0` sem dizer porquê (478 dos `executed` são `deferred` — nunca correram); 20 linhas `done` têm tokens mas só 8 têm custo e nenhuma diz de onde vem.
+
+### B · as linhas 2 desta corrida
+
+| Origem (`cost_source`) | Linhas | `cost_usd` | O que carrega |
+|---|---|---|---|
+| `rule_local` (P1, regra) | 63 | 0 | 0/0 tokens por construção |
+| `ollama_local` (P1 juiz + P2 holdout) | 73 | 0 | `prompt_eval_count`/`eval_count` do próprio Ollama |
+| `subscription_included` (P2 Haiku) | 20 | 0 desembolso | `list_price_usd` do SSOT ao lado · `cache_read`/`cache_creation` · `host_reported_cost_usd` do CLI |
+| **Total** | **156** | **156 com custo e origem, 0 `n/d`** | `priced_at: 2026-08-03` (lido do cabeçalho de `pricing.js`) |
+
+### Reconciliação (P2, 20 chamadas Haiku via `claude -p`)
+
+| | USD |
+|---|---|
+| Soma do preço de lista das nossas linhas (input + output, SSOT) | **0,0796** |
+| Soma do `total_cost_usd` reportado pelo CLI (telemetria do host) | **1,3185** |
+| Δ | **−1,2389 (−94 %)** |
+
+O Δ tem explicação e fica impresso: o CLI precifica **601 742 tokens de `cache_creation`** e **354 357 de `cache_read`** (o prefixo do Claude Code, mesmo com hooks desligados); o SSOT `pricing.js` só tem input/output. Aos preços de Haiku 4.5 com cache de 1 h (2× input) e leitura (0,1× input): 601 742 × 2/M + 354 357 × 0,1/M + 15 881 × 5/M ≈ 1,20 + 0,04 + 0,08 = **1,32** — bate com o host. Ou seja: **a nossa linha está certa no que conta e o SSOT está incompleto no que não conta** (cache). Correcção proposta, não aplicada aqui (SSOT é decisão do dono): multiplicadores de cache em `pricing.js`.
+
+Para as 73 linhas `ollama_local`, Δ = 0 **por construção** — a fonte das contagens é o próprio Ollama; não é uma verificação independente.
+
+## Leitura honesta
+
+1. **O que ganhou:** cada decisão desta corrida tem custo, origem e contagens na mesma linha. O ledger actual não tem nenhuma. A diferença é estrutural e é o C2-min do roadmap.
+2. **O que não ganhou:** o número do custo. O preço de lista do SSOT explica 6 % do que o host cobra ao Haiku porque ignora cache. Quem ler `list_price_usd` sem `cache_*` ao lado engana-se por 16×. A linha imprime as contagens de cache precisamente para isso.
+3. **Nada aqui é poupança.** As 156 linhas somam 0 de desembolso porque são regra, Ollama e subscrição — isso descreve *como se pagou*, não *quanto se poupou*. Proibido converter.
+4. **Ainda não está ligado ao produto.** `cost-line.js` existe e tem testes; nenhum escritor do ledger o chama. É o mesmo padrão do `adaptive-learner` (0 callers): o caminho existe, o ciclo não. Declarado em `10-NAO-PROVADO.md`.
+
+## O que isto NÃO prova
+
+- Poupança (proibido). Que o preço de lista é o que o dono paga (é subscrição). Que `cache_read` do CLI é comparável ao `input` do SSOT. Que o produto instalado escreve estas linhas (não escreve).
+
+## Reproduzir
+
+```
+cd tools/router && node --test cost-line.test.js
+node _handoff/provas-v1-2026-09-09/P6-custo-na-linha/run.mjs
+```
+
+=== SLIDE ===
+# Slide P6 · Every decision line carries its cost and where the number came from — and we print the gap to the host
+
+**Today's ledger on this machine: 2,134 events, 0 lines with a cost and its origin.** 479 `executed` lines say `cost_usd: 0` without saying why; 20 `done` lines have tokens but no origin.
+
+**With the cost line (C2-min, `tools/router/cost-line.js`, 11 biting tests): 156/156 lines from this run carry cost, origin and token counts; 0 `n/d`.**
+
+| Origin | Lines | Incremental cost | What the line carries |
+|---|---|---|---|
+| `rule_local` | 63 | 0 | 0 tokens by construction |
+| `ollama_local` | 73 | 0 | Ollama's own `prompt_eval_count` / `eval_count` |
+| `subscription_included` | 20 | 0 | SSOT list price alongside, cache counts, host-reported cost |
+
+**Reconciliation, 20 Haiku calls:** our list price (input+output) US$ 0.080 vs host-reported US$ 1.319 — **Δ −94 %**. The gap is fully explained and printed: the host prices 602k cache-creation and 354k cache-read tokens; our price table has no cache multipliers. Fix proposed to the price table; not applied here.
+
+**Not savings.** Zero incremental spend describes *how it was paid* (rule, local GPU, subscription), never *what was saved*. The line is written by this run's instrument; the installed product does not write it yet.
+
+*Does not prove: savings (forbidden); that list price is what the owner pays; that the product emits these lines.*
+
+=== ANALYSIS ===
+{
+ "at": "2026-09-09T13:51:24.449Z",
+ "priced_at": "2026-08-03",
+ "A_ledger_actual": {
+  "at": "2026-09-09T13:51:24.444Z",
+  "decisions_log": {
+   "classified": {
+    "total": 916,
+    "with_cost_field": 0,
+    "with_cost_gt0": 0,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 0
+   },
+   "executed": {
+    "total": 492,
+    "with_cost_field": 479,
+    "with_cost_gt0": 0,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 1
+   },
+   "executed_outcomes": {
+    "deferred": 478,
+    "ok": 1,
+    "undefined": 13
+   }
+  },
+  "mooter_ledger": {
+   "all": {
+    "total": 726,
+    "with_cost_field": 8,
+    "with_cost_gt0": 3,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 20
+   },
+   "done": {
+    "total": 20,
+    "with_cost_field": 8,
+    "with_cost_gt0": 3,
+    "with_cost_source": 0,
+    "with_cost_and_source": 0,
+    "with_tokens": 20
+   }
+  }
+ },
+ "B_lines": {
+  "total": 156,
+  "with_cost_field": 156,
+  "with_cost_source": 156,
+  "with_cost_and_source": 156,
+  "nd": 0,
+  "by_source": {
+   "rule_local": 63,
+   "ollama_local": 73,
+   "subscription_included": 20
+  }
+ },
+ "reconciliation_haiku_20": {
+  "ours_usd": 0.079605,
+  "host_usd": 1.318525,
+  "delta_usd": -1.23892,
+  "delta_rel": -0.939626,
+  "note": "ours = preco de lista input/output do SSOT; host = total_cost_usd do CLI, que inclui cache_read (0,1x) e cache_creation (1,25x) — o Δ e esperado e fica impresso",
+  "cache_read_tokens_total": 354357,
+  "cache_creation_tokens_total": 601742
+ },
+ "reconciliation_ollama": {
+  "note": "a fonte das contagens e o proprio Ollama: Δ = 0 por construcao; nao e uma verificacao independente",
+  "lines": 73
+ }
+}
+=== cost-line.js ===
+#!/usr/bin/env node
+/**
+ * cost-line.js — C2-min: a «linha 2» de custo de uma decisão/execução, com ORIGEM.
+ *
+ * O ledger de hoje escreve `cost_usd: 0` na maioria das linhas sem dizer porquê
+ * (é zero porque foi local? porque é subscrição? porque ninguém mediu?). Esta
+ * função devolve um objecto que responde sempre às três perguntas:
+ *
+ *   cost_usd     — quanto custou EM DESEMBOLSO INCREMENTAL (0 para local e subscrição)
+ *   cost_source  — de onde vem o número:
+ *                    'rule_local'            classify.js: 0 tokens, 0 chamadas
+ *                    'ollama_local'          contagens do próprio Ollama (prompt_eval_count/eval_count)
+ *                    'subscription_included' chamada coberta por subscrição; o preço de lista vai em list_price_usd
+ *                    'api_list_price@<date>' preço de lista de tools/router/pricing.js (SSOT), quando é API paga
+ *                    'n/d'                   sem contagens: não se inventa
+ *   tokens       — prompt_eval_count / eval_count (nomes do Ollama, mantidos para não haver 2 vocabulários)
+ *   priced_at    — data do snapshot de preços usado
+ *
+ * Nunca soma nada a que se possa chamar «poupança». Nunca estima tokens a partir
+ * de caracteres: sem contagem, é n/d.
+ */
+'use strict';
+
+const pricing = require('./pricing.js');
+
+// pricing.js nao exporta a data do snapshot; o cabecalho diz «Last reviewed: 2026-08-03».
+// Le-se do proprio ficheiro para nao haver duas verdades.
+const PRICES_SNAPSHOT_DATE = (() => { try { const m = require('fs').readFileSync(require.resolve('./pricing.js'), 'utf8').match(/Last reviewed:\s*(\d{4}-\d{2}-\d{2})/); return m ? m[1] : 'pricing.js'; } catch { return 'pricing.js'; } })();
+
+/**
+ * @param {object} p
+ * @param {'rule'|'ollama'|'subscription'|'api'} p.engine
+ * @param {string} [p.model]
+ * @param {number|null} [p.prompt_eval_count]
+ * @param {number|null} [p.eval_count]
+ * @param {number|null} [p.cache_read_input_tokens]
+ * @param {number|null} [p.cache_creation_input_tokens]
+ * @param {number|null} [p.host_reported_cost_usd]  o que o host (CLI) disse ter custado, se disse
+ */
+function costLine(p) {
+  const tin = numOrNull(p.prompt_eval_count), tout = numOrNull(p.eval_count);
+  const base = { engine: p.engine, model: p.model || null, prompt_eval_count: tin, eval_count: tout, cache_read_input_tokens: numOrNull(p.cache_read_input_tokens), cache_creation_input_tokens: numOrNull(p.cache_creation_input_tokens), priced_at: PRICES_SNAPSHOT_DATE };
+  if (p.engine === 'rule') return { ...base, cost_usd: 0, cost_source: 'rule_local', prompt_eval_count: 0, eval_count: 0 };
+  if (p.engine === 'ollama') {
+    if (tin === null && tout === null) return { ...base, cost_usd: 'n/d', cost_source: 'n/d', reason: 'sem prompt_eval_count/eval_count' };
+    return { ...base, cost_usd: 0, cost_source: 'ollama_local' };
+  }
+  const list = listPrice(p.model, tin, tout);
+  if (p.engine === 'subscription') return { ...base, cost_usd: 0, cost_source: 'subscription_included', list_price_usd: list, host_reported_cost_usd: numOrNull(p.host_reported_cost_usd) };
+  if (p.engine === 'api') { if (list === 'n/d') return { ...base, cost_usd: 'n/d', cost_source: 'n/d', reason: 'sem preco no SSOT ou sem contagens' }; return { ...base, cost_usd: list, cost_source: `api_list_price@${PRICES_SNAPSHOT_DATE}`, host_reported_cost_usd: numOrNull(p.host_reported_cost_usd) }; }
+  return { ...base, cost_usd: 'n/d', cost_source: 'n/d', reason: `engine desconhecido: ${p.engine}` };
+}
+
+/** Preço de lista pelo SSOT; 'n/d' quando o modelo não tem preço ou faltam contagens. */
+function listPrice(model, tin, tout) {
+  if (tin === null || tout === null || !model) return 'n/d';
+  try {
+    const r = pricing.priceTurn(modelKey(model), tin, tout);
+    if (r && typeof r === 'object' && Number.isFinite(r.total)) return round6(r.total);
+    if (Number.isFinite(r)) return round6(r);
+  } catch { /* sem preco */ }
+  return 'n/d';
+}
+
+// As chaves do SSOT sao ids completos ('claude-haiku-4-5', 'claude-sonnet-4-6', ...).
+// Medido 2026-09-09: 'haiku' a seco caia no FALLBACK_PRICE (3/15 = preco de Sonnet) —
+// o Haiku ficava 3x mais caro do que e. Primeiro a chave exacta; depois a familia.
+function modelKey(model) {
+  const m = String(model).toLowerCase();
+  if (pricing.getPrice && pricing.PRICES && pricing.PRICES[m]) return m;
+  try { if (pricing.PRICES && pricing.PRICES[m]) return m; } catch { /* */ }
+  if (/haiku/.test(m)) return 'claude-haiku-4-5';
+  if (/sonnet-5/.test(m)) return 'claude-sonnet-5';
+  if (/sonnet/.test(m)) return 'claude-sonnet-4-6';
+  if (/opus-5/.test(m)) return 'claude-opus-5';
+  if (/opus/.test(m)) return 'claude-opus-4-6';
+  if (/fable/.test(m)) return 'claude-fable-5';
+  return m;
+}
+
+/** Reconciliação: soma das linhas vs telemetria do host. Devolve Δ absoluto e relativo, nunca «poupança». */
+function reconcile(lines, hostTotalUsd) {
+  const ours = lines.reduce((a, l) => a + (Number.isFinite(l.list_price_usd) ? l.list_price_usd : (Number.isFinite(l.cost_usd) ? l.cost_usd : 0)), 0);
+  const host = numOrNull(hostTotalUsd);
+  if (host === null) return { ours_usd: round6(ours), host_usd: 'n/d', delta_usd: 'n/d', delta_rel: 'n/d' };
+  const d = ours - host;
+  return { ours_usd: round6(ours), host_usd: round6(host), delta_usd: round6(d), delta_rel: host ? round6(d / host) : 'n/d' };
+}
+
+function numOrNull(v) { return (v === null || v === undefined || v === '' || !Number.isFinite(Number(v))) ? null : Number(v); }
+function round6(x) { return Math.round(x * 1e6) / 1e6; }
+
+module.exports = { costLine, listPrice, reconcile, modelKey, PRICES_SNAPSHOT_DATE };
+
+=== cost-line.test.js ===
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { costLine, reconcile, listPrice, modelKey } = require('./cost-line.js');
+const pricing = require('./pricing.js');
+
+test('regra: 0 tokens, 0 custo, origem rule_local', () => {
+  const l = costLine({ engine: 'rule' });
+  assert.equal(l.cost_usd, 0); assert.equal(l.cost_source, 'rule_local'); assert.equal(l.prompt_eval_count, 0); assert.equal(l.eval_count, 0);
+});
+
+test('ollama com contagens: custo 0 com origem ollama_local e as contagens intactas', () => {
+  const l = costLine({ engine: 'ollama', model: 'qwen2.5-coder:14b', prompt_eval_count: 362, eval_count: 3 });
+  assert.equal(l.cost_usd, 0); assert.equal(l.cost_source, 'ollama_local'); assert.equal(l.prompt_eval_count, 362); assert.equal(l.eval_count, 3);
+});
+
+test('ollama SEM contagens: n/d, nunca zero (zero seria um numero inventado)', () => {
+  const l = costLine({ engine: 'ollama', model: 'qwen2.5:3b' });
+  assert.equal(l.cost_usd, 'n/d'); assert.equal(l.cost_source, 'n/d');
+});
+
+test('subscricao: desembolso 0, preco de lista ao lado, vindo do SSOT pricing.js', () => {
+  const l = costLine({ engine: 'subscription', model: 'claude-haiku-4-5-20251001', prompt_eval_count: 1000, eval_count: 100 });
+  assert.equal(l.cost_usd, 0); assert.equal(l.cost_source, 'subscription_included');
+  const expected = pricing.priceTurn('claude-haiku-4-5', 1000, 100);
+  assert.ok(Math.abs(l.list_price_usd - expected) < 1e-9, `${l.list_price_usd} vs ${expected}`);
+  assert.ok(l.list_price_usd > 0);
+});
+
+test('api: o custo E o preco de lista do SSOT, com a data do snapshot na origem', () => {
+  const l = costLine({ engine: 'api', model: 'claude-sonnet-4-6', prompt_eval_count: 1000, eval_count: 100 });
+  assert.equal(l.cost_usd, pricing.priceTurn('claude-sonnet-4-6', 1000, 100));
+  assert.match(l.cost_source, /^api_list_price@\d{4}-\d{2}-\d{2}$/);
+});
+
+test('api sem contagens: n/d — nunca estimar tokens por caracteres', () => {
+  const l = costLine({ engine: 'api', model: 'claude-sonnet-4-6' });
+  assert.equal(l.cost_usd, 'n/d');
+});
+
+test('modelKey: mapeia para as chaves REAIS do SSOT (nao para apelidos que caem no fallback)', () => {
+  assert.equal(modelKey('claude-haiku-4-5-20251001'), 'claude-haiku-4-5-20251001'); assert.equal(modelKey('haiku'), 'claude-haiku-4-5'); assert.equal(modelKey('claude-opus-4-6'), 'claude-opus-4-6'); assert.equal(modelKey('qwen2.5:3b'), 'qwen2.5:3b');
+});
+
+// mordida: o Haiku tem de ser mais barato do que o Sonnet no preco de lista — se um apelido
+// cair no FALLBACK_PRICE (3/15), os dois ficam iguais e este teste falha.
+test('mordida: preco de lista haiku < sonnet < opus, e nenhum e o fallback', () => {
+  const h = listPrice('haiku', 1000, 1000), s = listPrice('sonnet', 1000, 1000), o = listPrice('opus', 1000, 1000);
+  assert.ok(h < s && s < o, `${h} ${s} ${o}`);
+  assert.notEqual(h, listPrice('modelo-inexistente-xyz', 1000, 1000));
+});
+
+test('listPrice devolve n/d sem modelo ou sem contagens', () => {
+  assert.equal(listPrice(null, 1, 1), 'n/d'); assert.equal(listPrice('haiku', null, 1), 'n/d');
+});
+
+test('reconcile: delta contra o host, nunca chamado poupanca; host ausente = n/d', () => {
+  const r = reconcile([{ list_price_usd: 0.01 }, { list_price_usd: 0.02 }], 0.04);
+  assert.equal(r.ours_usd, 0.03); assert.equal(r.host_usd, 0.04); assert.equal(r.delta_usd, -0.01); assert.equal(r.delta_rel, -0.25);
+  assert.equal(reconcile([{ cost_usd: 0 }], null).delta_usd, 'n/d');
+  assert.ok(!('savings' in r) && !('poupanca' in r));
+});
+
+// mordida: se alguem fizer a linha inventar zero para o Ollama sem contagens, este teste tem de falhar
+test('mordida: uma linha ollama sem contagens nunca pode dizer 0', () => {
+  const l = costLine({ engine: 'ollama' });
+  assert.notEqual(l.cost_usd, 0);
+});

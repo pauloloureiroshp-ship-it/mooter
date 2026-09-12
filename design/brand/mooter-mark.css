@@ -1,0 +1,59 @@
+/* mooter-mark.css — movimento da marca oficial.
+   Para o SVG inline (MooterMark.tsx). O ficheiro mooter-mark.svg já traz o seu.
+   Só transform e opacity. Zero repintura, zero biblioteca.
+   Estrutura esperada:
+     .marca > .tilt > svg > g.corpo > (g.chifres, g.orelha-e, g.orelha-d,
+                                       g.cabeca, g.focinho, g.olho, g.olho) */
+
+.corpo    { transform-box: fill-box; transform-origin: 50% 96%; }
+.olho     { transform-box: fill-box; transform-origin: 50% 50%; }
+.orelha-e { transform-box: view-box; transform-origin: 6px 9.5px; }
+.orelha-d { transform-box: view-box; transform-origin: 30px 9.5px; }
+.tilt     { display: block; transition: transform 300ms cubic-bezier(.2,.8,.2,1); }
+
+/* repouso — sempre */
+.vivo .corpo    { animation: mm-respirar 4200ms cubic-bezier(.45,0,.55,1) infinite; }
+.vivo .olho     { animation: mm-piscar 7000ms linear infinite; }
+.vivo .orelha-e { animation: mm-flick 11000ms cubic-bezier(.3,1.3,.5,1) infinite; }
+.vivo .orelha-d { animation: mm-flick 17000ms cubic-bezier(.3,1.3,.5,1) infinite; animation-delay: 3400ms; }
+
+/* saudar — ao passar o rato */
+.marca:hover .tilt { transform: rotate(-1.8deg) translateY(-3px); }
+
+/* fonte morta — beacon acima do tecto. Perde a cor E pára de respirar. */
+.morto           { filter: grayscale(1) brightness(.82) contrast(.88) opacity(.72); }
+.morto .corpo,
+.morto .olho,
+.morto .orelha-e,
+.morto .orelha-d { animation: none !important; }
+
+/* entrada — 900ms, uma vez, ao carregar */
+.entrada > *          { animation-duration: 900ms; animation-fill-mode: both;
+                        animation-timing-function: cubic-bezier(.16,1,.3,1); }
+.entrada .cabeca      { transform-box: fill-box; transform-origin: 50% 62%; animation-name: mm-ent-head; }
+.entrada .chifres     { transform-box: fill-box; transform-origin: 50% 100%; animation-name: mm-ent-horn;   animation-delay: 140ms; }
+.entrada .orelha-e,
+.entrada .orelha-d    { animation-name: mm-ent-ear;    animation-delay: 220ms; }
+.entrada .focinho     { transform-box: fill-box; transform-origin: 50% 26%; animation-name: mm-ent-muzzle; animation-delay: 380ms; }
+.entrada .olho        { animation-name: mm-ent-eye;    animation-delay: 620ms; animation-duration: 140ms; }
+
+@keyframes mm-respirar   { 0%,100% { transform: scale(1) translateY(0); }
+                           50%     { transform: scale(1.0125) translateY(-0.16%); } }
+@keyframes mm-piscar     { 0%,92.4%,100% { transform: scaleY(1); }
+                           93.8% { transform: scaleY(.06); } 94.6% { transform: scaleY(.06); }
+                           96%   { transform: scaleY(1); }   97.2% { transform: scaleY(1); }
+                           97.9% { transform: scaleY(.2); }  98.9% { transform: scaleY(1); } }
+@keyframes mm-flick      { 0%,88%,100% { transform: rotate(0); }
+                           90.4% { transform: rotate(-3.4deg); } 92.8% { transform: rotate(1.2deg); }
+                           95%   { transform: rotate(-.45deg); } 97%   { transform: rotate(0); } }
+@keyframes mm-ent-head   { from { opacity: 0; transform: scale(.90); } to { opacity: 1; transform: scale(1); } }
+@keyframes mm-ent-horn   { from { opacity: 0; transform: scale(.5) translateY(2.5px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes mm-ent-ear    { from { opacity: 0; transform: scaleX(.25); } to { opacity: 1; transform: scaleX(1); } }
+@keyframes mm-ent-muzzle { from { opacity: 0; transform: translateY(2.6px) scale(.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes mm-ent-eye    { from { opacity: 0; transform: scaleY(0); } to { opacity: 1; transform: scaleY(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vivo .corpo, .vivo .olho, .vivo .orelha-e, .vivo .orelha-d,
+  .entrada > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .tilt { transition: none !important; }
+}

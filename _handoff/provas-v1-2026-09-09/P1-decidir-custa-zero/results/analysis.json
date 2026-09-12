@@ -1,0 +1,400 @@
+{
+ "at": "2026-09-09T13:06:13.063Z",
+ "arms": {
+  "A-key": {
+   "runs": 6,
+   "determinism": {
+    "identical_across_runs": true,
+    "differing": []
+   },
+   "ollama_stub_hits": 0,
+   "net_calls": 0,
+   "net_targets": [],
+   "latency_ms_inproc": {
+    "n": 588,
+    "min": 0.0011,
+    "p50": 0.0018,
+    "p95": 1.8788699999999998,
+    "max": 4.9916,
+    "mean": 0.26704727891156255
+   },
+   "acc63": {
+    "k": 14,
+    "n": 63,
+    "p": 0.2222222222222222,
+    "lo": 0.13725007699432218,
+    "hi": 0.339122812140898,
+    "confusion": {
+     "T2->T0": 13,
+     "T2->T1": 10,
+     "T0->T0": 11,
+     "T1->T1": 1,
+     "T3->T0": 5,
+     "T3->T3": 2,
+     "T1->T0": 2,
+     "T3->T1": 1,
+     "T2->T3": 18
+    }
+   },
+   "acc40": {
+    "k": 14,
+    "n": 40,
+    "p": 0.35,
+    "lo": 0.22134528789169125,
+    "hi": 0.5049411928458477,
+    "confusion": {
+     "T2->T0": 13,
+     "T2->T1": 4,
+     "T0->T0": 11,
+     "T1->T1": 1,
+     "T3->T0": 5,
+     "T3->T3": 2,
+     "T1->T0": 2,
+     "T3->T1": 1,
+     "T2->T3": 1
+    }
+   },
+   "acc23": {
+    "k": 0,
+    "n": 23,
+    "p": 0,
+    "lo": 0,
+    "hi": 0.14311662038507353,
+    "confusion": {
+     "T2->T3": 17,
+     "T2->T1": 6
+    }
+   },
+   "acc_train35": {
+    "k": 31,
+    "n": 35,
+    "p": 0.8857142857142857,
+    "lo": 0.7404853121378726,
+    "hi": 0.9546482069844427,
+    "confusion": {
+     "T0->T0": 9,
+     "T0->T1": 2,
+     "T1->T1": 5,
+     "T2->T2": 4,
+     "T3->T3": 13,
+     "T2->T3": 1,
+     "T3->T1": 1
+    }
+   },
+   "escalations": {
+    "user_override_positive": 2,
+    "none": 61
+   }
+  },
+  "A-nokey": {
+   "runs": 6,
+   "determinism": {
+    "identical_across_runs": true,
+    "differing": []
+   },
+   "ollama_stub_hits": 0,
+   "net_calls": 0,
+   "net_targets": [],
+   "latency_ms_inproc": {
+    "n": 588,
+    "min": 0.001,
+    "p50": 0.0019,
+    "p95": 1.8873,
+    "max": 4.774,
+    "mean": 0.27062006802720995
+   },
+   "acc63": {
+    "k": 13,
+    "n": 63,
+    "p": 0.20634920634920634,
+    "lo": 0.12475319565227458,
+    "hi": 0.32169814429067245,
+    "confusion": {
+     "T2->T0": 23,
+     "T0->T0": 11,
+     "T1->T0": 3,
+     "T3->T0": 6,
+     "T3->T3": 2,
+     "T2->T3": 18
+    }
+   },
+   "acc40": {
+    "k": 13,
+    "n": 40,
+    "p": 0.325,
+    "lo": 0.20084502152253986,
+    "hi": 0.47982253933792235,
+    "confusion": {
+     "T2->T0": 17,
+     "T0->T0": 11,
+     "T1->T0": 3,
+     "T3->T0": 6,
+     "T3->T3": 2,
+     "T2->T3": 1
+    }
+   },
+   "acc23": {
+    "k": 0,
+    "n": 23,
+    "p": 0,
+    "lo": 0,
+    "hi": 0.14311662038507353,
+    "confusion": {
+     "T2->T3": 17,
+     "T2->T0": 6
+    }
+   },
+   "acc_train35": {
+    "k": 32,
+    "n": 35,
+    "p": 0.9142857142857143,
+    "lo": 0.7762072589454966,
+    "hi": 0.9704176319636569,
+    "confusion": {
+     "T0->T0": 11,
+     "T1->T1": 4,
+     "T1->T0": 1,
+     "T2->T2": 4,
+     "T3->T3": 13,
+     "T2->T3": 1,
+     "T3->T2": 1
+    }
+   },
+   "escalations": {
+    "user_override_positive": 2,
+    "haiku_unavailable_no_provider_degraded_to_local": 12,
+    "none": 49
+   }
+  },
+  "A-spawn-key": {
+   "runs": 6,
+   "determinism": {
+    "identical_across_runs": true,
+    "differing": []
+   },
+   "latency_ms_process": {
+    "n": 378,
+    "min": 88.1028,
+    "p50": 96.55405,
+    "p95": 100.781185,
+    "max": 107.676,
+    "mean": 96.81347751322757
+   },
+   "exits": {
+    "0": 378
+   }
+  },
+  "A-spawn-nokey": {
+   "runs": 6,
+   "determinism": {
+    "identical_across_runs": true,
+    "differing": []
+   },
+   "latency_ms_process": {
+    "n": 378,
+    "min": 88.3254,
+    "p50": 96.56105,
+    "p95": 101.665775,
+    "max": 181.634,
+    "mean": 97.23484682539684
+   },
+   "exits": {
+    "0": 378
+   }
+  },
+  "A-hook": {
+   "runs": 3,
+   "classify_path_counts": {
+    "spawn": 57,
+    "cache": 132
+   },
+   "latency_ms_run1_miss": {
+    "n": 63,
+    "min": 113.6031,
+    "p50": 210.7622,
+    "p95": 1276.29216,
+    "max": 1328.9396,
+    "mean": 615.9265746031745
+   },
+   "latency_ms_runs2plus_hit": {
+    "n": 126,
+    "min": 110.4185,
+    "p50": 118.50375,
+    "p95": 1182.62475,
+    "max": 1184.6108,
+    "mean": 539.5933706349207
+   },
+   "max_tier_counts": {
+    "T3": 189
+   },
+   "escalations": {
+    "user_override_vetoed": 2,
+    "null": 58,
+    "safety_boost": 3
+   }
+  },
+  "B": {
+   "model": "qwen2.5-coder:14b",
+   "runs": 3,
+   "aborted": null,
+   "run_agreement": {
+    "identical": 98,
+    "of": 98
+   },
+   "tokens_per_prompt_63": {
+    "in": {
+     "n": 63,
+     "min": 320,
+     "p50": 362,
+     "p95": 490.7,
+     "max": 497,
+     "mean": 390.2063492063492
+    },
+    "out": {
+     "n": 63,
+     "min": 3,
+     "p50": 3,
+     "p95": 3,
+     "max": 3,
+     "mean": 3
+    },
+    "total_mean": 393.2063492063492
+   },
+   "latency_ms_wall": {
+    "n": 63,
+    "min": 54.1643,
+    "p50": 77.4518,
+    "p95": 95.77911999999999,
+    "max": 3047.3632,
+    "mean": 126.83381428571431
+   },
+   "null_labels": 0,
+   "acc63": {
+    "k": 44,
+    "n": 63,
+    "p": 0.6984126984126984,
+    "lo": 0.5763962758637515,
+    "hi": 0.7976230890396625,
+    "confusion": {
+     "T2->T2": 30,
+     "T0->T0": 7,
+     "T2->T1": 2,
+     "T2->T3": 7,
+     "T2->T0": 2,
+     "T1->T1": 1,
+     "T3->T3": 6,
+     "T1->T0": 1,
+     "T3->T2": 2,
+     "T0->T3": 2,
+     "T0->T2": 1,
+     "T1->T3": 1,
+     "T0->T1": 1
+    }
+   },
+   "acc40": {
+    "k": 21,
+    "n": 40,
+    "p": 0.525,
+    "lo": 0.3749736199712279,
+    "hi": 0.670645299905849,
+    "confusion": {
+     "T2->T2": 7,
+     "T0->T0": 7,
+     "T2->T1": 2,
+     "T2->T3": 7,
+     "T2->T0": 2,
+     "T1->T1": 1,
+     "T3->T3": 6,
+     "T1->T0": 1,
+     "T3->T2": 2,
+     "T0->T3": 2,
+     "T0->T2": 1,
+     "T1->T3": 1,
+     "T0->T1": 1
+    }
+   },
+   "acc23": {
+    "k": 23,
+    "n": 23,
+    "p": 1,
+    "lo": 0.8568833796149266,
+    "hi": 1,
+    "confusion": {
+     "T2->T2": 23
+    }
+   },
+   "acc_train35": {
+    "k": 29,
+    "n": 35,
+    "p": 0.8285714285714286,
+    "lo": 0.6731771756129996,
+    "hi": 0.9189735999356394,
+    "confusion": {
+     "T0->T0": 9,
+     "T0->T1": 2,
+     "T1->T1": 5,
+     "T2->T2": 4,
+     "T3->T3": 11,
+     "T3->T0": 2,
+     "T2->T3": 1,
+     "T3->T2": 1
+    }
+   }
+  },
+  "D": {
+   "heuristic": {
+    "decided": 0,
+    "abstain": 63,
+    "acc63_exact_on_decided": {
+     "k": 0,
+     "n": 0,
+     "p": null,
+     "lo": null,
+     "hi": null,
+     "confusion": {}
+    },
+    "acc63_binary_on_decided": {
+     "k": 0,
+     "n": 0,
+     "p": null,
+     "lo": null,
+     "hi": null,
+     "confusion": {}
+    },
+    "classes": {
+     "null": 63
+    }
+   },
+   "cli_fallback": {
+    "note": "desligado nesta passagem; would_cli por linha diz quantas vezes dispararia"
+   },
+   "note": "mapeamento exacto/binario e NOSSO (protocol.json); o plugin so distingue haiku de opus"
+  }
+ },
+ "mcnemar_Akey_vs_B_63": {
+  "b": 4,
+  "c": 34,
+  "n": 38,
+  "p_one_sided_A_gt_B": 0.9999999666106388,
+  "p_one_sided_B_gt_A": 3.0192677513696116e-7,
+  "p_two_sided": 6.038535502739223e-7
+ },
+ "mcnemar_Akey_vs_B_40": {
+  "b": 4,
+  "c": 11,
+  "n": 15,
+  "p_one_sided_A_gt_B": 0.9824218750000009,
+  "p_one_sided_B_gt_A": 0.0592346191406251,
+  "p_two_sided": 0.1184692382812502
+ },
+ "rater2": {
+  "model": "qwen3.6:27b",
+  "n": 63,
+  "kappa_vs_codex": {
+   "kappa": 0.6160208968219417,
+   "po": 0.7777777777777778,
+   "pe": 0.42126480221718315
+  },
+  "raw_agreement": 0.7777777777777778
+ }
+}

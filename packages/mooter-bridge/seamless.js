@@ -1812,6 +1812,85 @@ function executarComandos(texto, worktree) {
 }
 
 /**
+ * A6 · varredura pedida a um motor SEM FERRAMENTAS. Mecânico, como o A4.
+ *
+ * O A4 abaixo exige evidência ZERO para disparar, e foi por aí que o job
+ * `job-mtea5wou-f2b3` (2026-08-29) escapou: o conector injectou 304 das 1131
+ * linhas de `router-execute.js` — logo houve evidência — e o moo respondeu
+ * «0 chamadores em TODO o repo». O recibo já trazia os três factos que
+ * provavam a impossibilidade (`permissoes_efectivas: []`, `diferem: true`,
+ * contexto cortado a 27 %) e `aviso_fabricacao` saiu `null`.
+ *
+ * A distinção que faltava: contexto injectado é uma AMOSTRA; um quantificador
+ * de varredura é uma afirmação sobre o UNIVERSO. Sem ferramentas, nenhuma
+ * quantidade de amostra responde a "em todo o repo" — e o conector sabe disso
+ * antes de o modelo abrir a boca.
+ *
+ * Não é taxonomia nova: reutiliza a mecânica do guard A4 (prefixar o corpo,
+ * nunca substituí-lo) e viaja no mesmo campo `aviso_fabricacao`.
+ */
+const VARREDURA_PADROES = [
+  // do mais específico para o mais geral: "em lado nenhum" tem de ganhar a "nenhum"
+  [/\b0 chamadores\b/i, '0 chamadores'],
+  [/\bem lado nenhum\b/i, 'em lado nenhum'],
+  [/\btodo o rep(?:o|ositório|ositorio)\b/i, 'todo o repo'],
+  [/\bsearch the whole\b/i, 'search the whole'],
+  [/\bprocura em\b/i, 'procura em'],
+  [/\btod[oa]s (?:os|as)\b/i, 'todos os'],
+  [/\bquantos?\b/i, 'quantos'],
+  [/\bnenhum[ao]?\b/i, 'nenhum'],
+  [/\banywhere\b/i, 'anywhere'],
+];
+
+/**
+ * @param {string} texto
+ * @returns {string|null} o quantificador que disparou, ou null
+ */
+function quantificadorDeVarredura(texto) {
+  const s = String(texto || '');
+  for (const [re, nome] of VARREDURA_PADROES) if (re.test(s)) return nome;
+  return null;
+}
+
+/**
+ * @param {{goal?:string, permissoes_efectivas?:object, permissoes_diferenca?:object,
+ *          evidencia?:object}} meta — o recibo, tal como vive no `meta.json`
+ * @returns {null | {quantificador:string, porque:string[], aviso:string}}
+ */
+function varreduraSemFerramentas(meta) {
+  if (!meta) return null;
+  const quantificador = quantificadorDeVarredura(meta.goal);
+  if (!quantificador) return null;
+
+  const ef = meta.permissoes_efectivas;
+  const semEfectivas = !!(ef && Array.isArray(ef.valor) && ef.valor.length === 0);
+  const diferem = !!(meta.permissoes_diferenca && meta.permissoes_diferenca.diferem === true);
+  // Um aviso que dispara sempre é ruído, e ruído ensina a ignorar: sem uma
+  // destas duas provas, o motor tem as ferramentas e a pergunta é legítima.
+  if (!semEfectivas && !diferem) return null;
+
+  const porque = [];
+  if (semEfectivas) {
+    porque.push('a lista de permissões efectivas está vazia'
+      + (ef && ef.porque ? ' (' + ef.porque + ')' : ''));
+  }
+  if (diferem) porque.push('as permissões pedidas não coincidem com a capacidade efectiva provada');
+  const truncados = (meta.evidencia && Array.isArray(meta.evidencia.truncados))
+    ? meta.evidencia.truncados : [];
+  for (const t of truncados) {
+    porque.push('o contexto foi cortado: ' + t.path + ' — '
+      + t.linhas_dadas + ' de ' + t.linhas_totais + ' linhas');
+  }
+
+  const aviso = 'o goal pede uma varredura ("' + quantificador + '") e este motor não recebeu '
+    + 'ferramentas para a fazer — ' + porque.join(' · ')
+    + '. O contexto injectado é uma amostra, não o universo: qualquer contagem, "nenhum" '
+    + 'ou "em todo o repo" na resposta é especulação e não é publicável como facto.';
+
+  return { quantificador, porque, aviso };
+}
+
+/**
  * A4 · nível 2 do guard de saída. Mecânico: não pede nada ao modelo.
  *
  * Um veredicto é uma afirmação sobre o mundo. Se o motor não tinha ferramentas
@@ -1823,6 +1902,22 @@ const VEREDICTO_RE = /(\bPASS\b|\bFAIL\b|\bNO[-\s]?SHIP\b|\bSHIP\b|\baprovad[oa]
 
 function veredictoSemEvidencia(meta, body) {
   if (!body || !meta) return { degradado: false };
+
+  // A6 antes do A4, e sem a guarda `ENGINES_SEM_FICHEIROS`: a condição aqui é
+  // a AUSÊNCIA MEDIDA de ferramentas (lista efectiva vazia ou divergente), não
+  // o nome do motor. `meta.sem_ferramentas` é o que o despacho já decidiu — o
+  // disco é a custódia; a recomputação só serve recibos anteriores a esta frente.
+  const varredura = meta.sem_ferramentas || varreduraSemFerramentas(meta);
+  if (varredura) {
+    const aviso = [
+      '> ⚠️ **SEM FERRAMENTAS — NÃO PUBLICÁVEL COMO FACTO**',
+      '> ' + varredura.aviso,
+      '',
+      '',
+    ].join('\n');
+    return { degradado: true, sem_ferramentas: varredura, texto: aviso + String(body) };
+  }
+
   if (!ENGINES_SEM_FICHEIROS.has(meta.agent)) return { degradado: false };
   const ev = meta.evidencia || null;
   const teveAlgo = !!(ev && ((ev.ficheiros_lidos || []).length || (ev.comandos_corridos || []).length));
@@ -2159,6 +2254,16 @@ async function toolDispatch(args) {
   const jobCategory = categorySelection.category || aprender.categoryForGoal(jobGoal);
   const jobCategoryFonte = args && (args.__category_fonte === 'declarada' || args.__category_fonte === 'inferida')
     ? args.__category_fonte : categorySelection.category_fonte;
+  // ── A6 · o recibo acusa a impossibilidade ANTES de o job responder ──────
+  // Este é o instante em que o defeito de `job-mtea5wou-f2b3` nasceu: os três
+  // factos (efectivas vazias, `diferem`, contexto cortado) já estavam todos
+  // aqui, calculados, e o recibo saiu com `aviso_fabricacao: null`.
+  const semFerramentas = varreduraSemFerramentas({
+    goal: jobGoal,
+    permissoes_efectivas: permissions.efectivo,
+    permissoes_diferenca: permissions.diferenca,
+    evidencia: (args && args.evidencia) || null,
+  });
   // Keep rate só é atribuível numa worktree que esta chamada criou de fresco.
   const freshWorktree = !!(canWrite && createdWorktree && createdWorktree.path
     && P.mesmo(createdWorktree.path, wtNorm));
@@ -2174,6 +2279,8 @@ async function toolDispatch(args) {
     permissoes_pedidas: permissions.pedido,
     permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
+    // A6 — `null` quer dizer: a pergunta cabia nas ferramentas que este motor tem.
+    sem_ferramentas: semFerramentas,
     job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
     agent, worktree: wtNorm, mp_hash, cmd: commandText,
     created_at: nowIso(), depth: 1, model, model_recommended, tier,
@@ -2673,6 +2780,7 @@ async function toolDispatch(args) {
     permissoes_pedidas: permissions.pedido,
     permissoes_efectivas: permissions.efectivo,
     permissoes_diferenca: permissions.diferenca,
+    sem_ferramentas: semFerramentas,
     job_id, wave, cargo: cargoSelection.cargo, cargo_porque: cargoSelection.porque,
     agent, agent_label: agentLabel(agent), worktree: wtNorm, worktree_criada: createdWorktree, mp_hash,
     model: agent === 'moo' ? (model || '(auto local)') : model,
@@ -2990,6 +3098,8 @@ async function toolCollect(args) {
     // ⚠️ A4 — `true` quer dizer: o motor não tinha ferramentas, o disco não
     // regista evidência nenhuma, e mesmo assim a resposta traz um veredicto.
     veredicto_sem_evidencia: vered.degradado || false,
+    // A6 — não-nulo quer dizer: isto NÃO pode ser publicado como facto.
+    sem_ferramentas: vered.sem_ferramentas || meta.sem_ferramentas || null,
     evidencia: meta.evidencia || null,
     // Aliases ingleses preservados por compatibilidade; a verdade pública vive
     // nos três campos acima e distingue pedido, efectivo e comparabilidade.
@@ -3765,6 +3875,10 @@ async function toolWork(args) {
     ficheiros_lidos: contextoInjectado ? contextoInjectado.lidos.map((f) => f.path) : [],
     comandos_corridos: execucaoInjectada ? execucaoInjectada.executados : [],
     comandos_recusados: execucaoInjectada ? execucaoInjectada.recusados : [],
+    // A6 — a truncagem tem de viajar com a evidência. Estava só no recibo do
+    // `work`, que já morreu quando o guard de saída corre no `collect`: o facto
+    // que explica PORQUE a amostra não chega tem de estar no disco.
+    truncados: contextoInjectado ? contextoInjectado.truncados : [],
     chars: (contextoInjectado ? contextoInjectado.chars : 0) + (execucaoInjectada ? execucaoInjectada.chars : 0),
   };
   const evidenciaPrep = {
@@ -4005,7 +4119,12 @@ async function toolWork(args) {
     // A4 — o que o conector correu PELO motor local, e o que recusou correr
     comandos_corridos: execucaoInjectada && execucaoInjectada.executados.length ? execucaoInjectada.executados : null,
     comandos_recusados: execucaoInjectada && execucaoInjectada.recusados.length ? execucaoInjectada.recusados : null,
-    aviso_fabricacao: avisoFabricacao,   // A3: forçaste um motor que não lê
+    // A3: forçaste um motor que não lê · A6: pediste-lhe uma varredura que ele
+    // não pode fazer. Os dois avisos partilham o campo de propósito — quem lê o
+    // recibo procura UM sítio para saber se pode acreditar no que vem abaixo.
+    aviso_fabricacao: [avisoFabricacao, r.sem_ferramentas ? r.sem_ferramentas.aviso : null]
+      .filter(Boolean).join(' · ') || null,
+    sem_ferramentas: r.sem_ferramentas || null,
     downgraded,                          // porque não foi para onde o router queria
     prepare_skipped: prepareSkipped,     // ❌ silêncio nunca; n/d sempre
     // ⚠️ O router é o núcleo de valor: se ele não correu, isto tem de o dizer.
@@ -4197,6 +4316,8 @@ module.exports = {
   _normalizarDecisaoLocal: normalizarDecisaoLocal,
   // A4 — expostos para a suite poder exercitar o caminho real, não uma cópia
   pedeExecucao, pedeExecucaoDeMotor, executarComandos, veredictoSemEvidencia,
+  // A6 — o detector é PURO e exposto: a suite exercita o caminho real
+  quantificadorDeVarredura, varreduraSemFerramentas,
   applyQuotaCeiling,
   // D13 — exposto para a suite poder provar a OMISSÃO (ligado) e o opt-out
   // (`MOOTER_ORACULO=0`), em vez de confiar na leitura do `if`.

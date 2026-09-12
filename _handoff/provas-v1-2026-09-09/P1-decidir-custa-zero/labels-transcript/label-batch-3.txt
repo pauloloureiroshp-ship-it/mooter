@@ -1,0 +1,56 @@
+You are labeling software-task prompts for a routing benchmark. Assign each prompt EXACTLY ONE tier using this ladder (the same definitions the benchmark labels use):
+
+T0 = trivial, mechanical, one file, no risk (rename, format, move, change a colour, a short factual question, coordination chat like "tell me when done")
+T1 = small text or short explanation (commit message, docstring, regex, explain an error, a small transform, a summary)
+T2 = reasoning (investigate a bug, compare approaches, technical plan, decompose a feature, run and interpret an experiment)
+T3 = architecture, multi-file change, production, secrets, CI, migrations, release, deploy, merge, push
+
+Conventions that the labels use (do not guess them; they are here):
+- high risk forces T3: deploy, push, merge, release, migrations, secrets, .env, CI
+- an explicit request for more care ("pensa bem", "e critico", "think hard", "preciso do teu melhor") raises one tier
+- naming a model (@opus, @haiku, "usa o sonnet") pins the tier of that model (haiku=T1, sonnet=T2, opus=T3)
+- touching more than 3 files, or deciding architecture, is T3
+- a prompt that asks an agent to run a failing test file and make it pass without touching frozen files is a code change: T2 unless it clearly spans many files or CI (then T3)
+- prompts are in Portuguese or English; some are conversational coordination with an agent ("avisa quando terminar") - label those by what the agent would have to DO next (usually T0 if nothing, T1/T2 if it implies analysis)
+
+Return ONLY JSON matching the schema: an array of {"id","tier","reason"} with a reason of at most 12 words. Label every id. Do not skip any.
+
+PROMPTS:
+--- id: n27
+[[redigido sha256:31e9b9f9ae84 chars:28]]
+
+--- id: n28
+[[redigido sha256:c1f2850bf7ae chars:34]]
+
+--- id: n29
+[[redigido sha256:dcee578df10b chars:214]]
+
+--- id: n30
+[[redigido sha256:7fc73e58ccd2 chars:402]]
+
+--- id: n31
+[[redigido sha256:82496f7d1c9f chars:172]]
+
+--- id: n32
+[[redigido sha256:08b365548732 chars:184]]
+
+--- id: n33
+[[redigido sha256:fa5c0c9b5909 chars:187]]
+
+--- id: n34
+[[redigido sha256:b2ccf772e20f chars:50]]
+
+--- id: n35
+[[redigido sha256:5d573b0dd596 chars:32]]
+
+--- id: n36
+[[redigido sha256:5f48cff05908 chars:29]]
+
+--- id: n37
+[[redigido sha256:55b70316adeb chars:23]]
+
+--- id: n38
+[[redigido sha256:1bdf66ddc455 chars:149]]
+
+--- id: n39
+[[redigido sha256:b6b92d742a33 chars:45]]

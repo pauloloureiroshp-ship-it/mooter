@@ -38,15 +38,20 @@ import {
   registarTriagem, registarVarias, DECISOES, AUTORES, MOTIVOS, menuDeMotores,
   lerTriagem, porTriar, contarTriagem, ORIGEM_DETECTOR, ORIGEM_MODELO,
 } from './triagem.mjs';
+import { escolherModelo, perguntar, validarMensagem, MAX_MENSAGEM } from './assist.mjs';
+import { estadoDaActualizacao } from './actualizacao.mjs';
+import { verificarBind, linhaDeLog } from './bind-check.mjs';
 import {
   NIVEIS, portoes, tectoPermitido, efectivo, lerEstado, normalizar,
   ORCAMENTOS, orcamento, curar, severidade, suporteDaCitacao,
-  naAmostraDeAuditoria, anomaliaDeDreno, AUDITORIA_1_EM, reservarParaODono,
+  naAmostraDeAuditoria, anomaliaDeDreno, avisoDeDreno, AUDITORIA_1_EM, reservarParaODono,
 } from './autopilot.mjs';
 import { beaconDir, readBeacons, deviceName, naTuaMao } from './fleet-beacon.mjs';
+import { uptime as uptimeDoF10, lerRegisto as lerRegistoDoWatchdog } from './watchdog.mjs';
 import { beaconsDoRemoto } from './fleet-remoto.mjs';
 import { spendByModel } from './spend-by-model.mjs';
 import { autoVerificar } from './self-check.mjs';
+import { renderLedgerHtml, versaoInstalada } from './build-ledger-snapshot.mjs';
 
 const MAX_BODY_BYTES = 4096;
 
@@ -76,6 +81,26 @@ export function readBody(req, limit = MAX_BODY_BYTES) {
 }
 
 export const HOST = '127.0.0.1';
+
+/**
+ * Os verbos POST que o servidor aceita — e a lista e a GUARDA.
+ *
+ * Estava inline num `||` de cinco termos, e por isso cada rota nova exigia que
+ * quem a escrevesse se lembrasse de a acrescentar ali. Com a lista num sitio so,
+ * acrescentar uma rota e acrescentar-lhe a guarda de origem.
+ *
+ * Isso, sozinho, PIOROU um perigo antigo em vez de o corrigir — apanhado em
+ * revisao antes de sair. O `/play` era o `else` final do bloco, portanto um
+ * verbo listado sem ramo proprio apagava o STOP e ligava a maquina a trabalhar;
+ * e a lista tornou "acrescentar um verbo" no passo de menor atrito de todos.
+ * Por isso o `/play` passou a ter `if` proprio e a cauda passou a 404. Agora as
+ * duas metades tem de andar juntas, e o teste `smoke` exige que cada entrada
+ * desta lista seja servida por um ramo — a lista deixou de ser um atalho para
+ * religar o loop por engano.
+ */
+export const VERBOS_DE_CONTROLO = Object.freeze([
+  '/play', '/stop', '/focus', '/triagem', '/triage', '/autopilot', '/assist', '/update',
+]);
 
 /**
  * O custo por modelo tem de varrer os ficheiros de sessao. O quota.js so rele
@@ -269,12 +294,28 @@ function lerFrota(where, device) {
   return anotarFrota(fleet);
 }
 
+/**
+ * Quantos segundos esperar depois de um 503. Nao e um numero de cabeca: o poll
+ * do painel e de 3s, e um `Retry-After` mais curto do que isso nao muda nada.
+ */
+export const RETRY_AFTER_S = 5;
+
 function sendJson(res, code, obj, { cors = true, origin = null } = {}) {
   const body = JSON.stringify(obj);
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
     'Cache-Control': 'no-store',
+    // ⚠️ 503 SEM `Retry-After` E UM 503 QUE NAO DIZ NADA.
+    //
+    // Medido a 2026-09-01 pelo dono: em rajada (<3s entre pedidos) o
+    // `/fleet.json` devolvia 503 sem `Retry-After`; espacado 4s, 5/5 em 200 OK
+    // (~250ms). Do lado da pagina os dois casos eram indistinguiveis de uma
+    // avaria — e a resposta dela era voltar a bater na mesma cadencia, que e
+    // exactamente o que nao ajuda. O cabecalho e a metade do servidor; a outra
+    // metade e o backoff do cliente. Aplica-se a TODOS os 503 deste servidor:
+    // nenhum deles significa "desiste", todos significam "ainda nao".
+    ...(code === 503 ? { 'Retry-After': String(RETRY_AFTER_S) } : {}),
     ...(cors ? corsHeaders(origin) : {}),
   });
   res.end(body);
@@ -347,6 +388,13 @@ export function createServer({
    * tecto desde o tique anterior, o autopilot suspende-se AQUI, sozinho, e diz
    * porque. Nao ha estado de confianca acumulado.
    */
+  /**
+   * O estado do alarme de dreno, entre tiques. Vive AQUI, no fecho do servidor,
+   * e nao num modulo: dois servidores no mesmo processo (os testes levantam
+   * varios) tem de ter relogios de silencio independentes.
+   */
+  const avisoDreno = { ultimoMs: null, silenciados: 0 };
+
   function tiqueCurar(logImpl = (s) => process.stdout.write(s)) {
     let feitos = 0;
     try {
@@ -435,8 +483,21 @@ export function createServer({
       // PARAGEM TOTAL do dreno era invisivel: o detector so via dias que tinham
       // trabalho, e o pior caso — o pilar que morre de vez — nunca disparava.
       const an = anomaliaDeDreno(fechadosPeloAgente, { agora: Date.now() });
-      if (an.anomalia) logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${an.porque}
+      // O alarme e verdadeiro; dize-lo a cada poll do painel nao o torna mais
+      // verdadeiro — torna-o invisivel. Medido: 9558 destas linhas em 9784 do
+      // `f10.log`, 97,7% do ficheiro. `avisoDeDreno` cala a fila vazia (zero de
+      // zero nao e paragem) e limita o resto a 1/h, dizendo quantos calou.
+      const av = avisoDeDreno(an, {
+        fila: fila.length, ultimoMs: avisoDreno.ultimoMs,
+        agora: Date.now(), silenciados: avisoDreno.silenciados,
+      });
+      avisoDreno.ultimoMs = av.ultimoMs;
+      avisoDreno.silenciados = av.silenciados;
+      if (av.avisar) {
+        const calados = av.calados ? ` (+${av.calados} repeticao(oes) calada(s) na ultima hora)` : '';
+        logImpl(`⚠️  autopilot L1 ANOMALIA DE DRENO: ${av.porque}${calados}
 `);
+      }
     } catch (err) {
       logImpl(`autopilot L1 falhou apos ${feitos} escrita(s) — o que ja foi escrito FICA (append-only): ${String(err && err.message).slice(0, 160)}
 `);
@@ -447,6 +508,29 @@ export function createServer({
   const servidor = http.createServer(async (req, res) => {
     const route = (req.url || '/').split('?')[0];
 
+    /**
+     * HEAD E UM GET SEM CORPO — e ate 2026-09-01 nao era nada.
+     *
+     * Achado A3 do live test do dono: `curl -sI http://127.0.0.1:4290/ledger`
+     * caia na cauda e respondia `404 not found`. Qualquer watchdog, uptime
+     * checker ou health probe que use HEAD — que e o metodo canonico para
+     * "esta vivo?", porque nao puxa o corpo — lia o F10 como MORTO estando ele
+     * a servir 200 no mesmo endereco. E o R7 do adversario exige exactamente
+     * um observador externo.
+     *
+     * Uma linha, e nao um ramo por rota, de proposito: um HEAD que responda a
+     * um subconjunto das rotas GET e a mesma classe de defeito outra vez, so
+     * que mais dificil de ver. O corpo e suprimido pelo proprio Node
+     * (`res._hasBody` e falso num pedido HEAD), portanto os cabecalhos saem
+     * IDENTICOS aos do GET — `Content-Length` incluido, que e o unico ponto de
+     * um HEAD.
+     *
+     * O custo fica dito: `HEAD /ledger` reconstroi o Ledger, tal como o GET.
+     * E o preco de nao mentir no `Content-Length`, e e o mesmo preco que esta
+     * rota ja documenta pagar a cada pedido.
+     */
+    const metodo = req.method === 'HEAD' ? 'GET' : req.method;
+
     if (!hostAllowed(req.headers.host)) {
       return sendJson(res, 403, { erro: 'Host nao local recusado' }, { cors: false });
     }
@@ -454,13 +538,13 @@ export function createServer({
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         ...corsHeaders(req.headers.origin),
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       });
       return res.end();
     }
 
-    if (req.method === 'GET' && (route === '/fleet.json' || route === '/fleet')) {
+    if (metodo === 'GET' && (route === '/fleet.json' || route === '/fleet')) {
       const [gpu, alive, models, alignment] = await Promise.all([
         sampleGpu(),
         engineAlive(fetchImpl),
@@ -534,7 +618,7 @@ export function createServer({
     // pillar names and questions never change while the process is up.
     // Os motores e o custo REAL de mandar um achado a cada um. A tabela vem de
     // tools/router/pricing.js; um modelo fora dela sai `n/d`, nunca estimado.
-    if (req.method === 'GET' && route === '/motores.json') {
+    if (metodo === 'GET' && route === '/motores.json') {
       return sendJson(res, 200, { motores: menuDeMotores() });
     }
 
@@ -553,7 +637,7 @@ export function createServer({
     // mao, e nenhum precisava de um modelo — um `stat` e uma comparacao
     // chegavam. Isto corre-os a cada pedido, de graca. "Nao ha alertas" nunca
     // quis dizer "esta tudo bem": queria dizer que ninguem estava a olhar.
-    if (req.method === 'GET' && route === '/saude.json') {
+    if (metodo === 'GET' && route === '/saude.json') {
       const saude = autoVerificar({
         paths,
         mooDir: paths.base,
@@ -594,10 +678,33 @@ export function createServer({
         saude.metrica_mae = { total: 0, porque: `sem decisions_v2.jsonl legivel: ${String(e && e.message).slice(0, 80)}` };
         saude.quota_por_motor = [];
       }
+      /**
+       * O UPTIME DO PROPRIO ENDPOINT, lido do registo do watchdog.
+       *
+       * O `KeepAlive` do launchd cobre um caso — o processo morrer. Nao cobre o
+       * que acontece mais: processo VIVO, endpoint inutil. E um numero de
+       * disponibilidade guardado na memoria deste processo nao valeria nada,
+       * porque reiniciar poe-no a 100%. Vem do `watchdog.jsonl`, que e
+       * append-only e sobrevive ao reinicio.
+       *
+       * Entra em `itens` SO quando ha alerta: o cartao da saude do painel mostra
+       * apenas o que precisa de mao, e um verde a mais ensina a ignorar o cartao.
+       */
+      const wd = uptimeDoF10(lerRegistoDoWatchdog({ mooDir: paths.base }));
+      saude.watchdog = wd;
+      if (wd.alerta) {
+        saude.itens = [...(saude.itens || []), {
+          o_que: 'o endpoint do cockpit falhou seguidas vezes',
+          valor: `${wd.seguidas} falhas seguidas · uptime ${wd.pct == null ? 'n/d' : `${wd.pct}%`} em 24 h`,
+          estado: 'mau',
+          porque: wd.porque,
+          resolver: 'launchctl kickstart -k gui/$(id -u)/ai.mooter.f10',
+        }];
+      }
       return sendJson(res, 200, saude);
     }
 
-    if (req.method === 'GET' && route === '/custo.json') {
+    if (metodo === 'GET' && route === '/custo.json') {
       const agora = Date.now();
       if (!custoCache.dados || agora - custoCache.em > CUSTO_TTL_MS) {
         try {
@@ -610,7 +717,7 @@ export function createServer({
       return sendJson(res, 200, custoCache.dados);
     }
 
-    if (req.method === 'GET' && route === '/pilares.json') {
+    if (metodo === 'GET' && route === '/pilares.json') {
       return sendJson(res, 200, {
         repo: raiz,
         fonte: pilares.fonte,
@@ -626,7 +733,43 @@ export function createServer({
       });
     }
 
-    if (req.method === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {
+    /**
+     * `GET /ledger` — a vista do DONO (o Moo Ledger, casca v4).
+     *
+     * O `/panel` v1 fica exactamente onde estava: e a vista do OPERADOR, com os
+     * controlos (▶/⏸, foco, triagem) que o Ledger ainda nao tem. Duas vistas,
+     * duas rotas, zero ambiguidade — substituir uma pela outra tirava botoes ao
+     * dono sem lhe dar nada em troca.
+     *
+     * Constroi-se A CADA PEDIDO. E mais caro do que servir um ficheiro, e e
+     * esse o ponto: um Ledger servido de disco seria um instantaneo a fingir-se
+     * vivo, que e a unica coisa que esta pagina promete nunca ser. Se a
+     * construcao falhar, responde 503 e DIZ porque — nunca uma copia velha.
+     */
+    if (metodo === 'GET' && route === '/ledger') {
+      try {
+        const { html, snapshot, shell } = await renderLedgerHtml({ repoRoot: raiz, mooDir: paths.base });
+        const buf = Buffer.from(html, 'utf8');
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Length': buf.length,
+          'Cache-Control': 'no-store',
+          'X-Moo-Panel': 'ledger',
+          'X-Moo-Panel-Source': 'tools/cockpit/moo-ledger-shell.html',
+          'X-Moo-Ledger-Shell': shell.version,
+          'X-Moo-Ledger-Generated': snapshot.generated_at,
+        });
+        return res.end(buf);
+      } catch (e) {
+        return sendJson(res, 503, {
+          erro: 'nao consegui construir o ledger',
+          porque: String((e && e.message) || e),
+          faz_assim: 'node tools/cockpit/runner/build-ledger-snapshot.mjs',
+        });
+      }
+    }
+
+    if (metodo === 'GET' && ['/', '/panel', '/index.html'].includes(route)) {
       const candidatos = panelCandidates(raiz);
       for (let i = 0; i < candidatos.length; i += 1) {
         const candidate = candidatos[i];
@@ -643,7 +786,15 @@ export function createServer({
             'X-Moo-Panel': i === 0 ? 'canonico' : 'prototipo',
             'Content-Length': html.length,
             'Cache-Control': 'no-store',
-            'X-Moo-Panel-Source': path.relative(raiz, candidate) || candidate,
+            // POSIX SEMPRE, mesmo no Windows. Um cabecalho e um valor de fio, nao
+            // um caminho de disco: `path.relative` devolvia
+            // `tools\cockpit\moo-pilot-shell.html` na maquina Windows do dono, e a
+            // skill `/moo-pilot` manda conferir `tools/cockpit/moo-pilot-shell.html`.
+            // O painel CANONICO seria reportado como "outro ficheiro" — um alarme
+            // falso sobre a peca que o cabecalho existe para autenticar. Apanhado
+            // pelo job `cockpit tests (windows)` na primeira vez que alguem
+            // comparou o valor em vez de o imprimir.
+            'X-Moo-Panel-Source': (path.relative(raiz, candidate) || candidate).split(path.sep).join('/'),
           });
           return res.end(html);
         } catch {
@@ -656,15 +807,61 @@ export function createServer({
       });
     }
 
-    if (req.method === 'POST' && (route === '/play' || route === '/stop' || route === '/focus' || route === '/triagem' || route === '/autopilot')) {
+    if (metodo === 'POST' && VERBOS_DE_CONTROLO.includes(route)) {
       if (!originAllowed(req.headers.origin)) {
         return sendJson(res, 403, { erro: 'origem nao local recusada' }, { cors: false });
+      }
+
+      /**
+       * O Moo responde — na GPU desta maquina, a $0, sem tocar em nada.
+       *
+       * Guardado pela MESMA origem que o kill-switch, e a razao nao e obvia: ler
+       * nao muda estado, mas isto gasta a GPU do dono e recebe texto que ele
+       * escreveu sobre o codigo dele. Um site que ele visite nao pode fazer
+       * nenhuma das duas coisas.
+       */
+      if (route === '/assist') {
+        const body = await readBody(req);
+        const v = validarMensagem(body && body.mensagem);
+        if (!v.ok) return sendJson(res, 400, { erro: v.erro, porque: v.porque, tecto: MAX_MENSAGEM });
+        // A escada de tres degraus, lida do disco e do motor — nunca um nome
+        // cravado aqui, que envelheceria no dia em que o dono trocasse de modelo.
+        const residentes = await loadedModels(fetchImpl);
+        let state = {};
+        try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { state = {}; }
+        const { modelo, fonte } = escolherModelo({ residentes, state, env });
+        const r = await perguntar({ mensagem: v.mensagem, modelo, fetchImpl });
+        if (!r.ok) {
+          // 503 e nao 500: o motor local estar em baixo nao e um defeito deste
+          // servidor, e a doca tem de o poder dizer com essas palavras.
+          return sendJson(res, 503, { ok: false, modelo: r.modelo, porque: r.porque },
+                          { origin: req.headers.origin });
+        }
+        return sendJson(res, 200, { ...r, fonte_do_modelo: fonte }, { origin: req.headers.origin });
+      }
+
+      /**
+       * Onde esta o conector novo, e o que se faz com ele. NAO instala.
+       * A recusa esta no payload (`instala_sozinho:false`) para quem leia o
+       * endpoint a espera de um botao encontrar ali a razao de nao haver um.
+       */
+      if (route === '/update') {
+        return sendJson(res, 200, estadoDaActualizacao({
+          repoRoot: raiz,
+          instalada: versaoInstalada(),
+          disponivel: versaoDoConector(raiz),
+        }), { origin: req.headers.origin });
       }
 
       // Triagem: a unica escrita do painel que produz VALOR em vez de estado.
       // Guardada pela mesma origem que o kill-switch — decidir sobre os achados
       // do dono e uma accao dele, nao de um site que ele visitou.
-      if (route === '/triagem') {
+      //
+      // `/triage` e a MESMA rota com o nome em ingles, porque o Ledger fala
+      // ingles e o painel v1 fala portugues. Duas portas, UM escritor: um
+      // segundo bloco de codigo aqui seria uma segunda maneira de escrever no
+      // `triagem.jsonl`, e as duas divergiriam no primeiro campo novo.
+      if (route === '/triagem' || route === '/triage') {
         const body = await readBody(req);
         if (!body || !body.chave || !DECISOES.includes(body.decisao)) {
           return sendJson(res, 400, { erro: 'triagem precisa de { chave, decisao }', aceites: DECISOES });
@@ -778,12 +975,28 @@ export function createServer({
         }
         return sendJson(res, 200, { ok: true, running: false });
       }
-      try {
-        fs.rmSync(stopFile, { force: true });
-      } catch (err) {
-        return sendJson(res, 500, { ok: false, running: false, erro: String(err.message) });
+      if (route === '/play') {
+        try {
+          fs.rmSync(stopFile, { force: true });
+        } catch (err) {
+          return sendJson(res, 500, { ok: false, running: false, erro: String(err.message) });
+        }
+        return sendJson(res, 200, { ok: true, running: !fs.existsSync(stopFile) });
       }
-      return sendJson(res, 200, { ok: true, running: !fs.existsSync(stopFile) });
+
+      // ⚠️ A CAUDA E UM 404, e nao o `/play`.
+      //
+      // Ate 2026-09-01 o religar do loop era o `else` final: qualquer verbo
+      // desta lista que ficasse sem ramo proprio APAGAVA o STOP. Nao era
+      // hipotetico — era o comportamento por omissao, e a lista tornou
+      // acrescentar um verbo no passo mais facil de todos. Um endpoint novo mal
+      // ligado passava a ligar a maquina a trabalhar, que e a accao com mais
+      // consequencia que este servidor tem.
+      return sendJson(res, 404, {
+        erro: 'verbo declarado sem tratamento',
+        rota: route,
+        porque: 'esta rota esta em VERBOS_DE_CONTROLO e nenhum ramo a serve — e um defeito, nao um pedido invalido',
+      });
     }
 
     return sendJson(res, 404, { erro: 'not found', rota: route });
@@ -817,5 +1030,12 @@ if (invokedDirectly) {
   });
   srv.listen(PORT, HOST, () => {
     process.stdout.write(`F10 vivo em http://${HOST}:${PORT} (repo ${root}, via ${fonte})\n`);
+    // A linha acima e um ECO do que pedimos; esta e o que o SO responde. Vao
+    // as duas para o log de proposito: quando divergirem, e o par que o mostra.
+    const bind = verificarBind(PORT);
+    process.stdout.write(linhaDeLog(bind, PORT));
+    if (bind.estado === 'exposto') {
+      process.stdout.write('     esta porta responde fora desta maquina. Fecha o F10 e confirma o HOST.\n');
+    }
   });
 }

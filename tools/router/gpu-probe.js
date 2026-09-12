@@ -71,10 +71,34 @@ function runAppleProbe() {
     if (!entry) return null;
     const name =
       entry.sppci_model || entry.spdisplays_device_name || entry._name || 'Apple GPU';
+    // ── memoria unificada: FACTO, nao constante ──────────────────────────
+    // Ate 2026-08-29 isto devolvia `vramMB: null`, e o `buildHwCapability`
+    // compensava com um tecto de 9216 MB cravado para TODO o Apple. Medido
+    // nesse dia num M4 Pro de 24 GB: um modelo com 16,0 GB carregados correu a
+    // **100% GPU** (`ollama ps`). O tecto cravado dizia 9 GB. Era falso por
+    // quase o dobro, e nao havia forma de o saber porque ninguem media.
+    //
+    // `iogpu.wired_limit_mb`, quando definido, e a autoridade — e o utilizador
+    // a declarar o tecto. Quando esta a 0 (default do macOS), derivamos de
+    // `hw.memsize` a 66%: 16,0/24 = 66,7% foi MEDIDO a funcionar, portanto 66%
+    // e um piso conservador provado, nao um palpite. As fontes publicas
+    // divergem entre 66% e 75%; ficamos pela que temos medida.
+    const sysctlNum = (chave) => {
+      const out = spawnSync('sysctl', ['-n', chave], { encoding: 'utf8', timeout: 2000 });
+      if (out.status !== 0 || !out.stdout) return null;
+      const n = Number(String(out.stdout).trim());
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const totalMB = (() => { const b = sysctlNum('hw.memsize'); return b ? Math.floor(b / 1048576) : null; })();
+    const wired = sysctlNum('iogpu.wired_limit_mb');
+    const vramMB = wired || (totalMB ? Math.floor(totalMB * 0.66) : null);
     return {
       vendor: 'apple',
       name_short: String(name).replace(/^Apple /, 'Apple '),
-      vramMB: null,
+      vramMB,
+      unified_memory_mb: totalMB,
+      // de onde veio o numero acima — para que nunca mais seja preciso adivinhar
+      vram_fonte: wired ? 'iogpu.wired_limit_mb' : (totalMB ? 'hw.memsize*0.66' : 'n/d'),
       utilPct: null, // powermetrics requires sudo — skip gracefully.
       platform: 'darwin',
     };
@@ -143,7 +167,22 @@ function fetchUtilSync() {
 // Maps VRAM to available T0 models and writes hw-capability.json.
 const HW_CAPABILITY_PATH = path.join(os.homedir(), '.claude', 'tools', 'router', 'hw-capability.json');
 
+// ⚠️ DUAS SEMANTICAS NESTA TABELA, e isso fica escrito.
+// As entradas antigas sao TAMANHO DE BLOB — nao contam o KV cache, e por isso
+// subestimam. Provado a 2026-08-29: `qwen2.5-coder:14b` declara 9216 MB aqui e
+// carrega **15,0 GB** a 32k de contexto. Nao lhes toquei porque corrigi-las
+// mexe na frota inteira e e decisao do dono.
+// As entradas de 2026 sao MEDIDAS CARREGADAS (pesos + KV a 65536 de contexto)
+// num M4 Pro de 24 GB — que e o numero que decide mesmo se cabe.
+// Recibo: _handoff/motor-mac-20260829-1155.log
 const MODEL_VRAM_REQ = {
+  // ── medidos carregados @65536 ctx, Mac mini M4 Pro, 2026-08-29 ──
+  'granite4.2:3b':                 8294,
+  'granite4.2:8b':                16384,
+  'gemma4:12b':                    8294,
+  'gpt-oss:20b':                  12288,
+  'qwen2.5-coder:14b':            15360,
+  // ── legado: tamanho de blob, subestima (ver aviso acima) ──
   'qwen2.5:3b':                    2048,
   'qwen2.5-coder:7b':              4096,
   'deepseek-r1:7b':                4096,
@@ -182,12 +221,18 @@ function buildHwCapability(probe) {
   const t0Models = Object.entries(MODEL_VRAM_REQ).map(([model, req]) => ({
     model,
     vram_req_mb: req,
-    can_run: probe.vendor === 'apple' ? req <= 9216 : vram >= req,
+    // O ramo `probe.vendor === 'apple' ? req <= 9216 : ...` saiu daqui a
+    // 2026-08-29: existia porque o probe nao sabia a memoria do Mac. Agora sabe.
+    can_run: vram >= req,
   }));
 
   // recommended_t0: largest model that can_run, preferring qwen3:30b over qwen2.5:32b
   // (qwen3 is the primary T0 model in the frugal doctrine)
-  const PREFER_ORDER = ['qwen3:30b', 'qwen2.5:32b-q4', 'qwen2.5-coder:14b-q4', 'gemma4:e4b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5-coder:7b', 'qwen2.5:3b'];
+  // Ordem de preferencia. Ate 2026-08-29 nao tinha um unico modelo de 2026 e
+  // liderava com `qwen3:30b`, que nao esta instalado em device nenhum da frota.
+  // A ordem nao e opiniao: e o que o MooterBench mediu neste device (B1 100%
+  // para o `qwen2.5-coder:14b` contra 0% dos Granite no prompt actual do pilar).
+  const PREFER_ORDER = ['qwen2.5-coder:14b', 'gpt-oss:20b', 'granite4.2:8b', 'gemma4:12b', 'granite4.2:3b', 'qwen3:30b', 'qwen2.5:32b-q4', 'qwen2.5-coder:14b-q4', 'gemma4:e4b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5-coder:7b', 'qwen2.5:3b'];
   const runnable = t0Models.filter(m => m.can_run);
   const recommended = PREFER_ORDER.find(m => runnable.some(r => r.model === m)) || 'qwen2.5:3b';
 

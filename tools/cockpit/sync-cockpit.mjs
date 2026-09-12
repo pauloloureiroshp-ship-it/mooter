@@ -61,6 +61,23 @@ const AQUI = path.dirname(fileURLToPath(import.meta.url));
 export const ORIGEM_RUNNER = path.join(AQUI, 'runner');
 export const ORIGEM_SHELL = path.join(AQUI, 'moo-pilot-shell.html');
 
+/**
+ * O que mais um cockpit precisa para CORRER, alem do `runner/*.mjs`.
+ *
+ * Era so a casca do painel v1 — nomeada a mao, no singular. A 2026-09-01 entrou
+ * o Moo Ledger e a lista provou o seu proprio defeito: o `build-ledger-snapshot`
+ * viajava (e um `.mjs`), a casca que ele enche NAO, e o `/ledger` do espelho
+ * respondia 503 a queixar-se de um ficheiro em falta. Uma lista a mao esquece-se
+ * exactamente das coisas novas, que sao as que ainda ninguem sabe que faltam.
+ */
+export const ACESSORIOS = Object.freeze([
+  'moo-pilot-shell.html',
+  'moo-ledger-shell.html',
+  // Os gates que o Ledger mostra. Sem ele o roadmap sai vazio — e um roadmap
+  // vazio le-se como "nao ha nada por fazer", que e o contrario da verdade.
+  'roadmap.json',
+]);
+
 /** O destino canonico, ao lado do espelho do router que ja existe. */
 export function destinoPadrao(home = os.homedir()) {
   return path.join(home, '.claude', 'tools', 'cockpit');
@@ -89,7 +106,15 @@ export function ficheirosCanonicos(origemRunner = ORIGEM_RUNNER) {
 /** Um ficheiro por copiar, ou a razao por que nao precisa. */
 export function planear(origem = ORIGEM_RUNNER, dest = destinoPadrao(), shell = ORIGEM_SHELL) {
   const itens = ficheirosCanonicos(origem);
-  if (fs.existsSync(shell)) itens.push({ rel: 'moo-pilot-shell.html', abs: shell });
+  // `shell` continua a ser respeitado como o nome que ele sempre teve (os testes
+  // apontam-no para uma bancada); os restantes acessorios vao ao lado dele.
+  if (fs.existsSync(shell)) itens.push({ rel: path.basename(shell), abs: shell });
+  const pasta = path.dirname(shell);
+  for (const nome of ACESSORIOS) {
+    if (nome === path.basename(shell)) continue;
+    const abs = path.join(pasta, nome);
+    if (fs.existsSync(abs)) itens.push({ rel: nome, abs });
+  }
   return itens.map((it) => {
     const alvo = path.join(dest, it.rel);
     let estado = 'novo';

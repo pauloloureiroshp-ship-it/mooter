@@ -1,0 +1,26 @@
+# P7 · adversário (crítico ≠ autor) — Codex CLI gpt-6-astra, ronda 1, e a resposta
+
+**Prompt:** `adversary-prompt-sent.txt` (46 744 chars: protocolo, as três emendas, os avisos pré-veredicto, veredicto, slide e a análise re-derivada) · **Saída íntegra:** `adversary-codex-round1.md` (10 ataques, 91 s, sem acesso ao repositório, ao ledger original, aos commits ou ao controlador).
+
+A primeira frase dele resume a ronda: **«O 18/23 sobrevive à recontagem. A apresentação como vitória confirmatória intacta não sobrevive.»**
+
+| # | Ataque | Gravidade (dele) | Resposta | Estado |
+|---|---|---|---|---|
+| P7-01 | O compromisso de parar na corrida 3 foi quebrado; a 4.ª foi autorizada depois de 12 sucessos em 13 pares estarem à vista. O limiar ficou igual, **a regra de continuação mudou** | **fatal** (para o estatuto confirmatório) | **Aceite, sem atenuação.** O título do slide passa a dizer «confirmatory status not claimed» e o veredicto tem uma secção inteira sobre isto. Escrever a emenda antes do número não a torna anterior à decisão | aceite |
+| P7-02 | Quatro corridas não provam, por si, escolha da vitória — e a corrida 1 já tinha **16 em 21 pares válidos** | serious | **Aceite, e é dele o ponto que me favorece.** Se os 21 pares da corrida 1 fossem preservados, dois insucessos nos que faltavam davam X = 16/23, o limiar exacto. Abandoná-la custou-me uma vitória mais fácil. Fica escrito, sem servir de reparação à regra de paragem | aceite |
+| P7-03 | O `.budget-cache.json` está **dentro** do tratamento pela definição do próprio pré-registo; «fora da experiência» é falso | serious | **Aceite — erro meu.** O tratamento da corrida 4 passa a descrever-se como «hook instalado, **com o estado de orçamento congelado**», no slide e no veredicto | corrigido |
+| P7-04 | A neutralidade comportamental do congelamento não foi demonstrada; e «o D1 força T0 em tudo» é falso nesta corrida (três T2) | serious | **Aceite.** Um `catch` não-fatal mostra tolerância à falha, não ausência de efeito. A minha justificação universal foi desmentida por esta mesma corrida. Fica em «o que isto não prova» | aceite / declarado |
+| P7-05 | p exacto na fórmula ≠ inferência validada: independência entre 23 tarefas heterogéneas com estado partilhado não está estabelecida | serious | **Aceite.** Passa a **«p nominal do teste especificado»** em todo o lado, com o parágrafo que explica porquê. Recusei também a sugestão implícita de multiplicar por quatro: não foram quatro ensaios equivalentes | reformulado |
+| P7-06 | «O ganho desaparece nas tarefas difíceis» é falso: em T2 o ON foi mais rápido em **duas das três**; a `t21` falhou o limiar por **0,703 s** | serious | **Aceite — verificado no bruto.** `t21` poupou 81,83 s e ficou a sete décimos do corte; `t23` poupou 74,54 s. Só a `t22` foi mais lenta. A frase saiu; a tabela das cinco tarefas entrou | corrigido |
+| P7-07 | **Dois factos falsos:** «as três mais longas» (as três maiores por TVA_ON são `t23`, `t22` e **`t12`**, que é T0 e ganhou) e «as três em que não ganhou» (**são cinco**: `t05`, `t16`, `t21`, `t22`, `t23`) | serious | **Aceite — os dois erros eram meus e estão corrigidos com a correcção assinalada à vista**, não editada para trás | corrigido |
+| P7-08 | A estratificação por tier é descritiva: o estrato vem de uma **saída do próprio tratamento**, e os três T2 são também as três últimas tarefas e todas OFF-primeiro | serious | **Aceite.** Fica «nenhuma das três T2 atingiu Z = 1» e nada mais. Tier, ordem e posição temporal declarados como não separáveis com n = 3 | reformulado |
+| P7-09 | A comparação de ordem mistura composições: só em T0 passa a **11/12 contra 7/8** (91,7 % vs 87,5 %), rácios medianos 0,552 vs 0,565 | serious | **Aceite — recalculado e confirmado** (0,553 vs 0,577 nos meus números). A tabela do veredicto passou a ter a coluna «só as 20 T0» ao lado da coluna do conjunto todo | corrigido |
+| P7-10 | «Primeiro» não demonstra cache fria e o padrão não exclui cache: não há telemetria de acertos, e a cache de prompt do fornecedor não é a cache local de orçamento | serious | **Aceite.** A conclusão «portanto a cache não é a causa» foi **retirada**. Fica «a comparação por ordem não permite excluir efeitos de cache» | retirado |
+
+**Rejeitado: nada.** Dos dez, dois eram erros factuais meus, um era um enquadramento fatal que aceitei sem atenuação, e os restantes sete estreitaram afirmações que eu tinha escrito largas demais.
+
+**Nota de conflito declarada:** o adversário é o mesmo motor que serviu de revisor no braço B do P4. Aqui não tem interesse no resultado — atacou o cartão que dá a vitória mais vistosa do pacote e derrubou-lhe o estatuto.
+
+**O que ele próprio declarou não ter verificado:** não acedeu ao repositório, aos ledgers originais, aos commits, aos testes, ao controlador nem à telemetria do fornecedor. As alegações de anterioridade, integridade e reprodução independente ficam, do ponto de vista dele, por verificar — e é honesto dizê-lo, porque são exactamente as que sustentam o resto do cartão.
+
+**Ronda 2:** não corrida. As dez objecções foram aceites e o cartão reescrito; uma segunda ronda sobre um texto que já cedeu em tudo mediria a minha reescrita, não a prova. Declarado.

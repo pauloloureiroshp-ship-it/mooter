@@ -1,0 +1,67 @@
+name: lp-trust
+
+# The gate the Live Preview never had.
+#
+# test.yml only filters paths for tools/router/** and packages/cli/**, and the only workflow
+# that ran the extension's tests (publish-cockpit.yml) fires on `push: tags: ['cockpit-v*']`
+# — i.e. AFTER the decision to ship. So a PR could break the Live Preview suite and CI stayed
+# green. This workflow runs the proof set on pull_request, before the merge.
+#
+# Deliberately a SEPARATE workflow, not an extension of test.yml: that job installs the router
+# deps and carries the frozen-classifier semantics, while the extension needs its own npm ci.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/vscode-extension/**'
+      - 'landing/app/_components/lp-error-tap.ts'
+      - 'tools/lp-trust-*'
+      - '.github/workflows/lp-trust.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/vscode-extension/**'
+      - 'landing/app/_components/lp-error-tap.ts'
+      - 'tools/lp-trust-*'
+      - '.github/workflows/lp-trust.yml'
+  workflow_dispatch:
+
+jobs:
+  trust:
+    name: Live Preview trust harness (7 proofs)
+    runs-on: ubuntu-latest
+    # The proof set is a strict subset of the extension suite (~40 tests, ~45s locally).
+    # The full suite is ~128s; this cap leaves room for npm ci and a cold runner.
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Node 22+ for the stable node:test junit reporter the runner parses.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: packages/vscode-extension/package-lock.json
+
+      # The harness asserts about the tests; these assert about the harness. Run them first —
+      # a broken runner must not be able to report the proof set as green.
+      - name: Test the harness itself
+        run: node --test tools/lp-trust-runner.test.js
+
+      # S0 (classify freeze) + S1 (npm ci) + S2..S7 all run inside the runner, so the gate is
+      # one command locally and in CI — not a workflow that drifts from `npm run lp:trust`.
+      - name: Run the trust harness
+        run: npm run lp:trust
+
+      - name: Upload trust receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lp-trust-receipt-${{ github.sha }}
+          path: _handoff/live-preview/trust-receipt.json
+          if-no-files-found: warn
+          retention-days: 30

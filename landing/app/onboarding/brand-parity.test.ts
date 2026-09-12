@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveToken } from '../../test-utils/moo-token';
 import { estimateMonthlySavings } from './_lib/estimate';
 
 const read = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
@@ -23,8 +24,10 @@ describe('Day 3 — onboarding adopts the landing dark palette (F-1 brand parity
     // dark bg + landing pink accent re-pointed onto the short tokens. The dark
     // scope block is shared with .app-shell-dark (Day 4), so match up to the
     // opening brace tolerantly rather than requiring `.onboarding-shell {`.
-    expect(GLOBALS).toMatch(/\.onboarding-shell[\s\S]*?\{[\s\S]*?--bg:\s*#0B0A09/);
-    expect(GLOBALS).toMatch(/\.onboarding-shell[\s\S]*?\{[\s\S]*?--accent:\s*#E8888A/);
+    // Resolvido pela cadeia ate moo-ui.css (ver test-utils/moo-token.ts):
+    // o globals.css passou a LER o valor do gerado em vez de o repetir.
+    expect(resolveToken(GLOBALS, '.app-shell-dark', 'bg')).toBe('#0B0A09');
+    expect(resolveToken(GLOBALS, '.app-shell-dark', 'accent')).toBe('#E8888A');
   });
 });
 
@@ -36,14 +39,22 @@ describe('Day 3 — estimated-impact card is a hero "reward" treatment', () => {
   });
 });
 
-describe('Day 3 — impact calc unchanged (functionality preserved, est. is directional)', () => {
-  it('local hardware yields higher savings than cloud-only routing', () => {
+describe('Day 3 — impact card still reacts to the answers (now a mix, not a figure)', () => {
+  // 2026-08-24 (owner decision) — stop publishing savings until there are
+  // measured tokens. This test used to REQUIRE the banned claim ("90% less than
+  // Opus-only"), which made the decision reversible from underneath. It now
+  // locks the opposite: the preview names where each tier runs, and publishes
+  // no amount and no percentage at all.
+  it('local hardware changes where T0 runs, and neither answer publishes a figure', () => {
     const local = estimateMonthlySavings({ hw: 'windows_nvidia', subs: [], budget: 30 });
     const cloud = estimateMonthlySavings({ hw: 'cloud', subs: [], budget: 30 });
-    expect(local).toMatch(/Save ~\$\d+\/mo/);
-    expect(local).toMatch(/90% less than Opus-only/);
-    expect(cloud).toMatch(/cloud-only routing/);
-    expect(cloud).toMatch(/75% less than Opus-only/);
+    expect(local).toContain('T0 on your own GPU');
+    expect(cloud).toContain('T0 on Haiku');
+    for (const s of [local, cloud]) {
+      expect(s).toContain('not measured');
+      expect(s).not.toMatch(/\$\s?\d/);
+      expect(s).not.toMatch(/\d\s?%/);
+    }
   });
 
   it('5-step wizard flow + captured state shape are intact (Wave 60 — same facts, more steps)', () => {

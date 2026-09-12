@@ -1,0 +1,86 @@
+﻿=== launch 2026-09-09T11:50:51.3468384-03:00 pid 47248 ===
+r24 ┬À diagn├│stico das pr├®-condi├º├Áes de --correr ┬À 2026-09-09T14:50:51.414Z ┬À node v24.14.0 ┬À win32
+
+  ┬À cwd  C:\Users\Paulo Loureiro\frugal
+  ok  ficheiros do R-24 presentes  5 de 5
+  ┬À repo resolvido pelo executor  C:\Users\Paulo Loureiro\frugal
+  ok  pr├®-registo CONGELADO  CONGELADO
+  ok  pr├®-registo fecha-se sobre si pr├│prio  9c2d37b1e6ceÔÇª
+  ok  limiar pr├®-registado bate com o recalculado  n=23 ┬À alfa=0.05 ┬À limiar=16
+  ok  congelamento dos ficheiros  9 entradas
+  ok  prim├írias leg├¡veis do manifest  23 tarefas ┬À 12 ON-primeiro ┬À 11 OFF-primeiro
+  ok  terminal fora de uma sess├úo Claude Code  apto
+  ok  execut├ível do agente responde --version  2.1.224 (Claude Code) ┬À C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+  ok  a sonda chega ao modelo  2347 ms ┬À 2 tokens de entrada
+  ok  router pinado bate com o pr├®-registo  b39c7da4aaa6ÔÇª vs b39c7da4aaa6ÔÇª
+  ┬À effort fixado  xhigh
+  ok  sem outra inst├óncia a correr  livre
+  ┬À ledger  ainda n├úo existe ┬À seria C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  ┬À snapshots de corrida  nenhum ÔÇö o --correr nunca chegou a preparar um
+
+VEREDICTO: --correr pode arrancar.
+
+(relat├│rio guardado em C:\Users\Paulo Loureiro\frugal\_handoff\r24\ultimo-diagnostico.txt)
+=== --correr 2026-09-09T11:51:04.4246441-03:00 ===
+  tratamento: router pinado b39c7da4aaa6ÔÇª ┬À effort xhigh
+  ambiente: env e1768a29 ┬À estado vivo 49796565 ┬À cache 1a0d60e3
+  arbitro: DESLIGADO (ANTHROPIC_* removida do ambiente do bra├ºo) ÔÇö declarado no pr├®-registo
+  sonda: chegou ao modelo em 3362 ms ┬À 2 tokens de entrada
+R-24 ┬À 23 tarefas ┬À 0 bra├ºos j├í no ledger ┬À ledger: C:\Users\Paulo Loureiro\frugal\_handoff\r24\ledger.jsonl
+  agente: C:\Users\Paulo Loureiro\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe (2.1.224 (Claude Code))
+  ┬À t01-2e7599e021 OFF ÔÇö passa ┬À 465.0s
+  ┬À t01-2e7599e021 ON ÔÇö passa ┬À 326.5s
+  ┬À t02-7bb45751d8 ON ÔÇö passa ┬À 347.5s
+  ┬À t02-7bb45751d8 OFF ÔÇö passa ┬À 368.4s
+  ┬À t03-8014c12435 OFF ÔÇö passa ┬À 60.6s
+  ┬À t03-8014c12435 ON ÔÇö passa ┬À 40.9s
+  ┬À t04-8617d5fc95 ON ÔÇö passa ┬À 58.4s
+  ┬À t04-8617d5fc95 OFF ÔÇö passa ┬À 66.2s
+  ┬À t05-cc706fa255 ON ÔÇö passa ┬À 58.8s
+  ┬À t05-cc706fa255 OFF ÔÇö passa ┬À 102.1s
+  ┬À t06-e408ea0afe OFF ÔÇö passa ┬À 111.8s
+  ┬À t06-e408ea0afe ON ÔÇö passa ┬À 44.5s
+  ┬À t07-030073bef4 ON ÔÇö passa ┬À 53.5s
+  ┬À t07-030073bef4 OFF ÔÇö passa ┬À 141.5s
+  ┬À t08-1f5a793294 ON ÔÇö passa ┬À 79.6s
+  ┬À t08-1f5a793294 OFF ÔÇö passa ┬À 225.6s
+  ┬À t09-07bdf37783 ON ÔÇö passa ┬À 71.1s
+  ┬À t09-07bdf37783 OFF ÔÇö passa ┬À 110.5s
+  ┬À t10-a6bf1a20b0 ON ÔÇö passa ┬À 66.5s
+  ┬À t10-a6bf1a20b0 OFF ÔÇö passa ┬À 104.4s
+  ┬À t11-4bf34eb7c6 OFF ÔÇö passa ┬À 114.7s
+  ┬À t11-4bf34eb7c6 ON ÔÇö passa ┬À 55.6s
+  ┬À t12-bf358e765c OFF ÔÇö passa ┬À 727.5s
+  ┬À t12-bf358e765c ON ÔÇö passa ┬À 958.7s
+  ┬À t13-ddb0cf50e1 ON ÔÇö passa ┬À 191.8s
+  ┬À t13-ddb0cf50e1 OFF ÔÇö passa ┬À 185.8s
+  ┬À t14-01cebb9409 ON ÔÇö passa ┬À 83.9s
+  ┬À t14-01cebb9409 OFF ÔÇö passa ┬À 128.0s
+  ┬À t15-03039e0b33 ON ÔÇö passa ┬À 45.9s
+  ┬À t15-03039e0b33 OFF ÔÇö passa ┬À 79.7s
+  ┬À t16-057bfc121a OFF ÔÇö passa ┬À 141.5s
+  ┬À t16-057bfc121a ON ÔÇö passa ┬À 120.8s
+  ┬À t17-4b8090599c OFF ÔÇö passa ┬À 164.8s
+  ┬À t17-4b8090599c ON ÔÇö passa ┬À 124.9s
+  ┬À t18-5d72b4c9e3 ON ÔÇö passa ┬À 42.1s
+  ┬À t18-5d72b4c9e3 OFF ÔÇö passa ┬À 57.2s
+  ┬À t19-99f47261be ON ÔÇö passa ┬À 78.4s
+  ┬À t19-99f47261be OFF ÔÇö passa ┬À 98.7s
+  ┬À t20-e96defd8e0 OFF ÔÇö passa ┬À 200.9s
+  ┬À t20-e96defd8e0 ON ÔÇö passa ┬À 127.3s
+  ┬À t21-96171ef138 OFF ÔÇö passa ┬À 616.3s
+  ┬À t21-96171ef138 ON ÔÇö passa ┬À 309.5s
+  ┬À t22-11f81c79b7 OFF ÔÇö passa ┬À 395.9s
+  ┬À t22-11f81c79b7 ON ÔÇö INV├üLIDO (cli_is_error:You've hit your session limit ┬À resets 5pm (America/Sao_Paulo))
+  ┬À t23-1b929f35f1 OFF ÔÇö INV├üLIDO (cli_is_error:You've hit your session limit ┬À resets 5pm (America/Sao_Paulo))
+  ┬À t23-1b929f35f1 ON ÔÇö INV├üLIDO (cli_is_error:You've hit your session limit ┬À resets 5pm (America/Sao_Paulo))
+
+R-24 ┬À ENSAIO INVALIDO
+  pares v├ílidos 21 < 23 ÔÇö subpotenciado, diferen├ºa n├úo demonstrada
+  X=16 ┬À limiar=16 ┬À p=0.04657 ┬À pares v├ílidos 21/23
+=== --correr exit 1 2026-09-09T14:09:30.4483659-03:00 ===
+R-24 ┬À ENSAIO INVALIDO
+  pares v├ílidos 21 < 23 ÔÇö subpotenciado, diferen├ºa n├úo demonstrada
+  X=16 ┬À n=23 ┬À limiar=16 ┬À p=0.04657 ┬À pot├¬ncia=0.80370
+  pares v├ílidos: 21 ┬À inv├ílidos: 2
+=== --analisar exit 1 2026-09-09T14:09:30.4981776-03:00 ===

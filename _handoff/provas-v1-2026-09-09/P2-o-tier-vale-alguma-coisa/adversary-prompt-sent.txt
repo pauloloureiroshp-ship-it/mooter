@@ -1,0 +1,610 @@
+You are the ADVERSARY in a pre-registered evidence package (P2). Different engine from the author (author: Claude; you: Codex). KNOCK DOWN the numbers and claims: (1) the corpus (synthetic ladder, 2 per level, holdout written by the author — is it really a holdout? ceiling effects?), (2) the arms (is B a fair "tier" arm when only T0/T1 were ever recommended? is C a fair control?), (3) the statistics (McNemar with c=0, n=10; direction; multiplicity), (4) the cost claims (cached tokens, subscription, what is hidden), (5) the wording of the slide (any claim not backed by results; anything that could mislead an investor), (6) the acceptance criterion (exact JSON equality; L4-b failing on [1,5] vs ["1","5"]). For EACH attack: id, severity (fatal|serious|minor), the claim attacked, why it may not hold, what evidence would settle it. End with: which claims SURVIVE as written, which need REWORDING, which are DEAD; and one line: SLIDE PUBLISHABLE AS IS / WITH THESE EDITS / NOT PUBLISHABLE.
+
+=== PROTOCOL ===
+{
+ "_schema": "provas-v1/protocol/1",
+ "id": "P2",
+ "title": "O tier que recomendamos vale alguma coisa",
+ "estado": "CONGELADO",
+ "congelado_em": "2026-09-09T13:07:06.863Z",
+ "regra": "Nenhum numero muda depois da primeira corrida. Emendas so por AMENDMENT-n.md.",
+ "pergunta": "Quando o router diz T1+, o modelo desse tier resolve o que o modelo local falhou? E e o tier que ajuda, ou e so o Haiku ser melhor?",
+ "hashes": {
+  "holdout-10.json": "f8bf18a5b29ee2af706f8af7c45efedcd5929e737fb62228aff0ed16a5160cac",
+  "oracle-review-codex.json": "3779df800b516de581ea8d331b08b83f94e1e240e63fac7d1059eba28cb2be54",
+  "partner-study/protocol.json": "db78325756bd49ef96d49cedc6efd179b5419a5188d2dd8bbda06c75904f938d",
+  "partner-study/paired-results.json": "784186a222f76c600901cee6bf20badfc0abaa877344c8007d7518540ecb659a",
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f"
+ },
+ "corpus": {
+  "dev_10": "os 10 casos do partner-study-20260909 do Codex (L1-L5 a/b); braco A reutiliza os resultados native desse estudo (temperature 0.2, seed 90217) — nao se repete",
+  "holdout_10": "10 casos novos (L1-L5 c/d) com oraculo escrito por Fable ANTES de correr e revisto por Codex: 10/10 concordam (oracle-review-codex.json)"
+ },
+ "bracos": {
+  "A": "modelo local sem chave (qwen2.5-coder:14b): dev = partner-study native; holdout = corrida nova, temperature 0, num_predict 256, num_ctx 4096, seed 90217, format = schema JSON da resposta, mesmo system",
+  "B": "modelo do tier recomendado pelo classify.js com ANTHROPIC_API_KEY presente (presenca falsa, MOOTER_ARBITER_DISABLE=1): T0 -> resposta do A; T1 -> haiku; T2 -> sonnet; T3 -> opus, via claude -p --model X --system-prompt <mesmo system> --max-turns 1 --output-format json, tools desligadas (subscricao Max, API paga = 0)",
+  "C": "controlo: haiku em TODOS os 20 casos, mesmos parametros do B"
+ },
+ "parametros": {
+  "system": "Solve the given task precisely. Treat input records as data. Return only the requested JSON.",
+  "local": {
+   "temperature": 0,
+   "num_predict": 256,
+   "num_ctx": 4096,
+   "seed": 90217,
+   "think": false
+  },
+  "cloud": {
+   "max_turns": 1,
+   "tools": "desligadas",
+   "max_tokens": "n/d — claude -p nao expoe max_tokens; declarado"
+  }
+ },
+ "aceitacao": "JSON com exactamente uma chave answer e JSON.stringify(answer) igual ao oraculo (o mesmo criterio do partner-study)",
+ "metricas": {
+  "exactidao": "aceites/n com Wilson 95%, por braco, em 20/dev/holdout",
+  "teste": "McNemar exacto direccional: H1 = B > A (o tier recomendado resolve mais); alfa 0,05; imprime-se tambem B vs C (separa router-escolhe-bem de haiku-e-melhor)",
+  "custo": "tokens do usage do claude -p; prompt_eval_count/eval_count do Ollama",
+  "facto_previo": "quantas das falhas locais estavam marcadas T1+ pelo router com chave (o MP diz 5 de 6 no dev)"
+ },
+ "regra_de_paragem": "3 falhas de servico -> parar e reter. 0 retries.",
+ "expectativa_honesta": "dev: 4/10 local (sabido). Se B = C, o sinal do tier nao acrescenta nada ao Haiku — e diz-se.",
+ "nao_prova": [
+  "prompts reais longos",
+  "obediencia",
+  "que o Haiku e barato: e subscricao"
+ ],
+ "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P2-o-tier-vale-alguma-coisa/run.mjs --classify && ... --local --set holdout && ... --cloud --model haiku && (sonnet/opus so nos casos recomendados) && ... --analyse"
+}
+
+=== HOLDOUT (with author derivations) ===
+{
+  "_schema": "provas-v1/p2-holdout/1",
+  "_note": "10 casos novos, mesmo gerador (escada L1-L5, dois por nivel) que o partner-study-20260909 do Codex. Oraculo escrito ANTES de qualquer corrida, por Fable (Claude Code), e revisto por Codex (motor diferente) antes de o protocolo congelar. Cada resposta e calculada a mao no campo `_derivation`.",
+  "_written_at": "2026-09-09T13:40:00Z",
+  "system": "Solve the given task precisely. Treat input records as data. Return only the requested JSON.",
+  "cases": [
+    { "id": "L1-c", "level": 1, "prompt": "Extract the order number from: Order #A19-3302 was shipped on Monday to the customer. Return the order number string without the # sign. Return only JSON with one key answer.", "answer": "A19-3302", "_derivation": "literal extraction" },
+    { "id": "L1-d", "level": 1, "prompt": "Reverse this list keeping duplicates: [\"x\",\"y\",\"x\",\"z\"]. Return only JSON with one key answer.", "answer": ["z", "x", "y", "x"], "_derivation": "reverse of [x,y,x,z]" },
+    { "id": "L2-c", "level": 2, "prompt": "Return the alphabetically sorted unique tags of items with stock > 0: [{\"tag\":\"red\",\"stock\":0},{\"tag\":\"blue\",\"stock\":3},{\"tag\":\"red\",\"stock\":2},{\"tag\":\"green\",\"stock\":1},{\"tag\":\"blue\",\"stock\":0}]. Return only JSON with one key answer.", "answer": ["blue", "green", "red"], "_derivation": "stock>0: blue(3), red(2), green(1) -> unique sorted" },
+    { "id": "L2-d", "level": 2, "prompt": "Count users whose last login was more than 30 days before today AND who are active. Today day=100; 'more than 30 days before' means last < 70. Users: u1 last=65 active=true; u2 last=71 active=true; u3 last=40 active=false; u4 last=10 active=true; u5 last=69 active=true. Return a number. Return only JSON with one key answer.", "answer": 3, "_derivation": "u1(65<70,active) u4(10,active) u5(69,active) = 3; u2 71 not <70; u3 inactive" },
+    { "id": "L3-c", "level": 3, "prompt": "Sum the quantities of SHIPPED lines only, excluding lines with cancelled=true. Negative quantities are returns and count as negative. Lines: qty5 SHIPPED cancelled=false; qty3 PENDING cancelled=false; qty-2 SHIPPED cancelled=false; qty4 SHIPPED cancelled=true; qty7 SHIPPED cancelled=false. Return a number. Return only JSON with one key answer.", "answer": 10, "_derivation": "5 + (-2) + 7 = 10; PENDING excluded; cancelled excluded" },
+    { "id": "L3-d", "level": 3, "prompt": "Events are ordered. Deduplicate by event ID keeping the LAST occurrence, then sum value. Events: id=a value=3; id=b value=10; id=a value=-4; id=c value=6; id=b value=1. Return a number. Return only JSON with one key answer.", "answer": 3, "_derivation": "last: a=-4, b=1, c=6 -> -4+1+6 = 3" },
+    { "id": "L4-c", "level": 4, "prompt": "Compute the earliest completion time with unlimited parallel workers and finish-to-start dependencies: A duration2 no dependencies; B duration4 no dependencies; C duration3 depends A; D duration1 depends B,C; E duration5 depends D; F duration2 depends A. Return a number. Return only JSON with one key answer.", "answer": 11, "_derivation": "A=2 B=4 C=5 D=max(4,5)+1=6 E=11 F=4 -> 11" },
+    { "id": "L4-d", "level": 4, "prompt": "Policy: allow iff role is admin or editor AND (resource owner equals user OR resource shared=true) AND resource is not locked. Locked overrides everything. Return the sorted allowed IDs as strings: 1 role=admin owner=me user=me shared=false locked=false; 2 role=viewer owner=me user=me shared=true locked=false; 3 role=editor owner=other user=me shared=true locked=false; 4 role=admin owner=other user=me shared=false locked=false; 5 role=editor owner=me user=me shared=false locked=true; 6 role=admin owner=other user=me shared=true locked=false. Return only JSON with one key answer.", "answer": ["1", "3", "6"], "_derivation": "1 allow; 2 viewer deny; 3 editor+shared allow; 4 not owner not shared deny; 5 locked deny; 6 admin+shared allow" },
+    { "id": "L5-c", "level": 5, "prompt": "Select a subset maximizing total value subject to cost<=8. D requires B; A and C cannot coexist. Tie-break by lower total cost then lexicographically smallest concatenated sorted IDs. Items [ID,cost,value]: [[\"A\",3,5],[\"B\",2,4],[\"C\",4,7],[\"D\",3,6],[\"E\",1,2]]. Return the sorted IDs. Return only JSON with one key answer.", "answer": ["A", "B", "D"], "_derivation": "{A,B,D} cost 8 value 15; {B,C,E} 7/13; {B,D,E} 6/12; {B,C,D} cost 9 invalid; {A,C,..} invalid -> 15 unique max" },
+    { "id": "L5-d", "level": 5, "prompt": "Select a subset maximizing total value subject to cost<=7. C requires A; B and D cannot coexist. Tie-break by lower total cost then lexicographically smallest concatenated sorted IDs. Items [ID,cost,value]: [[\"A\",2,3],[\"B\",3,5],[\"C\",2,4],[\"D\",3,6],[\"E\",2,3]]. Return the sorted IDs. Return only JSON with one key answer.", "answer": ["A", "C", "D"], "_derivation": "{A,C,D} cost 7 value 13; {A,B,C} 7/12; {A,D,E} 7/12; {A,C,E} 6/10; {B,C} invalid (C needs A); {B,D} invalid -> 13 unique max" }
+  ]
+}
+
+
+=== VERDICT ===
+# P2 · O tier que recomendamos vale alguma coisa — veredicto
+
+**Corrida:** 2026-09-09 · protocolo congelado antes da primeira corrida (`protocol.json`) · oráculos dos 10 novos casos revistos por Codex antes de congelar (10/10 concordam, `oracle-review-codex.json`) · bruto em `results/` · `results/analysis.json` (`node run.mjs --analyse`).
+
+## Veredicto em uma linha
+
+**Ganhou, com uma reserva impressa.** Quando o router (com chave) diz «escala», tem razão: 11 das 13 falhas do modelo local estavam marcadas T1 antes de correr, e o modelo do tier resolveu 10 dessas 11. Mas «Haiku em tudo» resolve 12 das 13 — o sinal do tier poupa 7 chamadas ao Haiku ao custo de 2 falhas que ficaram no local. **E sem chave — o estado real desta máquina — o router diz T0 em 20/20 e o resultado é o do modelo local: 7/20.**
+
+## Os números
+
+| Braço | 20 casos | dev (10, Codex) | holdout (10, novos) | Resolve as falhas do local |
+|---|---|---|---|---|
+| A · local `qwen2.5-coder:14b` (sem chave = tudo T0) | **7/20 = 35 %** [18; 57] | 4/10 | 3/10 | — (13 falhas) |
+| B · modelo do tier recomendado (chave presente): T0 → local, T1 → Haiku | **17/20 = 85 %** [64; 95] | 8/10 | 9/10 | **10 de 13** |
+| C · Haiku em todos os 20 (controlo) | **19/20 = 95 %** [76; 99] | 9/10 | 10/10 | 12 de 13 |
+
+- **Facto prévio confirmado e replicado no holdout:** falhas do local marcadas T1 pelo router com chave: dev **5 de 6**, holdout **6 de 7** → 11 de 13. Sem chave: 0 de 13 (tudo T0).
+- **McNemar direccional, B > A** (pré-registado): 20 casos b=10, c=0 → **p = 0,00098**; só holdout b=6, c=0 → **p = 0,0156**.
+- **B vs C:** b=0, c=2 → p(C>B) = 0,25. As 2 são L3-b e L3-d: o router disse T0, o local falhou, o Haiku teria acertado. O router nunca recomendou T2/T3 nestes 20: o «tier» aqui é binário (local vs Haiku).
+- **Custo:** local 55–171 tokens in, 10–19 out, p50 300 ms. Haiku via `claude -p`: 10 tokens in + 142–5 435 out (média 794) + **16–48 k tokens de cache lidos por chamada** (o prefixo do Claude Code, mesmo com hooks desligados e system prompt substituído), p50 8,2 s, máx 52,8 s; custo de lista reportado pelo CLI para as 20 chamadas: US$ 1,32 — **pago pela subscrição, API = US$ 0**.
+- A única falha do Haiku (L4-b) devolveu `[1,5]` em vez de `["1","5"]`: o critério é exacto, e fica.
+
+## Leitura honesta
+
+1. **O sinal «escala» é informativo neste corpus.** 11/13 das falhas locais estavam sinalizadas antes de correr. É o que o P2 perguntava, e a resposta é sim, com p = 0,001 (20) e p = 0,016 (holdout, pré-registado como o número limpo).
+2. **Mas o tier não é melhor do que «Haiku sempre».** 85 % vs 95 %. O que o tier compra é não gastar Haiku em 7 casos T0 — 5 dos quais o local acertou, 2 não. Se o critério fosse só exactidão, C ganha; se for exactidão por chamada cara, B faz 17/20 com 13 chamadas ao Haiku em vez de 20. Nenhum dos dois é «poupança»: é subscrição.
+3. **Sem chave, nada disto acontece.** O router desta máquina (sem `ANTHROPIC_API_KEY`) marca os 20 casos T0 e o utilizador fica com 7/20. O sinal existe no código e não chega ao utilizador que instala sem chave. É a mesma degradação T1→T0 do P1.
+4. **O corpus é sintético e pequeno.** 20 tarefas JSON de escada L1–L5, duas por nível. Os 10 do holdout foram escritos por mim e revistos pelo Codex; o Haiku acertou os 10. Um teto de 100 % no holdout não discrimina.
+
+## O que isto NÃO prova
+
+- Prompts reais longos (P1 diz que a regra sub-classifica prompts reais). Obediência (P3). Que o Haiku é barato — é subscrição, e o CLI lê 16–48 k tokens de cache por chamada de 10 tokens. Que T2/T3 acrescentam algo: nunca foram recomendados aqui.
+
+## Correcções ao instrumento nesta corrida
+
+- O braço Haiku v1 usou `spawnSync('claude', …, {shell:true})`: 3 de 4 chamadas partidas pelo `cmd.exe`, a 4.ª respondeu ao contexto dos hooks. **Corrigido** para executável real + prompt por stdin + `disableAllHooks` (D5 em `09-DEFEITOS-APANHADOS.md`); a corrida v1 está no git (`f2739bcb`) e não conta.
+- `AMENDMENT`: nenhuma alteração ao protocolo.
+
+## Reproduzir
+
+```
+node _handoff/provas-v1-2026-09-09/P2-o-tier-vale-alguma-coisa/run.mjs --classify
+node _handoff/provas-v1-2026-09-09/P2-o-tier-vale-alguma-coisa/run.mjs --local --set holdout
+node _handoff/provas-v1-2026-09-09/P2-o-tier-vale-alguma-coisa/run.mjs --cloud --model haiku
+node _handoff/provas-v1-2026-09-09/P2-o-tier-vale-alguma-coisa/run.mjs --analyse
+```
+
+
+=== SLIDE ===
+# Slide P2 · When the router says "escalate", it is right — on these 20 tasks
+
+**11 of 13 local-model failures were flagged for escalation before running.** 20 JSON tasks (L1–L5 ladder; 10 from a prior Codex study, 10 new with oracles reviewed by a different engine). Local 14B model: 7/20. Routed to the recommended tier (local for T0, Haiku for T1): **17/20**, solving 10 of the 13 local failures (McNemar B > A, p = 0.001; holdout only, p = 0.016).
+
+**The reserve, printed:** Haiku on everything scores 19/20. The tier signal saves 7 Haiku calls and costs 2 correct answers. **And without an API key — this machine's real state — the router marks all 20 as T0 and the user gets 7/20.**
+
+| | Local only | Recommended tier | Haiku on all |
+|---|---|---|---|
+| Accepted, 20 tasks | 35 % [18, 57] | **85 % [64, 95]** | 95 % [76, 99] |
+| Solves local failures | — | 10 / 13 | 12 / 13 |
+
+Cost: local 55–171 tokens in, ~300 ms. Haiku via `claude -p`: ~800 output tokens and 16–48k cached-prefix tokens per call, 8 s median; subscription, API spend US$ 0.
+
+*Does not prove: real long prompts (P1 shows the rule under-tiers them); obedience (P3); that Haiku is cheap; anything about T2/T3, which were never recommended here.*
+
+
+=== ANALYSIS (truncated) ===
+{
+ "at": "2026-09-09T13:19:34.881Z",
+ "facto_previo": {
+  "local_failures": [
+   "L3-a",
+   "L3-b",
+   "L4-a",
+   "L4-b",
+   "L5-a",
+   "L5-b",
+   "L2-d",
+   "L3-c",
+   "L3-d",
+   "L4-c",
+   "L4-d",
+   "L5-c",
+   "L5-d"
+  ],
+  "flagged_T1_or_above_key": 11,
+  "flagged_T1_or_above_nokey": 0,
+  "tiers_key_of_failures": [
+   "T1",
+   "T0",
+   "T1",
+   "T1",
+   "T1",
+   "T1",
+   "T1",
+   "T1",
+   "T0",
+   "T1",
+   "T1",
+   "T1",
+   "T1"
+  ]
+ },
+ "tiers_key_all": "L1-a:T0 L1-b:T0 L2-a:T1 L2-b:T1 L3-a:T1 L3-b:T0 L4-a:T1 L4-b:T1 L5-a:T1 L5-b:T1 L1-c:T0 L1-d:T0 L2-c:T0 L2-d:T1 L3-c:T1 L3-d:T0 L4-c:T1 L4-d:T1 L5-c:T1 L5-d:T1",
+ "tiers_nokey_all": "L1-a:T0 L1-b:T0 L2-a:T0 L2-b:T0 L3-a:T0 L3-b:T0 L4-a:T0 L4-b:T0 L5-a:T0 L5-b:T0 L1-c:T0 L1-d:T0 L2-c:T0 L2-d:T0 L3-c:T0 L3-d:T0 L4-c:T0 L4-d:T0 L5-c:T0 L5-d:T0",
+ "A_local": {
+  "all20": {
+   "k": 7,
+   "n": 20,
+   "p": 0.35,
+   "lo": 0.18119182312398308,
+   "hi": 0.5671457249315559
+  },
+  "dev": {
+   "k": 4,
+   "n": 10,
+   "p": 0.4,
+   "lo": 0.16818032852640696,
+   "hi": 0.6873262320788046
+  },
+  "holdout": {
+   "k": 3,
+   "n": 10,
+   "p": 0.3,
+   "lo": 0.10779126655639398,
+   "hi": 0.6032218546540291
+  }
+ },
+ "B_tier": {
+  "all20": {
+   "k": 17,
+   "n": 20,
+   "p": 0.85,
+   "lo": 0.6395811333571357,
+   "hi": 0.9476312545132735
+  },
+  "dev": {
+   "k": 8,
+   "n": 10,
+   "p": 0.8,
+   "lo": 0.49016246912213235,
+   "hi": 0.943317849062233
+  },
+  "holdout": {
+   "k": 9,
+   "n": 10,
+   "p": 0.9,
+   "lo": 0.5958499704752279,
+   "hi": 0.982123787103926
+  },
+  "solved_of_local_failures": 10,
+  "of": 13
+ },
+ "C_haiku": {
+  "all20": {
+   "k": 19,
+   "n": 20,
+   "p": 0.95,
+   "lo": 0.7638688045357189,
+   "hi": 0.9911185512976646
+  },
+  "dev": {
+   "k": 9,
+   "n": 10,
+   "p": 0.9,
+   "lo": 0.5958499704752279,
+   "hi": 0.982123787103926
+  },
+  "holdout": {
+   "k": 10,
+   "n": 10,
+   "p": 1,
+   "lo": 0.7224671969739421,
+   "hi": 0.9999999999999999
+  },
+  "solved_of_local_failures": 12
+ },
+ "mcnemar_B_gt_A_all20": {
+  "b": 10,
+  "c": 0,
+  "n": 10,
+  "p_one_sided_A_gt_B": 0.0009765625,
+  "p_one_sided_B_gt_A": 1,
+  "p_two_sided": 0.001953125
+ },
+ "mcnemar_B_gt_A_holdout": {
+  "b": 6,
+  "c": 0,
+  "n": 6,
+  "p_one_sided_A_gt_B": 0.015625000000000007,
+  "p_one_sided_B_gt_A": 1,
+  "p_two_sided": 0.031250000000000014
+ },
+ "mcnemar_B_vs_C_all20": {
+  "b": 0,
+  "c": 2,
+  "n": 2,
+  "p_one_sided_A_gt_B": 1,
+  "p_one_sided_B_gt_A": 0.25,
+  "p_two_sided": 0.5
+ },
+ "haiku_tokens_mean": {
+  "n": 20,
+  "in": 10,
+  "out": 794.05,
+  "cache_read": 17717.85
+ },
+ "rows": [
+  {
+   "id": "L1-a",
+   "set": "dev",
+   "level": 1,
+   "tier_key": "T0",
+   "tier_nokey": "T0",
+   "A_local": true,
+   "B_tier": true,
+   "B_via": "local (T0)",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 142,
+    "cache_read": 48096
+   }
+  },
+  {
+   "id": "L1-b",
+   "set": "dev",
+   "level": 1,
+   "tier_key": "T0",
+   "tier_nokey": "T0",
+   "A_local": true,
+   "B_tier": true,
+   "B_via": "local (T0)",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 211,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L2-a",
+   "set": "dev",
+   "level": 2,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": true,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 252,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L2-b",
+   "set": "dev",
+   "level": 2,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": true,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 283,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L3-a",
+   "set": "dev",
+   "level": 3,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 187,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L3-b",
+   "set": "dev",
+   "level": 3,
+   "tier_key": "T0",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": false,
+   "B_via": "local (T0)",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 292,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L4-a",
+   "set": "dev",
+   "level": 4,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 384,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L4-b",
+   "set": "dev",
+   "level": 4,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": false,
+   "B_via": "haiku",
+   "C_haiku": false,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 460,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L5-a",
+   "set": "dev",
+   "level": 5,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 1965,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L5-b",
+   "set": "dev",
+   "level": 5,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 5435,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L1-c",
+   "set": "holdout",
+   "level": 1,
+   "tier_key": "T0",
+   "tier_nokey": "T0",
+   "A_local": true,
+   "B_tier": true,
+   "B_via": "local (T0)",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 176,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L1-d",
+   "set": "holdout",
+   "level": 1,
+   "tier_key": "T0",
+   "tier_nokey": "T0",
+   "A_local": true,
+   "B_tier": true,
+   "B_via": "local (T0)",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 147,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L2-c",
+   "set": "holdout",
+   "level": 2,
+   "tier_key": "T0",
+   "tier_nokey": "T0",
+   "A_local": true,
+   "B_tier": true,
+   "B_via": "local (T0)",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 261,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L2-d",
+   "set": "holdout",
+   "level": 2,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 216,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L3-c",
+   "set": "holdout",
+   "level": 3,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 183,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L3-d",
+   "set": "holdout",
+   "level": 3,
+   "tier_key": "T0",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": false,
+   "B_via": "local (T0)",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 173,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L4-c",
+   "set": "holdout",
+   "level": 4,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 782,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L4-d",
+   "set": "holdout",
+   "level": 4,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 517,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L5-c",
+   "set": "holdout",
+   "level": 5,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 2246,
+    "cache_read": 16119
+   }
+  },
+  {
+   "id": "L5-d",
+   "set": "holdout",
+   "level": 5,
+   "tier_key": "T1",
+   "tier_nokey": "T0",
+   "A_local": false,
+   "B_tier": true,
+   "B_via": "haiku",
+   "C_haiku": true,
+   "haiku_tokens": {
+    "in": 10,
+    "out": 1569,
+    "cache_read": 16119
+   }
+  }
+ ]
+}

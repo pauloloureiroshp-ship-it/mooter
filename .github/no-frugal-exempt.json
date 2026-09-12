@@ -1,0 +1,27 @@
+{
+  "_readme": [
+    "Occurrences of 'frugal' that are NOT rebrand debt: live identifiers the product",
+    "still depends on. A file counts against the ratchet only if it contains at least",
+    "one 'frugal' that NONE of these patterns explains. Removing an entry from this",
+    "list is a promise that the identifier is dead — check the code first.",
+    "Patterns are JavaScript regular expression sources, matched case-insensitively."
+  ],
+  "exempt": [
+    {
+      "pattern": "FRUGAL_[A-Z0-9_]+",
+      "reason": "Legacy environment-variable names the code still honours as a fallback. Measured on main 2026-09-03: 12+ distinct names read across packages/cli and tools/router, e.g. `process.env.MOOTER_CLAUDE_DIR || process.env.FRUGAL_CLAUDE_DIR`. Renaming them silently breaks every user who set the old name."
+    },
+    {
+      "pattern": "frugal-hub",
+      "reason": "The live Cloudflare account subdomain. Production Worker URL is https://mooter-hub.frugal-hub.workers.dev, documented in hub/README.md. `frugal-hub` is the ACCOUNT, not the worker — it cannot be renamed without migrating the Cloudflare account."
+    },
+    {
+      "pattern": "wrangler\\.frugal-legacy",
+      "reason": "The deprecated-and-frozen legacy Worker config, kept bound to the same D1/R2 for pre-rebrand clients. Frozen on its last deploy since Wave 13.x (2026-06-04); CI no longer targets it."
+    },
+    {
+      "pattern": "C--Users-[A-Za-z-]*frugal|/frugal/|\\\\frugal\\\\|~/frugal",
+      "reason": "Captured real filesystem paths. The repository checkout on the founder machine is `~/frugal`, so any fixture recording a genuine observed path contains the word. Rewriting captured data to look tidier would make the fixture a fiction."
+    }
+  ]
+}
