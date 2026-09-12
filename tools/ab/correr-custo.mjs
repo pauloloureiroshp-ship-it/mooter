@@ -614,6 +614,9 @@ export async function preVooDaCorrida(ctx, { comModelo = true } = {}) {
   const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ctx.repo, encoding: 'utf8' });
   ctx.head = head.status === 0 ? String(head.stdout).trim() : null;
   ctx.analiseSha = sha256Ficheiro(ctx.analisePath);
+  const omAn = spawnSync('git', ['show', 'origin/main:tools/ab/custo-analise.mjs'], { cwd: ctx.repo, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });   // 168: «congelada em main via #502» confronta-se, nao se assume
+  if (omAn.status !== 0) falhas.push(`git show origin/main:tools/ab/custo-analise.mjs falhou: ${String(omAn.stderr || '').slice(0, 120)}`);
+  else if (sha256(omAn.stdout) !== ctx.analiseSha) falhas.push(`custo-analise.mjs em disco (${ctx.analiseSha.slice(0, 12)}) != origin/main (${sha256(omAn.stdout).slice(0, 12)}) — a analise que julga tem de ser a congelada em main`);
   ctx.controladorSha = sha256Ficheiro(fileURLToPath(import.meta.url));
   // 6. CLI pinado (prereg pre_condicoes.claude_cli) e ambiente
   if (comModelo) {
@@ -657,6 +660,7 @@ export async function preVooDaCorrida(ctx, { comModelo = true } = {}) {
   if (ctx.so !== null && !(Number.isInteger(ctx.so) && ctx.so > 0 && ctx.so <= SO_MAXIMO)) falhas.push(`--so N: N inteiro em 1..${SO_MAXIMO} — um fumo nunca fecha a corrida (prereg regra_de_paragem: UMA corrida, sem segunda)`);
   // 10. o estado vivo hoje vs o do congelamento (informativo: a regra é «não muda ENTRE a primeira e a última tentativa»)
   ctx.estadoVivo0 = estadoVivo(ctx.routerDirVivo);
+  if (contextBridge(ctx.home).context_bridge) avisos.push('context_bridge LIGADO em ~/.mooter/preferences.json — o router-execute prefixa contexto da sessao do dono ao prompt local (169); e «o router como esta», mas contamina o passo local: registado no manifesto');
   for (const [nome, sha] of Object.entries(pc.estado_vivo.sha256_no_congelamento)) if (ctx.estadoVivo0.ficheiros[nome] !== sha) avisos.push(`estado vivo ${nome}: hoje ${String(ctx.estadoVivo0.ficheiros[nome]).slice(0, 12)}, no congelamento ${sha.slice(0, 12)} (informativo)`);
   for (const f of falhas) log(`  ✖ ${f}`);
   for (const a of avisos) log(`  · ${a}`);
@@ -967,7 +971,9 @@ export async function correr(ctx) {
   if (!sonda.ok) { tirarSentinela(); process.removeListener('SIGINT', onSinalCedo); process.removeListener('SIGTERM', onSinalCedo); return 2; }
   log(`  sonda ok: ${sonda.json.modelUsage[MODELO_OPUS].inputTokens}+${sonda.json.modelUsage[MODELO_OPUS].outputTokens}+cache ${sonda.cache_opus} tokens, ${sonda.json.total_cost_usd} USD, transcript ${sonda.tokens_transcript} tokens`);
 
-  const manifesto = escreverManifesto(ctx, { sonda: { session_id: sonda.session_id, ts_inicio: sonda.ts_inicio, ts_fim: sonda.ts_fim, usage: sonda.json.usage, modelUsage: sonda.json.modelUsage, total_cost_usd: sonda.json.total_cost_usd ?? null, duration_ms: sonda.json.duration_ms ?? null, num_turns: sonda.json.num_turns ?? null, transcript: sonda.transcript, tokens_transcript: sonda.tokens_transcript, cache_opus: sonda.cache_opus, aviso: sonda.aviso } });
+  let manifesto;
+  try { manifesto = escreverManifesto(ctx, { sonda: { session_id: sonda.session_id, ts_inicio: sonda.ts_inicio, ts_fim: sonda.ts_fim, usage: sonda.json.usage, modelUsage: sonda.json.modelUsage, total_cost_usd: sonda.json.total_cost_usd ?? null, duration_ms: sonda.json.duration_ms ?? null, num_turns: sonda.json.num_turns ?? null, transcript: sonda.transcript, tokens_transcript: sonda.tokens_transcript, cache_opus: sonda.cache_opus, aviso: sonda.aviso } }); }
+  catch (e) { tirarSentinela(); process.removeListener('SIGINT', onSinalCedo); process.removeListener('SIGTERM', onSinalCedo); log(`manifesto de execucao nao escrito (${e.code || e.message}) — nao arranca (166)`); return 2; }
   log(`manifesto de execucao: ${ctx.manifestoPath} (modelo local ${manifesto.modelo_local.nome} @ ${String(manifesto.modelo_local.digest).slice(0, 12)})`);
 
   const tarefas = ctx.prereg.corpus.tarefas.slice().sort((a, b) => a.ordem - b.ordem);

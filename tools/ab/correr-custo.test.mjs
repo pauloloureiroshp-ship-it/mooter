@@ -21,7 +21,9 @@ import {
 import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS, analisar, lerLedger } from './custo-analise.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'correr-custo-'));
+const criados = [];
+const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'correr-custo-')); criados.push(d); return d; };
+process.on('exit', () => { for (const d of criados) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* 172: best-effort */ } } });
 
 // ── o sumário do node --test (91, 82) ──────────────────────────────────────
 
@@ -540,6 +542,12 @@ test('correr(): ponta a ponta com tudo injectado — sentinela posto antes da so
   assert.equal(ex.task_id, 't21-96171ef138'); assert.equal(ex.suplente_usado, 't02-7bb45751d8'); assert.match(ex.motivo, /^worktree:A:git_archive/);
   assert.ok(ev.some((e) => e.evento === 'tentativa_fim' && e.task_id === 't02-7bb45751d8' && e.braco === 'A'), 'o suplente correu');
   assert.deepEqual(analises[0].slice(1), ['--prereg', ctx.preregPath, '--ledger', ctx.ledgerPath, '--out', ctx.analysisPath]);
+  // 166: o manifesto a falhar (o pai do caminho e um ficheiro) -> sentinela retirado, codigo 2, sem ledger
+  const h166 = harness();
+  const d166 = driverCorrer(h166, { suplentes: [] });
+  fs.writeFileSync(path.join(d166.ctx.home, 'bloqueio'), ''); d166.ctx.manifestoPath = path.join(d166.ctx.home, 'bloqueio', 'm.json');
+  assert.equal(await correr(d166.ctx), 2, d166.logs.join(' | '));
+  assert.equal(fs.existsSync(caminhoDoSentinela(d166.ctx.routerDirVivo)), false, '166: nunca orfao por excepcao'); assert.equal(fs.existsSync(d166.ctx.ledgerPath), false);
   // a sonda a falhar (sem modelUsage Opus): nada no ledger, sentinela retirado, codigo 2
   const h2 = harness();
   const c2 = h2.ctx;
