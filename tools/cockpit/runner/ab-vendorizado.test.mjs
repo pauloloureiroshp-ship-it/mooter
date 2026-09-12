@@ -313,12 +313,14 @@ test('CLI: a raiz passada por argumento e respeitada mesmo sem --regras (corre d
   // Mordida do defeito de 12/09: sem --regras o filtro de argumentos deitava fora
   // o primeiro argumento e o CLI verificava o cwd — daqui, o scratch — em vez da raiz.
   const cli = path.join(RAIZ_REPO, 'tools/cockpit/runner/ab-vendorizado.mjs');
-  const r = spawnSync(process.execPath, [cli, RAIZ_REPO], { cwd: tmpdir(), encoding: 'utf8' });
+  // O filho nao pode herdar AB_REGRAS_SEMGREP: o teste e sobre o caminho SEM directorio externo.
+  const semEnv = { ...process.env, [ENV_REGRAS]: '' };
+  const r = spawnSync(process.execPath, [cli, RAIZ_REPO], { cwd: tmpdir(), encoding: 'utf8', env: semEnv });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /^N\/D {4}regras do semgrep/m, r.stdout);
   assert.match(r.stdout, /^OK {5}listas de ambito \(§2\.2\) — 3 ficheiro\(s\)/m, r.stdout);
   // e com --regras a apontar para um directorio que nao existe: FALHA [ausente] x4, exit 1
-  const rMau = spawnSync(process.execPath, [cli, RAIZ_REPO, '--regras', path.join(tmpdir(), 'nao-existe-' + process.pid)], { cwd: tmpdir(), encoding: 'utf8' });
+  const rMau = spawnSync(process.execPath, [cli, RAIZ_REPO, '--regras', path.join(tmpdir(), 'nao-existe-' + process.pid)], { cwd: tmpdir(), encoding: 'utf8', env: semEnv });
   assert.equal(rMau.status, 1, rMau.stdout + rMau.stderr);
   assert.equal((rMau.stdout.match(/\[ausente\]/g) || []).length, 4, rMau.stdout);
 });
