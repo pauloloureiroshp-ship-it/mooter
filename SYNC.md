@@ -50,28 +50,31 @@
 
 # Mooter — Sync Snapshot
 
-## 2026-09-12 · A/B do Moo Audit — 6 de 7 fundidos em `main`; #505 parado na licença das regras
+## 2026-09-12 · A/B do Moo Audit — os 7 em `main`; o 7.º reconstruído sem as regras vendorizadas (licença)
 
 Ordem e commits de merge (merge commits, sem force-push; cada PR actualizado com `main` e
 com os 5 checks obrigatórios verdes antes de entrar): #411 `4bd4eb52` · #412 `56591f14` ·
 #413 `e9eee9d8` · #414 `fd6d99a4` · #506 `2d3b4416` · #415 `c0724479`. `main` @ c0724479:
 7 workflows de push verdes (test, design-gate, wave-gate, docs-hygiene, ratchet, slack-spike,
-install-reliability). Gate de pré-merge (`final-reviewer`) antes do primeiro merge: 2 BLOCK.
+install-reliability). Gate de pré-merge (`final-reviewer`) antes do primeiro merge: 2 BLOCK; segundo gate sobre o #512 antes do 7.º.
 
 - **#506** tocava 4 ficheiros de `packages/cli` (onda 34) sem a entrada de allowlist que o
   `AGENTS.md` § Invariants exige no mesmo PR — acrescentada em `CLAUDE.md` (bd15e40a) antes do merge.
-- **#505 (F2) não fundido.** Os 4 `_handoff/ab-audit/regras-semgrep/p-*.yaml` (409 regras,
-  1 017 001 bytes) trazem, regra a regra, `license: Semgrep Rules License v1.0`; o texto
-  (semgrep.dev/legal/rules-license, lido 12/09) diz «You may use the rules only for your own
-  internal business purposes» e «This license does not allow you to distribute the rules».
-  O repo é PUBLIC + MIT. O branch está no GitHub desde 26/08 (a exposição já existe); fundir
-  em `main` estende-a. **Só o dono:** (a) reconstruir o PR sem os yaml — o `MANIFESTO.json`
-  com os sha256 fica como registo do §2.1 e `ab-vendorizado.mjs` passa a distinguir «ausente
-  por licença» de «adulterado» — ou (b) aceitar a exposição por escrito. O veredicto da F2
-  (`_handoff/AB_MOO_AUDIT_F2.md`) não muda em nenhum dos casos. Cabeça actual 994c18e0
-  (fundida com `main`, 59/60 + 1 skip, catraca 677/491/186 exit 0).
-- Vercel a vermelho em #414/#506/#415 por `build-rate-limit` (quota de builds de preview);
-  não obrigatório; 0 ficheiros de `landing/` nos três.
+- **#505 (F2) fechado sem fundir; reconstruído como #512 e fundido em `b0edf916`.** Os 4
+  `_handoff/ab-audit/regras-semgrep/p-*.yaml` (409 regras, 1 017 001 bytes) trazem, regra a regra,
+  `license: Semgrep Rules License v1.0`; o texto (semgrep.dev/legal/rules-license, lido 12/09) diz «You
+  may use the rules only for your own internal business purposes» e «This license does not allow you to
+  distribute the rules». O repo é PUBLIC + MIT. Estiveram 17 dias no branch público (a exposição existe;
+  branch apagado, `refs/pull/505/head` fica). Decisão do dono: opção (a). O #512 é a árvore do #505 sem
+  os yaml, em 4 commits (017ba263 … 4e44f34f): o `MANIFESTO.json` fica com os 4 sha256 e `distribuivel: false`;
+  `ab-vendorizado.mjs` ganha a licença como 4.ª maneira de falhar (yaml no repo ⇒ `FALHA [licenca]`; sem
+  cópia externa ⇒ `N/D` declarado; `--regras <dir>` ⇒ sha256 + licença lida ×409); a árvore do #505
+  reprova com 4 × `[licenca]`, a nova dá `N/D`; scripts do braço A lêem de `$HOME/ab-braco-a/regras-semgrep`
+  (WSL) ou `AB_REGRAS_SEMGREP` — verificado: cobertura 89, `S2 --limpo` byte-idêntico ao recibo. O
+  veredicto da F2 não muda; o pré-registo não muda. Residual declarado: os 18 recibos JSON trazem
+  `extra.message`/`extra.metadata` das 7 regras que dispararam (saída do semgrep, sem padrões).
+- Vercel a vermelho em #414/#506/#415/#512 por `build-rate-limit` (quota de builds de preview);
+  não obrigatório; 0 ficheiros de `landing/` nos quatro.
 - #414: mudar a base de um PR (`edited`) não dispara `pull_request: branches: [main]` —
   ficou `BLOCKED` com os 4 obrigatórios por correr; fechar/reabrir correu-os (25/25).
 - Worktrees temporárias removidas: `frugal-ab-pre`, `frugal-ab-f01`, `frugal-ab-f02`.
@@ -106,7 +109,7 @@ como recurso, com o peso baixo escrito.
 — o `recibo.js` de main (28/08) refuta essa chave. O hook Stop deixou de ser
 preciso. Worktree `~/frugal-ab-tokens` pode ser removida.
 
-**Só o dono:** merge dos 7 — **feito a 12/09 para 6** (bloco acima); #505 aguarda a decisão sobre a licença das regras;
+**Só o dono:** merge dos 7 — **feito a 12/09** (bloco acima; o #505 entrou reconstruído como #512, sem as regras vendorizadas);
 F2 — **decidido a 12/09: publicado o INCONCLUSIVO sem emendar**; um resultado conclusivo exige outro pré-registo;
 fan-out — probes genéricos ou auto-auditoria assumida; `git pull` no mac e no paulo-desktop.
 

@@ -61,6 +61,16 @@ licenças distribuíveis; mordida: um yaml com `license: Semgrep Rules License
 v1.0` numa árvore pública reprova. Critério: o teste existe e reprova a árvore
 actual do #505 antes de qualquer reconstrução.
 
+**Resultado (12/09, mesmo dia, #512 · `b0edf916`):** feito. `ab-vendorizado.mjs` lê
+`license:` de cada ficheiro e reprova (a) yaml dentro do repo quando o manifesto diz
+`distribuivel: false`, (b) yaml que declara licença sem o manifesto ter decidido; sem
+cópia externa devolve `N/D` declarado, não `OK`. Critério: a árvore do #505 reprova
+com 4 × `[licenca]` (medido de outro cwd — o que apanhou um defeito do CLI: sem
+`--regras` o argumento da raiz era ignorado; corrigido com teste), a árvore nova dá
+`N/D` + `OK` 3 listas. 17 testes (16 + 1 skip sem `AB_REGRAS_SEMGREP`; 17/17 com).
+O que a hipótese não cobre e fica dito: os recibos JSON do semgrep trazem `message` e
+`metadata` das regras que dispararam — saída da ferramenta, não a regra.
+
 ---
 
 ### 2026-09-11-um-pr-parado-16-dias-mediu-tres-coisas-que-um-pr-fundido-nao-media
