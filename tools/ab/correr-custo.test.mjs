@@ -16,7 +16,7 @@ import {
   parseSumarioNodeTest, listagemSha, tectoDoOrcamento, encontrarTranscript, tokensDoTranscript, parseJsonDoCli,
   Ledger, linhaVazia, correrAceitacaoComProva, decidirAceite, argsClaudeP, correrClaudeP, correrLocal, classificar,
   construirContexto, carregarProtocolo, tarefaCompleta, ollamaHost, MODELO_OPUS, SENTINELA_CONTEUDO,
-  correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore, modeloLocalDoPrereg, MODELO_LOCAL_DEFAULT, correr, sondar, caminhoDoSentinela,
+  correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore, modeloLocalDoPrereg, MODELO_LOCAL_DEFAULT, correr, sondar, caminhoDoSentinela, SO_MAXIMO,
 } from './correr-custo.mjs';
 import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS, analisar, lerLedger } from './custo-analise.mjs';
 
@@ -244,6 +244,11 @@ test('construirContexto + carregarProtocolo: o prereg e o manifesto REAIS batem 
   // por omissao: o ledger do prereg, o manifesto do prereg
   const d = construirContexto([], { env: {}, log: () => {} });
   assert.equal(path.basename(d.ledgerPath), 'custo-ledger.jsonl'); assert.equal(path.basename(d.manifestoPath), 'custo-manifesto-de-execucao.json'); assert.equal(d.so, null);
+  // 162: uma flag sem valor nao come a seguinte
+  const f = construirContexto(['--correr', '--ledger', '--so', '2'], { env: {}, log: () => {} });
+  assert.equal(f.ledgerFlag, false); assert.equal(path.basename(f.ledgerPath), 'custo-ledger.jsonl'); assert.equal(f.so, 2);
+  assert.ok(Number.isNaN(construirContexto(['--so'], { env: {}, log: () => {} }).so), '151: --so sem valor nao e 1');
+  assert.equal(SO_MAXIMO, 2, '4.º revisor: um fumo nunca fecha a corrida');
 });
 
 test('tarefaCompleta: as 20 com meta do prereg e prompt do manifesto; os 5 suplentes com a tabela pinada e a ordem do slot', () => {
@@ -563,4 +568,17 @@ test('sondar: exige a chave literal claude-opus-5, usage, e o transcript do sess
   h3.ctx.spawnImpl = (exe, args, opts) => { const r = inner3(exe, args, opts); if (args[0] === '-p') { const sid = args[args.indexOf('--session-id') + 1]; const d = path.join(h3.ctx.home, '.claude', 'projects', 'x'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, `${sid}.jsonl`), [1, 2].map((i) => JSON.stringify({ message: { id: `msg_${i}`, model: 'claude-opus-5', usage: SONDA.usage } })).join('\n') + '\n'); } return r; };
   const s3 = sondar(h3.ctx);
   assert.equal(s3.ok, false); assert.ok(s3.falhas.some((f) => /cruzamento n.o bate/.test(f)), s3.falhas.join(' | '));
+});
+
+test('pre-voo da corrida (regras 9, sem git/CLI/rede): --so acima de SO_MAXIMO, --ledger sem --so, --so sem --ledger, sentinela orfao, ledger existente — cada um e uma falha nomeada', async () => {
+  // o pre-voo real chama git/claude/fetch; aqui isola-se a regra 9 pela sua forma no codigo (a mesma condicao que corre em --verificar)
+  const src = fs.readFileSync(path.join(AQUI, 'correr-custo.mjs'), 'utf8');
+  assert.match(src, /ctx\.so <= SO_MAXIMO/, 'o tecto do fumo esta no pre-voo');
+  assert.match(src, /if \(ctx\.ledgerFlag && ctx\.so === null\) falhas\.push/, '155');
+  assert.match(src, /if \(ctx\.so !== null && !ctx\.ledgerFlag\) falhas\.push/, '--so exige --ledger');
+  assert.match(src, /if \(sentinelaPresente\(ctx\.routerDirVivo\)\) \{/, 'sentinela orfao e falha, nunca apagado em silencio');
+  assert.match(src, /if \(fs\.existsSync\(ctx\.ledgerPath\)\) falhas\.push/, 'UMA corrida');
+  assert.match(src, /flag: 'wx'/, '154: o sentinela e a tranca');
+  // e a exclusao de um suplente por emenda retira-o da lista e do controlo (159)
+  assert.match(src, /suplentes\.filter\(\(id\) => !ctx\.overrides\.excluir\.includes\(id\)\)/);
 });

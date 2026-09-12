@@ -110,8 +110,9 @@
  *       sentinela, 20 tarefas pela `ordem`, análise no fim. UMA vez.
  *
  *   node tools/ab/correr-custo.mjs --correr --so 2 --ledger <caminho novo>
- *       Fumo: as 2 primeiras tarefas para um ledger à parte. NÃO é a corrida
- *       (o manifesto diz `so: 2`; a análise dá «NAO fechou»).
+ *       Fumo: as N ≤ 2 primeiras tarefas para um ledger à parte. NÃO é a
+ *       corrida e nunca a fecha (N é limitado a `SO_MAXIMO`; o manifesto diz
+ *       `so: N`; a análise dá «NAO fechou»).
  *
  *   Overrides (todos exigem --emenda <AMENDMENT-n.md>):
  *     --router-execute-sha <sha>   aceitar outro router-execute no runtime
@@ -140,6 +141,7 @@ export const SENTINELA_CONTEUDO = 'custo-2026-09-10';   // prereg pre_condicoes.
 export const MODELO_OPUS = 'claude-opus-5';             // prereg bracos.A.executor; 14.º/1
 export const TECTO_ACEITACAO_S = 600;                   // a aceitação não é a tentativa (93); 600 s chega para qualquer suite do corpus
 export const SONDA_PROMPT = 'Responde apenas: OK';      // custo-fixture-sonda.json
+export const SO_MAXIMO = 2;                             // 4.º revisor: um fumo NUNCA fecha a corrida — com N ≥ 20 era uma corrida inteira com veredicto, repetível sem limite
 
 // ───────────────────────────────────────────────────────────────────────────
 // Utilitários sem estado.
@@ -499,7 +501,7 @@ export function classificar({ classifyPath, prompt, env, spawnImpl = spawnSync }
 // O contexto da corrida.
 // ───────────────────────────────────────────────────────────────────────────
 
-function flag(argv, nome) { const i = argv.indexOf(`--${nome}`); return i >= 0 ? (argv[i + 1] ?? true) : undefined; }
+function flag(argv, nome) { const i = argv.indexOf(`--${nome}`); if (i < 0) return undefined; const v = argv[i + 1]; return v === undefined || String(v).startsWith('--') ? true : v; }   // 162: `--ledger --so 2` nao e um ledger chamado «--so»
 function flagsTodas(argv, nome) { const out = []; for (let i = 0; i < argv.length; i++) if (argv[i] === `--${nome}` && argv[i + 1]) out.push(argv[i + 1]); return out; }
 
 export function construirContexto(argv, { env = process.env, home = os.homedir(), log = console.log } = {}) {
@@ -509,7 +511,7 @@ export function construirContexto(argv, { env = process.env, home = os.homedir()
   const manifestPath = path.join(repo, 'tools', 'ab', 'r24-manifest.json');
   const analisePath = path.join(repo, 'tools', 'ab', 'custo-analise.mjs');
   const so = flag(argv, 'so') !== undefined ? (flag(argv, 'so') === true ? NaN : Number(flag(argv, 'so'))) : null;   // 151: `--so` sem valor nao e 1
-  const ledgerFlag = flag(argv, 'ledger');
+  const ledgerFlag = flag(argv, 'ledger') === true ? null : flag(argv, 'ledger');   // 162: sem valor e como se nao existisse (o pre-voo acusa `--so` sem `--ledger`)
   const ledgerPath = ledgerFlag ? path.resolve(String(ledgerFlag)) : path.join(repo, 'tools', 'ab', 'custo-ledger.jsonl');
   const manifestoPath = ledgerFlag ? ledgerPath.replace(/\.jsonl$/i, '') + '-manifesto-de-execucao.json' : path.join(repo, 'tools', 'ab', 'custo-manifesto-de-execucao.json');
   const analysisPath = ledgerFlag ? ledgerPath.replace(/\.jsonl$/i, '') + '-analysis.json' : path.join(repo, 'tools', 'ab', 'custo-analysis.json');
@@ -594,7 +596,7 @@ export async function preVooDaCorrida(ctx, { comModelo = true } = {}) {
   const temOverride = ctx.overrides.router_execute_sha || ctx.overrides.modelo_local || ctx.overrides.excluir.length || ctx.overrides.sem_subagentes;
   if (temOverride && !ctx.emendaPath) falhas.push('overrides (--router-execute-sha/--modelo-local/--excluir/--sem-subagentes) exigem --emenda <AMENDMENT-n.md>');
   if (ctx.emendaPath) { try { ctx.emendaSha = sha256Ficheiro(ctx.emendaPath); } catch { falhas.push(`--emenda ${ctx.emendaPath} ilegível`); } }
-  for (const id of ctx.overrides.excluir) if (!ctx.prereg.corpus.tarefas.some((t) => t.task_id === id)) falhas.push(`--excluir ${id}: não é tarefa do corpus`);
+  for (const id of ctx.overrides.excluir) if (!ctx.prereg.corpus.tarefas.some((t) => t.task_id === id) && !ctx.prereg.corpus.suplentes.includes(id)) falhas.push(`--excluir ${id}: não é tarefa do corpus nem suplente`);   // 159: um suplente morto no filho exclui-se por emenda
   // 4. anterioridade: o prereg em disco é o de origin/main (prereg anterioridade.ancora_externa)
   const om = spawnSync('git', ['show', 'origin/main:tools/ab/custo-prereg.json'], { cwd: ctx.repo, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   if (om.status !== 0) falhas.push(`git show origin/main:tools/ab/custo-prereg.json falhou: ${String(om.stderr || '').slice(0, 120)}`);
@@ -647,7 +649,7 @@ export async function preVooDaCorrida(ctx, { comModelo = true } = {}) {
   if (fs.existsSync(ctx.ledgerPath)) falhas.push(`o ledger ${ctx.ledgerPath} já existe — UMA corrida (prereg regra_de_paragem); um fumo usa --ledger <caminho novo>`);
   if (ctx.so !== null && !ctx.ledgerFlag) falhas.push('--so exige --ledger <caminho novo> — o fumo não escreve no ledger da corrida');
   if (ctx.ledgerFlag && ctx.so === null) falhas.push('--ledger só com --so — a corrida escreve no ledger do prereg (tools/ab/custo-ledger.jsonl), nunca noutro caminho (155)');
-  if (ctx.so !== null && !(Number.isInteger(ctx.so) && ctx.so > 0)) falhas.push('--so N: N inteiro > 0');
+  if (ctx.so !== null && !(Number.isInteger(ctx.so) && ctx.so > 0 && ctx.so <= SO_MAXIMO)) falhas.push(`--so N: N inteiro em 1..${SO_MAXIMO} — um fumo nunca fecha a corrida (prereg regra_de_paragem: UMA corrida, sem segunda)`);
   // 10. o estado vivo hoje vs o do congelamento (informativo: a regra é «não muda ENTRE a primeira e a última tentativa»)
   ctx.estadoVivo0 = estadoVivo(ctx.routerDirVivo);
   for (const [nome, sha] of Object.entries(pc.estado_vivo.sha256_no_congelamento)) if (ctx.estadoVivo0.ficheiros[nome] !== sha) avisos.push(`estado vivo ${nome}: hoje ${String(ctx.estadoVivo0.ficheiros[nome]).slice(0, 12)}, no congelamento ${sha.slice(0, 12)} (informativo)`);
@@ -724,9 +726,12 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   ledger.escrever({ evento: 'tentativa_inicio', ts_inicio: agora(), task_id: tarefa.task_id, braco, tentativa, e_escalacao, executor: 'claude-p', session_id_pedido: sessionId });
   const spawnImpl = ctx.spawnImpl || spawnSync;
   const r = correrClaudeP({ caminhoClaude: ctx.claude.caminho, prompt: tarefa.prompt, cwd: snapshot, sessionId, env: ctx.env, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s, semSubagentes: ctx.overrides.sem_subagentes, spawnImpl });
-  fs.mkdirSync(ctx.saidas, { recursive: true });
-  fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-${braco}-t${tentativa}.stdout.txt`), r.stdout, 'utf8');
-  if (r.stderr_tail) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-${braco}-t${tentativa}.stderr-tail.txt`), r.stderr_tail, 'utf8');
+  let saidaErro = null;   // 161: entre o spawn pago e a linha nada pode lançar — o usage tem de chegar ao ledger
+  try {
+    fs.mkdirSync(ctx.saidas, { recursive: true });
+    fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-${braco}-t${tentativa}.stdout.txt`), r.stdout, 'utf8');
+    if (r.stderr_tail) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-${braco}-t${tentativa}.stderr-tail.txt`), r.stderr_tail, 'utf8');
+  } catch (e) { saidaErro = `saidas:${e.code || e.message}`; }
 
   const j = r.json;
   // 3 do cabeçalho: arrancou por evidência
@@ -747,8 +752,8 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
   let prova = null;
   const spawnPuro = !arrancou && typeof motivo_se_nao === 'string' && motivo_se_nao.startsWith('spawn:');
   if (!spawnPuro) {
-    instalarTesteDeAceitacao({ snapshotDir: snapshot, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste });
-    prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl });
+    try { instalarTesteDeAceitacao({ snapshotDir: snapshot, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste }); prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl }); }
+    catch (e) { prova = { erro: `reinstall:${e.code || e.message}`, aceitacao_duration_ms: null }; }   // 161: a linha sai na mesma; a paragem vem depois
   }
   // 138: sem JSON não há aceitação («estourar o tecto / morrer sem resultado = não aceite»; a 19 afirma o mesmo de `aceite: true` sem JSON)
   const aceite = (spawnPuro || tectoEstourado || !j || (prova && prova.erro)) ? false : decidirAceite({ prova, shaAntes, shaDepois, historico: tarefa.tests_total_historico, skipsBase, tectoEstourado });
@@ -776,7 +781,7 @@ export function tentativaClaudeP(ctx, { tarefa, braco, tentativa, snapshot, prep
     is_error: j ? j.is_error === true : null, subtype: j && typeof j.subtype === 'string' ? j.subtype : null, cli_exit: r.exit_status, cli_sinal: r.sinal,
     tecto_estourado: tectoEstourado, parede_ms: r.parede_ms, sinal_depois_do_json: !!(j && r.sinal), arvore_morta: arvoreMorta, aceitacao_sinal: prova && !prova.erro ? prova.aceitacao_sinal : null, aceitacao_duration_ms: prova ? prova.aceitacao_duration_ms : null, aceitacao_erro: prova && prova.erro ? prova.erro : null,
     motivo_cli: j ? null : r.stderr_tail.slice(-200) || null,   // 86: distinguir crash de tecto
-    tecto_por_tentativa_s: ctx.prereg.aceitacao.tecto_por_tentativa_s, worktree: snapshot,
+    tecto_por_tentativa_s: ctx.prereg.aceitacao.tecto_por_tentativa_s, worktree: snapshot, saidas_erro: saidaErro,
     estado_vivo_sha_depois: estadoVivo(ctx.routerDirVivo).sha, sentinela_presente_depois: sentinelaPresente(ctx.routerDirVivo),   // 153: uma mudanca DURANTE a ultima tentativa nao escapa
   };
   ledger.escrever(linha);   // 135: a linha com o consumo fica no ledger ANTES de qualquer paragem
@@ -797,9 +802,12 @@ export async function tentativaLocal(ctx, { tarefa, snapshot, prep, skipsBase, l
   ledger.escrever({ evento: 'tentativa_inicio', ts_inicio: agora(), task_id: tarefa.task_id, braco: 'B', tentativa: 1, e_escalacao: false, executor: 'router-execute', modelo_pedido: modelo });
   const spawnImpl = ctx.spawnImpl || spawnSync;
   const r = correrLocal({ routerExecute: ctx.routerExecutePath, prompt: tarefa.prompt, cwd: snapshot, env: ctx.env, pinModel: ctx.overrides.modelo_local || null, tectoS: ctx.prereg.aceitacao.tecto_por_tentativa_s, spawnImpl });
-  fs.mkdirSync(ctx.saidas, { recursive: true });
-  fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.json`), JSON.stringify({ ...(r.json || {}), motivo: r.motivo, stderr_tail: r.stderr_tail }, null, 2) + '\n', 'utf8');
-  if (r.texto !== null) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.txt`), r.texto, 'utf8');   // nunca no ledger (prereg ledger.campos)
+  let saidaErro = null;   // 161
+  try {
+    fs.mkdirSync(ctx.saidas, { recursive: true });
+    fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.json`), JSON.stringify({ ...(r.json || {}), motivo: r.motivo, stderr_tail: r.stderr_tail }, null, 2) + '\n', 'utf8');
+    if (r.texto !== null) fs.writeFileSync(path.join(ctx.saidas, `${tarefa.task_id}-B-t1.local.txt`), r.texto, 'utf8');   // nunca no ledger (prereg ledger.campos)
+  } catch (e) { saidaErro = `saidas:${e.code || e.message}`; }
   const arrancou = r.texto !== null;
   // prereg modelo_local: nome E digest lidos DEPOIS da chamada, ARRANCADO OU NÃO (1.º revisor do controlador: um null aqui tira a validade à corrida inteira, 30 — e a 2 só é alcançável com o campo preenchido)
   const tags = await ollamaTagsComRetry(ctx.ollama, { tagsImpl: ctx.tagsImpl || ollamaTags });
@@ -807,8 +815,9 @@ export async function tentativaLocal(ctx, { tarefa, snapshot, prep, skipsBase, l
   const digest = tags.ok && tags.modelos.has(modeloUsado) ? tags.modelos.get(modeloUsado) : null;
   const digestMudou = arrancou && ctx.modelos.has(modeloUsado) && digest !== null && ctx.modelos.get(modeloUsado) !== digest;
   const shaDepois = shaDoTestFile(snapshot, tarefa.test_file);
-  instalarTesteDeAceitacao({ snapshotDir: snapshot, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste });
-  const prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl });
+  let prova;
+  try { instalarTesteDeAceitacao({ snapshotDir: snapshot, ficheiroTeste: tarefa.test_file, conteudo: prep.conteudo_teste }); prova = correrAceitacaoComProva({ cwd: path.join(snapshot, tarefa.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl }); }
+  catch (e) { prova = { erro: `reinstall:${e.code || e.message}`, aceitacao_duration_ms: null }; }   // 161
   // 136: um local com a aceitação verde é `local_verde_rejeitado` (só marca na análise) e escala na mesma — um teste instável não mata a corrida única; fica registado e visível
   const verde = !prova.erro && decidirAceite({ prova, shaAntes, shaDepois, historico: tarefa.tests_total_historico, skipsBase, tectoEstourado: false });
   const linha = {
@@ -827,7 +836,7 @@ export async function tentativaLocal(ctx, { tarefa, snapshot, prep, skipsBase, l
     ...amb,
     worktree_listagem_sha_antes: listAntes, worktree_listagem_sha_depois: listagemSha(snapshot),
     tokens_locais_in: arrancou && Number.isInteger(r.json.tokens_in) ? r.json.tokens_in : null, texto_local_bytes: arrancou ? Buffer.byteLength(r.texto, 'utf8') : null,   // 92
-    aceitacao_sinal: prova.erro ? null : prova.aceitacao_sinal, aceitacao_duration_ms: prova.aceitacao_duration_ms, aceitacao_erro: prova.erro || null, aceitacao_verde: verde, ollama_host: ctx.ollama, ollama_tags_ok: tags.ok, worktree: snapshot,
+    aceitacao_sinal: prova.erro ? null : prova.aceitacao_sinal, aceitacao_duration_ms: prova.aceitacao_duration_ms, aceitacao_erro: prova.erro || null, aceitacao_verde: verde, ollama_host: ctx.ollama, ollama_tags_ok: tags.ok, worktree: snapshot, saidas_erro: saidaErro,
     estado_vivo_sha_depois: estadoVivo(ctx.routerDirVivo).sha, sentinela_presente_depois: sentinelaPresente(ctx.routerDirVivo),   // 153
   };
   ledger.escrever(linha);   // 135: a linha fica no ledger ANTES de qualquer paragem
@@ -908,7 +917,7 @@ export function sondar(ctx) {
   const transcript = encontrarTranscript(sessionId, ctx.home);
   if (!transcript) falhas.push(`o transcript da sonda (${sessionId}) não foi encontrado em ~/.claude/projects — sem transcript, um tecto sem JSON é INVÁLIDA (58, 98)`);
   const tr = transcript ? tokensDoTranscript(transcript) : null;
-  // controlo positivo do instrumento NA MESMA corrida: o cruzamento pelo transcript tem de bater com o JSON (≤ 1 %), senão o tecto sem JSON sairia com um consumo inventado
+  // controlo positivo da CANALIZAÇÃO na mesma corrida (transcript encontrado, somas a bater ≤ 1 %); a sonda tem 1 resposta/1 linha, portanto NÃO prova o dedup por message.id — esse fica provado pelo teste unitário com a forma real (4.º revisor, 160)
   if (tr && j && j.usage && typeof j.usage === 'object') {
     const totalJson = ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens'].reduce((a, c) => a + (Number(j.usage[c]) || 0), 0);
     const d = totalJson > 0 ? Math.abs(tr.total - totalJson) / totalJson : 1;
@@ -929,7 +938,7 @@ export async function correr(ctx) {
   const dirsNm = [...new Set([...ctx.prereg.corpus.tarefas, ...ctx.prereg.corpus.suplentes.map((s) => ({ task_id: s }))].map((t) => (ctx.tarefasPorId.get(t.task_id) || {}).acceptance_cwd).filter(Boolean).concat(['.']))];
   (ctx.cacheNmImpl || prepararCacheNodeModules)({ repo: ctx.repo, cache: ctx.cache, dirs: dirsNm, log });
   // 157: o controlo do filho ANTES de pagar — as tarefas em jogo (menos as excluidas por emenda) e os suplentes que podem entrar
-  const idsControlo = [...ctx.prereg.corpus.tarefas.slice().sort((a, b) => a.ordem - b.ordem).slice(0, ctx.so !== null ? ctx.so : undefined).map((t) => t.task_id).filter((id) => !ctx.overrides.excluir.includes(id)), ...ctx.prereg.corpus.suplentes];
+  const idsControlo = [...ctx.prereg.corpus.tarefas.slice().sort((a, b) => a.ordem - b.ordem).slice(0, ctx.so !== null ? ctx.so : undefined).map((t) => t.task_id), ...ctx.prereg.corpus.suplentes].filter((id) => !ctx.overrides.excluir.includes(id));
   const fc = (ctx.controloImpl || controloDoFilho)(ctx, idsControlo);
   for (const f of fc) log(`  ✖ ${f}`);
   if (fc.length) { log(`controlo do filho: ${fc.length} tarefa(s) morta(s) por construcao — nao arranca (157)`); return 2; }
@@ -954,7 +963,7 @@ export async function correr(ctx) {
 
   const tarefas = ctx.prereg.corpus.tarefas.slice().sort((a, b) => a.ordem - b.ordem);
   const alvo = ctx.so !== null ? tarefas.slice(0, ctx.so) : tarefas;
-  const suplentes = ctx.prereg.corpus.suplentes.slice();   // pela ordem da lista (9.º/6)
+  const suplentes = ctx.prereg.corpus.suplentes.filter((id) => !ctx.overrides.excluir.includes(id));   // pela ordem da lista (9.º/6); um suplente excluido por emenda (159) nunca entra
   const excluidas = new Set();
   let terminouNormalmente = false;
   const pararCom = (motivo) => { if (!ledger.fechado) ledger.paragem(motivo); };   // 134: n/ultima_tarefa vêm do que o Ledger escreveu
