@@ -1,0 +1,17 @@
+Classifica esta tarefa de programação num de quatro níveis e responde SÓ com o rótulo.
+
+T0 = trivial, mecânico, um ficheiro, sem risco (renomear, formatar, mover)
+T1 = pequeno, texto ou explicação curta (mensagem de commit, docstring, regex)
+T2 = raciocínio (investigar bug, comparar abordagens, plano técnico)
+T3 = arquitectura, multi-ficheiro, produção, segredos, CI, migrações
+
+CONVENÇÕES deste repositório, que os rótulos usam (não as adivinhes — estão aqui):
+- risco alto força T3: deploy, push, merge, release, migrações, segredos, .env, CI
+- pedido explícito de mais cuidado ("pensa bem", "é crítico", "think hard",
+  "preciso do teu melhor") sobe um nível
+- nomear um modelo (@opus, @haiku, "usa o sonnet") fixa o nível desse modelo
+- mexer em mais de 3 ficheiros, ou decidir arquitectura, é T3
+
+Tarefa: ${p}
+
+Responde só: T0, T1, T2 ou T3.

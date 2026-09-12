@@ -1,0 +1,132 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+onde coloco a minha chave da api
+---
+
+Este pedido ESTA marcado como de risco: RISCO conta a dobrar.
+
+CANDIDATAS:
+
+<resposta id="R1">
+A chave é de que serviço e onde a queres configurar — no Codex, no Mooter ou noutra aplicação? Não coloques a chave aqui na conversa.
+</resposta>
+
+<resposta id="R2">
+Okay, the user is asking where to put their API key. Let me think.
+
+First, I need to recall common practices for API keys. Usually, they're stored in environment variables or config files, not hard-coded in the source code.
+
+Wait, the user might be a developer new to this. They might not know about environment variables. So I should mention .env files or environment variables.
+
+But the answer needs to be short, in Portuguese, and only three sentences max. Let me check the instructions again.
+
+"Respostas curtas e directas — nunca mais de 3 frases para perguntas simples."
+
+So, keep it to one or two sentences. The user is asking in Portuguese, so the answer should be in PT-PT.
+
+Common places: environment variables (like .env file) or config files. But the exact location depends on the framework or project setup.
+
+Wait, the user might be using a specific framework, but since they didn't specify, I should give a general answer.
+
+In most cases, you put the API key in environment variables. So the answer would be: "Coloque a chave na variável de ambiente ou num ficheiro .env."
+
+Wait, but the user might not know about .env. Maybe mention both. But keep it short.
+
+"Use variáveis de ambiente ou um ficheiro .env para armazenar a chave."
+
+Yes, that's concise. Two sentences max. Let me check if that's correct.
+
+Yes, in most projects, you use environment variables or a .env file. So the answer is correct. No need for more details. Keep it short.
+</think>
+
+Coloque a chave nas variáveis de ambiente ou num ficheiro `.env`.
+</resposta>
+
+<resposta id="R3">
+Coloca a tua chave da API em um ficheiro de configuração ou variável de ambiente, dependendo da tua aplicação. Evita colocá-la no código fonte.
+</resposta>
+
+<resposta id="R4">
+Depende de para que é a chave. Os dois casos habituais:
+
+## 1. Chave da API da Anthropic, para o próprio Claude Code
+
+Se tens subscrição Claude (Pro/Max), não precisas de chave nenhuma — basta `/login` dentro do Claude Code.
+
+Se queres mesmo usar uma chave da API (obtida em console.anthropic.com), no Windows tens estas opções:
+
+**Só para a sessão actual (PowerShell):**
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+```
+
+**Permanente para o teu utilizador:**
+```powershell
+[Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "sk-ant-...", "User")
+```
+(depois fecha e reabre o terminal)
+
+**Ou no ficheiro de definições** `C:\Users\Paulo Loureiro\.claude\settings.json`:
+```json
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "sk-ant-..."
+  }
+}
+```
+
+## 2. Chave de uma API que a tua aplicação vai usar
+
+Nesse caso: num ficheiro `.env` na raiz do projecto, e o `.env` vai para o `.gitignore`. Nunca dentro do código-fonte.
+
+```
+MINHA_API_KEY=xxxxx
+```
+
+E lês a variável em runtime (`os.environ`, `process.env`, etc.). Costuma-se deixar um `.env.example` com as chaves vazias, esse sim versionado.
+
+---
+
+Duas notas: nunca coles a chave numa mensagem de chat nem num ficheiro versionado, e se já o fizeste, revoga-a e gera outra.
+
+Qual dos dois casos é o teu? Se for o segundo, diz-me a linguagem/framework e mostro o carregamento concreto.
+</resposta>
+
+<resposta id="R5">
+Preciso de mais contexto para ajudar adequadamente. A resposta depende de:
+
+1. **Qual API** está a usar? (Claude, OpenAI, outra?)
+2. **Qual é o projeto/linguagem?** (Node.js, Python, Java, etc.)
+3. **Qual é o ambiente?** (desenvolvimento local, produção, deploy em servidor?)
+
+**Opções comuns:**
+
+- **Variáveis de ambiente** (mais seguro):
+  - Criar ficheiro `.env` na raiz do projeto com `API_KEY=sua_chave`
+  - Carregá-lo com `dotenv` (Node) ou `python-dotenv` (Python)
+  - **Nunca** fazer commit do `.env` para git (adicionar a `.gitignore`)
+
+- **Ficheiro de configuração** (se não é código-fonte):
+  - `config.json`, `config.yaml`, etc. em `.gitignore`
+
+- **Secrets manager** (produção):
+  - AWS Secrets Manager, Azure Key Vault, etc.
+
+- **Variáveis de sistema** (Windows):
+  - Definir variáveis de ambiente do SO
+
+Qual é o seu cenário específico? Diga-me mais sobre o que está a fazer e posso dar instruções passo a passo.
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

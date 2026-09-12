@@ -29,6 +29,11 @@ const { spawnSync, execFile } = require('child_process');
 // kill-switch if anything regresses.
 const V07_DISABLED = process.env.MOOTER_V07_DISABLE === '1' || process.env.FRUGAL_V07_DISABLE === '1';
 
+// Dedicated friend-build kill-switch for the Haiku Arbiter only. Unlike the
+// broad v0.7 switch above, this leaves cache/budget/quality routing intact.
+// It is enforced again inside arbiter.js so direct callers cannot bypass it.
+const ARBITER_DISABLED = process.env.MOOTER_ARBITER_DISABLE === '1';
+
 // frugal savings-tracker + Ollama warmup — auto-start if pid file is stale.
 // v0.7: pid-file check replaces the fire-and-forget HTTP GET /health socket
 // (avoids TCP connect overhead on every hook invocation) and also drives the
@@ -100,6 +105,8 @@ const TRACKER_STALE_MS = 60 * 60 * 1000; // 1h
 //   3. HIGH_RISK prompt + stale cache → keep sync behaviour (safety).
 const BUDGET_CACHE_PATH = path.join(ROUTER_DIR, '.budget-cache.json');
 const BUDGET_REFRESH_LOCK = path.join(ROUTER_DIR, '.budget-refresh.lock');
+// D15 — a mesma definição que o `refresh-budget.js` usa. Ver budget-freeze.js.
+const budgetFreeze = require('./budget-freeze.js');
 const BUDGET_CACHE_MS = 2 * 60 * 60 * 1000;      // 2h — considered fresh
 const BUDGET_STALE_HARD_MS = 4 * 60 * 60 * 1000; // 4h — sync fetch on HIGH_RISK
 const BUDGET_LOCK_STALE_MS = 30 * 1000;          // 30s — assume refresh died
@@ -147,6 +154,30 @@ function spawnBudgetRefresh() {
  * @param {boolean} isHighRisk
  */
 function getBudget(promptText, isHighRisk) {
+  // D15 — o congelamento vem ANTES de tudo, incluindo do kill-switch.
+  //
+  // Não é zelo: congelar só o refresh assíncrono tornava ESTE caminho
+  // inevitável. Sem refresh o cache nunca rejuvenesce, passa as 4 h de
+  // `BUDGET_STALE_HARD_MS`, e a partir daí cada prompt HIGH_RISK — push,
+  // deploy, migração — cai no `fetchBudgetSyncLegacy()`, que reescreve o
+  // ficheiro. Fechava-se a porta das 2 h e abria-se a das 4 h, com o defeito a
+  // voltar exactamente nos prompts que mais importam. Apanhado por revisão
+  // adversarial ao commit que dizia tê-lo fechado.
+  //
+  // Congelado = lê-se o que está em disco e não se escreve nada. Sem sentinela,
+  // a função continua byte-idêntica ao que era.
+  if (budgetFreeze.congelado()) {
+    // A visibilidade que substitui o TTL tem de acontecer AQUI, e não só no
+    // `refresh-budget.js`: quando está congelado, o hook nunca chega a lançar
+    // esse processo, portanto o único aviso que existia nunca era impresso.
+    // Um sentinela esquecido ficava a ser exactamente o silêncio contra o qual
+    // o desenho diz ter sido feito. stderr porque é o canal visível dos hooks.
+    try { process.stderr.write(`[mooter] ${budgetFreeze.linhaDeAviso()}\n`); } catch { /* nunca fatal */ }
+    const fixo = readBudgetCache();
+    if (fixo && fixo.cached.data && fixo.cached.data.type !== 'error') return fixo.cached.data;
+    return null;                       // sem tecto, que é o default seguro daqui
+  }
+
   if (V07_DISABLED) return fetchBudgetSyncLegacy();
 
   const state = readBudgetCache();
@@ -250,34 +281,25 @@ function readSubscriptionProfile() {
  * @param {Record<string, any> | null | undefined} budget
  * @returns {string}
  */
+// O tecto de tier vive em budget-cap.js, com testes que mordem.
+//
+// A versão que estava aqui fazia `budget.five_hour || budget.fiveHour || 0` e
+// comparava o resultado com números. Desde 2026-05-07 a cache escreve
+// `five_hour` como OBJECTO (`{utilization, resets_at}`) — o statusline.sh:98-120
+// já lê `.utilization` e até tem guarda para `[object Object]`; esta função
+// nunca recebeu o mesmo tratamento. Comparar um objecto com um número dá false
+// nas três comparações, portanto **com 3% do orçamento gasto o tecto caía para
+// T0** e nada no hint dizia porquê. A isenção de Max não salvava quem tem
+// `subscription-profile.json` a dizer "unknown".
+//
+// Estava dormente porque a cache tinha estado de erro (OAuth expirado) e
+// getBudget devolvia null; acordava na primeira renovação bem sucedida.
+const { applyBudgetCap: capDoOrcamento } = require('./budget-cap.js');
+
 function applyBudgetCap(tier, budget) {
-  if (!budget) return tier;
-
-  // v0.9.1: Claude Max users have no budget cap
   const subProfile = readSubscriptionProfile();
-  if (subProfile && subProfile.profiles && subProfile.profiles.anthropic === 'max') {
-    return tier;
-  }
-
-  const fiveHour = budget.five_hour || budget.fiveHour || 0;
-  const TIER_ORDER = ['T0', 'T1', 'T2', 'T3'];
-
-  let maxTier;
-  if (fiveHour < 50) maxTier = 'T3';
-  else if (fiveHour < 70) maxTier = 'T2';
-  else if (fiveHour < 85) maxTier = 'T1';
-  else maxTier = 'T0';
-
-  // v0.9.1: api-free users get aggressive cap (shift thresholds down)
-  if (subProfile && subProfile.profiles && subProfile.profiles.anthropic === 'api-free') {
-    if (fiveHour < 30) maxTier = 'T3';
-    else if (fiveHour < 50) maxTier = 'T1';
-    else maxTier = 'T0';
-  }
-
-  const current = TIER_ORDER.indexOf(tier);
-  const max = TIER_ORDER.indexOf(maxTier);
-  return current > max ? maxTier : tier;
+  const perfil = subProfile && subProfile.profiles ? subProfile.profiles.anthropic : null;
+  return capDoOrcamento(tier, budget, perfil);
 }
 
 const LOG_PATH = path.join(ROUTER_DIR, 'decisions.log');
@@ -893,6 +915,7 @@ try {
 // `git push --force` prompt, we override it back to T3.
 //
 // Skip entirely when:
+//   - dedicated Arbiter kill-switch is active (MOOTER_ARBITER_DISABLE=1)
 //   - v0.7 kill-switch is active (FRUGAL_V07_DISABLE=1)
 //   - No ANTHROPIC_API_KEY in env (arbitrate() handles this as a no-op)
 //   - Cache hit on the classifier cache (already decided)
@@ -900,6 +923,7 @@ try {
 //   - Regex was confident (>= 0.75) AND not in an ambiguous_* category
 const AMBIGUOUS_CATEGORIES = new Set(['ambiguous_medium', 'ambiguous_long', 'ambiguous_short']);
 if (
+  !ARBITER_DISABLED &&
   !V07_DISABLED &&
   !cacheHit &&
   !(decision.user_override && decision.user_override.honored) &&
@@ -1609,6 +1633,30 @@ try {
     providerLines.push('anthropic_quota: n/d (quota-honesta ausente neste runtime)');
     providerLines.push('codex_quota: n/d (quota-honesta ausente neste runtime)');
   }
+
+  // ── Fornecedores que JA se sabe estarem em baixo ───────────────────────
+  //
+  // Isto e a linha que faltava, e a sua ausencia custou uma sessao inteira a
+  // 2026-08-28: tres frentes de trabalho paralelas foram despachadas para
+  // subagentes Opus que morreram todos com «You've hit your weekly limit».
+  // O sistema nao tinha como saber — nao havia estado nenhum — mas o agente
+  // que le este hint TAMBEM nao tinha, e por isso repetiu o erro tres vezes
+  // antes de perceber.
+  //
+  // `provider-health.js` guarda cada falha com a sua causa classificada e a sua
+  // hora de reposicao. Publicar isso aqui e o que transforma «tentar ate bater
+  // no limite» em «saber antes de tentar». O decaimento e aplicado na leitura,
+  // portanto uma linha destas desaparece sozinha quando o motor repuser.
+  try {
+    const linhas = require('./provider-health').relatorio();
+    if (linhas.length) {
+      providerLines.push(
+        `providers_em_baixo: ${linhas.map(l =>
+          `${l.provider}=${l.causa} (volta em ~${l.restaMin}min)`).join(' · ')}`
+      );
+      providerLines.push('  ^ nao despaches para estes; a razao e medida, nao adivinhada');
+    }
+  } catch { /* modulo ausente num runtime por actualizar — o hint sobrevive */ }
 } catch { /* never let this break the hint */ }
 
 // Wave 21 (C3) — final coherence pass. After every guardrail (budget cap, zen,

@@ -47,7 +47,7 @@ export default function ProviderLogo({ provider, size = 24 }: { provider: Provid
         justifyContent: 'center',
         width: size,
         height: size,
-        borderRadius: 7,
+        borderRadius: 8,
         background: 'var(--color-surface-2)',
         border: '1px solid var(--color-border)',
       }}

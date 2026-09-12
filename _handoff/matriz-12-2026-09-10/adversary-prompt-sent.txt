@@ -1,0 +1,794 @@
+You are the ADVERSARY (Codex, gpt-6-astra) for a pre-registered evidence package: MATRIZ 12, "Mooter vs the user's real choice". The author is a different engine (Claude Opus 5). Your job is to KNOCK DOWN the verdict, line by line, not to comment on it. Attack in particular: (1) "Haiku dominates the Mooter on both columns" — the Mooter's billed cost exceeds Haiku's ONLY because 2 of 12 prompts routed to Opus; is the comparison fair, or is it an artifact of the cost accounting (cache write of the CLI harness, list price vs subscription)? (2) the noise calibration: 2 points from 4 judge-pairs on 2 prompts — is that enough to call a 24-point gap "not noise"? (3) the judge family bias the author admits (J1 favours Codex, J2 favours Opus) — does it also contaminate the B-vs-C ordering, given both are Anthropic? (4) the pre-registered predictions: the author wrote the prompts AND copied the predictions; is "5 of 6 win-predictions failed, so the prompts were not rigged" a valid inference? (5) the four causes (route, code model, terse system prompt, inactive arbiter): are any of them unsupported by the data shown, and is the author hiding a fifth? (6) the 14-line patch to router-execute.js (D1): could it have changed anything beyond the token cap? (7) B2 (qwen3:30b) truncated at 2048 in 2 of 10 — does that invalidate the B vs B2 comparison? (8) anything in the wording an investor could read as a savings claim, a percentage, or a generalisation beyond 12 prompts on one machine. For EACH attack give: id (M12-NN), severity (fatal|serious|minor), the exact claim attacked (quote it), why it may not hold, and what evidence would settle it. Then: SURVIVE / REWORD / DEAD lists for the verdict's numbered claims ("O que esta corrida prova" 1-5). End with one line: VERDICT PUBLISHABLE AS IS / WITH THESE EDITS (list them) / NOT PUBLISHABLE. Be concrete and merciless; a review that only approves has not run. You have no repo access and no access to the raw responses: attack what is in front of you, and say explicitly what you could not verify.
+
+=== PROTOCOL (pre-registration, written before the run) (protocol.json) ===
+{
+ "_schema": "matriz-12/prereg/1",
+ "mp": "MP · MATRIZ 12 — Mooter vs a escolha real do utilizador · 2026-09-10",
+ "congelado_em": "2026-09-10T18:57:33.659Z",
+ "owner_tz": "America/Sao_Paulo",
+ "head": "f66813e9ee7b42c43596283efd106dc0c3f7b717",
+ "prompts_sha256": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "prompts_n": 12,
+ "semente_do_sorteio": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "congelados": {
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "tools/router/patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5"
+ },
+ "bracos": {
+  "A": "Opus 5 (claude-opus-5) — a escolha real do utilizador. PRIMARIO.",
+  "B": "Mooter — o degrau que o classify() decide, executado: T0 -> Ollama via router-execute --pin-provider=ollama (tecto 2048 tokens), T1 -> Haiku 4.5, T2 -> Sonnet 5, T3 -> Opus 5.",
+  "B2": "igual ao B, mas com o degrau T0 forcado a qwen3:30b. Coluna extra pedida pelo dono (o probe real recomenda qwen2.5-coder:14b). So corre nos T0.",
+  "C": "Haiku 4.5 — o adversario barato. SECUNDARIO, declarado.",
+  "D": "GPT via Codex CLI (gpt-6-astra, effort medium) — AGENTE COM HARNESS, nao modelo nu. n/d se ficar sem creditos."
+ },
+ "isolamento": "todos os bracos de nuvem correm sem settings de user/projecto, sem MCP, sem ferramentas e num cwd vazio. Sem isto o braco A levava o router-hint do Mooter dentro do proprio prompt — e a matriz media o Mooter contra o Mooter.",
+ "juizes": {
+  "J1": "Codex (OpenAI) — familia diferente do J2",
+  "J2": "Sonnet 5 (Anthropic)",
+  "J3": "humano (Paulo), folha vazia, chave selada com o sha do PACOTE-CEGO.md",
+  "rubrica": "RESOLVE · CORRECTO · EXECUTAVEL · RISCO · ECONOMIA, 0/1/2 cada; RISCO a dobrar nos prompts de risco. Maximo 10, ou 12 nos de risco.",
+  "conflito_declarado": "o J2 e da mesma familia de 3 dos 5 candidatos (A, B, C). Nao ha juiz sem conflito nenhum; e para isso que existe o J3."
+ },
+ "previsoes_do_mp_verbatim": {
+  "ganha_em_custo_com_qualidade_equivalente_ate_1_ponto": [
+   "DATA-1",
+   "LEGAL-1",
+   "MKT-2",
+   "DEV-2",
+   "LEGAL-3",
+   "MKT-3"
+  ],
+  "empata_mesmo_modelo": [
+   "DATA-4",
+   "OPS-4",
+   "P5"
+  ],
+  "perde": [
+   "MKT-4",
+   "DATA-3",
+   "OPS-3"
+  ],
+  "regra_de_paragem": "se der 12/12 vitorias, o instrumento esta partido: parar e investigar, nao publicar."
+ },
+ "o_que_ja_se_sabia_antes_de_correr": [
+  "O ensaio de rotas (custo $0, so o classify congelado) correu ANTES desta corrida e ja mostrou onde cada prompt cai. Fica escrito aqui para ninguem poder dizer depois que a previsao foi ajustada: as previsoes acima sao as do MP, copiadas, e NAO foram tocadas depois do ensaio.",
+  "O ensaio contradiz a rota que o MP supunha em dois sitios: LEGAL-3 e MKT-3 estavam marcados como \"degrau do meio (T2)\" e o classify manda-os para T0. Isso nao muda a previsao de resultado — muda a razao pela qual ela pode falhar.",
+  "O arbiter de Haiku, que existe exactamente para os prompts ambiguos, esta INERTE nesta maquina: arbiter.js e um no-op sem ANTHROPIC_API_KEY, e esta maquina nao tem essa chave (usa OAuth de subscricao). Numa maquina com chave, os prompts de confianca < 0.75 ou categoria ambiguous_* teriam passado por ele e a rota poderia ser outra."
+ ],
+ "regras": [
+  "R1 n/d nunca inventado",
+  "R2 sha do classificador intacto (verificado antes da primeira chamada; a corrida para se falhar)",
+  "R3 uma corrida — um resultado que ja existe em results/ nao se regrava",
+  "R4 as perdas ficam escritas",
+  "R5 o adversario corre em motor diferente do autor",
+  "R6 sem push sem OK do dono",
+  "R7 preco de lista datado e citado; custo da resposta separado do custo faturado",
+  "R8 nenhuma percentagem de poupanca, nenhum dolar apresentado como poupado: os dois motores de nuvem correm por subscricao"
+ ]
+}
+
+
+=== VERDICT (verdict.md) ===
+# MATRIZ 12 · veredicto
+
+**Corrida:** 2026-09-10 · worktree `claude/matriz-12-mooter-comparison-3c2b8e` · HEAD `f66813e9` +
+14 linhas em `tools/router/router-execute.js` (D1) · `classify.js` `427d8c0b…` e `patterns.js`
+`daf82708…` intactos, verificados antes da primeira chamada · pré-registo `protocol.json` escrito
+antes da corrida (`congelado_em` gerado por `new Date()`, não à mão) · `prompts.json` sha
+`f51e1993…` (também a semente do sorteio) · **uma corrida**, 56 respostas, 0 falhas · juízes J1
+(Codex) e J2 (Sonnet 5), 24/24 pontuações, ordem sorteada · J3 (humano) por preencher —
+`PACOTE-CEGO.md` sha `71da6910…`, chave selada.
+
+## Veredicto em uma linha
+
+**O Mooter perdeu.** Não para o Opus 5 — para o **Haiku 4.5**, que teve mais qualidade (80,5 contra
+56,5 em 128) **e** custou menos ($0,1527 contra $0,1620 de preço de lista imputado). A tese «poupa
+sem perder qualidade» não sobrevive a esta matriz: existe uma alternativa mais barata que ele e melhor
+que ele, e é a mais simples de todas — mandar tudo para o modelo pequeno de nuvem.
+
+## Os números
+
+| braço | n | pontos | máximo | custo faturado $ | pontos por $ | tempo s |
+|---|---|---|---|---|---|---|
+| D · Codex (agente com harness) | 12 | **109,0** | 128 | n/d | n/d | 290 |
+| A · Opus 5 | 12 | 100,5 | 128 | 1,2045 | 83 | 595 |
+| C · Haiku 4.5 | 12 | 80,5 | 128 | 0,1527 | 527 | 149 |
+| **B · Mooter** | 12 | **56,5** | 128 | 0,1620 | 349 | 138 |
+| B2 · Mooter, T0 em `qwen3:30b` | 10 | 33,5 | 104 | $0 fornecedor | — | 123 |
+
+Pontos = média de J1 e J2 · máximo 10 por prompt, 12 nos 4 de risco · custo = preço de lista da
+página oficial lida a 2026-09-10, cache incluído, **$0 reais** (os dois motores de nuvem correm por
+subscrição) · tempo = relógio de parede, cold-start do CLI incluído.
+
+**Ruído do instrumento: 2 pontos.** Nos dois prompts que caíram em T3, A e B correram o mesmo Opus 5
+com a mesma linha de comando; a maior diferença que os juízes lhes deram foi 2. A distância de B a C
+é 24. Não é ruído.
+
+### Por degrau
+
+| degrau | n | máx | A | **B** | C | D | faturado B | faturado C |
+|---|---|---|---|---|---|---|---|---|
+| T0 → local `qwen2.5-coder:14b` | 10 | 104 | 81,5 | **36,5** | 65,5 | 92,5 | $0 | $0,1273 |
+| T3 → Opus 5 | 2 | 24 | 19,0 | **20,0** | 15,0 | 16,5 | $0,1620 | $0,0254 |
+
+Onde o Mooter escolhe local, faz **metade** dos pontos do Haiku. Onde escolhe Opus, empata com o
+Opus — como tinha de ser, é o mesmo motor. Não houve um único T1 nem T2 em 12 prompts: o
+classificador saltou do degrau de baixo para o de cima sem pisar o meio.
+
+### Nos 4 prompts de risco (RISCO a dobrar, máximo 48)
+
+A 39,5 · D 36,0 · C 33,0 · **B 29,0**. O pior caso é o **OPS-3** — «onde guardo a chave da API no
+Next.js para não ficar exposta no browser»: o classificador leu `ambiguous_short`, risco `minimal`,
+e mandou-o para local. A resposta local diz `.env.local` e `.gitignore` e **não menciona
+`NEXT_PUBLIC_`** — que é exactamente a forma de a chave ir parar ao browser. J2 deu 4 em 12 ao Mooter
+e 12 em 12 ao Haiku nesse prompt.
+
+## As previsões, contra o que aconteceu
+
+| o MP previu | prompts | B − A | resultado |
+|---|---|---|---|
+| ganha em custo com qualidade equivalente (≤ 1 ponto) | DATA-1 · LEGAL-1 · MKT-2 · LEGAL-3 · DEV-2 | −3,0 a −5,5 | **falhou** |
+| idem | MKT-3 | −1,0 | ≤ 1, mas ≤ ruído (2): **não é vitória** |
+| empata (mesmo modelo) | DATA-4 · OPS-4 | +1,0 · 0,0 | **acertou** |
+| empata (mesmo modelo) | P5 | −5,5 | **falhou** — foi a local, não a Opus |
+| perde | OPS-3 · MKT-4 · DATA-3 | −6,0 · −6,5 · −5,5 | **acertou**, as três |
+
+**5 em 12.** As previsões de derrota acertaram todas; as de vitória falharam todas. A regra de paragem
+(12/12 vitórias = instrumento partido) não disparou.
+
+## Porque perde — as causas que os dados deixam ver
+
+Quatro, e não se consegue dizer nesta corrida quanto pesa cada uma. Separá-las é a próxima medição,
+não esta.
+
+1. **A rota.** 10 dos 12 foram para local, incluindo uma cláusula LGPD, um plano de lançamento
+   trimestral, uma reconciliação bancária e uma pergunta de segurança. O regex vê o comprimento e as
+   palavras; não vê que «redige uma cláusula» é trabalho de Sonnet. O ensaio a $0 já o mostrava antes
+   de gastar um token.
+
+2. **O modelo local é de código.** `qwen2.5-coder:14b` é o que a máquina recomenda — por medição do
+   MooterBench em **tarefas de código**. Nesta matriz há um prompt de código (DEV-2: 4,0 contra 8,0 do
+   Haiku, e nem aí ganhou). Os outros nove T0 são jurídico, marketing, dados e operação.
+
+3. **O produto manda o modelo local ser curto.** `providers/ollama-api.js:36-41` fixa um system
+   prompt: *«assistente de software engineering conciso … nunca mais de 3 frases para perguntas
+   simples»*. Medido: para o email de 120 palavras (MKT-2) o local deu 107 tokens; para a cláusula
+   LGPD, 280; para «onde coloco a minha chave da api», **23**. O Haiku deu 364, 1 923 e 662. Parte da
+   derrota é uma instrução do Mooter, não uma limitação do modelo — e é a parte mais barata de
+   corrigir. (D10, ver `09-DEFEITOS-APANHADOS.md`.)
+
+4. **O arbiter estava desligado.** A peça feita para os prompts ambíguos é no-op sem
+   `ANTHROPIC_API_KEY`, e esta máquina não a tem. 7 dos 12 prompts caíam no gatilho dele. Numa máquina
+   com chave, a rota de mais de metade da matriz podia ser outra. Isto não é desculpa — é o que o
+   produto faz na máquina do próprio dono — mas é o que separa «o regex falha» de «o Mooter falha».
+
+## O que os juízes revelam sobre si próprios
+
+| | A (Opus) | B (Mooter) | C (Haiku) | D (Codex) |
+|---|---|---|---|---|
+| J1 (Codex) | 84 | 60 | 74 | **118** |
+| J2 (Sonnet) | **117** | 53 | 87 | 100 |
+
+Os dois juízes concordam na ordem **B < C < A**. Discordam no D: **cada um dá o primeiro lugar à sua
+própria família.** O viés está nos dados, não na teoria. Não muda o veredicto sobre o Mooter — que é
+último para ambos, a 14 e 34 pontos do Haiku — mas invalida qualquer conclusão sobre «Codex vs Opus»
+a partir destes dois juízes. É para isso que existe o J3.
+
+## O que esta corrida prova
+
+1. Que **nesta máquina, com estes 12 prompts, a rota do Mooter produz menos qualidade do que o Haiku
+   4.5 e custa mais** em preço de lista imputado. Medido com juízes cegos de duas famílias, ruído
+   calibrado, pré-registo anterior à corrida.
+2. Que **o classificador não usa o degrau do meio**: 0 em 12 para T1/T2, num conjunto desenhado para
+   ter dois T2.
+3. Que **uma pergunta de segurança curta vai para local** (OPS-3, P5) e volta sem o aviso que importa.
+4. Que **`qwen3:30b` é pior que `qwen2.5-coder:14b` nesta máquina** (33,5 contra 36,5 nos mesmos 10
+   prompts, com 2 respostas truncadas por despejar raciocínio até ao tecto). A ordem do probe está
+   certa; o MP estava desactualizado.
+5. Que o instrumento de ontem tinha um defeito que **fazia o local parecer incapaz por construção**
+   (num_predict 256, D1) — e que **sem isso** o local continua a perder.
+
+## O que esta corrida NÃO prova
+
+Está em `10-NAO-PROVADO.md`, escrito antes de ver os resultados. O que a corrida acrescentou:
+
+- **Não prova que o Mooter perde com prompts de terceiros.** Os 12 foram escritos por quem copiou as
+  previsões. Que 5 das 6 previsões de vitória tenham falhado sugere que não foram escritos para dar
+  razão à tese — mas sugere, não prova.
+- **Não prova quanto da derrota é rota, modelo, system prompt ou arbiter.** Há quatro causas e um
+  número. Separá-las exige corridas que mudem uma de cada vez.
+- **Não prova nada sobre Codex vs Opus.** Ver o viés de família acima.
+- **Não prova que a alternativa «tudo para Haiku» aguenta os prompts de risco.** O Haiku ficou abaixo
+  do Opus nos 4 de risco (33 contra 39,5). A matriz mostra que o Mooter é pior que essa alternativa;
+  não mostra que essa alternativa é boa.
+- **Não prova poupança.** Ninguém pagou por token. Todos os dólares são de lista, imputados.
+
+## O que separaria as causas (a próxima medição, se houver)
+
+Uma variável de cada vez, mesmo protocolo, mesmos 12 prompts, mesmos juízes:
+
+| corrida | muda só | pergunta que responde |
+|---|---|---|
+| M12-b | system prompt do local → neutro | quanto da derrota é a instrução «3 frases»? |
+| M12-c | `ANTHROPIC_API_KEY` presente → arbiter activo | quantos dos 7 ambíguos sobem de degrau, e para onde? |
+| M12-d | T0 → `gemma4:e4b` ou outro modelo generalista instalado | quanto é «modelo de código em tarefa que não é código»? |
+| M12-e | 12 prompts escritos por terceiro, previsões só depois | o resultado sobrevive a prompts que não são meus? |
+
+Nenhuma destas está feita. Nenhuma foi corrida «só para ver».
+
+## Ficheiros
+
+`00-preflight.json` · `09-DEFEITOS-APANHADOS.md` (D1–D10) · `10-NAO-PROVADO.md` ·
+`11-REPRODUZIR.md` · `protocol.json` · `prompts.json` · `ensaio-rotas.json` · `results/` ·
+`juizes/` · `TABELAS.md` · `PACOTE-CEGO.md` + `CHAVE-SELADA.json` · `smoke/` · `lib/` (14 testes).
+
+
+=== TABLES (generated by agregar.mjs, no cell written by hand) (TABELAS.md) ===
+# MATRIZ 12 — tabelas
+
+Gerado por `agregar.mjs`. Nenhuma celula e escrita a mao.
+
+## DATA-1
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: ambiguous_short / risco minimal / confianca 0.65 · classify 104.3 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 7/10 | 9/10 | n/d | 2 | 1026 | 3834/0 | 0.0257 | 0.0496 | 18.4 |
+| B · Mooter | 7/10 | 1/10 | n/d | 119 | 81 | 0/0 | 0.0000 | 0.0000 | 7.5 |
+| B2 · Mooter T0=qwen3:30b | 5/10 | 5/10 | n/d | 121 | 503 | 0/0 | 0.0000 | 0.0000 | 9.7 |
+| C · Haiku 4.5 | 4/10 | 6/10 | n/d | 10 | 609 | 6698/0 | 0.0031 | 0.0114 | 9.4 |
+| D · Codex (agente) | 10/10 | 9/10 | n/d | 27157 | 188 | 0/0 | 0.0000 | 0.0000 | 11.7 |
+
+## LEGAL-1
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: simple_transform_or_explain / risco low / confianca 0.85 · classify 90.6 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 6/10 | 9/10 | n/d | 2 | 2934 | 3849/0 | 0.0734 | 0.0974 | 49.8 |
+| B · Mooter | 2/10 | 4/10 | n/d | 130 | 45 | 0/0 | 0.0000 | 0.0000 | 4.9 |
+| B2 · Mooter T0=qwen3:30b | 3/10 | 4/10 | n/d | 132 | 718 | 0/0 | 0.0000 | 0.0000 | 10.4 |
+| C · Haiku 4.5 | 5/10 | 7/10 | n/d | 10 | 765 | 6716/0 | 0.0038 | 0.0122 | 11.9 |
+| D · Codex (agente) | 10/10 | 7/10 | n/d | 58435 | 384 | 0/0 | 0.0000 | 0.0000 | 21.0 |
+
+## MKT-2
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: ambiguous_short / risco minimal / confianca 0.65 · classify 93.4 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 6/10 | 9/10 | n/d | 2 | 1830 | 3850/0 | 0.0458 | 0.0698 | 23.3 |
+| B · Mooter | 6/10 | 3/10 | n/d | 138 | 107 | 0/0 | 0.0000 | 0.0000 | 4.6 |
+| B2 · Mooter T0=qwen3:30b | 2/10 | 0/10 | n/d | 140 | 2048 | 0/0 | 0.0000 | 0.0000 | 20.1 |
+| C · Haiku 4.5 | 6/10 | 8/10 | n/d | 10 | 364 | 6712/0 | 0.0018 | 0.0102 | 7.3 |
+| D · Codex (agente) | 9/10 | 7/10 | n/d | 27170 | 223 | 0/0 | 0.0000 | 0.0000 | 19.3 |
+
+## LEGAL-3
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: ambiguous_medium / risco low / confianca 0.6 · classify 101.3 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 6/10 | 10/10 | n/d | 2 | 7667 | 3889/0 | 0.1917 | 0.2160 | 105.7 |
+| B · Mooter | 1/10 | 4/10 | n/d | 155 | 280 | 0/0 | 0.0000 | 0.0000 | 10.0 |
+| B2 · Mooter T0=qwen3:30b | 3/10 | 2/10 | n/d | 157 | 1427 | 0/0 | 0.0000 | 0.0000 | 15.9 |
+| C · Haiku 4.5 | 6/10 | 7/10 | n/d | 10 | 1923 | 6740/0 | 0.0096 | 0.0181 | 20.5 |
+| D · Codex (agente) | 9/10 | 10/10 | n/d | 91971 | 1127 | 0/0 | 0.0000 | 0.0000 | 48.5 |
+
+## MKT-3
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: ambiguous_short / risco minimal / confianca 0.65 · classify 91 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 4/10 | 9/10 | n/d | 2 | 2672 | 3882/0 | 0.0668 | 0.0911 | 48.6 |
+| B · Mooter | 6/10 | 5/10 | n/d | 155 | 150 | 0/0 | 0.0000 | 0.0000 | 6.4 |
+| B2 · Mooter T0=qwen3:30b | 3/10 | 3/10 | n/d | 157 | 1039 | 0/0 | 0.0000 | 0.0000 | 12.1 |
+| C · Haiku 4.5 | 3/10 | 8/10 | n/d | 10 | 834 | 6741/0 | 0.0042 | 0.0126 | 11.6 |
+| D · Codex (agente) | 10/10 | 9/10 | n/d | 58274 | 826 | 0/0 | 0.0000 | 0.0000 | 37.7 |
+
+## DEV-2
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: simple_transform_or_explain / risco low / confianca 0.85 · classify 94.8 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 8/10 | 9/10 | n/d | 2 | 1328 | 3850/0 | 0.0332 | 0.0573 | 24.9 |
+| B · Mooter | 6/10 | 4/10 | n/d | 130 | 79 | 0/0 | 0.0000 | 0.0000 | 5.4 |
+| B2 · Mooter T0=qwen3:30b | 6/10 | 2/10 | n/d | 132 | 630 | 0/0 | 0.0000 | 0.0000 | 9.7 |
+| C · Haiku 4.5 | 8/10 | 8/10 | n/d | 10 | 625 | 6708/0 | 0.0031 | 0.0115 | 10.0 |
+| D · Codex (agente) | 10/10 | 9/10 | n/d | 27170 | 229 | 0/0 | 0.0000 | 0.0000 | 12.5 |
+
+## DATA-4 · [RISCO]
+
+Rota do Mooter: **T3** -> claude-opus-5 · porque: architecture_or_critical / risco high / confianca 0.75 · classify 91.7 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 7/12 | 11/12 | n/d | 2 | 1718 | 3827/0 | 0.0430 | 0.0669 | 27.6 |
+| B · Mooter | 9/12 | 11/12 | n/d | 2 | 1232 | 3830/0 | 0.0308 | 0.0547 | 21.1 |
+| B2 · Mooter T0=qwen3:30b | n/d | n/d | n/d | n/d | n/d | n/d | n/d | n/d | n/d |
+| C · Haiku 4.5 | 7/12 | 9/12 | n/d | 10 | 876 | 6693/0 | 0.0044 | 0.0128 | 11.3 |
+| D · Codex (agente) | 9/12 | 6/12 | n/d | 27155 | 110 | 0/0 | 0.0000 | 0.0000 | 8.9 |
+
+## OPS-4 · [RISCO]
+
+Rota do Mooter: **T3** -> claude-opus-5 · porque: architecture_or_critical / risco high / confianca 0.9 · classify 105.1 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 8/12 | 12/12 | n/d | 2 | 2543 | 3850/0 | 0.0636 | 0.0876 | 45.2 |
+| B · Mooter | 9/12 | 11/12 | n/d | 2 | 3327 | 3851/0 | 0.0832 | 0.1073 | 55.8 |
+| B2 · Mooter T0=qwen3:30b | n/d | n/d | n/d | n/d | n/d | n/d | n/d | n/d | n/d |
+| C · Haiku 4.5 | 5/12 | 9/12 | n/d | 10 | 856 | 6710/0 | 0.0043 | 0.0127 | 11.5 |
+| D · Codex (agente) | 10/12 | 8/12 | n/d | 85945 | 938 | 0/0 | 0.0000 | 0.0000 | 44.2 |
+
+## OPS-3 · [RISCO]
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: ambiguous_short / risco minimal / confianca 0.65 · classify 96.3 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 10/12 | 12/12 | n/d | 2 | 1500 | 3818/0 | 0.0375 | 0.0614 | 26.5 |
+| B · Mooter | 6/12 | 4/12 | n/d | 108 | 60 | 0/0 | 0.0000 | 0.0000 | 5.1 |
+| B2 · Mooter T0=qwen3:30b | 10/12 | 8/12 | n/d | 110 | 490 | 0/0 | 0.0000 | 0.0000 | 8.6 |
+| C · Haiku 4.5 | 11/12 | 12/12 | n/d | 10 | 552 | 6685/0 | 0.0028 | 0.0111 | 10.2 |
+| D · Codex (agente) | 12/12 | 10/12 | n/d | 58377 | 309 | 0/0 | 0.0000 | 0.0000 | 17.8 |
+
+## P5 · [RISCO]
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: trivial_local / risco minimal / confianca 0.8 · classify 104 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 8/12 | 11/12 | n/d | 2 | 1265 | 3789/0 | 0.0316 | 0.0553 | 21.8 |
+| B · Mooter | 3/12 | 5/12 | n/d | 90 | 23 | 0/0 | 0.0000 | 0.0000 | 4.5 |
+| B2 · Mooter T0=qwen3:30b | 3/12 | 3/12 | n/d | 92 | 353 | 0/0 | 0.0000 | 0.0000 | 7.9 |
+| C · Haiku 4.5 | 8/12 | 5/12 | n/d | 10 | 662 | 6668/0 | 0.0033 | 0.0117 | 10.1 |
+| D · Codex (agente) | 9/12 | 8/12 | n/d | 27132 | 52 | 0/0 | 0.0000 | 0.0000 | 7.2 |
+
+## MKT-4
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: ambiguous_medium / risco low / confianca 0.6 · classify 93.1 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 6/10 | 9/10 | n/d | 2 | 9137 | 3891/0 | 0.2284 | 0.2528 | 149.4 |
+| B · Mooter | 2/10 | 0/10 | n/d | 154 | 251 | 0/0 | 0.0000 | 0.0000 | 7.8 |
+| B2 · Mooter T0=qwen3:30b | 2/10 | 0/10 | n/d | 156 | 2048 | 0/0 | 0.0000 | 0.0000 | 18.2 |
+| C · Haiku 4.5 | 7/10 | 4/10 | n/d | 10 | 1538 | 6735/0 | 0.0077 | 0.0161 | 22.4 |
+| D · Codex (agente) | 10/10 | 8/10 | n/d | 27186 | 791 | 0/0 | 0.0000 | 0.0000 | 31.6 |
+
+## DATA-3
+
+Rota do Mooter: **T0** -> qwen2.5-coder:14b · porque: ambiguous_short / risco minimal / confianca 0.65 · classify 97.3 ms
+
+| braco | J1 | J2 | J3 | tok in | tok out | cache w/r | custo resposta $ | custo faturado $ | s |
+|---|---|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 8/10 | 7/10 | n/d | 2 | 3005 | 3878/0 | 0.0751 | 0.0994 | 54.2 |
+| B · Mooter | 3/10 | 1/10 | n/d | 147 | 84 | 0/0 | 0.0000 | 0.0000 | 5.4 |
+| B2 · Mooter T0=qwen3:30b | 3/10 | 0/10 | n/d | 149 | 764 | 0/0 | 0.0000 | 0.0000 | 10.5 |
+| C · Haiku 4.5 | 4/10 | 4/10 | n/d | 10 | 789 | 6725/0 | 0.0040 | 0.0124 | 13.0 |
+| D · Codex (agente) | 10/10 | 9/10 | n/d | 27180 | 723 | 0/0 | 0.0000 | 0.0000 | 29.6 |
+
+## Agregado
+
+Pontos = media de J1 e J2 (o J3 entra quando a folha voltar). Um braco que
+nao corre num prompt nao soma maximo nesse prompt — as colunas nao sao
+comparaveis sem olhar para `n`.
+
+| braco | n | pontos | maximo | custo resposta $ | custo faturado $ | pontos por $ (faturado) | tempo total s |
+|---|---|---|---|---|---|---|---|
+| A · Opus 5 | 12 | 100.5 | 128 | 0.9157 | 1.2045 | 83 | 595.4 |
+| B · Mooter | 12 | 56.5 | 128 | 0.1140 | 0.1620 | 349 | 138.4 |
+| B2 · Mooter T0=qwen3:30b | 10 | 33.5 | 104 | 0.0000 | 0.0000 | sem divisao: $0 de fornecedor | 123.0 |
+| C · Haiku 4.5 | 12 | 80.5 | 128 | 0.0521 | 0.1527 | 527 | 149.2 |
+| D · Codex (agente) | 12 | 109.0 | 128 | 0.0000 | 0.0000 | n/d (12 resposta(s) sem preco de lista) | 290.1 |
+
+## Controlo de ruido (A vs B nos T3 — mesmo modelo, mesma configuracao)
+
+| prompt | juiz | A | B | diferenca |
+|---|---|---|---|---|
+| DATA-4 | J1 | 7 | 9 | 2 |
+| DATA-4 | J2 | 11 | 11 | 0 |
+| OPS-4 | J1 | 8 | 9 | 1 |
+| OPS-4 | J2 | 12 | 11 | 1 |
+
+Diferenca **maxima** entre dois bracos que correm o mesmo motor: **2 ponto(s)**; media 1.0 em 4 par(es).
+Uma vantagem de ate esse tamanho, em qualquer linha acima, nao se distingue de ruido.
+
+
+
+=== DEFECTS CAUGHT (09-DEFEITOS-APANHADOS.md) ===
+# MATRIZ 12 · defeitos apanhados
+
+Onze. Nove antes da corrida (D1–D9: preflight e ensaio de fumo), dois durante
+(D10 nos dados, D11 nos juizes). Sete teriam feito a tabela mentir sem ninguem
+dar por isso.
+
+Data: 2026-09-10 · worktree `claude/matriz-12-mooter-comparison-3c2b8e` · HEAD `f66813e9`
+
+---
+
+## D1 · o tecto de 256 tokens que faz o modelo local parecer incapaz
+
+`executePinned()` em `tools/router/router-execute.js` montava `wrapperOpts` com
+`timeoutMs` e `model` e mais nada. `maxTokens` nunca chegava ao adaptador, por
+isso **toda a chamada local pinada** levava em silencio o
+`num_predict: 256` de `providers/ollama-api.js:91`.
+
+Medido hoje, com o executor real e o mesmo prompt:
+
+| tecto | tokens de saida | linhas completas | ultimos caracteres |
+|---|---|---|---|
+| 256 | 256 (exactamente) | 38 de 40 | `…37. Mogi das Cruzes\n38` |
+| 2048 | 274 | 40 de 40 | `…39. São Bernardo do Campo\n40. Osasco` |
+
+A 256 a lista corta **a meio da linha 38**, sem erro nenhum, com `ok: true`.
+Uma matriz corrida assim mede "o modelo local nao consegue" quando o que
+aconteceu foi um tecto.
+
+**Correccao:** o hunk existe desde 2026-08-03 em `feat/landing-redesign@265281af`
+e **nunca foi fundido em main** — o mesmo destino dos outros dois buracos do mix
+que ja estao registados na memoria do projecto. Aplicado aqui so o hunk do
+`maxTokens` (nao o commit inteiro: o branch e anterior aos tectos de tempo de
+2026-09-02 e traze-lo por inteiro regredia-os). O braco Mooter corre com
+`MOOTER_LOCAL_PIN_MAX_TOKENS=2048`.
+
+## D2 · o MP esperava `qwen3:30b`; a maquina responde `qwen2.5-coder:14b`
+
+O pre-requisito 2 pedia para provar que `FRUGAL_HW_RECOMMENDED_T0` resolve
+`qwen3:30b`. Com o probe real desta maquina resolve **`qwen2.5-coder:14b`**.
+
+Nao e avaria: a `PREFER_ORDER` de `gpu-probe.js` foi reordenada a 2026-08-29 por
+medicao do MooterBench neste device (B1 100% para o 14b), e o `qwen3:30b` passou
+para 6.o lugar. **O MP descreve a ordem anterior a essa medicao.**
+
+Nao se forcou o resultado esperado. Por decisao do dono, a corrida leva as duas
+colunas: `B` com o modelo que a maquina recomenda hoje e `B2` com `qwen3:30b`.
+
+## D3 · o ficheiro de capacidade do hardware tinha 103 dias
+
+`~/.claude/tools/router/hw-capability.json` dizia `probed_at: 2026-05-30`.
+Refrescado com `node tools/router/gpu-probe.js`; a copia antiga ficou em
+`preflight/hw-capability.ANTES.json`. Entre as duas leituras a VRAM reportada
+mudou de 24564 para 23028 MiB — o suficiente para mudar que modelos contam como
+executaveis.
+
+## D4 · `--tools ""` nao impede o modelo de fingir que usou uma ferramenta
+
+No ensaio de fumo, o **mesmo modelo** (Opus 5), com a **mesma linha de comando**,
+respondeu a um pedido de runbook de producao com isto:
+
+```
+<invoke name="Bash">
+<parameter name="command">ls -la "…/matriz12-arena" 2>/dev/null | head -50</parameter>
+</invoke>
+
+total 0
+drwxr-xr-x 1 Paulo Loureiro 197121 0 Sep 10 02:33 .
+```
+
+O comando **nunca correu** — nao ha ferramentas nesta sessao. O modelo emitiu a
+invocacao e a seguir **inventou o output**. Um juiz cego pontuaria isso 0, e a
+derrota seria do instrumento.
+
+**Correccao:** `--append-system-prompt` a dizer que nao ha ferramentas e que nao
+se inventa resultado de comandos. Identico nos quatro bracos Anthropic, por isso
+nao inclina nenhum. Depois da correccao, os quatro bracos responderam ao mesmo
+prompt sem uma unica invocacao.
+
+## D5 · o calculo de custo dava $0 a um modelo de nuvem pago
+
+A primeira versao de `lib/preco.mjs` decidia "e local" por
+`!modelo.startsWith('claude-')`. Resultado: o `gpt-6-astra` do braco D — modelo
+de nuvem, pago, sem preco de lista publicado que tenhamos — aparecia na tabela a
+**$0.0000**, indistinguivel do Ollama.
+
+Num estudo cujo assunto e custo, o default de um heuristico nunca pode ser "de
+graca". Agora um modelo so conta como local se estiver **mesmo instalado no
+Ollama desta maquina** (lista lida do daemon); tudo o resto e `n/d`.
+Guardado por dois testes que foram vistos a falhar.
+
+## D6 · `think: false` nao cala o `qwen3:30b`
+
+O adaptador do produto envia `think: false` (`providers/ollama-api.js:93`). O
+`qwen3:30b` devolve o raciocinio **dentro do `content`**, em ingles, e deixa o
+campo `thinking` a `null`. Confirmado com uma chamada directa a `/api/chat`, sem
+o Mooter pelo meio: **e o modelo, nao o adaptador**.
+
+Efeito medido no ensaio: para "escreve uma frase a desejar bom dia", o
+`qwen2.5-coder:14b` gastou 8 tokens e o `qwen3:30b` gastou **654**, dos quais a
+esmagadora maioria e deliberacao em voz alta que o utilizador nunca pediu. E,
+nas notas dos dois juizes automaticos, o 30b ficou **abaixo** do 14b.
+
+## D7 · o arbiter de Haiku esta inerte nesta maquina
+
+`inject_context.js` manda para o arbiter de Haiku qualquer prompt com confianca
+< 0.75 **ou** categoria `ambiguous_*`. `arbiter.js` e um **no-op sem
+`ANTHROPIC_API_KEY`** — e esta maquina nao tem essa chave (usa OAuth de
+subscricao).
+
+No ensaio de rotas, **7 dos 12** prompts caem exactamente nesse caso. Ou seja: a
+peca do Mooter feita para os prompts ambiguos nao corre aqui, e a matriz mede o
+classificador de regex sozinho. Isto **nao se corrige** para esta corrida — mede-se
+o que a maquina faz — mas tem de ficar escrito ao lado de qualquer conclusao.
+
+## D8 · a regua do MP e mais fina do que o instrumento
+
+O MP define "qualidade equivalente" como **≤ 1 ponto** de diferenca.
+
+Nos prompts que caem em T3, os bracos A e B correm **o mesmo modelo com a mesma
+configuracao** — a diferenca entre eles so pode ser ruido. No ensaio de fumo, num
+unico prompt de risco: J1 deu **6** ao A e **9** ao B; J2 deu **12** e **11**.
+**Ruido maximo medido: 3 pontos.**
+
+Uma vantagem de 1 ponto nao se distingue de ruido. O par A/B nos T3 passa a ser
+o **controlo interno** da corrida e sai impresso na tabela agregada.
+
+## D9 · o Codex pelo executor do Mooter reporta zero tokens
+
+`router-execute.js --pin-provider=codex-cli` devolveu
+`tokens_in: 0, tokens_out: 0, model_used: ""` numa chamada que **funcionou**
+(texto correcto, exit 0). O adaptador `providers/codex-cli.js` nao extrai usage
+nenhum — o mesmo padrao ja registado na memoria do projecto ("tokens_in/out = 0
+nas 4830 decisoes").
+
+`codex exec --json` **traz** usage (`input_tokens`, `cached_input_tokens`,
+`output_tokens`, `reasoning_output_tokens`). O braco D chama por ai. Fica como
+defeito do produto por corrigir, fora do ambito desta corrida.
+
+---
+
+## D10 · o produto manda o modelo local responder em 3 frases
+
+Apanhado ao ler as respostas, nao ao ler o codigo. Nos 10 prompts em T0 o local
+deu entre **23 e 280 tokens** onde o Haiku deu entre 364 e 1 923. Para o email
+de 120 palavras (MKT-2) deu 107 tokens — nao chega. Para «onde coloco a minha
+chave da api» (P5) deu **23**: «Coloca a tua chave da API em um ficheiro de
+configuracao ou variavel de ambiente.»
+
+A causa esta em `tools/router/providers/ollama-api.js:36-41`:
+
+```
+'Es um assistente de software engineering conciso.',
+'Respondes em PT-PT (Portugal). Codigo e identificadores em ingles.',
+'Respostas curtas e directas — nunca mais de 3 frases para perguntas simples.',
+'Nao uses preambulo. Nao repitas o que o user perguntou.',
+```
+
+Este system prompt vai em **toda** a chamada local do produto, seja a pergunta de
+software ou de direito. Uma clausula LGPD, um plano trimestral ou uma
+reconciliacao bancaria com «nunca mais de 3 frases» perdem antes de o modelo
+abrir a boca. Nao se sabe quanto da derrota do braco B e isto e quanto e o
+modelo — separa-lo e a corrida M12-b do veredicto. Fica como defeito do
+produto, nao do instrumento, e **nao foi corrigido para esta corrida**: o braco
+B mede o produto como esta.
+
+## D11 · o juiz falhou onde as respostas eram maiores
+
+`spawn` devolveu `ENAMETOOLONG` nos **dois** juizes do LEGAL-3. O prompt de juiz
+tinha 33 345 chars — cinco clausulas LGPD — e o Windows corta a linha de comando
+aos 32 767. Os outros 11 passaram por argv (o maior, MKT-4, com 25 799).
+
+**Correccao:** acima de 24 000 chars o prompt vai por stdin (`claude -p` sem
+argumento e `codex exec -`). Mesmo texto, outro transporte; so muda o caminho de
+quem nao cabe, e os 22 julgamentos feitos por argv nao foram repetidos. Guardado
+por dois testes: um ve os argumentos construidos com um `spawn` espiao, o outro
+fixa o limiar abaixo do tecto. O LEGAL-3 foi julgado depois da correccao — e
+esta declarado como o unico prompt cujo transporte difere dos restantes.
+
+
+=== NOT PROVEN (written before seeing results) (10-NAO-PROVADO.md) ===
+# MATRIZ 12 · o que esta corrida NAO prova
+
+Escrito **antes** de olhar para os resultados. Estas limitacoes sao do desenho,
+nao do numero que sair — e um resultado favoravel nao apaga nenhuma delas.
+
+---
+
+## 1. Os prompts foram escritos por quem escreveu as previsoes
+
+O MP mandava usar uma lista do Cowork. Essa lista nao existia em disco. O dono
+autorizou usar a proposta escrita nesta sessao — pelo mesmo agente que copiou as
+previsoes para o pre-registo.
+
+Quem escreve o prompt escolhe boa parte do resultado: um pedido de risco redigido
+com as palavras que o `classify.js` reconhece cai em T3 por construcao, e um
+pedido dificil redigido em voz curta cai em T0 pela mesma razao. **Isto e a
+limitacao mais seria da corrida.**
+
+O que a atenua um pouco: os textos derivam dos rotulos que o MP ja fixava
+(dominio, assunto, degrau esperado), e o ensaio de rotas mostrou que **duas das
+previsoes do proprio MP falharam na rota** — LEGAL-3 e MKT-3 estavam marcados
+como degrau do meio e caem em T0. Se os prompts tivessem sido feitos para dar
+razao as previsoes, isso nao teria acontecido.
+
+O que continua por fazer: repetir com prompts de terceiro, ou com prompts reais
+de transcricoes, escolhidos por alguem que nao conheca as previsoes.
+
+## 2. N = 12. Nao ha estatistica aqui
+
+Doze pedidos, um por celula. Nao ha repeticoes, nao ha intervalos de confianca,
+nao ha valor-p — e nenhum sera calculado a posteriori para arranjar um. Uma
+corrida so, como o MP manda.
+
+Somando a isto o **ruido medido entre dois bracos que correm o mesmo motor**
+(ver o controlo na tabela agregada), qualquer diferenca pequena nesta matriz e
+uma anedota bem instrumentada, nao um resultado.
+
+## 3. O arbiter esta inerte — mede-se o regex, nao o Mooter completo
+
+`arbiter.js` e um no-op sem `ANTHROPIC_API_KEY`, e esta maquina usa OAuth de
+subscricao. Sete dos doze prompts caem no gatilho do arbiter (confianca < 0,75
+ou categoria `ambiguous_*`).
+
+Ou seja: **a peca do Mooter desenhada exactamente para os prompts ambiguos nao
+correu.** Numa maquina com chave, a rota de mais de metade da matriz podia ser
+outra, e as conclusoes sobre "o Mooter manda isto para local" nao se transferem.
+
+## 4. Nenhum dolar foi poupado
+
+Os dois motores de nuvem correm por subscricao: Claude Code por OAuth, Codex por
+subscricao ChatGPT. Nada nesta corrida saiu da carteira por token.
+
+Todos os valores em dolares sao **preco de lista imputado**, calculados a partir
+da pagina oficial de precos lida a 2026-09-10. Servem para comparar bracos entre
+si. Nao sao poupanca, nao viram percentagem, e nao descrevem a factura de
+ninguem.
+
+E o local nao e "de graca": corre na GPU do dono e gasta energia. A corrida
+reporta segundos; nao converte nada disso em dinheiro.
+
+## 5. A cegueira dos juizes e de rotulo, nao de estilo
+
+As respostas vao aos juizes com rotulo sorteado e sem nome de modelo, custo ou
+tempo. Mas um juiz atento reconhece um modelo local pela forma de escrever —
+sobretudo um que despeja deliberacao em ingles antes de responder.
+
+Nao se editaram as respostas para as uniformizar: seria falsificar o que os
+motores deram. A cegueira e imperfeita e fica assim declarada.
+
+## 6. O J2 e da mesma familia de tres dos cinco candidatos
+
+J1 corre em OpenAI, J2 em Anthropic. Os bracos A, B e C sao todos Anthropic; o D
+e OpenAI. Nao existe juiz sem conflito nenhum neste conjunto.
+
+E para isso que existe o J3 humano, com folha vazia e chave selada. Ate a folha
+do J3 voltar, as tabelas trazem a media de **dois** juizes com conflito
+declarado.
+
+## 7. O braco D nao e um modelo — e um agente
+
+`codex exec` traz system prompt proprio, ferramentas e sandbox, e gasta ~27 mil
+tokens de entrada antes de ler o pedido. Os bracos Anthropic correm com as
+ferramentas desligadas.
+
+Comparar os dois e comparar **um agente com um modelo**. Quando o D ganha, parte
+do credito e do harness. E o custo do D e `n/d`: nao temos preco de lista
+publicado para o id de modelo que ele usa.
+
+## 8. Uma so maquina, um so dia, uma so lingua
+
+RTX 4090, Windows 11, prompts em portugues, 2026-09-10. Os modelos de nuvem nao
+sao deterministas e as versoes mudam. Nada aqui diz o que aconteceria noutra
+maquina, noutro dia, ou em ingles.
+
+## 9. Os 4 pontos que a rubrica nao ve
+
+RESOLVE, CORRECTO, EXECUTAVEL, RISCO e ECONOMIA nao medem: se a resposta esta
+certa em direito brasileiro (nenhum juiz e advogado), se o codigo compila
+(nenhum foi corrido), se o plano de marketing funcionaria (ninguem o executou),
+nem se o utilizador ficaria satisfeito. Medem o que se pode ler no texto.
+
+
+=== PROMPTS (prompts.json) ===
+{
+  "_schema": "matriz-12/prompts/1",
+  "estado": "DEFINITIVO — o dono autorizou usar esta proposta em 2026-09-10 ('usa a tua proposta, corre ja'). O aviso_de_metodo abaixo mantem-se e sai no verdict.md.",
+  "aviso_de_metodo": "Estes 12 textos foram escritos pelo MESMO agente que escreveu as previsoes pre-registadas. Quem escreve o prompt escolhe o resultado: um prompt de risco redigido com as palavras que o classify.js reconhece garante o degrau T3, e um prompt trivial redigido sem elas garante o T0. A lista do Cowork e preferivel exactamente por nao ter sido escrita por quem sabe as previsoes. Se estes textos forem usados, isto fica escrito no verdict.md como limitacao.",
+  "derivacao": "cada texto vem do rotulo que o MP da (dominio + assunto + degrau esperado); nada foi inventado alem da redaccao.",
+  "lingua": "portugues, como o dono escreve",
+  "prompts": [
+    {
+      "id": "DATA-1",
+      "dominio": "dados",
+      "rotulo_do_mp": "DATA-1 CSV",
+      "grupo": "T0/US$0",
+      "risco": false,
+      "texto": "Tenho um ficheiro CSV com as colunas data, cliente, produto e valor. Preciso do total facturado por cliente. Como faco isto no Excel?"
+    },
+    {
+      "id": "LEGAL-1",
+      "dominio": "juridico",
+      "rotulo_do_mp": "LEGAL-1 nao-concorrencia",
+      "grupo": "T0/US$0",
+      "risco": false,
+      "texto": "O contrato que me mandaram tem uma clausula de nao-concorrencia de 24 meses para todo o territorio nacional. Explica-me em linguagem simples o que e que isso significa na pratica para mim."
+    },
+    {
+      "id": "MKT-2",
+      "dominio": "marketing",
+      "rotulo_do_mp": "MKT-2 email 120 palavras",
+      "grupo": "T0/US$0",
+      "risco": false,
+      "texto": "Escreve um email de 120 palavras para os clientes actuais a anunciar que a nossa app passou a ter modo escuro. Tom directo, sem exageros, com uma frase de fecho a convidar a experimentar."
+    },
+    {
+      "id": "LEGAL-3",
+      "dominio": "juridico",
+      "rotulo_do_mp": "LEGAL-3 clausula LGPD (T2)",
+      "grupo": "degrau do meio",
+      "risco": false,
+      "texto": "Redige uma clausula de tratamento de dados pessoais conforme a LGPD para um contrato entre a minha empresa (controladora) e um fornecedor de software que vai processar dados dos meus clientes. Preciso que cubra finalidade, prazo de retencao, subcontratacao e o que acontece no fim do contrato."
+    },
+    {
+      "id": "MKT-3",
+      "dominio": "marketing",
+      "rotulo_do_mp": "MKT-3 pricing SaaS (T2)",
+      "grupo": "degrau do meio",
+      "risco": false,
+      "texto": "Estou a definir o pricing do meu SaaS B2B. Tenho 40 clientes a pagar 90 euros por mes num plano unico e o custo de servir cada um e cerca de 12 euros. Quero passar para tres planos. Como e que estruturo isso sem perder os clientes actuais?"
+    },
+    {
+      "id": "DEV-2",
+      "dominio": "codigo",
+      "rotulo_do_mp": "DEV-2 TypeError .map (T0 14B)",
+      "grupo": "degrau do meio",
+      "risco": false,
+      "texto": "O meu codigo esta a dar este erro: TypeError: Cannot read properties of undefined (reading 'map'). Acontece quando a pagina carrega. O que e que isto quer dizer e como e que eu resolvo?"
+    },
+    {
+      "id": "DATA-4",
+      "dominio": "dados",
+      "rotulo_do_mp": "DATA-4 DELETE clientes producao",
+      "grupo": "risco",
+      "risco": true,
+      "texto": "Preciso de apagar os clientes inactivos ha mais de dois anos da base de dados de producao. Da-me o comando SQL para fazer isso."
+    },
+    {
+      "id": "OPS-4",
+      "dominio": "operacao",
+      "rotulo_do_mp": "OPS-4 deploy 2.3.1 + migracoes",
+      "grupo": "risco",
+      "risco": true,
+      "texto": "Vou fazer deploy da versao 2.3.1 para producao esta noite. Leva duas migracoes de base de dados. Da-me o passo a passo do que tenho de fazer e por que ordem."
+    },
+    {
+      "id": "OPS-3",
+      "dominio": "operacao",
+      "rotulo_do_mp": "OPS-3 onde guardo a chave da API no Next.js",
+      "grupo": "risco · PAR com P5",
+      "risco": true,
+      "par": "P5",
+      "texto": "Onde e que eu guardo a chave da API no meu projecto Next.js para nao ficar exposta no browser?"
+    },
+    {
+      "id": "P5",
+      "dominio": "operacao",
+      "rotulo_do_mp": "P5 de ontem, verbatim: \"onde coloco a minha chave da api\"",
+      "grupo": "risco · PAR com OPS-3",
+      "risco": true,
+      "par": "OPS-3",
+      "origem": "prompt REAL do dono, usado no P5 do pacote de provas de 2026-09-09. Citado no MP de hoje pelo proprio dono.",
+      "texto": "onde coloco a minha chave da api"
+    },
+    {
+      "id": "MKT-4",
+      "dominio": "marketing",
+      "rotulo_do_mp": "MKT-4 plano lancamento Q4",
+      "grupo": "derrota prevista",
+      "risco": false,
+      "texto": "Faz-me o plano de lancamento do quarto trimestre. Somos quatro pessoas, o produto e uma app de gestao de obras para pequenas construtoras, e a meta e chegar a 200 clientes pagantes ate ao fim do ano. Quero saber o que fazer em cada mes e o que medir."
+    },
+    {
+      "id": "DATA-3",
+      "dominio": "dados",
+      "rotulo_do_mp": "DATA-3 reconciliacao bancaria",
+      "grupo": "derrota prevista",
+      "risco": false,
+      "texto": "Todos os meses perco um dia a bater o extracto do banco contra as facturas emitidas. Sao cerca de 300 linhas de cada lado, os valores nem sempre coincidem ao centimo e ha pagamentos agrupados. Como e que eu monto um processo para isto?"
+    }
+  ]
+}

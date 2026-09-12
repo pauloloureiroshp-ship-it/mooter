@@ -1,0 +1,160 @@
+{
+ "id": "LEGAL-3",
+ "chave": {
+  "R1": "A",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "C",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Cobre amplamente o pedido, mas exige harmonizar opções e prazos, atribui indevidamente ao artigo 16 a conservação para exercício de direitos e inclui detalhe excessivo.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Aborda os quatro temas superficialmente, apresenta autorização de subcontratação como exigência expressa da LGPD e expõe extensa deliberação sem concretizar prazos ou salvaguardas.",
+     "total": 3,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Oferece uma minuta coerente, distingue prazos contratuais de exigências legais e trata suboperadores, backups e eliminação, faltando preencher os elementos específicos do contrato.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Cobre o pedido, mas usa «processadora» em vez de «operadora», deixa ambígua a retenção após o término e não exige eliminar as cópias quando há devolução.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Introduz cinco anos de retenção sem fundamento, não harmoniza esse prazo com a eliminação no término e condiciona indevidamente a conservação legal a pedido da controladora.",
+     "total": 1,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Cobre amplamente o pedido, mas exige harmonizar opções e prazos, atribui indevidamente ao artigo 16 a conservação para exercício de direitos e inclui detalhe excessivo.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Aborda os quatro temas superficialmente, apresenta autorização de subcontratação como exigência expressa da LGPD e expõe extensa deliberação sem concretizar prazos ou salvaguardas.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Oferece uma minuta coerente, distingue prazos contratuais de exigências legais e trata suboperadores, backups e eliminação, faltando preencher os elementos específicos do contrato.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Cobre o pedido, mas usa «processadora» em vez de «operadora», deixa ambígua a retenção após o término e não exige eliminar as cópias quando há devolução.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Introduz cinco anos de retenção sem fundamento, não harmoniza esse prazo com a eliminação no término e condiciona indevidamente a conservação legal a pedido da controladora.\"}}",
+   "custo_tokens": {
+    "in": 35178,
+    "out": 527,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 21543.6709
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Clausula completa, bem fundamentada na LGPD, com anexo de escopo e alertas de negociacao uteis.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expoe um raciocinio interno confuso e em ingles antes da resposta, que fica superficial e sem prazos concretos.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Cobre todos os pontos pedidos com precisao, cita artigos da LGPD e avisa que os prazos sao propostas contratuais, nao imposicoes legais.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Boa cobertura dos quatro temas, mas a previsao de auditoria 'sem aviso previo' e pouco pratica e falta tratamento de backups e excecoes legais.",
+     "total": 7,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Clausula muito rasa, com prazo de retencao arbitrario e sem detalhar seguranca, incidentes ou excecoes legais no fim do contrato.",
+     "total": 4,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Clausula completa, bem fundamentada na LGPD, com anexo de escopo e alertas de negociacao uteis.\"},\n\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expoe um raciocinio interno confuso e em ingles antes da resposta, que fica superficial e sem prazos concretos.\"},\n\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Cobre todos os pontos pedidos com precisao, cita artigos da LGPD e avisa que os prazos sao propostas contratuais, nao imposicoes legais.\"},\n\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Boa cobertura dos quatro temas, mas a previsao de auditoria 'sem aviso previo' e pouco pratica e falta tratamento de backups e excecoes legais.\"},\n\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Clausula muito rasa, com prazo de retencao arbitrario e sem detalhar seguranca, incidentes ou excecoes legais no fim do contrato.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 3588,
+    "cache_write": 19703,
+    "cache_read": 3298
+   },
+   "ms": 45352.074
+  }
+ }
+}

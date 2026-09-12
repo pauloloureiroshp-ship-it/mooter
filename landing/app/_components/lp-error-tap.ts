@@ -553,7 +553,7 @@ export function installLpErrorTap(): void {
       root.appendChild(style);
       box = document.createElement('div');
       box.style.cssText =
-        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:3px;';
+        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:1.5px solid #E8888A;background:rgba(232,136,138,0.12);border-radius:4px;';
       root.appendChild(box);
       pinBox = document.createElement('div');
       pinBox.className = 'lp-pin-state lp-state-selected';
@@ -637,7 +637,7 @@ export function installLpErrorTap(): void {
       if (!parsed || !root) return;
       const b = document.createElement('div');
       b.style.cssText =
-        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px dashed #7FB88A;background:rgba(127,184,138,0.08);border-radius:3px;';
+        'position:fixed;display:none;pointer-events:none;box-sizing:border-box;border:2px dashed #7FB88A;background:rgba(127,184,138,0.08);border-radius:4px;';
       root.appendChild(b);
       refEls.push(el); refBoxes.push(b);
       drawRefs();

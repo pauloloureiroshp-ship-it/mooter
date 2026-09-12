@@ -18,6 +18,8 @@ import fs from 'node:fs';
 import { buildContextPack, PILLARS, PILLAR_IDS } from './context-pack.mjs';
 import { verifyEvidence, VERDICT } from './evidence-verifier.mjs';
 import { deviceName } from './fleet-beacon.mjs';
+import { campoDeScore } from './score-sombra.mjs';
+import { conferirRecibo } from './receipts-check.mjs';
 
 export const DEFAULT_OLLAMA = 'http://127.0.0.1:11434';
 export const DEFAULT_MODEL = 'qwen2.5-coder:14b';
@@ -74,12 +76,35 @@ export function isStopped(stopFile, statImpl = fs.statSync) {
 }
 
 /** Builds the Ollama payload. `keep_alive` holds the model resident between rounds. */
-export function buildPayload({ model, pack, numPredict = NUM_PREDICT }) {
+/**
+ * `think: false` — MEDIDO a 2026-08-29, e e a diferenca entre 0% e 83%.
+ *
+ * Um modelo de raciocinio (o `granite4.2` declara `thinking`; o
+ * `qwen2.5-coder:14b` nao) gasta o `num_predict` DENTRO do traco de raciocinio e
+ * nunca chega a escrever a conclusao. Medido no P2, N=12, mesmo excerto:
+ *
+ *   granite4.2:3b   sem think:false  0%  ·  com think:false  83,3%  (700 -> 127 tok)
+ *   granite4.2:8b   sem think:false  0%  ·  com think:false  50%
+ *
+ * Dar-lhe MAIS espaco nao resolve (num_predict 2500 deu 8,3%): o raciocinio
+ * expande para encher o que lhe derem. O `NUM_PREDICT = 700` foi afinado contra
+ * um modelo que nao pensa, e por isso qualquer modelo de thinking ligado a este
+ * runner parecia avariado — sempre 700 tokens, sempre `sem-citacao`.
+ *
+ * O repo ja sabia disto noutro canto, e nunca chegou aqui:
+ * `tools/audit/audit_corpus_builder.js` — «think:false keeps qwen3 from emitting
+ * reasoning tokens we'd have to strip».
+ *
+ * A ronda de pilar quer uma citacao curta, nao um rascunho. Um modelo que nao
+ * suporta o campo ignora-o.
+ */
+export function buildPayload({ model, pack, numPredict = NUM_PREDICT, think = false }) {
   return {
     model,
     prompt: pack.prompt,
     system: pack.system,
     stream: false,
+    think,
     keep_alive: '10m',
     options: { num_predict: numPredict, temperature: 0.2 },
   };
@@ -122,7 +147,8 @@ export async function segundoParecer({ pack, model, base, fetchImpl, timeoutMs }
     if (res && res.url) assertLocalEngine(new URL(res.url).origin);
     if (!res || !res.ok) return { modelo: model, ok: false, porque: 'http' };
     const body = await res.json();
-    const texto = String((body && (body.response || body.thinking)) || '').trim();
+    // Mesma correccao do `runRound`: o segundo parecer tambem nao pontua rascunhos.
+    const texto = String((body && body.response) || '').trim();
     return { modelo: model, ok: true, texto: texto.replace(/\s+/g, ' ').slice(0, 240) };
   } catch (err) {
     return { modelo: model, ok: false, porque: String((err && err.message) || err).slice(0, 80) };
@@ -317,7 +343,14 @@ export async function runRound({
     clearInterval(stopWatch);
   }
 
-  const text = String((body && (body.response || body.thinking)) || '').trim();
+  // NAO cair para `body.thinking`. Ate 2026-08-29 esta linha era
+  // `body.response || body.thinking` e, quando um modelo de raciocinio esgotava o
+  // `num_predict` dentro do traco, o `response` vinha vazio — o fallback entregava
+  // o RASCUNHO ao `verifyEvidence` como se fosse a resposta. Nao era resposta
+  // truncada: era o runner a pontuar o raciocinio. Com `think:false` o `thinking`
+  // deixa de existir; se aparecer, e sinal de que o pedido nao levou a trava, e um
+  // `sem-citacao` honesto vale mais do que uma nota dada ao rascunho.
+  const text = String((body && body.response) || '').trim();
   const tokens = Number((body && body.eval_count) || 0);
   const check = verifyEvidence({
     repoRoot,
@@ -348,7 +381,7 @@ export async function runRound({
     }
   }
 
-  return {
+  const r = {
     dispatched: true,
     receipt: {
       ...receiptBase(),
@@ -395,6 +428,11 @@ export async function runRound({
       })),
       fora_da_janela: check.offWindow,
       resultado_resumo: (text.replace(/\s+/g, ' ').slice(0, 280) || 'resposta_vazia'),
+      // MODO SOMBRA (M3). O score viaja, acumula, e nao decide NADA — nem aqui
+      // nem em lado nenhum. `null` ate o prompt o pedir, e o pedido esta
+      // desligado de propósito: este ficheiro tem medicao de que alongar o
+      // enunciado colapsa a deteccao. Ver `score-sombra.mjs`.
+      ...campoDeScore(text),
       evidencia: check.evidence,
       // Ponto cego conhecido do tier local: quando ha negacao, dizemo-lo.
       ...(pack.negacaoDensa ? { negacao_densa: true } : {}),
@@ -405,6 +443,24 @@ export async function runRound({
       ...(parecer && parecer.concorda === false ? { precisa_tier_superior: true } : {}),
     },
   };
+  /**
+   * A CONFERENCIA DA EVIDENCIA, como CAMPO — nunca como decisao.
+   *
+   * O `verdict` diz que a linha citada existe. Este diz se o que o modelo
+   * escreveu que la estava esta MESMO la. Medido sobre os 1072 achados do ledger
+   * deste device: 16,3% `sem-evidencia`, 18,8% `linha-errada`.
+   *
+   * Escreve-se no recibo e NAO se escreve triagem nenhuma. Fechar 175 achados
+   * sozinho no `triagem.jsonl` do dono seria uma decisao dele, nao minha — e
+   * ligar a escrita e trabalho da W2, com o loop reaberto por ata. Aqui o campo
+   * so acumula, como o `score`.
+   */
+  if (r.receipt && r.receipt.conclusao === 'achado') {
+    const c = conferirRecibo(r.receipt, { raiz: repoRoot });
+    r.receipt.evidencia_confere = c.veredicto;
+    r.receipt.evidencia_porque = c.porque;
+  }
+  return r;
 }
 
 /** Rotation over the pillars, kept pure so the loop stays trivial to reason about. */

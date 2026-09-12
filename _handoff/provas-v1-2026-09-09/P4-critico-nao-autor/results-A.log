@@ -1,0 +1,56 @@
+mooter-01-M A TP ACHADO tools/router/_model-resolver.js:40 cit-ok 14s
+mooter-01-C A TN SEM ACHADO - cit-x 12s
+mooter-02-M A TP ACHADO tools/router/_model-resolver.js:44 cit-ok 32s
+mooter-02-C A TN SEM ACHADO - cit-x 42s
+mooter-03-M A TP ACHADO tools/router/agent-focus-status.js:43 cit-ok 15s
+mooter-03-C A TN SEM ACHADO - cit-x 15s
+mooter-04-M A TP ACHADO tools/router/agent-focus-status.js:47 cit-ok 14s
+mooter-04-C A TN SEM ACHADO - cit-x 21s
+mooter-05-M A TP ACHADO tools/router/agents-progress-status.js:62 cit-ok 15s
+mooter-05-C A FP ACHADO tools/router/agents-progress-status.js:62 cit-ok 29s
+mooter-06-M A TP ACHADO tools/router/agents-progress-status.js:63 cit-ok 19s
+mooter-06-C A TN SEM ACHADO - cit-x 16s
+mooter-07-M A TP ACHADO tools/router/assinatura.js:72 cit-ok 15s
+mooter-07-C A TN SEM ACHADO - cit-x 12s
+mooter-08-M A TP ACHADO tools/router/assinatura.js:113 cit-ok 15s
+mooter-08-C A TN SEM ACHADO - cit-x 35s
+mooter-09-M A TP ACHADO tools/router/badge.js:38 cit-ok 17s
+mooter-09-C A TN SEM ACHADO - cit-x 17s
+mooter-10-M A TP ACHADO tools/router/badge.js:39 cit-ok 15s
+mooter-10-C A TN SEM ACHADO - cit-x 14s
+fastify-01-M A TP ACHADO lib/content-type.js:97 cit-ok 15s
+fastify-01-C A TN SEM ACHADO - cit-x 20s
+fastify-02-M A TP ACHADO lib/content-type.js:104 cit-ok 14s
+fastify-02-C A TN SEM ACHADO - cit-x 31s
+fastify-03-M A TP ACHADO lib/hooks.js:61 cit-ok 13s
+fastify-03-C A TN SEM ACHADO - cit-x 20s
+fastify-04-M A TP ACHADO lib/hooks.js:62 cit-ok 13s
+fastify-04-C A TN SEM ACHADO - cit-x 20s
+fastify-05-M A FN SEM ACHADO - cit-x 16s
+fastify-05-C A FP ACHADO lib/noop-set.js:8 cit-ok 16s
+fastify-06-M A TP ACHADO lib/server.js:34 cit-ok 14s
+fastify-06-C A TN SEM ACHADO - cit-x 29s
+fastify-07-M A TP ACHADO lib/server.js:42 cit-ok 26s
+fastify-07-C A TN SEM ACHADO - cit-x 33s
+fastify-08-M A TP ACHADO lib/wrap-thenable.js:63 cit-ok 17s
+fastify-08-C A TN SEM ACHADO - cit-x 27s
+hono-01-M A TP ACHADO src/utils/accept.ts:3 cit-ok 10s
+hono-01-C A TN SEM ACHADO - cit-x 16s
+hono-02-M A TP ACHADO src/utils/accept.ts:8 cit-ok 15s
+hono-02-C A TN SEM ACHADO - cit-x 17s
+hono-03-M A TP ACHADO src/utils/basic-auth.ts:11 cit-ok 14s
+hono-03-C A TN SEM ACHADO - cit-x 16s
+hono-04-M A TP ACHADO src/utils/basic-auth.ts:21 cit-ok 15s
+hono-04-C A TN SEM ACHADO - cit-x 17s
+hono-05-M A TP ACHADO src/utils/body.ts:16 cit-ok 14s
+hono-05-C A TN SEM ACHADO - cit-x 15s
+hono-06-M A TP ACHADO src/utils/body.ts:26 cit-ok 15s
+hono-06-C A TN SEM ACHADO - cit-x 19s
+hono-07-M A TP ACHADO src/utils/buffer.ts:9 cit-ok 10s
+hono-07-C A TN SEM ACHADO - cit-x 19s
+hono-08-M A TP ACHADO src/utils/buffer.ts:10 cit-ok 15s
+hono-08-C A TN SEM ACHADO - cit-x 15s
+hono-09-M A TP ACHADO src/utils/concurrent.ts:9 cit-ok 11s
+hono-09-C A TN SEM ACHADO - cit-x 57s
+hono-10-M A TP ACHADO src/utils/concurrent.ts:21 cit-ok 15s
+hono-10-C A TN SEM ACHADO - cit-x 48s

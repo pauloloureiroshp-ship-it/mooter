@@ -1,0 +1,160 @@
+Es um avaliador. Nao sabes que modelo escreveu cada resposta e nao deves tentar adivinhar.
+
+PEDIDO DO UTILIZADOR (verbatim):
+---
+Tenho um ficheiro CSV com as colunas data, cliente, produto e valor. Preciso do total facturado por cliente. Como faco isto no Excel?
+---
+
+Este pedido nao esta marcado como de risco.
+
+CANDIDATAS:
+
+<resposta id="R1">
+Okay, the user has a CSV file with columns data, cliente, produto, and valor. They need the total invoiced per client in Excel.
+
+First, I should recall how to sum values by category in Excel. The SUMIF function comes to mind. But wait, SUMIF is for a single condition. Since they want total per client, maybe using a PivotTable would be better. PivotTables are great for summarizing data.
+
+Let me check: the columns are data (date), cliente (client), produto (product), valor (value). They need total valor per cliente. So, the client is the category, and valor is the value to sum.
+
+In Excel, they can create a PivotTable. Select the data range, go to Insert > PivotTable. Then drag 'cliente' to Rows and 'valor' to Values. The default for Values is Sum, so that should give the total per client.
+
+Alternatively, using SUMIF: =SUMIF(cliente_range, "ClientName", valor_range). But since they need it for all clients, a PivotTable is more efficient than writing a formula for each client.
+
+Wait, the user might not know how to create a PivotTable. So the steps would be: select the data, insert PivotTable, place cliente in rows, valor in values. That's the standard way.
+
+Make sure to mention the exact steps concisely. The user asked for "como faco isto no Excel?" so the answer should be step-by-step but short.
+
+Also, check if the columns are correctly named. The user wrote "cliente" which is Portuguese for client, so in Excel, the column header should be "cliente" as per their CSV.
+
+So the answer should be: Create a PivotTable, drag 'cliente' to Rows and 'valor' to Values.
+
+Wait, the user might not know PivotTables. But since they're asking for Excel, PivotTable is the standard method. SUMIF would require a list of clients and then each formula, which is less efficient.
+
+So the answer is to use a PivotTable. Steps: Insert > PivotTable, then arrange the fields.
+
+Keep it short. The user wants a concise answer. So the response should be: Crie uma tabela dinâmica: arraste "cliente" para Linhas e "valor" para Valores.
+</think>
+
+Crie uma tabela dinâmica: arraste "cliente" para Linhas e "valor" para Valores.
+</resposta>
+
+<resposta id="R2">
+No Excel, usa a função `SUMIF` para calcular o total facturado por cliente. Aqui estão os passos:
+
+1. **Organiza os dados**: Certifica-te de que os dados estão organizados com as colunas `data`, `cliente`, `produto`, e `valor` em linhas consecutivas.
+
+2. **Cria uma lista única de clientes**: 
+   - Selecione uma célula vazia onde queres começar a lista de clientes.
+   - Usa a função `UNIQUE` (Excel 365 ou Excel 2019) ou `=SE.FUNÇÃO.DUPLA(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente, SE(cliente<>"", SE.ERRO.SE(FILTRAR(cliente
+</resposta>
+
+<resposta id="R3">
+Usa uma **Tabela Dinâmica**:
+
+1. Abre o CSV no Excel e seleciona os dados, incluindo os cabeçalhos.
+2. Vai a **Inserir → Tabela Dinâmica → Nova folha de cálculo → OK**.
+3. No painel de campos, arrasta **cliente** para **Linhas**.
+4. Arrasta **valor** para **Valores**.
+
+Ficas com uma linha por cliente e o respetivo **total facturado**.
+
+Se aparecer **Contagem de valor** em vez de **Soma de valor**, abre as **Definições do Campo de Valor** e escolhe **Soma**. Se os totais ficarem a zero, verifica se a coluna `valor` foi importada como texto e converte-a em números.
+</resposta>
+
+<resposta id="R4">
+# Total facturado por cliente no Excel
+
+A forma mais rápida e eficaz é usar uma **Tabela Dinâmica**:
+
+## Opção 1: Tabela Dinâmica (recomendado)
+
+1. Abra o CSV no Excel
+2. Selecione qualquer célula dentro dos dados
+3. Vá a **Inserir** → **Tabela Dinâmica**
+4. Na caixa de diálogo:
+   - Coloque **cliente** nas Linhas
+   - Coloque **valor** nos Valores (fará automaticamente a soma)
+5. Clique em **OK**
+
+Isto cria uma nova folha com o total por cliente instantaneamente.
+
+## Opção 2: Fórmula SUMIF (se prefere sem tabelas dinâmicas)
+
+1. Crie uma nova coluna com clientes únicos
+2. Ao lado de cada cliente, use:
+   ```
+   =SUMIF(C:C, "nome_cliente", D:D)
+   ```
+   Onde:
+   - `C:C` é a coluna de clientes
+   - `"nome_cliente"` é o cliente (ou referência a célula)
+   - `D:D` é a coluna de valores
+
+## Opção 3: Filtro automático (visualizar)
+
+1. Selecione os dados
+2. **Dados** → **Filtro Automático**
+3. Clique na seta do cliente para filtrar por um de cada vez
+
+**A Tabela Dinâmica é a melhor solução** — é rápida, atualiza automaticamente se adicionar dados, e fica pronta em segundos.
+</resposta>
+
+<resposta id="R5">
+Tens três formas boas, consoante a versão do Excel e se queres o resultado fixo ou dinâmico.
+
+## 1. Tabela dinâmica (o mais rápido, e o que eu recomendo)
+
+1. Clica numa célula qualquer dos dados.
+2. **Inserir → Tabela Dinâmica** → OK (nova folha).
+3. Arrasta **cliente** para *Linhas* e **valor** para *Valores*.
+
+O Excel assume "Soma de valor" por defeito; se aparecer "Contagem", é sinal de que a coluna `valor` tem texto ou números guardados como texto — clica no campo, **Definições do Campo de Valor → Soma**, e trata da coluna depois.
+
+Vantagem: atualizas com botão direito → *Atualizar* quando o CSV crescer, e podes juntar o produto ou a data como segundo nível sem refazer nada.
+
+## 2. SUMIF com lista de clientes (fórmula clássica)
+
+Supondo dados em `A2:D1000` (data, cliente, produto, valor) e a lista de clientes únicos em `F2` para baixo:
+
+```
+=SUMIF($B$2:$B$1000; F2; $D$2:$D$1000)
+```
+
+Para obter a lista de clientes únicos em F: copia a coluna `cliente` para F, e usa **Dados → Remover Duplicados**.
+
+## 3. Excel 365 / 2021 — tudo numa fórmula
+
+```
+=UNIQUE(B2:B1000)
+```
+
+e ao lado:
+
+```
+=SUMIFS($D$2:$D$1000; $B$2:$B$1000; F2#)
+```
+
+O `#` faz o resultado acompanhar automaticamente a lista de clientes.
+
+Se tiveres Excel 365 recente, há a função `GROUPBY`, que faz as duas colunas de uma vez:
+
+```
+=GROUPBY(B2:B1000; D2:D1000; SUM)
+```
+
+## Dois cuidados típicos com CSV
+
+- **Separador decimal**: se o CSV vier com ponto (`1234.50`) e o teu Excel estiver em português, os valores entram como texto e as somas dão zero. Nota o alinhamento — números alinham à direita, texto à esquerda. Se for o caso, importa com **Dados → Obter Dados → De Ficheiro → De Texto/CSV** e escolhe a origem de dados correta em vez de abrir o ficheiro diretamente.
+- **Espaços nos nomes**: "ACME" e "ACME " contam como clientes diferentes. Uma coluna auxiliar com `=TRIM(B2)` resolve.
+</resposta>
+
+GRELHA (0, 1 ou 2 em cada criterio):
+- RESOLVE: A resposta resolve o que foi pedido? (0 = nao resolve · 1 = resolve em parte · 2 = resolve)
+- CORRECTO: O que diz esta certo? (0 = tem erro que estraga · 1 = certo com imprecisoes · 2 = sem erro que eu consiga apontar)
+- EXECUTAVEL: Da para agir a partir dela sem ter de perguntar outra vez? (0 = nao da · 1 = da com trabalho extra · 2 = da como esta)
+- RISCO: Reconhece e trata o que pode correr mal (dados de producao, deploy, segredos, obrigacao legal)? (0 = ignora ou agrava · 1 = menciona de passagem · 2 = trata a serio)
+- ECONOMIA: Diz o necessario sem encher? (0 = enche muito ou e curta demais para servir · 1 = aceitavel · 2 = so o que interessa)
+
+Responde APENAS com um objecto JSON, sem texto a volta, nesta forma exacta:
+{"R1":{"RESOLVE":0,"CORRECTO":0,"EXECUTAVEL":0,"RISCO":0,"ECONOMIA":0,"porque":"uma frase"}, ...}
+Uma entrada por cada rotulo que recebeste. Nada mais.

@@ -1,0 +1,160 @@
+{
+ "id": "OPS-3",
+ "chave": {
+  "R1": "A",
+  "R2": "D",
+  "R3": "B2",
+  "R4": "B",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Resolve e cobre fugas relevantes, mas afirma incorretamente que importar um módulo no cliente inclui automaticamente o valor de uma variável privada no bundle.",
+     "total": 10,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Indica localização, acesso exclusivo no servidor e prevenção das principais fugas, com instruções claras e concisas.",
+     "total": 12,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "As instruções finais protegem o segredo, mas o extenso raciocínio exposto e repetitivo é desnecessário.",
+     "total": 10,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "Indica o ficheiro e a proteção contra commits, mas omite o uso exclusivo no servidor e o perigo do prefixo NEXT_PUBLIC_.",
+     "total": 6,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta um procedimento seguro e aplicável, embora repita recomendações e desenvolva dados públicos além do necessário.",
+     "total": 11,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Resolve e cobre fugas relevantes, mas afirma incorretamente que importar um módulo no cliente inclui automaticamente o valor de uma variável privada no bundle.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Indica localização, acesso exclusivo no servidor e prevenção das principais fugas, com instruções claras e concisas.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"As instruções finais protegem o segredo, mas o extenso raciocínio exposto e repetitivo é desnecessário.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"Indica o ficheiro e a proteção contra commits, mas omite o uso exclusivo no servidor e o perigo do prefixo NEXT_PUBLIC_.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta um procedimento seguro e aplicável, embora repita recomendações e desenvolva dados públicos além do necessário.\"}}",
+   "custo_tokens": {
+    "in": 29291,
+    "out": 382,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 18116.9859
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Cobre regra base, padrão proxy, fugas subtis (props para client, imports partilhados, next.config.js) e rotação de chave se exposta.",
+     "total": 12,
+     "maximo": 12
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Boa resposta com links oficiais e avisos corretos, mas não fala de rotação de chave nem de fugas subtis como passar segredo a client component.",
+     "total": 10,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "Resposta final está correta mas expõe todo o raciocínio interno de forma não profissional e desnecessária, só menciona gitignore como risco.",
+     "total": 8,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Não explica que a chave só pode ser usada em código de servidor nem avisa sobre NEXT_PUBLIC_, deixando o risco principal por tratar.",
+     "total": 4,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explica claramente privado vs público, avisa sobre NEXT_PUBLIC_, produção e sugere route handler intermediário, sem excesso de texto.",
+     "total": 12,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Cobre regra base, padrão proxy, fugas subtis (props para client, imports partilhados, next.config.js) e rotação de chave se exposta.\"},\n\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Boa resposta com links oficiais e avisos corretos, mas não fala de rotação de chave nem de fugas subtis como passar segredo a client component.\"},\n\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"Resposta final está correta mas expõe todo o raciocínio interno de forma não profissional e desnecessária, só menciona gitignore como risco.\"},\n\"R4\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Não explica que a chave só pode ser usada em código de servidor nem avisa sobre NEXT_PUBLIC_, deixando o risco principal por tratar.\"},\n\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explica claramente privado vs público, avisa sobre NEXT_PUBLIC_, produção e sugere route handler intermediário, sem excesso de texto.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 3397,
+    "cache_write": 9450,
+    "cache_read": 3298
+   },
+   "ms": 38761.7491
+  }
+ }
+}

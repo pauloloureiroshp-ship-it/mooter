@@ -1,0 +1,13 @@
+{
+  "name": "moo-visual-audit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Isolado de proposito: o auditor visual e a UNICA peca do design/ que precisa de um browser. O viés zero-dependencias do repo mantem-se — esta dependencia vive aqui e em mais lado nenhum, e nenhum package.json existente foi tocado.",
+  "scripts": {
+    "audit": "node moo-visual-audit.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  }
+}

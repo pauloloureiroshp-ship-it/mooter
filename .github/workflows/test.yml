@@ -13,6 +13,18 @@ on:
       # para 225 no mesmo dia, e um comentario com um numero errado e pior do
       # que um comentario sem numero nenhum.)
       - 'tools/cockpit/**'
+      # O `render_medir` (F3) vive em tools/verify/ mas a sua suite corre a partir
+      # de tools/router. Sem esta linha, um PR que so lhe tocasse nunca corria o
+      # job que o testa — o defeito do #398, onde um workflow filtrado por path
+      # deixou de acordar para os dados que a suite le.
+      - 'tools/verify/**'
+      - 'tools/gauntlet/**'
+      # O harness A/B e a sua mordida. Sem esta linha, um PR que so lhes
+      # mexesse nao corria os testes que os guardam — presenca sem cobertura.
+      - 'tools/ab/**'
+      - 'tools/handoff-preflight*'
+      - 'AGENTS.md'
+      - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
@@ -25,7 +37,19 @@ on:
       # um PR que so lhes mexesse nunca corria o job que os usa — e a lista de
       # divida podia crescer sem ninguem ver.
       - 'tools/guarda-home*'
-      - '.github/workflows/test.yml'
+      # NAO basta nomear este ficheiro: `workflows-parseiam.test.mjs` corre so
+      # por `test:cockpit-runner`, invocado so aqui. Com `paths:` a nomear
+      # apenas o proprio `test.yml`, um PR que editasse OUTRO workflow nao
+      # disparava este job — e o `test-skip.yml` reportava os dois checks
+      # obrigatorios a verde sem correr nada. A guarda que existe para apanhar
+      # um workflow partido era cega a workflows. Medido a 2026-09-01.
+      - '.github/workflows/**'
+      # O `package.json` define O QUE os testes SAO (`test:ab`, `test:ab-morde`,
+      # `test:cockpit-runner`...). Sem esta linha, um PR que so mudasse um desses
+      # scripts nao corria este job — e o `test-skip` reportava os checks
+      # obrigatorios a verde sem ter corrido nada. Medido a 2026-09-01, ao ligar
+      # os testes do harness A/B: era o unico ficheiro do PR fora dos paths.
+      - 'package.json'
   pull_request:
     branches: [main]
     paths:
@@ -34,6 +58,18 @@ on:
       - 'packages/mooter-bridge/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/cockpit/**'
+      # O `render_medir` (F3) vive em tools/verify/ mas a sua suite corre a partir
+      # de tools/router. Sem esta linha, um PR que so lhe tocasse nunca corria o
+      # job que o testa — o defeito do #398, onde um workflow filtrado por path
+      # deixou de acordar para os dados que a suite le.
+      - 'tools/verify/**'
+      - 'tools/gauntlet/**'
+      # O harness A/B e a sua mordida. Sem esta linha, um PR que so lhes
+      # mexesse nao corria os testes que os guardam — presenca sem cobertura.
+      - 'tools/ab/**'
+      - 'tools/handoff-preflight*'
+      - 'AGENTS.md'
+      - 'docs/strategy/PERFECT_HANDOFF_SPEC.md'
       # `packages/slack-spike/**` esta aqui por uma razao mecanica, nao de cobertura:
       # os jobs deste workflow sao REQUIRED na proteccao do `main`. Um PR que so lhe
       # toque no slack-spike nao dispara este workflow, os checks nunca reportam, e o
@@ -44,7 +80,19 @@ on:
       - 'packages/slack-spike/**'
       # Idem para os PRs — ver a nota no bloco do push.
       - 'tools/guarda-home*'
-      - '.github/workflows/test.yml'
+      # NAO basta nomear este ficheiro: `workflows-parseiam.test.mjs` corre so
+      # por `test:cockpit-runner`, invocado so aqui. Com `paths:` a nomear
+      # apenas o proprio `test.yml`, um PR que editasse OUTRO workflow nao
+      # disparava este job — e o `test-skip.yml` reportava os dois checks
+      # obrigatorios a verde sem correr nada. A guarda que existe para apanhar
+      # um workflow partido era cega a workflows. Medido a 2026-09-01.
+      - '.github/workflows/**'
+      # O `package.json` define O QUE os testes SAO (`test:ab`, `test:ab-morde`,
+      # `test:cockpit-runner`...). Sem esta linha, um PR que so mudasse um desses
+      # scripts nao corria este job — e o `test-skip` reportava os checks
+      # obrigatorios a verde sem ter corrido nada. Medido a 2026-09-01, ao ligar
+      # os testes do harness A/B: era o unico ficheiro do PR fora dos paths.
+      - 'package.json'
   workflow_dispatch:
 
 jobs:
@@ -110,6 +158,69 @@ jobs:
       - name: Cockpit runner + smoke E2E
         run: npm run test:cockpit-runner
 
+      # O portao do gauntlet (estagio 2). O MEO_GAUNTLET.md declara tres estagios
+      # e diz que estava no primeiro — «contrato de prompt ... NAO e automatico,
+      # depende de obediencia». Medido a 2026-09-01: zero ficheiros verificavam a
+      # declaracao `gauntlet:`. Dezoito perguntas escritas, nenhuma aplicada.
+      # Isto testa o PORTAO, nao as waves: torna-lo required sobre os PRs e um
+      # gesto do dono, nao do agente que o escreveu.
+      - name: Portao do gauntlet (estagio 2)
+        run: npm run test:gauntlet
+
+      # O harness A/B produz os numeros que vao para releases e para paginas
+      # publicas, e ate 2026-09-01 nao tinha teste nenhum. Uma auditoria de
+      # pre-merge apanhou-lhe quatro defeitos — dois de metodo, dois de
+      # honestidade — e as correccoes baixaram TODOS os numeros anunciados
+      # (84,3% -> 81,7%, «+36 pontos» -> +12, «so o nosso e reprodutivel» ->
+      # retirado). Sem estes testes, qualquer uma pode ser desfeita em silencio.
+      # Hermetico: o braco do LLM recebe sempre um callImpl falso, zero rede.
+      - name: Harness A/B (os numeros publicos)
+        run: npm run test:ab
+
+      # E a prova de que os testes acima mordem. No primeiro uso, 1 dos 13
+      # defeitos plantados PASSOU: o teste das convencoes casava com a linha
+      # que define os tiers em vez do bloco que devia guardar. 22 testes verdes
+      # e um deles nao verificava nada — que e exactamente a classe de defeito
+      # que este passo existe para tornar impossivel de repetir.
+      #
+      # Passo separado porque o script MUTA o harness e restaura-o; o
+      # `node --test` corre ficheiros em paralelo e nao pode ver o ficheiro a
+      # meio de uma mutacao.
+      - name: Mordida do harness A/B (13 defeitos plantados)
+        run: npm run test:ab-morde
+
+      # O portao a MORDER uma entrega real, nao so os seus proprios testes.
+      # Ate aqui ele corria no CI e nunca via uma declaracao verdadeira — que e
+      # exactamente o estagio 1 que o MEO_GAUNTLET.md descreve («depende de
+      # obediencia»). Agora le o corpo do PR e diz o que encontrou.
+      #
+      # ADVISORY (`continue-on-error`): produz sinal, nao bloqueia. Tornar isto
+      # required sobre os PRs muda o processo de toda a gente e e gesto do dono,
+      # nao do agente que escreveu o portao.
+      #
+      # SEGURANCA: o corpo do PR e texto de terceiros e vai por `env:`, nunca
+      # interpolado no `run:`. Um `${{ github.event.pull_request.body }}` dentro
+      # do shell e script injection — um PR com backticks executa no runner.
+      - name: Gauntlet declarado no PR (advisory)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s' "$PR_BODY" | node tools/gauntlet/portao-gauntlet.mjs --stdin
+
+      # O irmao do portao acima, e o mesmo defeito noutro sitio.
+      # `tools/handoff-preflight.js` valida a seccao "Pre-Dispatch Red-Team
+      # Gate" do AGENTS.md — exige exactamente 8 perguntas, numeradas 1..8,
+      # sem duplicados, e com a regra anti-sycophancy presente (linhas ~198-203).
+      # Medido a 2026-09-01: NENHUM workflow o invocava. O validador existia,
+      # passava, e so corria quando alguem se lembrava de o correr a mao —
+      # que e a definicao do estagio 1 que o MEO_GAUNTLET.md descreve.
+      # Ambos passam hoje (32/32 e rc=0), por isso ligar nao parte nada.
+      - name: Preflight do handoff (as 8 do red-team gate)
+        run: npm run test:handoff-preflight
+      - name: Spec do handoff sem drift
+        run: npm run handoff:preflight:check
+
       # O guarda do ~/.mooter tem de ser mordido antes de se confiar nele: um
       # guarda que nunca falhou e indistinguivel de um guarda que nao funciona.
       - name: Guarda do ~/.mooter (testes do proprio guarda)
@@ -135,6 +246,40 @@ jobs:
             exit 1
           fi
           echo "P11 checksum verified: $actual"
+
+      # O congelamento do `classify.js` era um congelamento de meia logica.
+      #
+      # `classify.js:179` faz `require('./patterns')` — TODAS as expressoes
+      # regulares que decidem o tier vivem no `patterns.js`, que nao tinha sha
+      # nenhum. Medido a 2026-09-01: com o `classify.js` byte-a-byte no estado
+      # congelado e SO o `patterns.js` trocado ao longo da sua linhagem, a
+      # precisao sobre os mesmos 35 rotulos anda entre 74,3% e 94,3%.
+      #
+      # Ou seja: dava para mudar 20 pontos de comportamento do classificador
+      # sem o sha do ficheiro congelado se mexer um bit. E aconteceu — cinco
+      # commits afinaram padroes CONTRA o validation-set depois de os rotulos
+      # existirem, e as mensagens deles dizem-no por escrito («three classifier
+      # safety fixes found by validation-set», «Adversarial accuracy: 80→92%»).
+      #
+      # Congelar um ficheiro que delega o que interessa a outro nao congelado
+      # e um invariante que so existe no papel.
+      - name: Enforce byte-identical patterns.js (a outra metade do P11)
+        run: |
+          expected="$(cat tools/router/patterns.js.sha256)"
+          actual="$(sha256sum tools/router/patterns.js | awk '{print $1}')"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::patterns.js mudou sem o tools/router/patterns.js.sha256 ser actualizado."
+            echo "  esperado: $expected"
+            echo "  medido:   $actual"
+            echo "  As regex que decidem o tier vivem aqui. Muda-las muda o"
+            echo "  classificador tanto como mudar o classify.js — e a medicao"
+            echo "  publicada deixa de valer para o motor que passa a correr."
+            echo "  Se for deliberado, actualiza o checksum E remede o A/B:"
+            echo "    sha256sum tools/router/patterns.js | awk '{print \$1}' > tools/router/patterns.js.sha256"
+            echo "    node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6"
+            exit 1
+          fi
+          echo "patterns.js checksum verificado: $actual"
 
       - name: Syntax check backtest.js
         run: node -c tools/router/backtest.js

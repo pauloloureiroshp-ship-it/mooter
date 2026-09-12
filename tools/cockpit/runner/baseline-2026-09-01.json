@@ -1,0 +1,53 @@
+{
+  "_": "CONGELADO. Nao editar. A imutabilidade e verificada por sha256 em baseline.test.mjs — mudar uma virgula aqui reprova o CI. Uma linha de base que se pode reescrever nao e uma linha de base: e uma opiniao com data.",
+  "id": "baseline-2026-09-01",
+  "frozen_at": "2026-09-01T12:32:05.363Z",
+  "owner_tz": "America/Sao_Paulo",
+  "pipeline_version": "1.53.0",
+  "repo_sha": "ac937f6b",
+  "device": "mac-mini-de-paulo",
+  "medido_por": "tools/cockpit/runner/build-ledger-snapshot.mjs (o proprio construtor do Ledger, sem intermediario)",
+  "fonte": {
+    "ledger": "~/.mooter/runner-ledger.jsonl",
+    "triagem": "~/.mooter/triagem.jsonl",
+    "janela_linhas": 6112,
+    "cutoff": "2026-08-26T11:15:19Z"
+  },
+  "triagem": {
+    "total": 1071,
+    "accepted": 3,
+    "issues": 1,
+    "dismissed_total": 1066,
+    "pending": 1,
+    "dismissed_por_motivo": {
+      "instrumento-nao-discrimina": 607,
+      "trivial": 446,
+      "nao-e-um-problema": 11,
+      "citacao-certa-conclusao-errada": 2
+    },
+    "by_owner": { "aceite": 3, "descartado": 29, "issue": 1 }
+  },
+  "recibos": {
+    "cited_verified": 2692,
+    "refuted": 68,
+    "uncited": 5,
+    "no_finding": 2446,
+    "queue_empty": 830,
+    "inconclusive": 71
+  },
+  "metricas": {
+    "kept_rate_pct": 0.3735,
+    "kept_rate_formula": "(accepted + issues) / total * 100",
+    "nao_discrimina_pct_do_total": 56.6760,
+    "nao_discrimina_pct_dos_descartes": 56.9418,
+    "nao_discrimina_formula": "dismissed_por_motivo['instrumento-nao-discrimina'] / total (e / dismissed_total) * 100"
+  },
+  "divergencia_do_kickoff": {
+    "_": "O kickoff W0+W1 pedia que se congelasse 'kept-rate 0,26% (2 aceites+1 issue/782), descartes instrumento-nao-discrimina 49%'. Esses numeros NAO se reproduzem contra o ledger deste device a 2026-09-01. Copia-los seria inventar; o que fica congelado e o que o instrumento mede, com o comando que qualquer um pode repetir.",
+    "kickoff_dizia": { "kept_rate_pct": 0.26, "denominador": 782, "nao_discrimina_pct": 49 },
+    "medido_dizia": { "kept_rate_pct": 0.3735, "denominador": 1071, "nao_discrimina_pct_do_total": 56.676 },
+    "hipotese_da_diferenca": "n/d — o denominador cresceu (o ledger e append-only e a janela apanha rondas posteriores a medicao do Cowork). Nao foi verificado qual instante produzia 782; afirma-lo seria adivinhar.",
+    "reproduzir": "node tools/cockpit/runner/baseline.mjs --medir"
+  },
+  "regra": "Toda comparacao futura cita este id e esta versao de pipeline. Comparar contra um baseline nao-citado nao e comparacao."
+}

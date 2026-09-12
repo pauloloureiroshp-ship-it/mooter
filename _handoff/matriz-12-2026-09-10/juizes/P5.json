@@ -1,0 +1,160 @@
+{
+ "id": "P5",
+ "chave": {
+  "R1": "D",
+  "R2": "B2",
+  "R3": "B",
+  "R4": "A",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra",
+    "familia": "OpenAI"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Pede o contexto necessário sem assumir a aplicação e previne a exposição da chave, mas ainda não indica onde a colocar.",
+     "total": 9,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Sugere opções comuns sem explicar o carregamento ou a proteção da chave e inclui uma longa divagação desnecessária.",
+     "total": 3,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "A indicação é demasiado vaga para configurar a chave com segurança e omite cuidados com ficheiros versionados.",
+     "total": 3,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Dá instruções concretas e protege contra exposição e versionamento, mas desenvolve extensamente cenários que o utilizador não confirmou.",
+     "total": 8,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Pede contexto e apresenta proteções úteis, mas mistura variáveis de ambiente com ficheiros .env e simplifica a comparação de segurança.",
+     "total": 8,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Pede o contexto necessário sem assumir a aplicação e previne a exposição da chave, mas ainda não indica onde a colocar.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Sugere opções comuns sem explicar o carregamento ou a proteção da chave e inclui uma longa divagação desnecessária.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"A indicação é demasiado vaga para configurar a chave com segurança e omite cuidados com ficheiros versionados.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Dá instruções concretas e protege contra exposição e versionamento, mas desenvolve extensamente cenários que o utilizador não confirmou.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Pede contexto e apresenta proteções úteis, mas mistura variáveis de ambiente com ficheiros .env e simplifica a comparação de segurança.\"}}",
+   "custo_tokens": {
+    "in": 28570,
+    "out": 390,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   "ms": 17328.9225
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5",
+    "familia": "Anthropic"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "D": {
+     "rotulo": "R1",
+     "RESOLVE": 0,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "pede contexto e avisa para nao colar a chave, mas nao da nenhuma instrucao accionavel",
+     "total": 8,
+     "maximo": 12
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "expoe todo o raciocinio interno em ingles antes da resposta curta final e nao aborda risco de expor a chave",
+     "total": 3,
+     "maximo": 12
+    },
+    "B": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 2,
+     "porque": "generico demais, nao diz onde exactamente nem menciona cuidado com a chave",
+     "total": 5,
+     "maximo": 12
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "cobre os dois cenarios plausiveis com comandos concretos para Windows e avisa sobre nao versionar/expor a chave",
+     "total": 11,
+     "maximo": 12
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "lista opcoes genericas sem dar passos concretos e volta a perguntar, sendo mais longa do que o util",
+     "total": 5,
+     "maximo": 12
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":0,\"CORRECTO\":2,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"pede contexto e avisa para nao colar a chave, mas nao da nenhuma instrucao accionavel\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"expoe todo o raciocinio interno em ingles antes da resposta curta final e nao aborda risco de expor a chave\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":2,\"porque\":\"generico demais, nao diz onde exactamente nem menciona cuidado com a chave\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"cobre os dois cenarios plausiveis com comandos concretos para Windows e avisa sobre nao versionar/expor a chave\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"lista opcoes genericas sem dar passos concretos e volta a perguntar, sendo mais longa do que o util\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 510,
+    "cache_write": 8199,
+    "cache_read": 3298
+   },
+   "ms": 8873.74
+  }
+ }
+}

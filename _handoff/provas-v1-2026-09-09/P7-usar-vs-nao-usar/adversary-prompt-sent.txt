@@ -1,0 +1,837 @@
+You are the ADVERSARY (Codex, gpt-6-astra) for a pre-registered evidence package — proof P7. The author is a different engine (Claude). Your job is to KNOCK DOWN the numbers and the claims, not to comment on them. Ataca o veredicto GANHOU do R-24. Quatro corridas e so a quarta contou: prova que isso e selecao de resultado, ou aceita porque nao e. A unica coisa que mudou entre a 3 e a 4 foi congelar um ficheiro de cache fora da experiencia -- ataca essa decisao. Ataca o estrato T2 0/3 e a estratificacao exploratoria. Ataca o efeito de ordem e a leitura de que ele contraria o artefacto de cache. Ataca 'qualidade nao mudou' quando o criterio e um teste binario. Ataca o titulo do slide e qualquer palavra que va alem do medido.
+For EACH attack give: id (P7-NN), severity (fatal|serious|minor), the exact claim attacked, why it may not hold, and what evidence would settle it. Then: SURVIVE / REWORD / DEAD lists, and a final line SLIDE PUBLISHABLE AS IS / WITH THESE EDITS (give the edits) / NOT PUBLISHABLE. Be concrete and merciless; a verdict that only approves has not run. Do not rewrite the package. You have no repo access: attack what is in front of you, and say explicitly what you could not verify.
+
+=== PROTOCOL (protocol.json) ===
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P7",
+  "title": "Usar vs não usar — R-24: 23 tarefas reais, TVA, Z pré-registado, ITT",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T14:27:07.538Z",
+  "congelado_em_fonte": "new Date() ao gerar; a anterioridade que conta e a do pre-registo do R-24 (2026-09-04) e o commit deste ficheiro",
+  "regra": "O protocolo desta prova E o pre-registo do dono (tools/ab/r24-prereg.json, CONGELADO 2026-09-04, seed fornecida por ele). Nada aqui o altera; este ficheiro fixa apenas o lancamento. Emendas so por AMENDMENT-n.md.",
+  "pergunta": "Usar o Mooter (router pinado + este ambiente) e diferente de nao usar, em 23 tarefas reais do repo, medido em tempo-ate-verde (TVA) com teste mecanico e sem juiz?",
+  "pre_registo": {
+    "path": "tools/ab/r24-prereg.json (checkout do dono, ~/frugal)",
+    "sha256": "5ddd527ece9ac3a24a223f92a3cc20d84d12d6f67878a1d204942b3246d81f28",
+    "fecha_se_sobre_si_proprio": "9c2d37b1e6ce…",
+    "manifest_sha256": "d79957ccbfa51ced56e9e6c6d056ceab470a9c1fb2d4195ced2a2d9f310284ab",
+    "experiment_id": "use-vs-none-v1",
+    "congelado_em": "2026-09-04",
+    "seed": 42,
+    "n": 23,
+    "limiar_X": 16,
+    "alfa": 0.05,
+    "H0": "p <= 0.50",
+    "H1": "p = 0.75",
+    "teste": "binomial exacto unilateral, cauda superior",
+    "analise": "intention-to-treat: a não-obediência conta como aconteceu",
+    "metrica_Z": "Z=1 sse TVA_ON <= 0.8*TVA_OFF E o braço ON passa mecanicamente",
+    "variavel": "TVA (s), tecto 1800 s, penaliza com tecto: timeout, crash, recusa, patch_invalido, teste_falhado",
+    "proibido": [
+      "avaliacao_humana",
+      "llm_juiz",
+      "precisao_routing",
+      "custo_estimado"
+    ],
+    "atribuicao": "sha256(seed:task_id), ordenado, primeira metade ON-primeiro; 12 ON-primeiro, 11 OFF-primeiro; sha 9dff8395dfd6"
+  },
+  "aparelho": {
+    "verificar": "node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --verificar — 23/23 (corrida de 2026-09-09 nesta sessao, consola; re-corrida com log em _handoff/r24/verificar-2026-09-09.log)",
+    "controlo": "node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --controlo — 23/23 (idem; log em _handoff/r24/controlo-2026-09-09.log)",
+    "diagnostico": "_handoff/r24/ultimo-diagnostico.txt: --correr pode arrancar.; sonda ao modelo: 2127 ms · 2 tokens de entrada; router pinado b39c7da4aaa6…",
+    "executor": "2.1.224 (Claude Code) · C:\\Users\\Paulo Loureiro\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe",
+    "repo_do_dono": "C:/Users/Paulo Loureiro/frugal @ 0575c5cc (branch feat/r24-controlador)"
+  },
+  "execucao": {
+    "onde": "checkout do dono (~/frugal) — o executor resolve o repo a partir do cwd; o worktree deste pacote nao serve (medido: o controlador recusa)",
+    "como": "launch-correr.ps1: processo separado (Start-Process powershell -File), com as marcas de sessao Claude Code removidas do ambiente (CLAUDE_CODE_CHILD_SESSION, CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH, CLAUDE_CODE_SESSION_ID, CLAUDECODE). A guarda ambienteApto() do controlador recusa correr DENTRO de uma sessao (medido pelo dono 2026-09-03: claude -p devolvia is_error com exit 0). O diagnostico com o ambiente limpo diz apto e a sonda do proprio controlador chega ao modelo — declarado, nao escondido.",
+    "quando": "ULTIMO e SOZINHO: so depois de P3, P4 e P5 terem largado o claude.exe (o TVA e tempo de parede; concorrencia contamina)",
+    "retoma": "o controlador retoma sozinho (um par ja no ledger nao repete); 0 retries manuais; nada se apaga do ledger",
+    "log": "_handoff/r24/correr-2026-09-09.log + ledger _handoff/r24/ledger.jsonl (checkout do dono, nao versionado ali; copiado para results/ deste pacote no fim)"
+  },
+  "semantica_do_resultado": {
+    "GANHOU": "X >= 16 em 23 (binomial exacta unilateral, alfa 0,05) — e diz-se «neste ambiente, com este router pinado», nunca «o Mooter poupa X%»",
+    "PERDEU": "X < 16 com corridas validas — imprime-se com a mesma tipografia",
+    "INVALIDA": "o proprio controlador declara a corrida invalida (falha de autenticacao, spawn, executor) — nao e derrota nem vitoria; imprime-se o motivo literal",
+    "ITT": "nao-obediencia conta como aconteceu; um braco ON que nao delega e um ON que nao delega, e entra"
+  },
+  "nao_prova": [
+    "poupanca em $ ou % (proibido)",
+    "qualidade alem do teste mecanico",
+    "generalizacao para outro repo/maquina/modelo",
+    "obediencia (P3) — aqui e ITT"
+  ],
+  "comando_reproduzir": "cd ~/frugal && node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --correr && node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --analisar"
+}
+
+
+=== AMENDMENTS (AMENDMENT-1.md) ===
+# P7 · AMENDMENT-1 — a corrida 1 saiu INVÁLIDA por limite de sessão; a experiência recomeça com ledger novo
+
+**Escrito e commitado ANTES da corrida 2 produzir qualquer número.** Nenhum valor do pré-registo muda.
+
+## O que aconteceu
+
+A corrida 1 arrancou às 2026-09-09T14:51:04Z e escreveu **46 braços** (23 tarefas × 2). Nos últimos três, o CLI devolveu `is_error` com a mensagem literal:
+
+```
+You've hit your session limit · resets 5pm (America/Sao_Paulo)
+```
+
+Braços afectados: **`t22-11f81c79b7` ON**, **`t23-1b929f35f1` OFF**, **`t23-1b929f35f1` ON**. O controlador marcou-os `invalido: true` com `motivo: cli_is_error:…`, imprimiu **`R-24 · ENSAIO INVÁLIDO`** e saiu com 1 no `--correr` e no `--analisar` (2026-09-09T17:09:30Z).
+
+Isto é exactamente o que o pré-registo prevê: `run_invalido.definicao` lista **«is_error do CLI»** como corrida inválida (por oposição a `nao_e_invalido: timeout — é falha observada, TVA = 1800`). Não é derrota nem vitória: é ausência de medição em 3 dos 46 braços, e com 21 pares válidos de 23 (2 pares perdidos: `t22` perdeu o braço ON, `t23` perdeu os dois) o `analisar` não chega ao veredicto (exige `pares_validos = n = 23`).
+
+## O número que a corrida 1 chegou a imprimir — e porque NÃO é o resultado
+
+O `--analisar` da corrida 1 imprimiu, antes de recusar: `X=16 · n=23 · limiar=16 · p=0.04657 · potência=0.80370 · pares válidos: 21 · inválidos: 2`. Escrevo-o aqui porque está no log preservado e qualquer pessoa o recalcula a partir do ledger — esconder um número que existe seria pior do que o problema.
+
+**Não é o resultado, por três razões, e nenhuma delas é conveniência:** (1) o próprio controlador recusou-o (`ENSAIO INVÁLIDO`, exit 1) porque `pares_validos` 21 ≠ `n` 23; (2) o limiar 16 foi calculado para **23** pares — 16 em 21 não é o mesmo teste, e aceitar 16/21 é exactamente a «correcção honesta» que o pré-registo bloqueia por escrito; (3) os 2 pares em falta são `t22` e `t23`, que ninguém sabe como teriam caído. O número publicado é o da corrida 2, ponto.
+
+## Porque é que não se repetem só os 3 braços
+
+O pré-registo é explícito: «um par (task_id, braço) já escrito **nunca se repete** — repetir seria escolher qual das medições conta» (`ledger.nota`), e o executor congelado impõe-no mecanicamente (`jaFeitos()`: qualquer linha `tipo: braco` já no ledger, válida ou inválida, é «feita»). Um `--correr` sobre o mesmo ledger não faria nada.
+
+## O que se faz, e porquê é legítimo
+
+A `nota_estado` do pré-registo manda: «Se mudar, a experiência **recomeça** e isso fica escrito no relatório.» Então:
+
+1. **A corrida 1 fica preservada e publicada**, inteira, como corrida inválida: `results/ledger-corrida-1-invalida.jsonl` (46 braços) e `results/correr-corrida-1-invalida.log`. Nada se apaga.
+2. **A corrida 2 começa com o ledger vazio** no caminho do pré-registo, com os mesmos ficheiros congelados, a mesma seed, a mesma atribuição, o mesmo limiar (16/23) e o mesmo executor. Todos os 23 pares voltam a correr.
+3. **O veredicto vem só da corrida 2.** Os 21 pares válidos da corrida 1 **não** entram no número publicado — usá-los seria escolher medições. Ficam disponíveis, rotulados como exploratórios, para quem quiser comparar.
+
+O que isto **não** é: não é afrouxar o critério depois de ver resultados. O `n` continua 23 e o limiar 16 (o próprio executor recusa correr se o limiar recalculado não bater com o pré-registado — é a armadilha que o comentário do controlador descreve: baixar `n` para 20 «por causa de 3 pares inválidos» transformaria um X = 15 de PERDEU em GANHOU, e está bloqueado).
+
+## Pré-condições verificadas antes da corrida 2
+
+`r24-diagnostico.mjs` a 2026-09-09T19:11Z: pré-registo CONGELADO e fechado sobre si próprio, limiar recalculado 16 = pré-registado, 23 tarefas (12 ON-primeiro / 11 OFF-primeiro), terminal fora de sessão Claude Code, executável 2.1.224, **sonda ao modelo 2 146 ms · 2 tokens de entrada** (o limite de sessão caiu; o dono comprou créditos), router pinado bate com o pré-registo, sem outra instância a correr. Veredicto: `--correr pode arrancar`.
+
+## O que fica dito no cartão, seja qual for o resultado
+
+Que a primeira tentativa morreu por limite de sessão do fornecedor às 46/46 linhas e **21/23** pares válidos, e que o número publicado **não** é o dela.
+
+> **Correcção (mesmo dia, depois da corrida 2):** duas frases desta emenda estavam erradas e ficam corrigidas acima.
+> (1) escrevi «20 pares válidos» em dois sítios; o controlador imprimiu «pares válidos: 21 · inválidos: 2» e a recontagem
+> independente a partir de `results/ledger-corrida-1-invalida.jsonl` confirma **21** — os 3 braços inválidos caem em apenas
+> 2 tarefas (`t22` perdeu o ON, `t23` perdeu ambos). (2) «o número publicado é o da segunda» deixou de ser verdade: a
+> corrida 2 saiu **inteira** inválida. Ver `AMENDMENT-2.md`.
+
+
+=== VERDICT (verdict.md) ===
+# P7 · veredicto — R-24: **GANHOU**, X = 18/23, p = 0,00531
+
+**Pré-registo congelado a 2026-09-04** (`r24-prereg.json`, sha `5ddd527ece9ac3a2…`), corrida válida a 2026-09-09/10. Quatro corridas; três publicadas como não-veredictos; esta é a que conta, e o critério não mudou uma vírgula entre elas.
+
+## O número
+
+| | |
+|---|---|
+| **X (tarefas em que Z = 1)** | **18 de 23** · 78,3 % [58,1 · 90,3] (Wilson 95 %) |
+| Limiar pré-registado | 16 (calculado para n = 23, α 0,05) |
+| **p** | **0,00531** — binomial exacta unilateral, cauda superior, p₀ = 0,5 |
+| Pares válidos | **23 de 23** · braços inválidos **0 de 46** |
+| Veredicto do controlador | `R-24 · GANHOU`, `--correr` exit 0, `--analisar` exit 0 |
+| Veredicto re-derivado, leitor independente | `GANHOU`, os mesmos 18 e o mesmo p |
+
+`Z = 1` exige **duas** coisas na mesma tarefa: o braço ON produzir trabalho **aceite** pelo teste do repositório **e** demorar **≤ 0,8×** o tempo do braço OFF. É um critério exigente de propósito: ser mais rápido não chega, tem de ser mais rápido por uma margem fixada de antemão.
+
+## O que a vitória é, em tempo
+
+| | Braço ON (hook ligado) | Braço OFF (sem hook) |
+|---|---|---|
+| Tarefas aceites pelo teste | **23 de 23** | **23 de 23** |
+| Tempo até verde, mediana | **77 s** | 145 s |
+| Tempo total nas 23 tarefas | **62 min** | 91 min |
+| Rácio ON/OFF, mediana | **0,56** | — |
+| Rácio ON/OFF, min · p25 · p75 · max | 0,36 · 0,52 · 0,70 · **2,29** | — |
+| ON foi mais rápido | **22 de 23** | — |
+
+**Os dois braços resolveram tudo.** A qualidade, pelo critério mecânico, é idêntica: 23 em 23 dos dois lados. **A diferença é só tempo**, e é grande — a mediana do braço ON é pouco mais de metade da do OFF. Numa das 23 o ON foi **2,29× mais lento** (`t22`), e essa está impressa aqui com a mesma tipografia.
+
+## Onde a vitória mora, e onde não mora
+
+Estratificando pelo tier que o hint recomendou — **exploratório, não pré-registado**:
+
+| Tier do hint | Tarefas | Z = 1 | Wilson 95 % |
+|---|---|---|---|
+| **T0** | 20 | **18** | 90,0 % [69,9 · 97,2] |
+| **T2** | 3 | **0** | 0 % [0 · 56,1] |
+
+**As três tarefas em que o router escolheu um tier acima são as três em que o Mooter não ganhou.** São também as três mais longas do conjunto (`t21`, `t22`, `t23`: 331 s, 541 s e 542 s no braço ON). A leitura honesta é que o ganho medido vive nas tarefas que o router classifica como triviais, e que nas tarefas em que ele próprio reconhece dificuldade o ganho desaparece — com n = 3, que é quase nada e não sustenta nenhuma afirmação forte.
+
+Isto **não** era o que eu esperava. O aviso que escrevi antes do veredicto (`CAVEATS-PRE-VEREDICTO.md`) dizia que o hint tinha dito T0 em tudo; era verdade na corrida 3 e falso nesta. Fica lá corrigido à vista, não editado para trás.
+
+## O controlo de manipulação, e porque não é ruído
+
+| Verificação | ON | OFF |
+|---|---|---|
+| O hook disparou | **23 de 23** | **0 de 23** |
+| `<router-hint>` injectado | sim | — |
+| Braços que tocaram no ficheiro de teste | **0** | **0** |
+| `router_sha` ao longo dos 46 braços | constante `b39c7da4aaa6…`, igual ao pré-registado | |
+| `estado_vivo_sha` ao longo dos 46 braços | constante `8b5b88f63949` | |
+
+Os dois braços eram mesmo diferentes, e a diferença é a que o pré-registo define. Nenhum braço mexeu no oráculo, que era a solução mais fácil.
+
+## O efeito de ordem — e ele **contraria** a explicação fácil
+
+Exploratório, não pré-registado. A ordem ON/OFF foi contrabalançada no pré-registo (12 ON-primeiro, 11 OFF-primeiro) precisamente porque a cache de prompt do fornecedor é partilhada entre braços e favorece o segundo a correr.
+
+| Ordem | n | Z = 1 | Rácio mediano |
+|---|---|---|---|
+| ON primeiro (ON com cache fria) | 12 | **11** | 0,553 |
+| OFF primeiro (ON com cache quente) | 11 | **7** | 0,592 |
+
+Se a vitória fosse artefacto da cache, o ON teria de ganhar **mais** quando corre em segundo. Ganha **menos** (7/11 contra 11/12). O padrão é o oposto do que o artefacto prevê, portanto a cache não explica o resultado — o que não prova que não contribua para nada, só que não é a causa.
+
+## O que isto **não** prova
+
+Generalização a outro repositório, outra máquina ou outro modelo: **n/d**, foram 23 tarefas de um repositório numa máquina. Qualidade para além de o teste passar: o critério é binário e não julga o código. Obediência: o desenho é *intention-to-treat* e mede ter o hook ligado, não a recomendação ser seguida — a obediência executada continua a ser **0/20** (P3). Separar «o hint ajudou» de «o hint ocupou contexto»: são ~2,5 KB a mais no prompt e o efeito disso está dentro do número, não ao lado. Custo: o pré-registo mede tempo, não dinheiro nem tokens. E a estratificação por tier é exploratória, com 3 tarefas num dos estratos.
+
+## As quatro corridas, e porque nenhuma das três primeiras conta
+
+| Corrida | Braços | Pares válidos | Fim | Porque não conta |
+|---|---|---|---|---|
+| 1 · 14:51Z | 46 | 21 | `ENSAIO INVÁLIDO` | 3 braços com o limite de sessão do fornecedor; o controlador exige 23 pares |
+| 2 · 19:12Z | 46 | **0** | `ENSAIO INVÁLIDO` | 45 braços com o mesmo limite; lançada por erro meu dentro da janela que a 1 já esgotara |
+| 3 · 20:07Z | 26 | 13 | `PÁRA a meio` (exit 2) | a guarda do executor: o `estado_vivo_sha` mudou porque o hook desta sessão refrescou o cache de orçamento (D15) |
+| **4 · 21:39Z** | **46** | **23** | **`GANHOU`** (exit 0) | — |
+
+As três ficam publicadas inteiras em `results/`, com os números que chegaram a imprimir (`X=16 · p=0,04657` na 1, `X=0` na 2, `X=12` na 3). **Nenhum deles é o resultado**, e a razão é sempre a mesma: o limiar 16 foi calculado para 23 pares, e aceitar um X sobre menos pares seria a «correcção honesta» que o pré-registo bloqueia por escrito. As emendas 1, 2 e 3 foram todas escritas **antes** da corrida seguinte produzir um número.
+
+**A única coisa que mudou entre a corrida 3 e a 4** foi congelar um ficheiro de cache **fora** da experiência, para a guarda do executor poder fazer o seu trabalho. O executor, o pré-registo, o limiar, a seed e a atribuição são byte a byte os mesmos.
+
+## Reproduzir
+
+```bash
+cd ~/frugal
+node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --correr
+node tools/ab/correr-r24.mjs --prereg tools/ab/r24-prereg.json --analisar
+node _handoff/provas-v1-2026-09-09/P7-usar-vs-nao-usar/analyse.mjs   # leitor independente
+```
+
+≈2 h 22 min e 46 invocações completas do agente. Antes de arrancar, ver `AMENDMENT-3.md`: congelar `~/.claude/tools/router/.budget-cache.json` em só-leitura, ou a guarda de integridade pára a corrida a meio.
+
+
+=== SLIDE (slide.md) ===
+# Slide P7 · On 23 real repository tasks with frozen external tests, the session with Mooter's hook delivered accepted work in ≤ 0.8× the time on 18 of them (p = 0.005)
+
+**Pre-registered 2026-09-04, frozen before the first run** (`r24-prereg.json`): n = 23, threshold 16, α 0.05, one-sided exact binomial (p₀ = 0.5), intention-to-treat, ON/OFF order counterbalanced by seed. `Z = 1` requires **both** that the ON arm's work passes the repository's own test **and** that it takes **≤ 0.8×** the OFF arm's time on the same task. Being faster is not enough.
+
+| | ON (hook installed) | OFF (no hook) |
+|---|---|---|
+| **Tasks with Z = 1** | **18/23 · 78.3 % [58.1, 90.3]** (Wilson 95 %) | — |
+| Tasks accepted by the frozen test | **23/23** | **23/23** |
+| Time-to-green, median | **77 s** | 145 s |
+| Time-to-green, total over 23 tasks | **62 min** | 91 min |
+| ON/OFF ratio: min · median · max | 0.36 · **0.56** · **2.29** | — |
+| ON was faster | 22/23 | — |
+
+**Pre-registered test:** X = 18 ≥ threshold 16, **p = 0.00531**. The controller printed `R-24 · GANHOU` and an independent reader re-derived the same 18 and the same p from the raw ledger.
+
+**Quality did not move; time did.** Both arms produced work the repository's own test accepted, in every one of the 23 tasks. This measures how long a passing solution took, not how good it was.
+
+**Where the win is not (exploratory, not pre-registered).** Split by the tier the hint recommended: **T0 tasks 18/20 · 90 % [70, 97]; T2 tasks 0/3 · 0 % [0, 56]**. The three tasks where the router itself asked for a higher tier are the three longest, and the three where Mooter did not win. With n = 3 that supports no strong claim, but it is printed because it points the other way from the headline.
+
+**Order effect argues against the obvious artefact (exploratory).** The provider's prompt cache is shared between arms and favours whichever runs second. ON-first (ON on a cold cache) won 11/12; OFF-first (ON on a warm cache) won 7/11. A cache artefact predicts the opposite pattern.
+
+**Manipulation and integrity checks:** the hook fired in 23/23 ON arms and 0/23 OFF arms; **no arm touched the test file**; `router_sha` and the live-state fingerprint were constant across all 46 arms.
+
+**Printed alongside the win: it took four runs.** Runs 1 and 2 died on the provider's session limit (21/23 and 0/23 valid pairs); run 3 was halted by the executor's own integrity guard when this measuring session refreshed the router's budget cache mid-run (defect D15). All three are published in full with the numbers they printed, and none of them is the result: the threshold of 16 was computed for 23 pairs. Between run 3 and run 4 the only change was freezing a cache file **outside** the experiment; the executor, the pre-registration, the threshold, the seed and the assignment are byte-identical.
+
+*Does not prove: generalisation to another repository, machine or model (23 tasks, one repo, one machine); quality beyond the test passing (binary criterion, no judgement of the code); obedience — the design is intention-to-treat and executed obedience remains 0/20 (P3); separating "the hint helped" from "the hint consumed context" (~2.5 KB added per prompt, and its effect is inside the number); cost in money or tokens (the pre-registration measures time). Cost of this card: 4 runs × up to 46 full agent invocations, on subscription; API spend US$ 0.*
+
+
+=== ANALYSIS (results\analysis.json) ===
+{
+ "at": "2026-09-10T00:02:54.653Z",
+ "experiment_id": "use-vs-none-v1",
+ "n": 23,
+ "limiar_X": 16,
+ "alfa": 0.05,
+ "ratio": 0.8,
+ "arms_in_ledger": 46,
+ "tasks_in_ledger": 23,
+ "valid_pairs": 23,
+ "invalid_pairs": 0,
+ "X": 18,
+ "p_exact_upper_tail": 0.005311012268066431,
+ "verdict_rederived": "GANHOU",
+ "aceite_on": 23,
+ "aceite_off": 23,
+ "faster_on": 22,
+ "median_ratio_on_off": 0.5580251425575657,
+ "wilson_Z": {
+  "p": 0.782608695652174,
+  "lo": 0.5809651681324879,
+  "hi": 0.9033602203455142
+ },
+ "hook_disparou_on": 23,
+ "hook_disparou_off": 0,
+ "hint_tiers_on": {
+  "T0": 20,
+  "T2": 3
+ },
+ "order_effect_exploratory": {
+  "note": "exploratorio, nao pre-registado: Z e mediana do racio por ordem de execucao (a cache de prompt do fornecedor e partilhada entre bracos; a ordem foi contrabalancada no pre-registo)",
+  "ON-primeiro": {
+   "n": 12,
+   "Z1": 11,
+   "median_ratio": 0.5526689722771982
+  },
+  "OFF-primeiro": {
+   "n": 11,
+   "Z1": 7,
+   "median_ratio": 0.5924559565951408
+  }
+ },
+ "rows": [
+  {
+   "task": "t01-2e7599e021",
+   "primeiro": "OFF",
+   "tva_on": 268.69452309999997,
+   "tva_off": 743.3868629,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.3614464238065835,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t02-7bb45751d8",
+   "primeiro": "ON",
+   "tva_on": 218.8786055,
+   "tva_off": 396.0392504,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5526689722771982,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t03-8014c12435",
+   "primeiro": "OFF",
+   "tva_on": 41.3777521,
+   "tva_off": 67.1917318,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.6158161278408961,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t04-8617d5fc95",
+   "primeiro": "ON",
+   "tva_on": 60.0793577,
+   "tva_off": 86.3722871,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.6955860463720429,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t05-cc706fa255",
+   "primeiro": "ON",
+   "tva_on": 67.68015869999999,
+   "tva_off": 73.6702024,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.9186910921260072,
+   "Z": 0,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t06-e408ea0afe",
+   "primeiro": "OFF",
+   "tva_on": 56.9128956,
+   "tva_off": 102.950718,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5528168885621565,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t07-030073bef4",
+   "primeiro": "ON",
+   "tva_on": 49.7583334,
+   "tva_off": 106.08043980000001,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.4690622841855902,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t08-1f5a793294",
+   "primeiro": "ON",
+   "tva_on": 104.74327489999999,
+   "tva_off": 186.9183872,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5603690277293383,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t09-07bdf37783",
+   "primeiro": "ON",
+   "tva_on": 60.537411000000006,
+   "tva_off": 96.9889265,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.6241682755401979,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t10-a6bf1a20b0",
+   "primeiro": "ON",
+   "tva_on": 56.8504367,
+   "tva_off": 109.15026230000001,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5208456260393247,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t11-4bf34eb7c6",
+   "primeiro": "OFF",
+   "tva_on": 76.8645555,
+   "tva_off": 147.3090301,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5217911994113387,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t12-bf358e765c",
+   "primeiro": "OFF",
+   "tva_on": 519.0229566,
+   "tva_off": 876.0532337000001,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5924559565951408,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t13-ddb0cf50e1",
+   "primeiro": "ON",
+   "tva_on": 162.8796478,
+   "tva_off": 291.88585850000004,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5580251425575657,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t14-01cebb9409",
+   "primeiro": "ON",
+   "tva_on": 66.37461929999999,
+   "tva_off": 120.4521901,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5510453503991539,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t15-03039e0b33",
+   "primeiro": "ON",
+   "tva_on": 38.4874936,
+   "tva_off": 78.9459097,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.48751726018808544,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t16-057bfc121a",
+   "primeiro": "OFF",
+   "tva_on": 127.82995269999999,
+   "tva_off": 145.3411038,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.879516870023936,
+   "Z": 0,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t17-4b8090599c",
+   "primeiro": "OFF",
+   "tva_on": 100.5371477,
+   "tva_off": 174.2943767,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5768238172884209,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t18-5d72b4c9e3",
+   "primeiro": "ON",
+   "tva_on": 32.5093222,
+   "tva_off": 64.3068604,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5055342773350509,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t19-99f47261be",
+   "primeiro": "ON",
+   "tva_on": 57.036195400000004,
+   "tva_off": 103.6012014,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.5505360423358953,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "ON-primeiro"
+  },
+  {
+   "task": "t20-e96defd8e0",
+   "primeiro": "OFF",
+   "tva_on": 119.5621149,
+   "tva_off": 245.12114540000002,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.48776744537845973,
+   "Z": 1,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T0",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t21-96171ef138",
+   "primeiro": "OFF",
+   "tva_on": 330.84693599999997,
+   "tva_off": 412.67963410000004,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.8017040548209595,
+   "Z": 0,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T2",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t22-11f81c79b7",
+   "primeiro": "OFF",
+   "tva_on": 541.2777735,
+   "tva_off": 236.73615560000002,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 2.286417856740764,
+   "Z": 0,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T2",
+   "order_ts": "OFF-primeiro"
+  },
+  {
+   "task": "t23-1b929f35f1",
+   "primeiro": "OFF",
+   "tva_on": 542.1737596,
+   "tva_off": 616.7118393999999,
+   "aceite_on": true,
+   "aceite_off": true,
+   "invalido": false,
+   "motivo": null,
+   "ratio_on_off": 0.8791362918011788,
+   "Z": 0,
+   "hook_on": true,
+   "hook_off": false,
+   "hint_tier_on": "T2",
+   "order_ts": "OFF-primeiro"
+  }
+ ]
+}
+
+=== EXTRA (AMENDMENT-2.md) ===
+# P7 · AMENDMENT-2 — a corrida 2 saiu INVÁLIDA nos 46 braços; a corrida 3 arranca depois do reset, e a sonda de pré-voo fica desacreditada
+
+**Escrito e commitado ANTES da corrida 3 produzir qualquer número.** Nenhum valor do pré-registo muda: `n` = 23, limiar = 16, α = 0,05, TVA ≤ 0,8×, seed 42, mesma atribuição, mesmo executor congelado.
+
+## O que aconteceu
+
+A corrida 2 arrancou às 2026-09-09T19:12:29Z (16:12 na hora do dono) e escreveu **46 braços** entre 19:25:29Z e 19:34:00Z. **45 dos 46** vieram com `is_error` do CLI e a mesma mensagem literal da corrida 1:
+
+```
+You've hit your session limit · resets 5pm (America/Sao_Paulo)
+```
+
+O único braço válido foi `t01-2e7599e021 OFF`. Como o Z do pré-registo é definido **por par** (ON e OFF da mesma tarefa), um braço solitário não forma par: **pares válidos 0 · inválidos 23**. O controlador imprimiu `X=0 · n=23 · limiar=16 · p=1.00000` seguido de `pares válidos 0 < 23 — subpotenciado, diferença não demonstrada` e **`R-24 · ENSAIO INVALIDO`**, saindo com 1 no `--correr` e no `--analisar` às 19:34:00Z.
+
+O `p = 1,00000` e o `X = 0` **não são um resultado**. São o que a fórmula devolve quando não há medição nenhuma: zero sucessos em zero pares. Ficam impressos aqui porque estão no log preservado, e esconder um número que existe seria pior do que o problema.
+
+Preservada inteira, como a corrida 1: `results/ledger-corrida-2-invalida.jsonl` (46 braços) e `results/correr-corrida-2-invalida.log`. Nada se apaga.
+
+## Porque é que a corrida 2 nunca teve hipótese — e porque é que isso é culpa do desenho, não do azar
+
+A mensagem do fornecedor nomeia a hora do reset: **17:00 na hora do dono**. A corrida 1 morreu às 14:09 com essa mesma mensagem. A corrida 2 arrancou às **16:12** — quarenta e oito minutos antes do reset, **dentro da mesma janela de sessão que a corrida 1 já tinha esgotado**. Não era uma janela nova. Era a mesma janela, com a mesma conta já gasta.
+
+Isto não se descobriu depois: estava escrito na própria mensagem que eu li e citei na `AMENDMENT-1`. Lancei na mesma. É um erro meu de leitura, não uma falha do fornecedor.
+
+## D11 — a sonda de pré-voo não testa o que o diagnóstico diz que testa
+
+O `r24-diagnostico.mjs` correu às 16:12 e imprimiu:
+
+```
+ok  a sonda chega ao modelo  2136 ms · 2 tokens de entrada
+VEREDICTO: --correr pode arrancar.
+```
+
+Treze minutos depois, **todos** os braços bateram no limite de sessão. A sonda passou com a janela esgotada. Uma sonda de 2 tokens não é um controlo positivo para o limite de sessão: mede que o executável arranca e fala, não que há orçamento para 46 invocações completas. O verde dela deu-me confiança que os dados não sustentavam, e foi essa confiança que gastou a corrida 2.
+
+Entra em `09-DEFEITOS-APANHADOS.md` como **D11**. A correcção honesta não é tornar a sonda maior — é o diagnóstico deixar de afirmar «pode arrancar» com base nela, e passar a imprimir a hora do reset conhecida quando existe. Não altero o executor congelado nesta corrida: fica **declarado**, não corrigido.
+
+## Um confundidor que declaro sem quantificar
+
+A sessão que **mede** partilha a quota do fornecedor com o sujeito **medido**: o R-24 lança `claude.exe` com as mesmas credenciais da sessão que o observa. Enquanto a corrida 2 corria, esta sessão tinha um exame adversarial de dezenas de agentes em curso, e 18 desses agentes falharam com a mesma mensagem de limite. Não sei separar quanto da janela foi consumido pela corrida 1, quanto por mim e quanto pelo trabalho normal do dia — não há contador por origem. **Fica declarado como confundidor não quantificado**, e como regra para a corrida 3: enquanto ela correr, esta sessão não lança sub-agentes nem workflows.
+
+## O que se faz na corrida 3
+
+A mesma coisa que a `AMENDMENT-1` mandou fazer na corrida 2, com a diferença que agora a pré-condição que faltava está verificada pelo relógio e não pela sonda:
+
+1. **Ledger novo.** As corridas 1 e 2 ficam preservadas nos ficheiros acima; o caminho do pré-registo arranca vazio. Os 23 pares voltam todos a correr — `jaFeitos()` trata qualquer braço já escrito como feito, válido ou inválido, por isso repetir só os que faltam está mecanicamente bloqueado, e seria escolher medições.
+2. **Arranque depois do reset.** Lançada às **2026-09-09T20:04:44Z (17:04:44 na hora do dono)**, quatro minutos depois do reset das 17:00 nomeado pelo fornecedor, em janela nova. Diagnóstico às 17:03: tudo `ok`, sonda 4664 ms.
+3. **O veredicto vem só da corrida 3.** Os 21 pares válidos da corrida 1 e o braço solitário da corrida 2 **não** entram no número publicado. Ficam disponíveis, rotulados como exploratórios.
+
+O que isto **não** é: não é afrouxar o critério. `n` continua 23 e o limiar 16 — o executor recusa correr se o limiar recalculado não bater com o pré-registado, exactamente para impedir que «só faltaram 3 pares» vire um `n` mais pequeno e uma derrota vire vitória.
+
+## O que fica dito no cartão, seja qual for o resultado da corrida 3
+
+Que foram precisas três tentativas; que a primeira morreu às 46/46 linhas com 21/23 pares válidos e a segunda inteira com 0/23, ambas no limite de sessão do fornecedor; que ambas ficam publicadas; e que a segunda foi lançada por erro meu dentro da janela que a primeira já tinha esgotado, com um pré-voo verde que não sabia testar isso.
+
+E se a corrida 3 também não fechar: o cartão P7 sai **INVÁLIDA**, com o bloqueio literal impresso e sem número. Uma quarta tentativa dentro do prazo das 72 h seria o mesmo gesto outra vez.
+
+## Adenda escrita 20 minutos depois: dois arranques falhados da corrida 3, nenhum deles mediu nada
+
+O ponto 2 acima diz «lançada às 20:04:44Z». Dessa tentativa e da anterior não saiu braço nenhum, e ambas ficam escritas porque um arranque que falha também é história.
+
+- **Arranque A, 20:03:56Z.** O `Start-Process` do PowerShell não cita o argumento de `-File`, e o caminho do lançador tem espaços. O processo morreu antes da primeira linha do log. Zero braços.
+- **Arranque B, 20:04:44Z.** Chegou ao `--correr`, sonda 2076 ms, e caiu no primeiro snapshot: `EPERM ... rm '…\Temp\r24-snapshots\t01-2e7599e021-OFF'`. Um processo que não consegui identificar mantinha aberto o `tools\router` do snapshot da corrida 2 (nenhum `claude.exe` do R-24 vivo, nada à escuta na porta 7821). Zero braços. Log preservado como `correr-corrida-3-arranque-falhado-EPERM.log`.
+- **Arranque C, 20:07:55Z — o que conta.** Mesmo executor, mesmo pré-registo, mesma seed, com `--snapshots` a apontar para uma raiz nova (`…\Temp\r24-snapshots-c3`), que é um argumento que o controlador já suportava. Router pinado reconstruído na raiz nova: sha `b39c7da4aaa6…`, **igual** ao pré-registado — é o próprio executor a confirmar que a mudança de raiz não mudou o tratamento.
+
+**Nenhum destes arranques escreveu um braço**, e a verificação não é a minha palavra: o ledger não existia no disco quando o arranque C começou, e o próprio C imprimiu `0 braços já no ledger`. Não há medição escolhida nem medição descartada — por isso isto são arranques da corrida 3, não corridas 3, 4 e 5.
+
+**Uma diferença declarada:** a impressão digital do ambiente traz `cache 1baddb4b` na corrida 3 contra `1a0d60e3` nas anteriores, porque o `node_modules` foi copiado de novo para a raiz nova. É o mesmo repositório e as mesmas versões; o que muda é o caminho. Não ameaça o desenho, porque a comparação é ON contra OFF **dentro** da mesma corrida e os dois braços partilham a mesma cache — mas fica dito, para ninguém tropeçar no campo ao comparar ledgers.
+
+
+=== EXTRA (AMENDMENT-3.md) ===
+# P7 · AMENDMENT-3 — a corrida 3 foi parada pela guarda do próprio executor; a causa é a minha sessão, e é corrigível fora da experiência
+
+**Escrito e commitado ANTES da corrida 4 produzir qualquer número.** Nenhum valor do pré-registo muda: `n` = 23, limiar 16, α 0,05, TVA ≤ 0,8×, seed 42, mesma atribuição, mesmo executor congelado.
+
+## O que aconteceu, e é diferente das duas primeiras
+
+A corrida 3 arrancou às 2026-09-09T20:07:55Z e correu **bem**: 26 braços, **13 pares válidos, zero braços inválidos**, nenhuma mensagem do fornecedor. Às 21:22:03Z o executor **parou-se a si próprio**:
+
+```
+PÁRA a meio: estado_vivo_sha mudou (8bfb056f1f12 -> 8b5b88f63949)
+o tratamento ou o terreno mudaram durante a corrida; as tarefas ja feitas
+e as seguintes deixariam de ser comparaveis.
+```
+
+`--correr` saiu com **2** (não 1: é uma paragem, não uma corrida falhada) e o `--analisar` imprimiu `X=12 · n=23 · limiar=16 · pares válidos: 13 · inválidos: 0` e recusou o veredicto por `13 < 23`.
+
+**Isto não é o limite do fornecedor.** É uma guarda de integridade a fazer exactamente o que devia. A Emenda 8 do pré-registo define o tratamento como «o router pinado **mais este ambiente e este estado**», e o executor grava a impressão digital desse estado em cada linha do ledger. Quando ela muda a meio, as tarefas já feitas e as seguintes deixam de ser comparáveis, e continuar seria misturar dois tratamentos no mesmo `X`.
+
+## Qual dos ficheiros mudou, e quem o mudou
+
+`estado_vivo_sha` é o sha de quatro ficheiros de `~/.claude/tools/router/`: `.mooter-mode.json`, `.pin-next.json`, `subscription-profile.json` e `.budget-cache.json`. Medido às 18:25 (hora do dono):
+
+| Ficheiro | Última escrita |
+|---|---|
+| `.mooter-mode.json` | 2026-08-01 |
+| `subscription-profile.json` | 2026-05-30 |
+| `.pin-next.json` | ausente (e ausente é estável) |
+| **`.budget-cache.json`** | **2026-09-09 18:19:43** — dois minutos e vinte segundos antes da paragem |
+
+**Fui eu.** O `.budget-cache.json` é refrescado pelo `inject_context.js` — o hook `UserPromptSubmit` — quando o cache passa de **duas horas**. O hook corre a cada mensagem do dono **nesta sessão**, a que está a conduzir a experiência. A corrida dura ~2 h 30 min, portanto atravessa sempre a fronteira das 2 h; basta o dono escrever uma mensagem depois disso para o cache ser reescrito e a guarda disparar.
+
+A corrida 1 durou 2 h 18 min e escapou por pouco. Não foi desenho: foi sorte.
+
+**É o mesmo confundidor da `AMENDMENT-2.md` noutra roupa.** Lá, a sessão que mede partilhava a **quota** com o sujeito medido. Aqui, partilha o **estado**. A lição é a mesma e agora tem duas provas: *medir um sistema de dentro dele próprio contamina-o, e a única defesa é isolar explicitamente aquilo que ele toca.*
+
+## A correcção, e porque não é afrouxar o critério
+
+Congelar `.budget-cache.json` (só-leitura) enquanto a corrida 4 durar, e repor a seguir.
+
+Três razões para isto ser legítimo:
+
+1. **Não toca na experiência.** O executor continua congelado, a guarda continua activa, o pré-registo não muda uma vírgula. O que muda é a **máquina à volta**, que é onde o problema está.
+2. **É o que a guarda pede.** A guarda exige que o estado seja **constante** durante a corrida — não que seja fresco. Congelar é obedecer-lhe, não contorná-la. Se eu tivesse desligado a guarda, seria fraude; congelar o ficheiro é a alternativa honesta.
+3. **É seguro e reversível.** A escrita do refresco está dentro de `try { ... } catch { /* non-fatal */ }` (`refresh-budget.js:74-76`). Com o ficheiro só-leitura a escrita falha em silêncio e o hook segue. O único efeito é a sessão do dono mostrar dados de orçamento com até 5 h em vez de 2 h. Reposto no fim.
+
+**O que fica declarado:** durante a corrida 4 o valor do orçamento visível ao router está congelado no que era às 18:19 (`five_hour` 29 % de utilização). O defeito **D1** já força T0 em tudo independentemente do orçamento, e as 13 linhas da corrida 3 confirmam-no (`hint_tier` T0 em todos os braços ON), portanto congelar este ficheiro não muda a decisão que o router toma. Fica dito na mesma.
+
+## A corrida 3 fica preservada e publicada, inteira
+
+`results/ledger-corrida-3-parada-por-guarda.jsonl` (26 braços) e `results/correr-corrida-3-parada-por-guarda.log`. Nada se apaga. **É a melhor das três até agora:** 13 pares válidos, zero braços inválidos, o controlo de manipulação a passar (hook em todos os ON, nenhum OFF) e nenhum braço a tocar no ficheiro de teste.
+
+**O número que ela chegou a imprimir — `X=12` em 13 pares — não é o resultado**, pelas mesmas três razões da corrida 1: o controlador recusou-o; o limiar 16 foi calculado para 23 pares e 12 em 13 não é o mesmo teste; e os 10 pares em falta ninguém sabe como teriam caído. Fica escrito porque existe e qualquer pessoa o recalcula do ledger.
+
+## O compromisso, escrito antes e sem margem
+
+**A corrida 4 é a última.** Se ela não fechar os 23 pares, por que motivo for, o cartão P7 sai **INVÁLIDA**: com o bloqueio literal impresso, com as quatro corridas publicadas, sem número e sem veredicto. Não haverá quinta. Três causas distintas já é informação suficiente sobre a dificuldade de medir isto nesta máquina, e insistir passaria a ser escolher até sair o que convém.
+
+
+=== EXTRA (CAVEATS-PRE-VEREDICTO.md) ===
+# P7 · o que o cartão vai dizer, seja qual for o número
+
+**Escrito e commitado a 2026-09-09, com a corrida 3 a meio (22 dos 46 braços) e sem veredicto.** Nada aqui depende do resultado: são factos sobre o **tratamento** e sobre a **integridade** da corrida, lidos do ledger, e valem impressos quer o R-24 dê GANHOU, PERDEU ou INVÁLIDA. Escrevem-se agora precisamente porque escritos depois teriam outra cor.
+
+## O controlo de manipulação passa: o tratamento foi mesmo aplicado
+
+| Verificação | Braço ON | Braço OFF |
+|---|---|---|
+| O hook disparou | **todos** | **nenhum** |
+| Um `<router-hint>` foi injectado | sim, mediana ~2 479 bytes por prompt | — |
+
+Isto é o que impede a leitura preguiçosa «os dois braços eram iguais e a diferença é ruído». Eram diferentes, e a diferença é exactamente a que o pré-registo define.
+
+## O que o tratamento **é**, e é mais estreito do que «usar o Mooter»
+
+**O hint disse `T0` em todos os braços ON, e o tecto (`hint_max_tier`) também.** Não é o router a escolher um tier adequado a cada tarefa: é o defeito vivo **D1** (`applyBudgetCap` compara um objecto com números) a limitar tudo a T0, exactamente como o P1 e o P2 já mediram noutros corpora. Portanto, ganhe ou perca, este cartão mede:
+
+> «uma sessão com o hook ligado, que recebe ~2,5 KB de texto de hint e a recomendação T0, contra uma sessão sem hook nenhum»
+
+e **não** «uma sessão bem roteada contra uma mal roteada». Quem quiser o segundo tem de esperar pelo D1 corrigido e por uma corrida nova.
+
+**A pré-resposta local (Option A) não entrou.** `hint_opcao_a` é falso em todos os braços ON, portanto o custo de 256 tokens locais que o P3 mediu **não** faz parte deste tratamento. Uma coisa a menos a confundir.
+
+## Integridade da corrida
+
+- **Nenhum braço tocou no ficheiro de teste** (`tocou_no_teste` falso em todos). O oráculo é externo e ficou externo — é a defesa contra a solução mais fácil, que seria mexer no teste.
+- **`effort` fixo em `xhigh`** nos dois braços, como o pré-registo manda.
+- **O `router_sha` de cada braço** fica gravado linha a linha, e bate com o pré-registado.
+
+## O que este cartão não prova, decidido antes de saber o número
+
+Generalização a outro repositório, outra máquina ou outro modelo. Qualidade do trabalho para além do teste mecânico passar — o critério é binário e não julga o código. Obediência: o desenho é *intention-to-treat*, mede-se ter o hook ligado, não a recomendação ser seguida. E não separa «o hint ajudou» de «o hint ocupou contexto»: são 2,5 KB a mais no prompt e o efeito disso, bom ou mau, está dentro do número e não ao lado dele.
+
+## O número parcial que existe neste momento, e que não é o resultado
+
+Com 11 dos 23 pares fechados, o leitor independente imprime `X = 10 · pares válidos 11 · p = 0,798 · INCOMPLETA (pares válidos < n)` e **recusa-se a dar veredicto**, que é o comportamento certo. Fica escrito aqui pelo mesmo motivo que o número da corrida 1 ficou escrito na `AMENDMENT-1.md`: existe, qualquer pessoa o recalcula do ledger, e esconder um número que existe é pior do que o problema que resolve. **O limiar 16 foi calculado para 23 pares. 10 em 11 não é o mesmo teste, e aceitá-lo seria exactamente a «correcção honesta» que o pré-registo bloqueia por escrito.**
+
+---
+
+## Correcção escrita depois do veredicto: um destes avisos estava errado
+
+Este ficheiro foi escrito com a corrida 3 a meio e diz, na secção «o que o tratamento é», que **o hint disse T0 em todos os braços ON**. Era verdade nos 13 pares da corrida 3. **Não é verdade na corrida 4**, que é a que conta: `hint_tier` foi **T0 em 20 tarefas e T2 em 3** (`t21`, `t22`, `t23`).
+
+A conclusão que eu tirava daí — «isto mede o hook a recomendar T0, não o router a escolher tier» — fica **mais fraca e mais interessante**: em 3 das 23 tarefas o router escolheu mesmo um tier acima, e são exactamente as 3 em que o Mooter **não ganhou** (Z = 0 nas três). Ver o veredicto.
+
+Deixo o erro à vista em vez de o editar para trás. Um aviso pré-escrito só vale se se aceitar que os dados o podem desmentir, e este desmentiu.

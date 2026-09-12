@@ -1,0 +1,255 @@
+{
+ "_schema": "matriz-12/preflight/1",
+ "mp": "MP - MATRIZ 12 - Mooter vs a escolha real do utilizador - 2026-09-10",
+ "generated_at": "2026-09-10T16:51:32.107Z",
+ "owner_tz": "America/Sao_Paulo",
+ "regras": "R1-R10 do MP_PACOTE_DE_PROVAS_V1 - n/d nunca inventado - uma corrida - perdas ficam - adversario em motor diferente - sem push sem OK do dono",
+ "git": {
+  "worktree": "C:/Users/Paulo Loureiro/frugal/.claude/worktrees/matriz-12-mooter-comparison-3c2b8e",
+  "branch": "claude/matriz-12-mooter-comparison-3c2b8e",
+  "head": "f66813e9ee7b42c43596283efd106dc0c3f7b717",
+  "head_data": "2026-09-10T13:19:03-03:00",
+  "mp_dizia_main": "0768c7fa",
+  "nota_head": "o HEAD deste worktree e f66813e9 (#494, D15 - o cache do orcamento tinha DOIS escritores), UM commit a frente do que o MP declara",
+  "sujo_no_arranque": "2 caminho(s) alterado(s)"
+ },
+ "frozen": {
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "tools/router/patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5",
+  "esperado_classify": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "esperado_patterns": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5",
+  "intacto": true
+ },
+ "versions": {
+  "node": "v24.14.0",
+  "npm": "11.9.0",
+  "ollama": "ollama version is 0.33.3",
+  "claude_code": "2.1.224 (Claude Code)",
+  "codex_cli": "codex-cli 0.153.4"
+ },
+ "hardware": {
+  "gpu": "nvidia RTX 4090 23028 MiB",
+  "probed_at": "2026-09-10T16:46:10.847Z"
+ },
+ "ollama_models": [
+  {
+   "name": "qwen2.5-coder:14b",
+   "gb": 9
+  },
+  {
+   "name": "qwen3.6:35b-a3b",
+   "gb": 23.9
+  },
+  {
+   "name": "qwen3.6:27b",
+   "gb": 17.4
+  },
+  {
+   "name": "qwen2.5-coder:7b",
+   "gb": 4.7
+  },
+  {
+   "name": "qwen3:30b",
+   "gb": 18.6
+  },
+  {
+   "name": "nomic-embed-text:latest",
+   "gb": 0.3
+  },
+  {
+   "name": "gemma4:e4b",
+   "gb": 9.6
+  },
+  {
+   "name": "deepseek-r1:7b",
+   "gb": 4.7
+  },
+  {
+   "name": "gemma3:12b",
+   "gb": 8.1
+  },
+  {
+   "name": "qwen2.5:3b",
+   "gb": 1.9
+  }
+ ],
+ "prereq_1_num_predict": {
+  "defeito": "executePinned montava wrapperOpts sem maxTokens, por isso providers/ollama-api.js aplicava num_predict:256 em silencio",
+  "correccao": "hunk de feat/landing-redesign@265281af aplicado a tools/router/router-execute.js NESTE worktree (nunca foi fundido em main)",
+  "ficheiro_alterado": "tools/router/router-execute.js",
+  "env_do_braco_mooter": "MOOTER_LOCAL_PIN_MAX_TOKENS=2048",
+  "controlo_negativo": {
+   "tecto_pedido": 256,
+   "ok": true,
+   "tokens_out": 256,
+   "linhas_nao_vazias": 38,
+   "ultimos_60_chars": "es\n34. Suzano\n35. Itaquaquecetuba\n36. Diadema\n37. Sorocaba\n3",
+   "truncou": true
+  },
+  "positivo": {
+   "tecto_pedido": 2048,
+   "ok": true,
+   "tokens_out": 265,
+   "linhas_nao_vazias": 40,
+   "ultimos_60_chars": "acaju\n38. Campo Grande\n39. São Luís\n40. Vitória da Conquista",
+   "truncou": false
+  },
+  "mordida": "PROVADA: a 256 corta exactamente aos 256 tokens a meio de uma linha; a 2048 termina a lista"
+ },
+ "prereq_2_hw_t0": {
+  "hw_capability_path": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\hw-capability.json",
+  "antes": "2026-05-30T22:58:29.064Z (copia intacta em preflight/hw-capability.ANTES.json)",
+  "probed_at": "2026-09-10T16:46:10.847Z",
+  "vendor": "nvidia",
+  "name": "RTX 4090",
+  "vram_mb": 23028,
+  "hw_tier": "gpu-high",
+  "recommended_t0_medido": "qwen2.5-coder:14b",
+  "mp_esperava": "qwen3:30b",
+  "bate_com_o_mp": false,
+  "porque": "gpu-probe.js PREFER_ORDER lidera com qwen2.5-coder:14b desde 2026-08-29 (medicao B1 do MooterBench); qwen3:30b esta em 6.o lugar. O MP descreve a ordem anterior a essa mudanca.",
+  "classify_sem_env": {
+   "tier": "T0",
+   "recommended_model": "qwen2.5:3b"
+  },
+  "classify_com_env": {
+   "tier": "T0",
+   "recommended_model": "qwen2.5-coder:14b"
+  },
+  "campo_t0_model_existe": false,
+  "o_braco_le": "classification.recommended_model (o campo t0_model NAO existe no output do classify)"
+ },
+ "prereq_3_claude_directo": {
+  "exe": "C:\\Users\\Paulo Loureiro\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe",
+  "porque_directo": "claude no PATH e um shim .cmd: spawn sem shell da ENOENT, e com shell o Node 24 emite DEP0190 e o interpretador come argumentos vazios (--tools \"\")",
+  "args_fixos": [
+   "-p",
+   "<prompt>",
+   "--output-format",
+   "json",
+   "--model",
+   "<m>",
+   "--setting-sources",
+   "",
+   "--strict-mcp-config",
+   "--tools",
+   ""
+  ],
+  "cwd": "C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\matriz12-arena",
+  "isolamento": "sem settings de user/projecto (nenhum hook do Mooter, nenhum plugin, nenhuma skill), sem MCP, sem ferramentas, cwd vazio (nenhum CLAUDE.md descoberto)",
+  "prompt_de_prova": "Responde apenas com a palavra banana.",
+  "modelos": {
+   "claude-haiku-4-5-20251001": {
+    "ok": true,
+    "is_error": false,
+    "motivo": null,
+    "modelo_reportado": [
+     "claude-haiku-4-5-20251001"
+    ],
+    "texto": "banana",
+    "tokens_in": 10,
+    "tokens_out": 87,
+    "cache_creation": 6596,
+    "cache_read": 0,
+    "custo_reportado_usd": 0.013637,
+    "duration_api_ms": 2114
+   },
+   "claude-sonnet-5": {
+    "ok": true,
+    "is_error": false,
+    "motivo": null,
+    "modelo_reportado": [
+     "claude-sonnet-5"
+    ],
+    "texto": "banana",
+    "tokens_in": 2,
+    "tokens_out": 4,
+    "cache_creation": 5769,
+    "cache_read": 3289,
+    "custo_reportado_usd": 0.035666699999999996,
+    "duration_api_ms": 1267
+   },
+   "claude-opus-5": {
+    "ok": true,
+    "is_error": false,
+    "motivo": null,
+    "modelo_reportado": [
+     "claude-opus-5"
+    ],
+    "texto": "banana",
+    "tokens_in": 2,
+    "tokens_out": 4,
+    "cache_creation": 3691,
+    "cache_read": 0,
+    "custo_reportado_usd": 0.03702,
+    "duration_api_ms": 1289
+   }
+  },
+  "veredicto": "os 3 modelos: is_error:false e tokens_out > 0"
+ },
+ "prereq_4_codex": {
+  "exe": "C:\\Users\\Paulo Loureiro\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe",
+  "modelo": "gpt-6-astra (default do ~/.codex/config.toml do dono; fixado com -m porque --ignore-user-config apaga esse config)",
+  "effort": "medium (-c model_reasoning_effort=\"medium\")",
+  "natureza": "AGENTE COM HARNESS, nao modelo nu: le ficheiros, corre passos e carrega system prompt proprio (27k tokens de entrada so para responder \"banana\")",
+  "teste": {
+   "ok": true,
+   "exit": 0,
+   "ms": 4281.3427,
+   "texto": "banana",
+   "usage": {
+    "input_tokens": 27132,
+    "cached_input_tokens": 0,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 5,
+    "reasoning_output_tokens": 0
+   },
+   "args_declarados": [
+    "exec",
+    "--json",
+    "--ignore-user-config",
+    "-m",
+    "gpt-6-astra",
+    "-c",
+    "model_reasoning_effort=\"medium\"",
+    "-C",
+    "C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\matriz12-arena",
+    "--skip-git-repo-check",
+    "--ephemeral",
+    "-s",
+    "read-only"
+   ]
+  },
+  "creditos": "HA creditos: exit 0 com resposta",
+  "braco_D": "corre"
+ },
+ "prereq_5_custo": {
+  "precos_lista_usd_por_M": {
+   "fonte": "tools/router/pricing.js - bloco \"Claude 5 family - verified 2026-08-19\"",
+   "bloco_datado_presente": true,
+   "claude-opus-5": {
+    "input": 5,
+    "output": 25
+   },
+   "claude-sonnet-5": {
+    "input": 2,
+    "output": 10
+   },
+   "claude-haiku-4-5-20251001": {
+    "input": 1,
+    "output": 5
+   },
+   "ollama": {
+    "input": 0,
+    "output": 0
+   },
+   "gpt-6-astra": "n/d (nao existe em pricing.js; e subscricao ChatGPT, nao pay-per-token)"
+  },
+  "cache": {
+   "o_que_se_mediu": "o JSON do claude -p traz cache_creation_input_tokens e cache_read_input_tokens separados de input_tokens",
+   "porque_importa": "no probe barato desta corrida, \"banana\" gastou 4 tokens de saida e escreveu 3691 tokens em cache: o custo faturado e dominado pelo harness, nao pela resposta",
+   "multiplicadores": "n/d em pricing.js - pricing.js nao modela cache. Serao declarados com fonte citada no protocol.json antes da corrida, ou o custo faturado fica n/d"
+  },
+  "faturacao_real": "os DOIS motores de nuvem correm por SUBSCRICAO nesta maquina (Claude Code por OAuth, Codex por subscricao ChatGPT). Nenhum dolar sai por token: o custo e preco de lista IMPUTADO. Nunca apresentar como poupanca realizada."
+ }
+}

@@ -1,0 +1,115 @@
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+
+const SCRIPT = path.join(__dirname, 'no-frugal-ratchet.js');
+
+function git(cwd, ...args) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  assert.equal(result.status, 0, `git ${args.join(' ')} failed: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function commit(cwd, message) {
+  git(cwd, 'add', 'tools');
+  git(cwd, '-c', 'user.name=Ratchet Test', '-c', 'user.email=ratchet@example.invalid', 'commit', '-m', message);
+  return git(cwd, 'rev-parse', 'HEAD');
+}
+
+function fixture() {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-no-frugal-'));
+  git(cwd, 'init');
+  fs.mkdirSync(path.join(cwd, 'tools'));
+  fs.writeFileSync(path.join(cwd, 'tools', 'existing.js'), 'const legacyBrand = "frugal";\n');
+  const base = commit(cwd, 'base');
+  return { cwd, base };
+}
+
+test('one added tracked live-code file fails the ratchet', () => {
+  const { cwd, base } = fixture();
+  try {
+    fs.writeFileSync(path.join(cwd, 'tools', 'regression.js'), 'export const brand = "FRUGAL";\n');
+    commit(cwd, 'add regression');
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', base, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 1, `expected strict failure, got stdout=${result.stdout} stderr=${result.stderr}`);
+    assert.match(result.stdout, /1 .* -> 2 /);
+    assert.match(result.stderr, /frugal references INCREASED \(2 > 1\)/);
+    assert.match(result.stderr, /tools\/regression\.js/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('untracked build artifacts cannot change the Git-tree count', () => {
+  const { cwd, base } = fixture();
+  try {
+    fs.writeFileSync(path.join(cwd, 'tools', 'untracked-build.js'), 'frugal\n');
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', base, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, `tracked tree is unchanged: ${result.stderr}`);
+    assert.match(result.stdout, /1 .* -> 1 /);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('a base ref that no longer exists falls back instead of crashing', () => {
+  // After a force-push, `github.event.before` names a commit the remote no
+  // longer has. Before this fallback the gate exited 2 with "Not a valid commit
+  // name" — an error, not a verdict. A guard that crashes is not a guard.
+  const { cwd } = fixture();
+  try {
+    fs.writeFileSync(path.join(cwd, 'tools', 'regression.js'), 'export const brand = "FRUGAL";');
+    commit(cwd, 'add regression');
+    const ghost = '0123456789abcdef0123456789abcdef01234567';
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', ghost, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.notEqual(result.status, 2, `must not error out: ${result.stderr}`);
+    assert.equal(result.status, 1, `expected the real verdict, got stdout=${result.stdout} stderr=${result.stderr}`);
+    assert.match(result.stderr, /frugal references INCREASED/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('a live legacy identifier does not count as rebrand debt', () => {
+  // FRUGAL_CLAUDE_DIR is read as a fallback in 12+ places on main. A gate that
+  // fails a PR for naming an environment variable the product still honours is
+  // punishing the truth, and teaches people to route around the gate.
+  const { cwd, base } = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'tools', 'env-compat.js'),
+      'const dir = process.env.MOOTER_CLAUDE_DIR || process.env.FRUGAL_CLAUDE_DIR;'
+    );
+    commit(cwd, 'add legacy env fallback');
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', base, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, `exempt identifier must not fail: ${result.stderr}`);
+    assert.match(result.stdout, /1 .* -> 1 /);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('an exemption on the line does not launder a real occurrence beside it', () => {
+  // The dangerous failure mode of any allowlist: one exempt token buys the
+  // whole file a pass. Here the same file carries a live env var AND real
+  // rebrand debt, and the debt must still be caught.
+  const { cwd, base } = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(cwd, 'tools', 'mixed.js'),
+      'const dir = process.env.FRUGAL_CLAUDE_DIR;' + String.fromCharCode(10) +
+      'export const productName = "frugal";'
+    );
+    commit(cwd, 'add mixed file');
+    const result = spawnSync(process.execPath, [SCRIPT, '--base', base, '--head', 'HEAD'], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 1, `real debt beside an exemption must still fail: ${result.stdout}`);
+    assert.match(result.stderr, /tools\/mixed\.js/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});

@@ -9,8 +9,9 @@
  * decision. Haiku is cheap (~$0.001/call) and fast (~400ms).
  *
  * Design principles:
- *   1. OPTIONAL — if ANTHROPIC_API_KEY is absent, the arbiter is a no-op
- *      and inject_context.js falls back to the regex decision. No crashes.
+ *   1. OPTIONAL — if MOOTER_ARBITER_DISABLE=1 or ANTHROPIC_API_KEY is absent,
+ *      the arbiter is a no-op and inject_context.js falls back to the regex
+ *      decision. The dedicated switch wins even when a key is inherited.
  *   2. CACHED — decisions are keyed by SHA-256(prompt + system_version).
  *      Cache persists on disk (~/.claude/tools/router/.arbiter-cache.json).
  *      Semantic decisions don't rot quickly, so TTL = 7 days, LRU = 500.
@@ -273,6 +274,11 @@ function extractDecision(apiResponseText) {
  */
 function arbitrate(prompt, options = {}) {
   if (!prompt || typeof prompt !== 'string') return null;
+
+  // Friend builds set this dedicated switch. Enforce here as well as in the
+  // hook so direct callers cannot silently reactivate Haiku with an inherited
+  // ANTHROPIC_API_KEY. This intentionally does not reuse the broader v0.7 flag.
+  if (process.env.MOOTER_ARBITER_DISABLE === '1') return null;
 
   // No key → no arbiter. This is a soft exit, not an error.
   const apiKey = process.env.ANTHROPIC_API_KEY;

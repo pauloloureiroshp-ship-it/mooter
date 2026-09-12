@@ -1,0 +1,646 @@
+{
+ "arm": "A-hook",
+ "runs": 1,
+ "at": "2026-09-09T13:38:14.151Z",
+ "node": "v24.14.0",
+ "home_isolado": "C:\\Users\\PAULOL~1\\AppData\\Local\\Temp\\provas-p1-hook-home-amve3i",
+ "classify_path_counts": {},
+ "rows": [
+  {
+   "id": "n01",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": "user_override_vetoed",
+   "exit": 0,
+   "ms": 277.5649,
+   "stdout_bytes": 2052
+  },
+  {
+   "id": "n02",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 226.7696,
+   "stdout_bytes": 1604
+  },
+  {
+   "id": "n03",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1360.4896,
+   "stdout_bytes": 1276
+  },
+  {
+   "id": "n04",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1290.1658,
+   "stdout_bytes": 850
+  },
+  {
+   "id": "n05",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1297.3316,
+   "stdout_bytes": 850
+  },
+  {
+   "id": "n06",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1297.8866,
+   "stdout_bytes": 961
+  },
+  {
+   "id": "n07",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1284.3908,
+   "stdout_bytes": 1105
+  },
+  {
+   "id": "n08",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 233.071,
+   "stdout_bytes": 1652
+  },
+  {
+   "id": "n09",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 223.5565,
+   "stdout_bytes": 1098
+  },
+  {
+   "id": "n10",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1292.9041,
+   "stdout_bytes": 1165
+  },
+  {
+   "id": "n11",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1298.537,
+   "stdout_bytes": 965
+  },
+  {
+   "id": "n12",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1288.955,
+   "stdout_bytes": 964
+  },
+  {
+   "id": "n13",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1281.1497,
+   "stdout_bytes": 961
+  },
+  {
+   "id": "n14",
+   "run": 1,
+   "tier": "T3",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 227.6966,
+   "stdout_bytes": 861
+  },
+  {
+   "id": "n15",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1300.4432,
+   "stdout_bytes": 986
+  },
+  {
+   "id": "n16",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1288.9409,
+   "stdout_bytes": 980
+  },
+  {
+   "id": "n17",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1301.8232,
+   "stdout_bytes": 850
+  },
+  {
+   "id": "n18",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1279.6622,
+   "stdout_bytes": 998
+  },
+  {
+   "id": "n19",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 231.5568,
+   "stdout_bytes": 1555
+  },
+  {
+   "id": "n20",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1286.4604,
+   "stdout_bytes": 1165
+  },
+  {
+   "id": "n21",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1291.8821,
+   "stdout_bytes": 850
+  },
+  {
+   "id": "n22",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 230.6566,
+   "stdout_bytes": 1123
+  },
+  {
+   "id": "n23",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1292.6271,
+   "stdout_bytes": 850
+  },
+  {
+   "id": "n24",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1291.7435,
+   "stdout_bytes": 974
+  },
+  {
+   "id": "n25",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1293.2476,
+   "stdout_bytes": 970
+  },
+  {
+   "id": "n26",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1293.2813,
+   "stdout_bytes": 965
+  },
+  {
+   "id": "n27",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1289.0622,
+   "stdout_bytes": 850
+  },
+  {
+   "id": "n28",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 234.1471,
+   "stdout_bytes": 962
+  },
+  {
+   "id": "n29",
+   "run": 1,
+   "tier": "T3",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 227.9256,
+   "stdout_bytes": 860
+  },
+  {
+   "id": "n30",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 228.7635,
+   "stdout_bytes": 1378
+  },
+  {
+   "id": "n31",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": "user_override_vetoed",
+   "exit": 0,
+   "ms": 221.899,
+   "stdout_bytes": 1407
+  },
+  {
+   "id": "n32",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 227.0461,
+   "stdout_bytes": 1394
+  },
+  {
+   "id": "n33",
+   "run": 1,
+   "tier": "T3",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 228.1475,
+   "stdout_bytes": 861
+  },
+  {
+   "id": "n34",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1279.7932,
+   "stdout_bytes": 978
+  },
+  {
+   "id": "n35",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1287.1111,
+   "stdout_bytes": 1105
+  },
+  {
+   "id": "n36",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1308.6099,
+   "stdout_bytes": 1135
+  },
+  {
+   "id": "n37",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1294.4556,
+   "stdout_bytes": 850
+  },
+  {
+   "id": "n38",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 228.0619,
+   "stdout_bytes": 1059
+  },
+  {
+   "id": "n39",
+   "run": 1,
+   "tier": "T0",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 1281.4508,
+   "stdout_bytes": 967
+  },
+  {
+   "id": "n40",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 232.7485,
+   "stdout_bytes": 1174
+  },
+  {
+   "id": "r01",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 236.1761,
+   "stdout_bytes": 1573
+  },
+  {
+   "id": "r02",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 232.4046,
+   "stdout_bytes": 1569
+  },
+  {
+   "id": "r03",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 226.3199,
+   "stdout_bytes": 1581
+  },
+  {
+   "id": "r04",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 129.4891,
+   "stdout_bytes": 870
+  },
+  {
+   "id": "r05",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 227.594,
+   "stdout_bytes": 1470
+  },
+  {
+   "id": "r06",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 132.4122,
+   "stdout_bytes": 859
+  },
+  {
+   "id": "r07",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 132.2674,
+   "stdout_bytes": 859
+  },
+  {
+   "id": "r08",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 130.3315,
+   "stdout_bytes": 859
+  },
+  {
+   "id": "r09",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 224.5432,
+   "stdout_bytes": 1471
+  },
+  {
+   "id": "r10",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 130.4967,
+   "stdout_bytes": 870
+  },
+  {
+   "id": "r11",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 225.5704,
+   "stdout_bytes": 1469
+  },
+  {
+   "id": "r12",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 224.6768,
+   "stdout_bytes": 1475
+  },
+  {
+   "id": "r13",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 230.6401,
+   "stdout_bytes": 1464
+  },
+  {
+   "id": "r14",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 226.597,
+   "stdout_bytes": 1467
+  },
+  {
+   "id": "r15",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 129.5542,
+   "stdout_bytes": 859
+  },
+  {
+   "id": "r16",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 228.5957,
+   "stdout_bytes": 1467
+  },
+  {
+   "id": "r17",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 135.3873,
+   "stdout_bytes": 870
+  },
+  {
+   "id": "r18",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 225.1669,
+   "stdout_bytes": 1471
+  },
+  {
+   "id": "r19",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 137.2093,
+   "stdout_bytes": 859
+  },
+  {
+   "id": "r20",
+   "run": 1,
+   "tier": "T1",
+   "max_tier": "T3",
+   "escalation": null,
+   "exit": 0,
+   "ms": 132.482,
+   "stdout_bytes": 859
+  },
+  {
+   "id": "r21",
+   "run": 1,
+   "tier": "T2",
+   "max_tier": "T3",
+   "escalation": "safety_boost",
+   "exit": 0,
+   "ms": 227.7804,
+   "stdout_bytes": 1557
+  },
+  {
+   "id": "r22",
+   "run": 1,
+   "tier": "T2",
+   "max_tier": "T3",
+   "escalation": "safety_boost",
+   "exit": 0,
+   "ms": 228.8465,
+   "stdout_bytes": 1557
+  },
+  {
+   "id": "r23",
+   "run": 1,
+   "tier": "T2",
+   "max_tier": "T3",
+   "escalation": "safety_boost",
+   "exit": 0,
+   "ms": 129.7652,
+   "stdout_bytes": 937
+  }
+ ],
+ "isolated_log_events": {
+  "user_override_vetoed": 2,
+  "classified": 63,
+  "prompt_optimized": 37,
+  "option_a_miss": 25
+ }
+}

@@ -1,0 +1,27 @@
+  tratamento: router pinado b39c7da4aaa6… · effort xhigh
+R-24 · verificação de 23 tarefas (sem chamar o modelo)
+  ok   t01-2e7599e021  tools/router
+  ok   t02-7bb45751d8  tools/router
+  ok   t03-8014c12435  tools/router
+  ok   t04-8617d5fc95  tools/router
+  ok   t05-cc706fa255  packages/vscode-extension
+  ok   t06-e408ea0afe  packages/vscode-extension
+  ok   t07-030073bef4  packages/vscode-extension
+  ok   t08-1f5a793294  packages/vscode-extension
+  ok   t09-07bdf37783  packages/mooter-bridge
+  ok   t10-a6bf1a20b0  packages/mooter-bridge
+  ok   t11-4bf34eb7c6  packages/mooter-bridge
+  ok   t12-bf358e765c  packages/mooter-bridge
+  ok   t13-ddb0cf50e1  tools/cockpit
+  ok   t14-01cebb9409  packages/slack-spike
+  ok   t15-03039e0b33  tools/cockpit
+  ok   t16-057bfc121a  packages/slack-spike
+  ok   t17-4b8090599c  packages/slack-spike
+  ok   t18-5d72b4c9e3  packages/slack-spike
+  ok   t19-99f47261be  tools/cockpit
+  ok   t20-e96defd8e0  tools/cockpit
+  ok   t21-96171ef138  design/tools
+  ok   t22-11f81c79b7  design/tools
+  ok   t23-1b929f35f1  design/tools
+
+  23 de 23 prontas.

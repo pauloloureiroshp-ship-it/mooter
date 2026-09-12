@@ -9,6 +9,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { ollamaHostFromEnv } from "../ollama-host.ts";
 import { mooterHomeDefault } from "../packs.ts";
 
 export interface CmdResult {
@@ -22,7 +23,7 @@ interface OllamaModel {
   details?: { quantization_level?: string; parameter_size?: string; family?: string };
 }
 
-const OLLAMA = process.env.OLLAMA_HOST?.replace(/\/$/, "") || "http://localhost:11434";
+const OLLAMA = ollamaHostFromEnv("http://localhost:11434");
 
 // Known embedding dimensions for embed-family models (not in /api/tags).
 const EMBED_DIMS: Record<string, number> = {

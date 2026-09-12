@@ -1,0 +1,27 @@
+  tratamento: router pinado b39c7da4aaa6… · effort xhigh
+R-24 · controlo de 23 tarefas — o teste tem de PASSAR no filho
+  passa t01-2e7599e021  tools/router
+  passa t02-7bb45751d8  tools/router
+  passa t03-8014c12435  tools/router
+  passa t04-8617d5fc95  tools/router
+  passa t05-cc706fa255  packages/vscode-extension
+  passa t06-e408ea0afe  packages/vscode-extension
+  passa t07-030073bef4  packages/vscode-extension
+  passa t08-1f5a793294  packages/vscode-extension
+  passa t09-07bdf37783  packages/mooter-bridge
+  passa t10-a6bf1a20b0  packages/mooter-bridge
+  passa t11-4bf34eb7c6  packages/mooter-bridge
+  passa t12-bf358e765c  packages/mooter-bridge
+  passa t13-ddb0cf50e1  tools/cockpit
+  passa t14-01cebb9409  packages/slack-spike
+  passa t15-03039e0b33  tools/cockpit
+  passa t16-057bfc121a  packages/slack-spike
+  passa t17-4b8090599c  packages/slack-spike
+  passa t18-5d72b4c9e3  packages/slack-spike
+  passa t19-99f47261be  tools/cockpit
+  passa t20-e96defd8e0  tools/cockpit
+  passa t21-96171ef138  design/tools
+  passa t22-11f81c79b7  design/tools
+  passa t23-1b929f35f1  design/tools
+
+  23 de 23 passam no filho.

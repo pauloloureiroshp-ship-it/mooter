@@ -1,0 +1,69 @@
+== mooter: 119 pares fonte/teste
+  baseline tools/router/_model-resolver.test.js: passa 164ms
+  sobrevive tools/router/_model-resolver.js:17 [if (!x) -> if (x)] 129ms
+  sobrevive tools/router/_model-resolver.js:19 [=== -> !==] 130ms
+  sobrevive tools/router/_model-resolver.js:20 [=== -> !==] 125ms
+  sobrevive tools/router/_model-resolver.js:21 [=== -> !==] 126ms
+  sobrevive tools/router/_model-resolver.js:22 [=== -> !==] 125ms
+  sobrevive tools/router/_model-resolver.js:23 [=== -> !==] 127ms
+  sobrevive tools/router/_model-resolver.js:24 [guarda removida] 125ms
+  MORTO tools/router/_model-resolver.js:40 [if (!x) -> if (x)] 133ms
+  MORTO tools/router/_model-resolver.js:44 [guarda removida] 129ms
+  baseline tools/router/agent-focus-status.test.js: passa 161ms
+  MORTO tools/router/agent-focus-status.js:43 [=== -> !==] 133ms
+  MORTO tools/router/agent-focus-status.js:47 [Math.max -> Math.min] 130ms
+  baseline tools/router/agent-sync-ledger.test.js: FALHA (ignorado) 6089ms
+  baseline tools/router/agents-progress-status.test.js: passa 156ms
+  MORTO tools/router/agents-progress-status.js:62 [=== -> !==] 148ms
+  MORTO tools/router/agents-progress-status.js:63 [=== -> !==] 146ms
+  baseline tools/router/assinatura.test.js: passa 165ms
+  MORTO tools/router/assinatura.js:72 [!== -> ===] 147ms
+  MORTO tools/router/assinatura.js:113 [&& -> ||] 148ms
+  baseline tools/router/backtest.test.js: FALHA (ignorado) 4984ms
+  baseline tools/router/badge.test.js: passa 835ms
+  MORTO tools/router/badge.js:38 [=== -> !==] 413ms
+  MORTO tools/router/badge.js:39 [=== -> !==] 401ms
+== mooter: 10 mutantes mortos em 15s
+== fastify: 5 pares fonte/teste
+  baseline test/content-type.test.js: passa 3168ms
+  MORTO lib/content-type.js:97 [!== -> ===] 371ms
+  MORTO lib/content-type.js:104 [=== -> !==] 362ms
+  baseline test/hooks.test.js: passa 7383ms
+  MORTO lib/hooks.js:61 [!== -> ===] 10548ms
+  MORTO lib/hooks.js:62 [=== -> !==] 10531ms
+  baseline test/noop-set.test.js: passa 128ms
+  MORTO lib/noop-set.js:8 [return true -> return false] 116ms
+  baseline test/server.test.js: passa 1559ms
+  MORTO lib/server.js:34 [=== -> !==] 1511ms
+  sobrevive lib/server.js:35 [=== -> !==] 1522ms
+  MORTO lib/server.js:42 [!== -> ===] 1543ms
+  baseline test/wrap-thenable.test.js: passa 148ms
+  sobrevive lib/wrap-thenable.js:15 [=== -> !==] 133ms
+  sobrevive lib/wrap-thenable.js:31 [!== -> ===] 134ms
+  sobrevive lib/wrap-thenable.js:32 [=== -> !==] 132ms
+  sobrevive lib/wrap-thenable.js:33 [=== -> !==] 133ms
+  sobrevive lib/wrap-thenable.js:34 [=== -> !==] 134ms
+  sobrevive lib/wrap-thenable.js:35 [&& -> ||] 134ms
+  MORTO lib/wrap-thenable.js:63 [=== -> !==] 134ms
+== fastify: 8 mutantes mortos em 55s
+== hono: 58 pares fonte/teste
+  baseline src/utils/accept.test.ts: passa 4133ms
+  MORTO src/utils/accept.ts:3 [< -> <=] 1746ms
+  MORTO src/utils/accept.ts:8 [=== -> !==] 1755ms
+  baseline src/utils/basic-auth.test.ts: passa 1753ms
+  MORTO src/utils/basic-auth.ts:11 [if (!x) -> if (x)] 1700ms
+  MORTO src/utils/basic-auth.ts:21 [if (!x) -> if (x)] 1676ms
+  baseline src/utils/body.test.ts: passa 1806ms
+  MORTO src/utils/body.ts:16 [< -> <=] 1727ms
+  MORTO src/utils/body.ts:26 [< -> <=] 1670ms
+  baseline src/utils/buffer.test.ts: passa 1716ms
+  MORTO src/utils/buffer.ts:9 [=== -> !==] 1712ms
+  MORTO src/utils/buffer.ts:10 [return true -> return false] 1722ms
+  baseline src/utils/color.test.ts: FALHA (ignorado) 6731ms
+  baseline src/utils/concurrent.test.ts: passa 2192ms
+  MORTO src/utils/concurrent.ts:9 [< -> <=] 1873ms
+  MORTO src/utils/concurrent.ts:21 [=== -> !==] 1870ms
+== hono: 10 mutantes mortos em 91s
+mutants 28 windows 56
+(node:57892) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)

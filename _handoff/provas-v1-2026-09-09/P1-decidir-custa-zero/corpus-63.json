@@ -1,0 +1,321 @@
+{
+ "_schema": "provas-v1/corpus-63",
+ "_note": "40 prompts reais de setembro (anonimizados, seed 20260909) + 23 prompts do R-24 (template do manifest). Fora do treino do classificador.",
+ "items": [
+  {
+   "id": "n01",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:f6e395983cbe chars:222]]"
+  },
+  {
+   "id": "n02",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:238c9572a530 chars:319]]"
+  },
+  {
+   "id": "n03",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:b5595535f31b chars:33]]"
+  },
+  {
+   "id": "n04",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:12e51cbb2966 chars:26]]"
+  },
+  {
+   "id": "n05",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:8bdb487f3406 chars:28]]"
+  },
+  {
+   "id": "n06",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:f51eceda498e chars:33]]"
+  },
+  {
+   "id": "n07",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:a181b662984f chars:31]]"
+  },
+  {
+   "id": "n08",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:aa4e0fe7260e chars:410]]"
+  },
+  {
+   "id": "n09",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:491a26c11a43 chars:131]]"
+  },
+  {
+   "id": "n10",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:0804ac732adf chars:26]]"
+  },
+  {
+   "id": "n11",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:3ec0d6a97598 chars:38]]"
+  },
+  {
+   "id": "n12",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:a4a60f46c71b chars:36]]"
+  },
+  {
+   "id": "n13",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:23b2d74a593b chars:36]]"
+  },
+  {
+   "id": "n14",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:db24fdfd230d chars:89]]"
+  },
+  {
+   "id": "n15",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:b97085a30451 chars:57]]"
+  },
+  {
+   "id": "n16",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:7297875a2fca chars:55]]"
+  },
+  {
+   "id": "n17",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:4746a07406cf chars:30]]"
+  },
+  {
+   "id": "n18",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:7c44160a0cdc chars:79]]"
+  },
+  {
+   "id": "n19",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:4a5b67d2cc04 chars:260]]"
+  },
+  {
+   "id": "n20",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:8887edbecbaa chars:27]]"
+  },
+  {
+   "id": "n21",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:00b2d8bf01cf chars:26]]"
+  },
+  {
+   "id": "n22",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:0f6cead9e4c2 chars:208]]"
+  },
+  {
+   "id": "n23",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:358e51119479 chars:22]]"
+  },
+  {
+   "id": "n24",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:0e5eb377d72a chars:50]]"
+  },
+  {
+   "id": "n25",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:f25626961df0 chars:48]]"
+  },
+  {
+   "id": "n26",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:19d0fc854d87 chars:36]]"
+  },
+  {
+   "id": "n27",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:31e9b9f9ae84 chars:28]]"
+  },
+  {
+   "id": "n28",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:c1f2850bf7ae chars:34]]"
+  },
+  {
+   "id": "n29",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:dcee578df10b chars:214]]"
+  },
+  {
+   "id": "n30",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:7fc73e58ccd2 chars:402]]"
+  },
+  {
+   "id": "n31",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:82496f7d1c9f chars:172]]"
+  },
+  {
+   "id": "n32",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:08b365548732 chars:184]]"
+  },
+  {
+   "id": "n33",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:fa5c0c9b5909 chars:187]]"
+  },
+  {
+   "id": "n34",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:b2ccf772e20f chars:50]]"
+  },
+  {
+   "id": "n35",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:5d573b0dd596 chars:32]]"
+  },
+  {
+   "id": "n36",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:5f48cff05908 chars:29]]"
+  },
+  {
+   "id": "n37",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:55b70316adeb chars:23]]"
+  },
+  {
+   "id": "n38",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:1bdf66ddc455 chars:149]]"
+  },
+  {
+   "id": "n39",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:b6b92d742a33 chars:45]]"
+  },
+  {
+   "id": "n40",
+   "source": "sept-transcripts",
+   "prompt": "[[redigido sha256:2a8389ecc8c9 chars:463]]"
+  },
+  {
+   "id": "r01",
+   "source": "r24:t01-2e7599e021",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/statusline-multi.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r02",
+   "source": "r24:t02-7bb45751d8",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/router-execute.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r03",
+   "source": "r24:t03-8014c12435",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/router-execute.mocks.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.mocks.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r04",
+   "source": "r24:t04-8617d5fc95",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/statusline-multi.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r05",
+   "source": "r24:t05-cc706fa255",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/data.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/data.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r06",
+   "source": "r24:t06-e408ea0afe",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/webview-syntax.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/webview-syntax.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r07",
+   "source": "r24:t07-030073bef4",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/data.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/data.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r08",
+   "source": "r24:t08-1f5a793294",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/data.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/data.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r09",
+   "source": "r24:t09-07bdf37783",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/server.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test server.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r10",
+   "source": "r24:t10-a6bf1a20b0",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/server.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test server.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r11",
+   "source": "r24:t11-4bf34eb7c6",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/quota.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test quota.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r12",
+   "source": "r24:t12-bf358e765c",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/seamless.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test seamless.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r13",
+   "source": "r24:t13-ddb0cf50e1",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/alignment.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/alignment.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r14",
+   "source": "r24:t14-01cebb9409",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/cartao.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test cartao.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r15",
+   "source": "r24:t15-03039e0b33",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/runner-core.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r16",
+   "source": "r24:t16-057bfc121a",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/ensaio.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test ensaio.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r17",
+   "source": "r24:t17-4b8090599c",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/ensaio.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test ensaio.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r18",
+   "source": "r24:t18-5d72b4c9e3",
+   "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/despacho.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test despacho.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r19",
+   "source": "r24:t19-99f47261be",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/runner-core.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r20",
+   "source": "r24:t20-e96defd8e0",
+   "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/runner-core.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r21",
+   "source": "r24:t21-96171ef138",
+   "prompt": "No repositório em que estás, o ficheiro de teste `design/tools/moo-design-check.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test design/tools/moo-design-check.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r22",
+   "source": "r24:t22-11f81c79b7",
+   "prompt": "No repositório em que estás, o ficheiro de teste `design/tools/moo-design-check.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test design/tools/moo-design-check.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  },
+  {
+   "id": "r23",
+   "source": "r24:t23-1b929f35f1",
+   "prompt": "No repositório em que estás, o ficheiro de teste `design/tools/moo-visual-audit.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test design/tools/moo-visual-audit.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n"
+  }
+ ]
+}

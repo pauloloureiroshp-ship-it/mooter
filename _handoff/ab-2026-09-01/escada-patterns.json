@@ -1,0 +1,276 @@
+{
+ "ts": "2026-09-01T21:17:49.182Z",
+ "nascimento": "caf8a67dcfd0ee4f5c32b815b44ca9d1ef4b871e 04-15 22:29",
+ "sha_classify": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+ "alvos": 35,
+ "degraus": [
+  {
+   "h": "8af879f98db01783eecd32aeaca05d303473639b",
+   "curto": "8af879f9",
+   "msg": "04-09 10:26 refactor(v0.7.0): extract patterns.js — single source of truth for risk regexes",
+   "ok": 26,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "canonical-08(T2→T0)",
+    "canonical-09(T3→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-04(T3→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "74.3"
+  },
+  {
+   "h": "3181299cea4aaf95ee71cf0e59fb2b2ab239196e",
+   "curto": "3181299c",
+   "msg": "04-10 01:57 perf(classifier): add 5 patterns from dogfood telemetry v0.9.3",
+   "ok": 27,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "canonical-08(T2→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-04(T3→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "77.1"
+  },
+  {
+   "h": "25cc01f330c49dd2e09e89bc193b6656c6467b5a",
+   "curto": "25cc01f3",
+   "msg": "04-10 02:26 perf(classifier): stress test 47 prompts — 66%→83% accuracy, 9 patterns added",
+   "ok": 27,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "canonical-08(T2→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-04(T3→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "77.1"
+  },
+  {
+   "h": "c0429034c95cff39a054ce26d16d316ce799f300",
+   "curto": "c0429034",
+   "msg": "04-10 02:51 perf(classifier): creative test batch — 13 patterns, suite expanded to 70 prompts",
+   "ok": 28,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "canonical-08(T2→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "80.0"
+  },
+  {
+   "h": "6e477fa06034fa2380df3b5387eea75b7eff11d7",
+   "curto": "6e477fa0",
+   "msg": "04-10 03:31 perf(classifier): mega test — 37 new patterns, 170 prompts, 100% adjusted",
+   "ok": 29,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "82.9"
+  },
+  {
+   "h": "bb12e7a2df65a74e8e2740feae75fdff89857827",
+   "curto": "bb12e7a2",
+   "msg": "04-10 03:37 feat(testing): adversarial prompt generator + 3 more patterns",
+   "ok": 29,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "82.9"
+  },
+  {
+   "h": "a6ac7ac31fcda646bcb588e38c7f31a24896cadb",
+   "curto": "a6ac7ac3",
+   "msg": "04-11 12:56 fix(classifier): comparison patterns + BASH_PASTE which guard + smoke-test tolerance",
+   "ok": 29,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "82.9"
+  },
+  {
+   "h": "b13262a1d4139bc1873c6bc92941f0111f7f1a03",
+   "curto": "b13262a1",
+   "msg": "04-12 01:01 feat(tuning): overnight P1 — add compound \"implement\" pattern to MED_RISK",
+   "ok": 29,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-17(T3→T0)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "82.9"
+  },
+  {
+   "h": "5e50cbb0f22fcd84824410787a9c567f23a70357",
+   "curto": "5e50cbb0",
+   "msg": "04-15 22:46 fix(safety): HIGH_RISK guard on early-returns + beast-mode intent + PT merge patterns",
+   "ok": 30,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "85.7"
+  },
+  {
+   "h": "65ba0d3e09095833bece93f308c744d6976edb30",
+   "curto": "65ba0d3e",
+   "msg": "04-15 23:42 fix(classifier): A/B test + 3 audits — 12 pattern fixes, 96.7% accuracy",
+   "ok": 30,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "85.7"
+  },
+  {
+   "h": "65412734188214a32a8a51986296f27b0b744889",
+   "curto": "65412734",
+   "msg": "04-16 00:37 feat(router): multi-provider smart routing + A/B test v2 (9/10)",
+   "ok": 30,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-02(T2→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-09(T3→T2)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "85.7"
+  },
+  {
+   "h": "9530efae39206992b7d9943daaa28b37e430964c",
+   "curto": "9530efae",
+   "msg": "04-16 02:37 fix(classifier): accuracy 75% → 80% — 7 gold labels + demotion logic + pattern fixes",
+   "ok": 33,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-08(T2→T3)"
+   ],
+   "pct": "94.3"
+  },
+  {
+   "h": "967c278b0c417e466aff4bb9751fee04e3ca0789",
+   "curto": "967c278b",
+   "msg": "04-16 02:54 fix(tester): pre-degradation accuracy + meta-prompt filter + 6 MED_RISK patterns",
+   "ok": 33,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-08(T2→T3)"
+   ],
+   "pct": "94.3"
+  },
+  {
+   "h": "6e8e7f404d3068be5afe5555564c4204dfb777b6",
+   "curto": "6e8e7f40",
+   "msg": "04-16 09:36 feat(review-driven): CQRS→MED_RISK + model-aware optimizer strategy",
+   "ok": 33,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-08(T2→T3)"
+   ],
+   "pct": "94.3"
+  },
+  {
+   "h": "1d56101f940a86cc08e98f567d02b3da24c1ff09",
+   "curto": "1d56101f",
+   "msg": "04-16 09:43 feat(classifier): GATE PASS — accuracy 75%→88.3%, canonical 100%",
+   "ok": 33,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-08(T2→T3)"
+   ],
+   "pct": "94.3"
+  },
+  {
+   "h": "bc4f84f184e18df98154db90cfa47dff75ae7dad",
+   "curto": "bc4f84f1",
+   "msg": "04-17 00:21 fix(router): review #2 — purge toxic TUNED patterns, filter tester noise",
+   "ok": 32,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "91.4"
+  },
+  {
+   "h": "b57efa9e78744c0ba6f2d56b19d64311abd8cd12",
+   "curto": "b57efa9e",
+   "msg": "04-18 14:21 fix(router): close HIGH_RISK guardrail gaps caught by adversarial probe",
+   "ok": 32,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "91.4"
+  },
+  {
+   "h": "22dd53f2fcf2a9df52ce9efd7592429abc7a472a",
+   "curto": "22dd53f2",
+   "msg": "06-13 07:34 chore(wave58.3): no-frugal ratchet 160→146 (rebrand drift fix) (#168)",
+   "ok": 32,
+   "n": 35,
+   "falham": [
+    "canonical-06(T1→T0)",
+    "adversarial-08(T2→T3)",
+    "adversarial-22(T3→T2)"
+   ],
+   "pct": "91.4"
+  }
+ ]
+}

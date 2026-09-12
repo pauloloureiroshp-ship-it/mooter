@@ -1,0 +1,1051 @@
+{
+ "arm": "E",
+ "at": "2026-09-09T14:16:12.212Z",
+ "method": "netstat -ano amostrado a 150 ms por pid (claude.exe + filhos) — AMENDMENT-1; bytes n/d",
+ "proxy_probe": "e-probe.mjs 2026-09-09: com HTTPS_PROXY o claude.exe fica pendurado (exit null aos 90 s, 0 ligacoes ao proxy); sem proxy exit 0 em 8 s",
+ "rows": [
+  {
+   "id": "n01",
+   "prompt_chars": 222,
+   "exit": 0,
+   "ms": 13877.3502,
+   "netstat_samples": 57,
+   "pids": [
+    24172,
+    57264,
+    43596,
+    46884
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 24172,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 24172,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 643,
+    "cache_read": 0,
+    "cache_create": 46631
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n02",
+   "prompt_chars": 319,
+   "exit": 0,
+   "ms": 21062.2304,
+   "netstat_samples": 94,
+   "pids": [
+    38640,
+    53004,
+    18980,
+    54472,
+    2740
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 38640,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED",
+      "SYN_SENT"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 38640,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 1217,
+    "cache_read": 15932,
+    "cache_create": 30727
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n03",
+   "prompt_chars": 33,
+   "exit": 1,
+   "ms": 17431.6037,
+   "netstat_samples": 75,
+   "pids": [
+    20084,
+    54840,
+    52760,
+    53976,
+    43464
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 20084,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 20084,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 1077,
+    "cache_read": 15932,
+    "cache_create": 35256
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n04",
+   "prompt_chars": 26,
+   "exit": 1,
+   "ms": 10340.0716,
+   "netstat_samples": 39,
+   "pids": [
+    2204,
+    56196,
+    55972,
+    55160,
+    57656
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 2204,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 2204,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 480,
+    "cache_read": 15932,
+    "cache_create": 35039
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n05",
+   "prompt_chars": 28,
+   "exit": 1,
+   "ms": 11457.6899,
+   "netstat_samples": 44,
+   "pids": [
+    54464,
+    53436,
+    55332,
+    52476,
+    55264
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 54464,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 54464,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 560,
+    "cache_read": 15932,
+    "cache_create": 34452
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n06",
+   "prompt_chars": 33,
+   "exit": 0,
+   "ms": 13462.9188,
+   "netstat_samples": 56,
+   "pids": [
+    50996,
+    58116,
+    40760,
+    58128,
+    53072
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 50996,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 50996,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 584,
+    "cache_read": 15932,
+    "cache_create": 34481
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n07",
+   "prompt_chars": 31,
+   "exit": 0,
+   "ms": 19567.1132,
+   "netstat_samples": 88,
+   "pids": [
+    52296,
+    54388,
+    52352,
+    58296,
+    54604
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 52296,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 52296,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 1201,
+    "cache_read": 15932,
+    "cache_create": 35281
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n08",
+   "prompt_chars": 410,
+   "exit": 1,
+   "ms": 9202.3054,
+   "netstat_samples": 32,
+   "pids": [
+    53768,
+    53560,
+    24440,
+    39500,
+    47148
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 53768,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 53768,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 355,
+    "cache_read": 15932,
+    "cache_create": 34578
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n09",
+   "prompt_chars": 131,
+   "exit": 1,
+   "ms": 11137.6884,
+   "netstat_samples": 43,
+   "pids": [
+    20960,
+    56912,
+    25020,
+    55096,
+    57036
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 20960,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 20960,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 572,
+    "cache_read": 15932,
+    "cache_create": 34674
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n10",
+   "prompt_chars": 26,
+   "exit": 0,
+   "ms": 11100.8481,
+   "netstat_samples": 42,
+   "pids": [
+    20328,
+    57428,
+    2240,
+    23296,
+    9648
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 20328,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 20328,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 504,
+    "cache_read": 15932,
+    "cache_create": 35284
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n11",
+   "prompt_chars": 38,
+   "exit": 1,
+   "ms": 14386.6304,
+   "netstat_samples": 60,
+   "pids": [
+    16248,
+    57280,
+    55128,
+    57148,
+    55852
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 16248,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED",
+      "SYN_SENT"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 16248,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 671,
+    "cache_read": 15932,
+    "cache_create": 34479
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n12",
+   "prompt_chars": 36,
+   "exit": 1,
+   "ms": 13217.4932,
+   "netstat_samples": 54,
+   "pids": [
+    20256,
+    55556,
+    56236,
+    19616,
+    21108
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 20256,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED",
+      "SYN_SENT"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 20256,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "SYN_SENT",
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 719,
+    "cache_read": 15932,
+    "cache_create": 34476
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n13",
+   "prompt_chars": 36,
+   "exit": 0,
+   "ms": 17321.859,
+   "netstat_samples": 75,
+   "pids": [
+    33800,
+    55184,
+    55012,
+    56368,
+    43544
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 33800,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 33800,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 581,
+    "cache_read": 15932,
+    "cache_create": 33140
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n14",
+   "prompt_chars": 89,
+   "exit": 0,
+   "ms": 21098.3085,
+   "netstat_samples": 95,
+   "pids": [
+    56496,
+    55832,
+    49728,
+    56644,
+    53152
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 56496,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 56496,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 1123,
+    "cache_read": 15932,
+    "cache_create": 35299
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n15",
+   "prompt_chars": 57,
+   "exit": 0,
+   "ms": 17513.5398,
+   "netstat_samples": 77,
+   "pids": [
+    2204,
+    58124,
+    12844,
+    13924,
+    21084
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 2204,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 2204,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 1032,
+    "cache_read": 15932,
+    "cache_create": 34488
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n16",
+   "prompt_chars": 55,
+   "exit": 1,
+   "ms": 9077.7652,
+   "netstat_samples": 32,
+   "pids": [
+    58328,
+    35156,
+    54584,
+    6952,
+    24408
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 58328,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 58328,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 434,
+    "cache_read": 15932,
+    "cache_create": 35297
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n17",
+   "prompt_chars": 30,
+   "exit": 1,
+   "ms": 17809.2851,
+   "netstat_samples": 76,
+   "pids": [
+    57468,
+    12844,
+    44704,
+    3192,
+    47248
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 57468,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 57468,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 1050,
+    "cache_read": 15932,
+    "cache_create": 34485
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n18",
+   "prompt_chars": 79,
+   "exit": 1,
+   "ms": 12084.1398,
+   "netstat_samples": 44,
+   "pids": [
+    55412,
+    55116,
+    56576,
+    56692,
+    6980
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 55412,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 55412,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 575,
+    "cache_read": 15932,
+    "cache_create": 34491
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n19",
+   "prompt_chars": 260,
+   "exit": 0,
+   "ms": 24368.0018,
+   "netstat_samples": 114,
+   "pids": [
+    20752,
+    2372,
+    52528,
+    32944,
+    4516
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 20752,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 20752,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 1557,
+    "cache_read": 15932,
+    "cache_create": 35371
+   },
+   "stderr": ""
+  },
+  {
+   "id": "n20",
+   "prompt_chars": 27,
+   "exit": 0,
+   "ms": 14926.0129,
+   "netstat_samples": 64,
+   "pids": [
+    57116,
+    16316,
+    55628,
+    10140,
+    58152
+   ],
+   "connections": [
+    {
+     "remote": "160.79.104.10:443",
+     "ip": "160.79.104.10",
+     "port": 443,
+     "pid": 57116,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    },
+    {
+     "remote": "34.149.66.165:443",
+     "ip": "34.149.66.165",
+     "port": 443,
+     "pid": 57116,
+     "loopback": false,
+     "rdns": null,
+     "states": [
+      "ESTABLISHED"
+     ]
+    }
+   ],
+   "external_connections": 2,
+   "external_hosts": [
+    "160.79.104.10",
+    "34.149.66.165"
+   ],
+   "bytes_out": "n/d",
+   "prompt_left_by_design": "usage.input_tokens=10 reportado pelo host",
+   "usage": {
+    "in": 10,
+    "out": 677,
+    "cache_read": 15932,
+    "cache_create": 35307
+   },
+   "stderr": ""
+  }
+ ]
+}

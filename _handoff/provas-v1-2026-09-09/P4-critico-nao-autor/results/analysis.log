@@ -1,0 +1,202 @@
+{
+ "at": "2026-09-09T14:29:42.900Z",
+ "n_windows": 56,
+ "n_mutants": 28,
+ "arms": {
+  "A_self_review_opus": {
+   "n": 56,
+   "mutants": 28,
+   "controls": 28,
+   "TP": 27,
+   "FN": 1,
+   "WRONG_REASON": 0,
+   "INVALID": 0,
+   "FP": 2,
+   "TN": 26,
+   "recall": {
+    "k": 27,
+    "n": 28,
+    "p": 0.9642857142857143,
+    "lo": 0.8228780209422653,
+    "hi": 0.9936674802210836
+   },
+   "fp_rate": {
+    "k": 2,
+    "n": 28,
+    "p": 0.07142857142857142,
+    "lo": 0.019812063936445176,
+    "hi": 0.22645362729738683
+   },
+   "achados": 29,
+   "citations_valid": 29,
+   "citations_invalid_reasons": [],
+   "by_repo": {
+    "mooter": {
+     "mutants": 10,
+     "TP": 10,
+     "FN": 0,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 1,
+     "TN": 9
+    },
+    "fastify": {
+     "mutants": 8,
+     "TP": 7,
+     "FN": 1,
+     "WRONG": 0,
+     "controls": 8,
+     "FP": 1,
+     "TN": 7
+    },
+    "hono": {
+     "mutants": 10,
+     "TP": 10,
+     "FN": 0,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 0,
+     "TN": 10
+    }
+   },
+   "mean_s": 19.32926785714286,
+   "exits": {
+    "0": 56
+   }
+  },
+  "B_critic_codex": {
+   "n": 56,
+   "mutants": 28,
+   "controls": 28,
+   "TP": 26,
+   "FN": 2,
+   "WRONG_REASON": 0,
+   "INVALID": 0,
+   "FP": 4,
+   "TN": 24,
+   "recall": {
+    "k": 26,
+    "n": 28,
+    "p": 0.9285714285714286,
+    "lo": 0.7735463727026133,
+    "hi": 0.9801879360635548
+   },
+   "fp_rate": {
+    "k": 4,
+    "n": 28,
+    "p": 0.14285714285714285,
+    "lo": 0.05699005280090216,
+    "hi": 0.3148980232272912
+   },
+   "achados": 30,
+   "citations_valid": 30,
+   "citations_invalid_reasons": [],
+   "by_repo": {
+    "mooter": {
+     "mutants": 10,
+     "TP": 9,
+     "FN": 1,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 1,
+     "TN": 9
+    },
+    "fastify": {
+     "mutants": 8,
+     "TP": 7,
+     "FN": 1,
+     "WRONG": 0,
+     "controls": 8,
+     "FP": 2,
+     "TN": 6
+    },
+    "hono": {
+     "mutants": 10,
+     "TP": 10,
+     "FN": 0,
+     "WRONG": 0,
+     "controls": 10,
+     "FP": 1,
+     "TN": 9
+    }
+   },
+   "mean_s": 17.257839285714287,
+   "exits": {
+    "0": 56
+   }
+  }
+ },
+ "mcnemar_mutants_B_catches_more": {
+  "B_wins": 0,
+  "A_wins": 1,
+  "discordant": 1,
+  "p_B_gt_A": 1,
+  "p_A_gt_B": 0.5,
+  "p_two_sided": 1
+ },
+ "mcnemar_controls_B_fewer_FP": {
+  "A_FP_only": 0,
+  "B_FP_only": 2,
+  "discordant": 2,
+  "p_B_fewer": 1,
+  "p_two_sided": 0.5
+ },
+ "per_window": [
+  "mooter-01-M:TP/TP",
+  "mooter-01-C:TN/TN",
+  "mooter-02-M:TP/FN",
+  "mooter-02-C:TN/TN",
+  "mooter-03-M:TP/TP",
+  "mooter-03-C:TN/TN",
+  "mooter-04-M:TP/TP",
+  "mooter-04-C:TN/TN",
+  "mooter-05-M:TP/TP",
+  "mooter-05-C:FP/FP",
+  "mooter-06-M:TP/TP",
+  "mooter-06-C:TN/TN",
+  "mooter-07-M:TP/TP",
+  "mooter-07-C:TN/TN",
+  "mooter-08-M:TP/TP",
+  "mooter-08-C:TN/TN",
+  "mooter-09-M:TP/TP",
+  "mooter-09-C:TN/TN",
+  "mooter-10-M:TP/TP",
+  "mooter-10-C:TN/TN",
+  "fastify-01-M:TP/TP",
+  "fastify-01-C:TN/TN",
+  "fastify-02-M:TP/TP",
+  "fastify-02-C:TN/TN",
+  "fastify-03-M:TP/TP",
+  "fastify-03-C:TN/TN",
+  "fastify-04-M:TP/TP",
+  "fastify-04-C:TN/TN",
+  "fastify-05-M:FN/FN",
+  "fastify-05-C:FP/FP",
+  "fastify-06-M:TP/TP",
+  "fastify-06-C:TN/TN",
+  "fastify-07-M:TP/TP",
+  "fastify-07-C:TN/FP",
+  "fastify-08-M:TP/TP",
+  "fastify-08-C:TN/TN",
+  "hono-01-M:TP/TP",
+  "hono-01-C:TN/TN",
+  "hono-02-M:TP/TP",
+  "hono-02-C:TN/TN",
+  "hono-03-M:TP/TP",
+  "hono-03-C:TN/TN",
+  "hono-04-M:TP/TP",
+  "hono-04-C:TN/TN",
+  "hono-05-M:TP/TP",
+  "hono-05-C:TN/TN",
+  "hono-06-M:TP/TP",
+  "hono-06-C:TN/TN",
+  "hono-07-M:TP/TP",
+  "hono-07-C:TN/TN",
+  "hono-08-M:TP/TP",
+  "hono-08-C:TN/TN",
+  "hono-09-M:TP/TP",
+  "hono-09-C:TN/FP",
+  "hono-10-M:TP/TP",
+  "hono-10-C:TN/TN"
+ ]
+}

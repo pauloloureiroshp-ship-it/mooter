@@ -1,0 +1,51 @@
+{
+  "probed_at": "2026-05-30T22:58:29.064Z",
+  "vendor": "nvidia",
+  "name": "RTX 4090",
+  "vram_mb": 24564,
+  "hw_tier": "gpu-high",
+  "t0_models_available": [
+    {
+      "model": "qwen2.5:3b",
+      "vram_req_mb": 2048,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5-coder:7b",
+      "vram_req_mb": 4096,
+      "can_run": true
+    },
+    {
+      "model": "deepseek-r1:7b",
+      "vram_req_mb": 4096,
+      "can_run": true
+    },
+    {
+      "model": "gemma3:12b",
+      "vram_req_mb": 8192,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5-coder:14b-q4",
+      "vram_req_mb": 9216,
+      "can_run": true
+    },
+    {
+      "model": "gemma4:e4b",
+      "vram_req_mb": 9830,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5:32b-q4",
+      "vram_req_mb": 20480,
+      "can_run": true
+    },
+    {
+      "model": "qwen3:30b",
+      "vram_req_mb": 20480,
+      "can_run": true
+    }
+  ],
+  "recommended_t0": "qwen3:30b",
+  "option_a_model": "qwen2.5:3b"
+}

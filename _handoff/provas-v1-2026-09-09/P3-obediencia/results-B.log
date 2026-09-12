@@ -1,0 +1,40 @@
+n01 B exit 0 18s delegations 0  ollama 0 hook 
+-> results\B-sonnet.json
+n02 B exit 0 91s delegations 1 Explore/- ollama 0 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n03 B exit 0 56s delegations 1 local-summarizer/- ollama 1 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n04 B exit 0 241s delegations 1 model-reasoner/- ollama 1 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n05 B exit 0 173s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n06 B exit 0 15s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n07 B exit 0 48s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n08 B exit 0 193s delegations 1 Explore/- ollama 0 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n09 B exit 0 28s delegations 1 local-summarizer/- ollama 1 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n10 B exit 0 13s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n11 B exit 0 65s delegations 1 local-summarizer/- ollama 1 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n12 B exit 0 14s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n13 B exit 0 53s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n15 B exit 0 71s delegations 1 local-summarizer/- ollama 1 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n16 B exit 0 132s delegations 1 Explore/- ollama 1 hook rewrite->T0/local-summarizer
+-> results\B-sonnet.json
+n17 B exit 0 20s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n18 B exit 0 39s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
+n19 B exit 0 104s delegations 0  ollama 0 hook 
+-> results\B-sonnet.json
+n20 B exit 0 66s delegations 0  ollama 2 hook 
+-> results\B-sonnet.json
+n21 B exit 0 73s delegations 0  ollama 1 hook 
+-> results\B-sonnet.json
