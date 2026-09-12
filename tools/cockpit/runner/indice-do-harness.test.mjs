@@ -147,6 +147,19 @@ test('C1: um runner que DESCOBRE sozinho cobre o directorio — senao um pacote 
   assert.deepEqual(p.orfaos, ['fora/c.test.js']);
 });
 
+test('C1: um glob de UM nivel (`dir/*.test.mjs`) nao cobre subdirectorios — o `*` do node --test nao atravessa `/`', () => {
+  // Medido a 2026-09-11: a versao anterior tratava `tools/x/*.test.mjs` como
+  // recursivo, e `tools/x/sub/y.test.mjs` contava como coberto sem ninguem o
+  // correr. Nao havia nenhum nesse caso nesse dia — era o sitio onde o proximo
+  // orfao se ia esconder.
+  const p = testesGateados(ambienteC1({
+    ficheiros: ['tools/x/a.test.mjs', 'tools/x/sub/b.test.mjs', 'tools/y/c.test.mjs', 'tools/y/sub/d.test.mjs'],
+    workflows: { 'ci.yml': 'jobs:\n  x:\n    steps:\n      - name: t\n        run: node --test "tools/x/*.test.mjs" "tools/y/**/*.test.mjs"\n' },
+  }));
+  assert.deepEqual(p.orfaos, ['tools/x/sub/b.test.mjs'], 'so o `**` desce; o `*` fica no nivel');
+  assert.equal(p.num, 3);
+});
+
 test('C1: o `working-directory` do JOB vale para todos os passos', () => {
   const p = testesGateados(ambienteC1({
     ficheiros: ['packages/ext/src/a.test.js'],
