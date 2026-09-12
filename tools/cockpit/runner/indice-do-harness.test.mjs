@@ -368,8 +368,12 @@ test('MORDIDA C1 (a): `*`, `?` e `**` NAO casam dotfiles — comparado com o `no
   try {
     // Os cinco do adversario, e mais os que separam «o ponto esta escrito no
     // padrao» de «o ponto veio de um wildcard».
+    // `[!a]`: 3.a ronda do adversario — a classe copiada tal e qual para
+    // JavaScript era «`!` ou `a`», e `a.test.mjs`, que o node NAO corre,
+    // contava como coberto (a catraca aceitava um teste nao executado).
     for (const padrao of ['tests/{a,b}.test.mjs', 'tests/?(x|y).test.mjs', 'tests/a.test.[jt]s', 'tests/**/*.test.mjs', 'tests/a.test.*',
-      'tests/*.test.mjs', 'tests/*/*.test.mjs', 'tests/.hidden/*.test.mjs', 'tests/.*.test.mjs', 'tests/**/.g.test.mjs', 'tests/**', 'tests/sub/**/*.test.mjs', 'tests/{.hidden,sub}/*.test.mjs']) {
+      'tests/*.test.mjs', 'tests/*/*.test.mjs', 'tests/.hidden/*.test.mjs', 'tests/.*.test.mjs', 'tests/**/.g.test.mjs', 'tests/**', 'tests/sub/**/*.test.mjs', 'tests/{.hidden,sub}/*.test.mjs',
+      'tests/[!a].test.mjs', 'tests/[!ab].test.mjs', 'tests/[ab].test.mjs']) {
       const real = nodeExecuta(raiz, padrao);
       assert.ok(real.length, `o node nao correu nada para ${padrao} — a mordida nao mediu`);
       const previsto = ficheiros.filter((f) => globParaRegex(padrao).test(f)).sort();
