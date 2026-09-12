@@ -1134,8 +1134,20 @@ export function readChangedLines(repoRoot, { baseRef = 'HEAD~6', runImpl = null,
   // sabia porque. E exactamente a classe de defeito que este runner procura,
   // encontrada no proprio runner. Agora o buffer chega, o diff e limitado a
   // ficheiros de codigo pelo pathspec, e a falha e REPORTADA em vez de calada.
+  // `--no-optional-locks`: ler um diff nao precisa de escrever no indice.
+  //
+  // Sem a flag, o `git diff` refresca o indice e tira o `.git/index.lock`. Esta
+  // chamada corre UMA VEZ POR RONDA, em loop, o dia todo — e e a unica do runner
+  // nessas condicoes. A regra ja estava escrita no projecto («git do repo e do
+  // vault: sempre --no-optional-locks») e era precisamente esta que nao a cumpria.
+  //
+  // ⚠️ RESSALVA HONESTA: isto NAO foi a causa do bloqueio de 2026-08-30. Nesse
+  // dia tres `git pull` seguidos foram recusados, e a culpa era de um
+  // `.git/ORIG_HEAD.lock` obsoleto — deixado por um script que abortou a meio de
+  // um `pull --rebase`, provavelmente meu. A flag entra por ser a regra da casa
+  // e por ser correcta, nao por um nexo causal que eu nao consegui provar.
   const run = runImpl || ((args) =>
-    execFileSync('git', args, {
+    execFileSync('git', ['--no-optional-locks', ...args], {
       cwd: repoRoot,
       encoding: 'utf8',
       timeout: 10000,

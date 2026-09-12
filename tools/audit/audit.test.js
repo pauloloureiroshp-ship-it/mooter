@@ -89,8 +89,11 @@ test('audit_benchmark: rougeL bounds + cost rows + lora gating', () => {
   assert.equal(benchmark.rougeL('a b c', 'x y z'), 0, 'disjoint → 0');
   assert.ok(benchmark.rougeL('the cat sat', 'the cat ran') > 0 && benchmark.rougeL('the cat sat', 'the cat ran') < 1);
   assert.equal(benchmark.lcsLen('abcd'.split(''), 'abd'.split('')), 3);
-  // costBreakdown is robust even with absent stats (returns rows + totals)
-  const c = benchmark.costBreakdown();
+  // costBreakdown is robust even with absent stats (returns rows + totals).
+  // `write:false` — until 2026-08-31 this call wrote to audit/cost_breakdown.json,
+  // a VERSIONED file: running the suite left the repo dirty, and anyone doing a
+  // `git add -A` afterwards committed test output as if it were work.
+  const c = benchmark.costBreakdown({ write: false });
   assert.ok(Array.isArray(c.rows) && c.rows.length >= 2);
   assert.ok(typeof c.totals.saved_pct === 'number');
   // T0 corpus row is always $0 actual

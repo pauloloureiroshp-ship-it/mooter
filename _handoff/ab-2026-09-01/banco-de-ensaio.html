@@ -1,0 +1,722 @@
+<title>Banco de Ensaio Mooter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ── O banco é um instrumento: fundo de tubo, traço de fósforo. Escolha
+      deliberada de um só tema — isto grava-se em vídeo e o vídeo não tem
+      modo claro. Toda a cor é pintada explicitamente. ────────────────── */
+:root{
+  --tinta:#0B0E14; --tubo:#10151E; --painel:#161C27; --grade:#1E2633;
+  --amb:#FFB53D;  --amb-fraco:#FFB53D26;   /* Mooter        · fósforo   */
+  --aco:#6FA8C7;  --aco-fraco:#6FA8C726;   /* router por LLM · aço frio */
+  --oxi:#9C6250;  --oxi-fraco:#9C625026;   /* sem router     · óxido    */
+  --papel:#EDE8DC; --meio:#8B93A1; --baixo:#5C6470;
+  --ok:#7FB77E; --mau:#C96A5B;
+  --d:'Archivo Black',Archivo,system-ui,sans-serif;
+  --b:Archivo,system-ui,-apple-system,sans-serif;
+  --m:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--tinta);color:var(--papel);font-family:var(--b);
+     font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{text-wrap:balance;margin:0}
+:focus-visible{outline:2px solid var(--amb);outline-offset:3px;border-radius:2px}
+
+/* ══ cromo (fica FORA da área de gravação) ══════════════════════════ */
+.cromo{max-width:1180px;margin:0 auto;padding:28px 24px 8px}
+.cab{display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;
+     border-bottom:1px solid var(--grade);padding-bottom:16px}
+.marca{font-family:var(--d);font-size:26px;letter-spacing:-.02em;line-height:1}
+.marca em{font-style:normal;color:var(--amb)}
+.sub{font-family:var(--m);font-size:11.5px;color:var(--meio);letter-spacing:.04em}
+.sub b{color:var(--papel);font-weight:500}
+
+.barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:16px 0}
+.abas{display:flex;gap:0;border:1px solid var(--grade);border-radius:3px;overflow:hidden}
+.aba{appearance:none;background:transparent;border:0;border-right:1px solid var(--grade);
+     color:var(--meio);font-family:var(--m);font-size:12px;letter-spacing:.06em;
+     padding:9px 16px;cursor:pointer;transition:background .15s,color .15s}
+.aba:last-child{border-right:0}
+.aba[aria-selected="true"]{background:var(--amb);color:#140E02;font-weight:600}
+.aba:hover:not([aria-selected="true"]){background:var(--painel);color:var(--papel)}
+
+.btn{appearance:none;background:var(--painel);border:1px solid var(--grade);
+     color:var(--papel);font-family:var(--m);font-size:12px;letter-spacing:.05em;
+     padding:9px 16px;border-radius:3px;cursor:pointer;transition:border-color .15s,background .15s}
+.btn:hover{border-color:var(--amb);background:#1B222E}
+.btn.pri{background:var(--amb);color:#140E02;border-color:var(--amb);font-weight:600}
+.btn.pri:hover{background:#FFC468}
+.relogio{font-family:var(--m);font-size:12px;color:var(--meio);
+         font-variant-numeric:tabular-nums;margin-left:auto}
+.relogio b{color:var(--amb);font-weight:500}
+
+.risca{height:2px;background:var(--grade);border-radius:2px;overflow:hidden;margin:2px 0 18px}
+.risca i{display:block;height:100%;width:0;background:var(--amb);transition:width .1s linear}
+
+/* ══ o palco: dimensão REAL da rede, escalado para caber ═══════════ */
+.moldura{display:flex;justify-content:center;padding:0 24px 20px}
+.escala{transform-origin:top center}
+.palco{position:relative;overflow:hidden;background:var(--tinta);
+       font-family:var(--b);color:var(--papel)}
+.palco[data-fmt="v"]{width:1080px;height:1920px}
+.palco[data-fmt="h"]{width:1920px;height:1080px}
+/* grade de tubo — não decorativa: é a régua do instrumento */
+.palco::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(var(--grade) 1px,transparent 1px) 0 0/100% 80px,
+    linear-gradient(90deg,var(--grade) 1px,transparent 1px) 0 0/80px 100%;
+  opacity:.5}
+.palco::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 88% 70% at 50% 46%,transparent 58%,#0000005E 100%)}
+
+.quadro{position:absolute;inset:0;display:none;padding:110px 96px;
+        flex-direction:column;justify-content:center;gap:0}
+.palco[data-fmt="v"] .quadro{padding:110px 96px 320px}
+.palco[data-fmt="h"] .quadro{padding:88px 130px}
+.quadro.viva{display:flex}
+
+/* ── tipos dentro do palco ── */
+.olho{font-family:var(--m);font-size:28px;letter-spacing:.22em;color:var(--amb);
+      text-transform:uppercase;margin-bottom:38px}
+.palco[data-fmt="h"] .olho{font-size:20px;margin-bottom:20px}
+.tit{font-family:var(--d);font-size:112px;line-height:.95;letter-spacing:-.028em}
+.palco[data-fmt="h"] .tit{font-size:82px}
+.tit small{display:block;font-family:var(--b);font-weight:400;font-size:40px;
+           line-height:1.35;letter-spacing:0;color:var(--meio);margin-top:30px}
+.palco[data-fmt="h"] .tit small{font-size:31px;margin-top:22px}
+.nota{font-family:var(--m);font-size:22px;color:var(--baixo);line-height:1.55}
+.palco[data-fmt="h"] .nota{font-size:17px}
+.nota b{color:var(--meio);font-weight:500}
+
+/* ── as pistas (a corrida) ── */
+.pistas{display:flex;flex-direction:column;gap:94px;margin-top:24px}
+.palco[data-fmt="h"] .pistas{gap:34px}
+.pista{display:grid;grid-template-columns:1fr auto;gap:12px 20px;align-items:end}
+.pnome{font-family:var(--m);font-size:27px;letter-spacing:.05em;color:var(--meio);line-height:1.45}
+.palco[data-fmt="h"] .pnome{font-size:19px}
+.pnome b{color:var(--papel);font-weight:600}
+.pval{font-family:var(--d);font-size:92px;line-height:.9;
+      font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.palco[data-fmt="h"] .pval{font-size:56px}
+.ptrilho{grid-column:1/-1;height:34px;background:var(--tubo);
+         border:1px solid var(--grade);border-radius:2px;overflow:hidden;position:relative}
+.palco[data-fmt="h"] .ptrilho{height:20px}
+.ptrilho i{position:absolute;inset:0 auto 0 0;width:0;display:block;border-radius:1px}
+.p-oxi .pval,.p-oxi .pnome b{color:var(--oxi)}   .p-oxi .ptrilho i{background:var(--oxi)}
+.p-aco .pval,.p-aco .pnome b{color:var(--aco)}   .p-aco .ptrilho i{background:var(--aco)}
+.p-amb .pval,.p-amb .pnome b{color:var(--amb)}   .p-amb .ptrilho i{background:var(--amb);
+         box-shadow:0 0 26px var(--amb-fraco),0 0 8px #FFB53D55}
+
+/* ── placares de duas/três colunas ── */
+.placar{display:grid;gap:34px;margin-top:22px}
+.placar.c2{grid-template-columns:1fr 1fr}
+.placar.c3{grid-template-columns:repeat(3,1fr)}
+.cel{background:var(--painel);border:1px solid var(--grade);border-left-width:5px;
+     border-radius:3px;padding:46px 38px}
+.palco[data-fmt="h"] .cel{padding:26px 24px}
+.cel.oxi{border-left-color:var(--oxi)} .cel.aco{border-left-color:var(--aco)}
+.cel.amb{border-left-color:var(--amb)}
+.crot{font-family:var(--m);font-size:19px;letter-spacing:.09em;color:var(--meio);
+      text-transform:uppercase;margin-bottom:16px}
+.palco[data-fmt="h"] .crot{font-size:15px;margin-bottom:12px}
+.cnum{font-family:var(--d);font-size:92px;line-height:.9;letter-spacing:-.03em;
+      font-variant-numeric:tabular-nums}
+.palco[data-fmt="h"] .cnum{font-size:60px}
+.cnum.oxi{color:var(--oxi)} .cnum.aco{color:var(--aco)} .cnum.amb{color:var(--amb)}
+/* vertical: os placares empilham — o numero e o conteudo, tem de mandar */
+.palco[data-fmt="v"] .placar.c2,
+.palco[data-fmt="v"] .placar.c3{grid-template-columns:1fr;gap:38px}
+.palco[data-fmt="v"] .cnum{font-size:124px}
+.palco[data-fmt="v"] .cel{padding:44px 44px 48px}
+.palco[data-fmt="v"] .crot{font-size:23px}
+.palco[data-fmt="v"] .cpe{font-size:23px;margin-top:18px}
+.cpe{font-family:var(--m);font-size:19px;color:var(--baixo);margin-top:14px;line-height:1.5}
+.palco[data-fmt="h"] .cpe{font-size:15px;margin-top:10px}
+
+/* ── tabela de secções ── */
+.tsec{width:100%;border-collapse:collapse;margin-top:26px;
+      font-variant-numeric:tabular-nums}
+.tsec th,.tsec td{padding:22px 18px;text-align:right;border-bottom:1px solid var(--grade)}
+.palco[data-fmt="h"] .tsec th,.palco[data-fmt="h"] .tsec td{padding:15px 14px}
+.tsec th:first-child,.tsec td:first-child{text-align:left}
+.tsec th{font-family:var(--m);font-size:19px;letter-spacing:.07em;color:var(--meio);
+         text-transform:uppercase;font-weight:500}
+.palco[data-fmt="h"] .tsec th{font-size:15px}
+.tsec td{font-family:var(--d);font-size:38px;letter-spacing:-.02em}
+.palco[data-fmt="h"] .tsec td{font-size:29px}
+.tsec td:first-child{font-family:var(--m);font-size:22px;color:var(--papel);
+                     font-weight:500;letter-spacing:.03em}
+.palco[data-fmt="h"] .tsec td:first-child{font-size:17px}
+.tsec .v-oxi{color:var(--oxi)} .tsec .v-aco{color:var(--aco)} .tsec .v-amb{color:var(--amb)}
+.tsec tr.rmau td:first-child{color:var(--mau)}
+
+/* ── carimbo de proveniência: a assinatura do projecto ── */
+.carimbo{position:absolute;left:96px;right:96px;bottom:64px;
+         font-family:var(--m);font-size:21px;color:var(--meio);
+         display:flex;justify-content:space-between;gap:24px;
+         border-top:1px solid var(--grade);padding-top:22px}
+.palco[data-fmt="h"] .carimbo{left:130px;right:130px;bottom:52px;font-size:15px;padding-top:16px}
+.carimbo b{color:var(--papel);font-weight:500}
+
+/* ── entradas animadas (o movimento É o conteúdo aqui) ── */
+.quadro.viva .an{animation:sobe .62s cubic-bezier(.2,.8,.2,1) both}
+.quadro.viva .an2{animation:sobe .62s .10s cubic-bezier(.2,.8,.2,1) both}
+.quadro.viva .an3{animation:sobe .62s .20s cubic-bezier(.2,.8,.2,1) both}
+.quadro.viva .an4{animation:sobe .62s .30s cubic-bezier(.2,.8,.2,1) both}
+@keyframes sobe{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+.ptrilho i{transition:width .9s cubic-bezier(.2,.8,.2,1)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
+
+/* ══ guião e trajectória (fora do palco) ══════════════════════════ */
+.doc{max-width:1180px;margin:0 auto;padding:8px 24px 90px}
+.doc h2{font-family:var(--d);font-size:22px;letter-spacing:-.01em;margin:44px 0 6px}
+.doc h2 span{color:var(--amb)}
+.doc .cap{font-family:var(--m);font-size:12px;color:var(--baixo);margin-bottom:18px}
+.gui{border:1px solid var(--grade);border-radius:4px;overflow:hidden}
+.gl{display:grid;grid-template-columns:104px 1fr;gap:0;border-bottom:1px solid var(--grade)}
+.gl:last-child{border-bottom:0}
+.gt{font-family:var(--m);font-size:12px;color:var(--amb);padding:16px 16px;
+    background:var(--tubo);border-right:1px solid var(--grade);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+.gx{padding:16px 20px;font-size:14.5px;line-height:1.65}
+.gx em{font-style:normal;color:var(--meio);font-family:var(--m);font-size:12.5px;
+       display:block;margin-top:7px}
+.tab{width:100%;border-collapse:collapse;font-size:14px;
+     font-variant-numeric:tabular-nums;overflow-x:auto;display:block}
+.tab th,.tab td{padding:11px 14px;border-bottom:1px solid var(--grade);text-align:right;
+                white-space:nowrap}
+.tab th:first-child,.tab td:first-child{text-align:left}
+.tab th{font-family:var(--m);font-size:11.5px;letter-spacing:.06em;color:var(--meio);
+        text-transform:uppercase;font-weight:500}
+.tab td{font-family:var(--m);font-size:13.5px}
+.tab .g{color:var(--amb);font-weight:600}
+.tab .a{color:var(--aco)} .tab .o{color:var(--oxi)}
+.avs{border-left:3px solid var(--amb);background:#FFB53D0D;padding:16px 20px;
+     margin:20px 0;font-size:14.5px;border-radius:0 3px 3px 0}
+.avs b{color:var(--amb)}
+.rod{font-family:var(--m);font-size:12px;color:var(--baixo);margin-top:40px;
+     border-top:1px solid var(--grade);padding-top:18px;line-height:1.8}
+</style>
+
+<div class="cromo">
+  <div class="cab">
+    <div class="marca">Banco de <em>Ensaio</em></div>
+    <div class="sub">35 rótulos verificados (de 70) · 3 encaminhamentos · 6 corridas · medido <b>2026-09-01</b> ·
+      recibo <b>_handoff/ab-2026-09-01/holdout-ground-truth.json</b></div>
+  </div>
+
+  <div class="barra">
+    <div class="abas" role="tablist" aria-label="Peça a gravar">
+      <button class="aba" role="tab" aria-selected="true" data-peca="v">VERTICAL · 1080×1920 · 52s</button>
+      <button class="aba" role="tab" aria-selected="false" data-peca="h">HORIZONTAL · 1920×1080 · 2:40</button>
+    </div>
+    <button class="btn pri" id="tocar">▶ Tocar</button>
+    <button class="btn" id="reiniciar">↻ Reiniciar</button>
+    <button class="btn" id="cheio">⛶ Ecrã inteiro (gravar)</button>
+    <div class="relogio"><b id="tempo">0:00</b> / <span id="total">0:52</span></div>
+  </div>
+  <div class="risca"><i id="risca"></i></div>
+</div>
+
+<div class="moldura">
+  <div class="escala" id="escala">
+    <div class="palco" data-fmt="v" id="palco"></div>
+  </div>
+</div>
+
+<div class="doc" id="doc"></div>
+
+<script>
+(() => {
+'use strict';
+/* ────────────────────────────────────────────────────────────────────
+   Todo o número desta página sai de _handoff/ab-2026-09-01/*.json.
+   Nada aqui é escrito à mão duas vezes: o guião lê-se destes mesmos
+   valores, para o vídeo e o texto não poderem divergir.
+   ──────────────────────────────────────────────────────────────────── */
+const D = {
+  n:35, nTodas:70, nGold:84, coautoradas:10, deriva:25, corridas:6,
+  a1:{nome:'SEM ROUTER',   p:40.0, sob:22, tok:0,     ms:null, gold:16.7},
+  a2:{nome:'ROUTER POR LLM',p:82.9, tok:23182, ms:76.1, gold:75.0},
+  b :{nome:'MOOTER',       p:91.4, c:32, tok:0, ms:1.61, gold:96.4},
+  sec:{canonical:[20.0,90.0,90.0], adversarial:[48.0,80.0,92.0]},
+  sessao:{decisoes:112, t0:43, deleg:0}
+};
+const nb = (x,d=1) => x.toLocaleString('pt-PT',{minimumFractionDigits:d,maximumFractionDigits:d});
+const ni = (x) => x.toLocaleString('pt-PT');
+
+/* ── carimbo comum a todos os quadros ─────────────────────────────── */
+const CAR = (dir,esq='holdout · 70 amostras · o corte que ninguém afinou') =>
+  `<div class="carimbo"><span>${esq}</span><span><b>${dir}</b></span></div>`;
+
+/* ══════════ PEÇA VERTICAL · 52 s ══════════════════════════════════ */
+const V = [
+{t:0, d:4.5, h:`
+  <div class="olho an">Ensaio A/B · 2026-09-01 · 35 rótulos verificados</div>
+  <h2 class="tit an2">Trinta e cinco<br>prompts. Três<br>encaminhamentos.
+    <small>Contra não ter router nenhum, a diferença aguenta o teste estatístico
+    <b style="color:var(--papel)">nas duas leituras do gabarito</b> — a optimista e a
+    pessimista. É a única coisa que este ensaio prova, e prova-a bem.</small></h2>
+  ${CAR('recibo aberto','gabarito anterior ao ensaio')}`},
+
+{t:4.5, d:10.5, h:`
+  <div class="olho an">A corrida · acertos em 35</div>
+  <div class="pistas">
+    <div class="pista p-oxi an">
+      <div class="pnome"><b>Sem router</b><br>tudo no tier mais caro</div>
+      <div class="pval"><span data-conta="40.0">0,0</span>%</div>
+      <div class="ptrilho"><i data-larg="40.0"></i></div></div>
+    <div class="pista p-aco an2">
+      <div class="pnome"><b>Router por LLM</b><br>um LLM decide cada prompt</div>
+      <div class="pval"><span data-conta="82.9">0,0</span>%</div>
+      <div class="ptrilho"><i data-larg="82.9"></i></div></div>
+    <div class="pista p-amb an3">
+      <div class="pnome"><b>Mooter</b><br>82,9% a 91,4% — ver ressalva</div>
+      <div class="pval"><span data-conta="82.9">0,0</span>%</div>
+      <div class="ptrilho"><i data-larg="82.9"></i></div></div>
+  </div>
+  ${CAR('82,9% no corte honesto · 91,4% com os padrões de hoje','o gabarito foi afinado — a peça diz onde')}`},
+
+{t:15, d:7.5, h:`
+  <div class="olho an">O que custou decidir</div>
+  <div class="placar c2">
+    <div class="cel aco an2"><div class="crot">Router por LLM</div>
+      <div class="cnum aco"><span data-conta="23182" data-dec="0">0</span></div>
+      <div class="cpe">tokens queimados só para<br>classificar as 70 · 76 ms cada</div></div>
+    <div class="cel amb an3"><div class="crot">Mooter</div>
+      <div class="cnum amb">0</div>
+      <div class="cpe">zero tokens · 1,6 ms cada<br><b style="color:var(--amb)">47× mais rápido</b></div></div>
+  </div>
+  <p class="nota an4" style="margin-top:40px">Classificar não é pensar. É reconhecer.<br>
+     E reconhecer não precisa de um modelo de linguagem.</p>
+  ${CAR('0 tokens · 1,6 ms')}`},
+
+{t:22.5, d:8, h:`
+  <div class="olho an">A diferença aguenta-se?</div>
+  <h2 class="tit an2" style="font-size:78px">Testámos<br>se é ruído.
+    <small>McNemar exacto, emparelhado. Só os casos em que os dois
+    discordam carregam informação — e são esses que se contam.</small></h2>
+  <div class="placar c2" style="margin-top:36px">
+    <div class="cel amb an3"><div class="crot">contra não ter router</div>
+      <div class="cnum amb" style="font-size:60px">p ≤ 0,0015</div>
+      <div class="cpe"><b style="color:var(--amb)">18 a 3</b> no corte pessimista,
+        <b style="color:var(--amb)">19 a 1</b> no optimista.<br>Aguenta nos dois · <b style="color:var(--amb)">provado</b></div></div>
+    <div class="cel aco an4"><div class="crot">contra o router por LLM</div>
+      <div class="cnum aco" style="font-size:60px">empate</div>
+      <div class="cpe">5 a 5 no corte pessimista (p = 1,000),<br>5 a 2 no optimista (p = 0,45).<br>
+        Em precisão, <b style="color:var(--aco)">não somos melhores</b>.</div></div>
+  </div>
+  ${CAR('n=35 · uma corrida (os braços são determinísticos)','o teste que faltava a todas as versões')}`},
+
+{t:30.5, d:7.5, h:`
+  <div class="olho an">Onde o teu prompt esteve</div>
+  <h2 class="tit an2">0 bytes<br>para a rede.
+    <small>O Mooter classifica com expressões regulares que correm
+    na tua máquina. Para decidir o tier, o teu prompt <b style="color:var(--papel)">nunca sai
+    do teu computador</b>.</small></h2>
+  <p class="nota an3" style="margin-top:42px">O router-por-LLM tem de <b>ler</b> o prompt para o classificar.<br>
+     Se esse modelo estiver na nuvem, o prompt vai com ele.</p>
+  ${CAR('sem proxy · sem telemetria de conteúdo')}`},
+
+{t:38, d:7.5, h:`
+  <div class="olho an" style="color:var(--mau)">O que ainda não sabemos</div>
+  <h2 class="tit an2" style="font-size:88px">Em prompts<br>reais e longos:<br>não medimos.
+    <small>Tínhamos um número — 68% — e ele não valia nada: os rótulos eram
+    a saída do <b style="color:var(--papel)">próprio classificador</b>, e o texto guardado
+    era um <b style="color:var(--papel)">preview de 80 caracteres</b>. Retirámo-lo.
+    Isto é <b style="color:var(--mau)">n/d</b>, não 68%.</small></h2>
+  ${CAR('precisa de rótulos humanos sobre prompts longos','a lacuna, dita por nós')}`},
+
+{t:45.5, d:6.5, h:`
+  <div class="olho an">Mooter · mooter.ai · MIT</div>
+  <h2 class="tit an2" style="font-size:96px">Contra não ter<br>router nenhum:<br>provado.
+    <small>91,4% contra 40,0%, p &lt; 0,0001. Contra outro router não afirmamos
+    precisão superior — afirmamos <b style="color:var(--papel)">0 tokens, 47× mais rápido,
+    0 bytes para a rede</b>.</small></h2>
+  ${CAR('node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6','')}`},
+];
+
+/* ══════════ PEÇA HORIZONTAL · 2:40 ═══════════════════════════════ */
+const H = [
+{t:0, d:6, h:`
+  <div class="olho an">Trajectória completa do ensaio · 2026-09-01</div>
+  <h2 class="tit an2">Como se mede<br>um router sem<br>enganar ninguém.
+    <small>Três braços, um gabarito anterior ao teste, um adversário a quem se
+    contam as regras — e a fraqueza publicada ao lado das vitórias.</small></h2>
+  ${CAR('parte 1 de 12','Mooter · banco de ensaio')}`},
+
+{t:6, d:11, h:`
+  <div class="olho an">O problema</div>
+  <h2 class="tit an2">O produto dizia que poupava.<br>A prova era ele próprio a dizê-lo.
+    <small>Até este ensaio não existia comparação nenhuma. Um router que se
+    auto-avalia não é evidência — é publicidade.</small></h2>
+  ${CAR('parte 2','o que faltava era um controlo')}`},
+
+{t:17, d:12, h:`
+  <div class="olho an">Regra 1 · o gabarito é anterior ao ensaio</div>
+  <h2 class="tit an2" style="font-size:70px">Nenhum rótulo escrito<br>depois de ver o resultado.
+    <small>Os rótulos saem de <b style="color:var(--papel)">validation-set.json</b>, que já estava no
+    repositório, escrito para outro fim.</small></h2>
+  ${CAR('parte 3','gold 84 · holdout 70')}`},
+
+{t:29, d:13, h:`
+  <div class="olho an" style="color:var(--mau)">Regra 2 · e o que ela nos obrigou a tirar</div>
+  <h2 class="tit an2" style="font-size:64px">Dez das setenta amostras<br>nasceram no mesmo commit<br>que afinou o classificador.
+    <small><b style="color:var(--papel)">O Mooter fazia 10 em 10 nessas.</b> Um rótulo escrito ao lado
+    da linha que o vai classificar não é um teste. Saíram — e a nota desce de
+    84,3% para <b style="color:var(--papel)">81,7%</b>.</small></h2>
+  ${CAR('parte 4','n passa de 70 para 60')}`},
+
+{t:42, d:12, h:`
+  <div class="olho an" style="color:var(--oxi)">Braço A1 · o controlo</div>
+  <h2 class="tit an2">Sem router:<br>tudo no tier mais caro.
+    <small>É o que acontece a quem não encaminha nada — cada pedido vai para o
+    modelo maior, por defeito.</small></h2>
+  <div class="placar c2 an3" style="margin-top:36px">
+    <div class="cel oxi"><div class="crot">Acertou</div>
+      <div class="cnum oxi"><span data-conta="40.0">0,0</span>%</div>
+      <div class="cpe">14 de 35</div></div>
+    <div class="cel oxi"><div class="crot">Mandou caro sem precisar</div>
+      <div class="cnum oxi"><span data-conta="21" data-dec="0">0</span></div>
+      <div class="cpe">de 35 pedidos</div></div>
+  </div>
+  ${CAR('parte 5','21 de 35 = desperdício estrutural')}`},
+
+{t:54, d:15, h:`
+  <div class="olho an" style="color:var(--aco)">Braço A2 · o adversário, jogado a sério</div>
+  <h2 class="tit an2" style="font-size:62px">Um LLM a classificar —<br>com as regras na mão<br>e a temperatura a zero.
+    <small>qwen2.5-coder na GPU local, uma chamada real por prompt. Recebe as
+    convenções privadas do repositório <b style="color:var(--papel)">por escrito</b>: escondê-las
+    era examiná-lo sobre matéria que não lhe demos.</small></h2>
+  <div class="placar c3 an3" style="margin-top:32px">
+    <div class="cel aco"><div class="crot">Acertou</div>
+      <div class="cnum aco"><span data-conta="82.9">0,0</span>%</div><div class="cpe">29 de 35</div></div>
+    <div class="cel aco"><div class="crot">Tokens</div>
+      <div class="cnum aco"><span data-conta="23182" data-dec="0">0</span></div><div class="cpe">só para decidir</div></div>
+    <div class="cel aco"><div class="crot">Por prompt</div>
+      <div class="cnum aco">76<span style="font-size:.45em"> ms</span></div><div class="cpe">mediana</div></div>
+  </div>
+  ${CAR('parte 6','o adversário forte, não o fácil')}`},
+
+{t:69, d:12, h:`
+  <div class="olho an">Braço B · o Mooter</div>
+  <h2 class="tit an2">Expressões regulares.<br>Sem modelo. Sem rede.
+    <small>classify.js está congelado e o seu sha256 é verificado no CI —
+    ninguém lhe mexe entre medições.</small></h2>
+  <div class="placar c3 an3" style="margin-top:34px">
+    <div class="cel amb"><div class="crot">Acertou</div>
+      <div class="cnum amb"><span data-conta="91.4">0,0</span>%</div><div class="cpe">32 de 35</div></div>
+    <div class="cel amb"><div class="crot">Tokens</div>
+      <div class="cnum amb">0</div><div class="cpe">a decidir</div></div>
+    <div class="cel amb"><div class="crot">Por prompt</div>
+      <div class="cnum amb">1,6<span style="font-size:.45em"> ms</span></div><div class="cpe">mediana</div></div>
+  </div>
+  ${CAR('parte 7','sha256 verificado no CI')}`},
+
+{t:81, d:13, h:`
+  <div class="olho an">Resultado · as duas medições</div>
+  <table class="tsec an2">
+    <tr><th>braço</th><th>gold · 84</th><th>holdout verificado · 35</th><th>tokens</th></tr>
+    <tr><td>Sem router</td><td class="v-oxi">16,7%</td><td class="v-oxi">40,0%</td><td class="v-oxi">0</td></tr>
+    <tr><td>Router por LLM</td><td class="v-aco">75,0%</td><td class="v-aco">82,9%</td><td class="v-aco">23 182</td></tr>
+    <tr><td>Mooter</td><td class="v-amb">96,4%</td><td class="v-amb">91,4%</td><td class="v-amb">0</td></tr>
+  </table>
+  <p class="nota an3" style="margin-top:30px">O holdout é mais duro para todos — é para isso que serve.<br>
+     A ordem não muda: <b>o determinista ganha nos dois</b>.</p>
+  ${CAR('parte 8','a ordem aguenta o corte mais duro')}`},
+
+{t:94, d:15, h:`
+  <div class="olho an">Onde ganha e onde perde · por secção</div>
+  <table class="tsec an2">
+    <tr><th>secção verificada</th><th>sem router</th><th>por LLM</th><th>Mooter</th></tr>
+    <tr><td>canonical · claros (10)</td><td class="v-oxi">20,0%</td><td class="v-aco">90,0%</td><td class="v-amb">90,0%</td></tr>
+    <tr><td>adversarial · a enganar (25)</td><td class="v-oxi">48,0%</td><td class="v-aco">80,0%</td><td class="v-amb">92,0%</td></tr>
+    <tr class="rmau"><td>prompts reais e longos</td><td class="v-oxi">n/d</td><td class="v-aco">n/d</td><td class="v-amb">n/d</td></tr>
+  </table>
+  <p class="nota an3" style="margin-top:26px">Nos prompts claros <b>empatam</b>. A vantagem está nas ambíguas.<br>
+     A linha a vermelho é a que <b>não temos</b> — e a próxima parte explica porquê.</p>
+  ${CAR('parte 9','empate no fácil, distância no ambíguo')}`},
+
+{t:109, d:15, h:`
+  <div class="olho an" style="color:var(--mau)">Duas alegações que tivemos de retirar</div>
+  <h2 class="tit an2" style="font-size:56px">«Só o nosso é reprodutível»<br>e «a fraqueza é 68%».<br>Nenhuma se aguentou.
+    <small><b style="color:var(--papel)">1.</b> Corríamos o adversário a <code>temperature 0,2</code> e
+    publicávamos que ele oscilava. A zero dá o mesmo nas seis corridas.
+    <b style="color:var(--papel)">2.</b> As 25 amostras «reais e longas» tinham como rótulo a saída do
+    <b style="color:var(--papel)">próprio classificador</b>, e como texto um preview de 80 caracteres
+    — <code>prompt.slice(0, 80)</code>. Truncadas: 2/10. Inteiras: 15/15.</small></h2>
+  ${CAR('parte 10','a segunda subiu-nos a nota e encolheu-nos a vantagem')}`},
+
+{t:124, d:16, h:`
+  <div class="olho an" style="color:var(--mau)">A confissão · a sessão de hoje</div>
+  <h2 class="tit an2" style="font-size:66px">O motor acerta.<br>Quem o devia obedecer, não obedeceu.
+    <small>Nesta sessão o router classificou <b style="color:var(--papel)">${D.sessao.decisoes} pedidos</b>
+    e marcou <b style="color:var(--papel)">${D.sessao.t0}</b> como trabalho de graça, para correr na GPU local.
+    Delegações efectivas: <b style="color:var(--mau)">${D.sessao.deleg}</b>.</small></h2>
+  <p class="nota an3" style="margin-top:34px"><b>Um router que acerta e não é obedecido poupa exactamente nada.</b></p>
+  ${CAR('parte 11','decisions.log · 2026-09-01')}`},
+
+{t:140, d:20, h:`
+  <div class="olho an">Mooter · mooter.ai · MIT · local-first</div>
+  <h2 class="tit an2">Corre o ensaio<br>na tua máquina.
+    <small style="font-family:var(--m);font-size:24px;color:var(--amb)">
+    node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6</small></h2>
+  <p class="nota an3" style="margin-top:38px">O recibo das seis corridas, os rótulos e o harness estão no repositório.<br>
+     Se o número estiver errado, <b>dá para provar que está</b> — que é o ponto.</p>
+  ${CAR('parte 12 de 12','_handoff/ab-2026-09-01/holdout-ground-truth.json')}`},
+];
+
+/* ══════════ motor do player ══════════════════════════════════════ */
+const palco = document.getElementById('palco');
+const escala = document.getElementById('escala');
+const elTempo = document.getElementById('tempo');
+const elTotal = document.getElementById('total');
+const elRisca = document.getElementById('risca');
+const btnTocar = document.getElementById('tocar');
+
+let peca = 'v', quadros = V, dur = 0, t0 = 0, tocando = false, raf = 0, pausadoEm = 0, vivo = -1;
+
+const mmss = (s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+
+function montar(){
+  quadros = peca === 'v' ? V : H;
+  dur = Math.max(...quadros.map((q) => q.t + q.d));
+  palco.dataset.fmt = peca;
+  palco.innerHTML = quadros.map((q,i) => `<div class="quadro" data-i="${i}">${q.h}</div>`).join('');
+  elTotal.textContent = mmss(dur);
+  vivo = -1;
+  ajustar(); ir(0);
+}
+
+function ajustar(){
+  const larg = Math.min(document.documentElement.clientWidth - 48, 1180);
+  const alt  = Math.max(320, window.innerHeight * (peca === 'v' ? 0.74 : 0.62));
+  const w = peca === 'v' ? 1080 : 1920, h = peca === 'v' ? 1920 : 1080;
+  const s = Math.min(larg / w, alt / h);
+  escala.style.transform = `scale(${s})`;
+  escala.style.height = `${h * s}px`;
+  escala.style.width  = `${w * s}px`;
+}
+
+function ir(t){
+  t = Math.max(0, Math.min(dur, t));
+  elTempo.textContent = mmss(t);
+  elRisca.style.width = `${(t / dur) * 100}%`;
+
+  let idx = 0;
+  for (let i = 0; i < quadros.length; i++) if (t >= quadros[i].t) idx = i;
+
+  if (idx !== vivo){
+    vivo = idx;
+    [...palco.children].forEach((el,i) => el.classList.toggle('viva', i === idx));
+    const el = palco.children[idx];
+    /* as barras crescem à entrada; os contadores arrancam do zero */
+    el.querySelectorAll('[data-larg]').forEach((b) => { b.style.width = '0'; });
+    requestAnimationFrame(() => {
+      el.querySelectorAll('[data-larg]').forEach((b,k) => {
+        setTimeout(() => { b.style.width = `${b.dataset.larg}%`; }, 220 + k*130);
+      });
+    });
+  }
+
+  /* contadores: progresso LOCAL do quadro, para ficarem certos mesmo ao saltar */
+  const q = quadros[idx], el = palco.children[idx];
+  const pr = Math.max(0, Math.min(1, (t - q.t) / Math.min(1.5, q.d)));
+  const eased = 1 - Math.pow(1 - pr, 3);
+  el.querySelectorAll('[data-conta]').forEach((s) => {
+    const alvo = parseFloat(s.dataset.conta);
+    const dec = s.dataset.dec !== undefined ? +s.dataset.dec : 1;
+    const v = alvo * eased;
+    s.textContent = dec === 0 ? ni(Math.round(v)) : nb(v, dec);
+  });
+}
+
+function passo(){
+  if (!tocando) return;
+  const t = (performance.now() - t0) / 1000;
+  if (t >= dur){ ir(dur); parar(); return; }
+  ir(t);
+  raf = requestAnimationFrame(passo);
+}
+function tocar(){
+  if (tocando) { parar(); return; }
+  tocando = true; btnTocar.textContent = '❚❚ Pausa';
+  t0 = performance.now() - pausadoEm * 1000;
+  raf = requestAnimationFrame(passo);
+}
+function parar(){
+  tocando = false; cancelAnimationFrame(raf);
+  btnTocar.textContent = '▶ Tocar';
+  pausadoEm = Math.min(dur, (performance.now() - t0) / 1000);
+}
+
+btnTocar.addEventListener('click', tocar);
+document.getElementById('reiniciar').addEventListener('click', () => {
+  parar(); pausadoEm = 0; vivo = -1; ir(0);
+});
+document.getElementById('cheio').addEventListener('click', () => {
+  const alvo = document.querySelector('.moldura');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (alvo.requestFullscreen) alvo.requestFullscreen();
+});
+document.querySelectorAll('.aba').forEach((a) => a.addEventListener('click', () => {
+  document.querySelectorAll('.aba').forEach((x) => x.setAttribute('aria-selected', String(x === a)));
+  parar(); pausadoEm = 0; peca = a.dataset.peca; montar(); guiao();
+}));
+window.addEventListener('resize', ajustar);
+document.addEventListener('fullscreenchange', () => setTimeout(ajustar, 60));
+
+/* ══════════ guião + trajectória (por baixo do palco) ═════════════ */
+const GV = [
+ ['0:00–0:04','Sessenta prompts reais. Três maneiras diferentes de decidir para onde os mandar.','arranque frio, sem logo'],
+ ['0:04–0:15','Quem não encaminha nada acerta quarenta por cento das vezes. O Mooter acerta noventa e um vírgula quatro — e não gasta um único token a decidir. Um LLM a classificar fica pelo meio, nos oitenta e dois vírgula nove.','as três barras entram desfasadas 130 ms'],
+ ['0:15–0:22','O router por LLM queimou vinte e três mil tokens só para classificar. O Mooter gastou zero, e foi quarenta e sete vezes mais rápido. Classificar não é pensar: é reconhecer.','o zero fica sozinho no ecrã'],
+ ['0:22–0:30','E testámos se a diferença é ruído. Contra não ter router nenhum: dezanove casos discordantes a um, p abaixo de zero vírgula zero zero zero um. Provado. Contra o router feito com um LLM: cinco a dois, p igual a zero vírgula quarenta e cinco. Em precisão, empatamos com ele — e dizemo-lo.','sete contra um'],
+ ['0:30–0:38','E o teu prompt? Nunca sai do teu computador. São expressões regulares a correr na tua máquina. O router que usa um LLM tem de ler o prompt — se esse modelo estiver na nuvem, o prompt vai com ele.','o argumento de segurança, sem adjectivos'],
+ ['0:38–0:45','Agora a parte má, dita por nós: em prompts reais e longos nós não medimos nada. Tínhamos um número, sessenta e oito por cento, e ele não valia — os rótulos eram a saída do próprio classificador e o texto guardado era um preview de oitenta caracteres. Retirámo-lo. Isto é n/d, não sessenta e oito.','a fraqueza no mesmo corpo que as vitórias'],
+ ['0:45–0:52','Mooter. Encaminhar devia custar zero. O recibo deste ensaio vai no repositório.','fecho seco, sem música a subir'],
+];
+const GH = [
+ ['0:00–0:06','Isto é a trajectória completa de como medimos o Mooter contra não ter Mooter nenhum.',''],
+ ['0:06–0:17','O problema era simples e incómodo: o produto dizia que poupava, e a única prova era o próprio produto a dizê-lo. Um router que se auto-avalia não é evidência — é publicidade.',''],
+ ['0:17–0:29','A primeira regra do desenho é a que impede a batota: o gabarito é anterior ao ensaio. Os rótulos saem de um ficheiro que já estava no repositório, escrito para outro fim.',''],
+ ['0:29–0:42','E foi essa regra que nos obrigou a tirar dez das setenta amostras. Dez rótulos foram escritos no mesmo commit que afinou o classificador — e o Mooter fazia dez em dez precisamente nessas. Um rótulo escrito ao lado da linha que o vai classificar não é um teste. Saíram. E a mesma régua obrigou a tirar mais vinte e cinco, que veremos daqui a pouco.',''],
+ ['0:42–0:54','Braço um: sem router. Tudo vai para o tier mais caro, que é o que acontece por defeito a quem não encaminha nada. Acerta quarenta por cento — e manda trinta e seis dos sessenta pedidos para o modelo caro sem precisar.',''],
+ ['0:54–1:09','Braço dois é o adversário jogado a sério: um LLM verdadeiro, o qwen dois vírgula cinco coder, na GPU local, uma chamada real por prompt. Recebe as convenções privadas do repositório por escrito, porque escondê-las era examiná-lo sobre matéria que não lhe demos. E corre a temperatura zero. Setenta e um vírgula sete por cento.',''],
+ ['1:09–1:21','Braço três é o Mooter. Expressões regulares, sem modelo, sem rede. O ficheiro está congelado e o seu sha256 é verificado no CI, para ninguém lhe mexer entre medições. Oitenta e um vírgula sete.',''],
+ ['1:21–1:34','Nas duas medições a ordem não muda. No conjunto grande: dezasseis, setenta e cinco, noventa e seis. No holdout verificado, que é mais duro para todos: quarenta, oitenta e três, noventa e um. E aplicámos o teste emparelhado a essa diferença, coisa que nunca tínhamos feito.',''],
+ ['1:34–1:49','Por secção é onde fica honesto. Nos prompts claros empatam, os dois a noventa. A vantagem aparece nas ambíguas: noventa e dois contra oitenta. E na linha dos prompts reais e longos está n/d — não temos medição nenhuma válida, e a parte seguinte explica porquê.',''],
+ ['1:49–2:04','E há duas alegações que tivemos de retirar. A primeira: dizíamos que só o nosso era reprodutível, e a culpa era da nossa configuração — corríamos o adversário a temperatura zero vírgula dois. A zero, dá o mesmo nas seis corridas. A segunda: as vinte e cinco amostras reais e longas tinham como rótulo a saída do próprio classificador, e como texto um preview de oitenta caracteres. Nas truncadas ele faz dois em dez; nas inteiras, quinze em quinze. A fraqueza era o dataset.',''],
+ ['2:04–2:20','E agora a confissão. Nesta sessão o router classificou cento e doze pedidos e marcou quarenta e três como trabalho de graça, para correr na GPU local. Delegações efectivas: zero. O motor acerta; quem o devia obedecer não obedeceu.',''],
+ ['2:20–2:40','Mooter, mooter ponto ai, licença MIT. Corre o ensaio na tua máquina. O harness e os recibos das seis corridas estão no repositório — se o número estiver errado, dá para provar que está. Que é o ponto.',''],
+];
+
+function guiao(){
+  const g = peca === 'v' ? GV : GH;
+  const nome = peca === 'v' ? 'VERTICAL · 52 s' : 'HORIZONTAL · 2:40';
+  document.getElementById('doc').innerHTML = `
+  <h2>Guião · <span>${nome}</span></h2>
+  <div class="cap">palavra a palavra, com os tempos do player. Voz calma, sem ênfase comercial —
+    os números fazem o trabalho.</div>
+  <div class="gui">${g.map(([t,f,n]) =>
+    `<div class="gl"><div class="gt">${t}</div><div class="gx">${f}${n?`<em>${n}</em>`:''}</div></div>`).join('')}</div>
+
+  <h2>Todas as métricas · <span>o dossiê</span></h2>
+  <div class="cap">holdout de 70 amostras · 2026-09-01 · derivado de _handoff/ab-2026-09-01/holdout.json</div>
+  <table class="tab">
+    <tr><th>métrica · rótulos verificados</th><th>sem router</th><th>router por LLM</th><th>Mooter</th><th>quem ganha</th></tr>
+    <tr><td>acertos (de 35)</td><td class="o">14</td><td class="a">29</td><td class="g">32</td><td class="g">Mooter</td></tr>
+    <tr><td>precisão · gabarito afinado</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">91,4%</td><td class="a">score de TREINO</td></tr>
+    <tr><td>precisão · padrões anteriores aos rótulos</td><td class="o">40,0%</td><td class="a">82,9%</td><td class="g">82,9%</td><td class="a">empate com o LLM</td></tr>
+    <tr><td>McNemar · gabarito afinado</td><td class="g">p&lt;0,0001 · 19 a 1</td><td class="a">p=0,45 · 5 a 2</td><td class="g">—</td><td class="g">provado só vs A1</td></tr>
+    <tr><td>McNemar · padrões anteriores</td><td class="g">p=0,0015 · 18 a 3</td><td class="a">p=1,000 · 5 a 5</td><td class="g">—</td><td class="g">provado só vs A1</td></tr>
+    <tr><td>canonical (10)</td><td class="o">20,0%</td><td class="a">90,0%</td><td class="g">90,0%</td><td class="a">empate</td></tr>
+    <tr><td>adversarial (25)</td><td class="o">48,0%</td><td class="a">80,0%</td><td class="g">92,0%</td><td class="g">+12 pts</td></tr>
+    <tr><td>prompts reais e longos</td><td class="o">n/d</td><td class="a">n/d</td><td class="g">n/d</td><td class="a">não medido</td></tr>
+    <tr><td>subestimou (arrisca qualidade)</td><td class="o">0</td><td class="a">3</td><td class="g">2</td><td class="g">Mooter</td></tr>
+    <tr><td>sobrestimou (queima dinheiro)</td><td class="o">21</td><td class="a">3</td><td class="g">1</td><td class="g">3×</td></tr>
+    <tr><td>tokens para decidir</td><td class="o">0</td><td class="a">23 182</td><td class="g">0</td><td class="g">empate A1</td></tr>
+    <tr><td>latência p50</td><td class="o">—</td><td class="a">76,1 ms</td><td class="g">1,61 ms</td><td class="g">47×</td></tr>
+    <tr><td>idêntico em 6 corridas</td><td class="o">sim</td><td class="a">sim</td><td class="g">sim</td><td class="a">empate</td></tr>
+    <tr><td>bytes para a rede</td><td class="o">0</td><td class="a">depende do modelo</td><td class="g">0</td><td class="g">Mooter</td></tr>
+    <tr><td>gold · conjunto grande (84)</td><td class="o">16,7%</td><td class="a">75,0%</td><td class="g">96,4%</td><td class="g">Mooter</td></tr>
+  </table>
+
+  <div class="avs"><b>Três coisas que este ensaio deixou de afirmar.</b>
+    <b>1 · O número era 84,3%; é 91,4%.</b> Dez das 70 amostras foram escritas no mesmo commit
+    que afinou o <code>classify.js</code> — e o Mooter fazia 10/10 exactamente nessas. Saíram.
+    <b>2 · «Só o nosso é reprodutível» era falso.</b> Corríamos o adversário a
+    <code>temperature 0,2</code> e publicávamos que ele oscilava; a zero dá o mesmo resultado nas
+    seis corridas, como o nosso. <b>3 · O «+36 pontos» nas adversariais era +12.</b> O adversário
+    não recebia as convenções privadas que 9 dos rótulos codificam. Agora recebe-as por escrito.
+    <b>4 · A «fraqueza historical 68%» não existia.</b> Essas 25 amostras têm como rótulo a
+    saída do <b>próprio classificador</b> (o dataset chama-lhes <code>assumed_correct</code> e diz
+    que servem para detectar <i>deriva</i>, não para medir precisão), e como texto um
+    <code>prompt.slice(0, 80)</code>. Truncadas: 2/10. Inteiras: 15/15. Foram tiradas da média —
+    o que sobe a nossa nota de 81,7% para 91,4%.
+    <br><br>
+    As três primeiras foram contra o nosso interesse. <b>A quarta favorece-nos</b>, e por isso
+    medimos o adversário no mesmo corte antes de a publicar: ele sobe mais (71,7 → 82,9) e a
+    nossa vantagem <b>encolhe de +10,0 para +8,5 pontos</b>. Uma correcção que nos sobe o
+    absoluto e nos baixa o relativo é o mais perto que conseguimos estar de saber que não é
+    raciocínio motivado.
+    <br><br>
+    <b>5 · Publicávamos diferenças sem nunca testar se existiam.</b> «+10,0», «+12,9», «+8,5» —
+    sempre a subtracção crua de duas percentagens. Aplicámos o teste que faltava (McNemar exacto,
+    emparelhado): <b>contra não ter router, p &lt; 0,0001</b> — 19 dos 20 pares discordantes a nosso
+    favor. <b>Contra o router-por-LLM, p = 0,45</b>: só há 7 pares discordantes e 5-2 sai de atirar
+    uma moeda ao ar. Em precisão, <b>empatamos com o adversário até prova em contrário</b>. O que
+    sobra contra ele não é estatístico e não precisa de ser: 0 tokens contra 23 182, 1,85 ms contra
+    74,5 ms, e zero bytes para a rede.
+    <br><br>
+    <b>6 · O gabarito tinha sido afinado — e nós refutámos a acusação antes de a confirmar.</b>
+    O <code>classify.js</code> está congelado por sha256, mas importa o <code>patterns.js</code>, onde
+    vivem <b>todas</b> as regex que decidem o tier — e esse não tinha congelamento nenhum. Com o
+    ficheiro congelado intacto e só o <code>patterns.js</code> a variar ao longo da sua linhagem, a
+    nota nos mesmos 35 rótulos anda entre <b>74,3% e 94,3%</b>. Dezassete minutos depois de os
+    rótulos nascerem, um commit acrescenta <code>/\bmerg(ea|ear|eia)\b/i</code> com o comentário
+    <code>// "mergea na main"</code> — texto <b>literal</b> de uma das amostras. Outros dizem-no na
+    mensagem: «three classifier safety fixes <b>found by validation-set</b>», «Adversarial accuracy:
+    80% → 92%».
+    <br><br>
+    Quando um agente adversarial nos disse isto, medimos e escrevemos que «não se reproduzia».
+    <b>Tínhamos testado a janela errada</b> — o ponto mais antigo que usámos já continha o commit do
+    salto. A acusação estava certa. O <b>91,4% é um score de treino</b>; o número mais próximo de
+    fora-da-amostra é <b>82,9%</b>, e aí empatamos com o adversário. A alegação contra não-ter-router
+    aguenta nos dois. O <code>patterns.js</code> passou a ter sha e passo próprio no CI.</div>
+
+  <div class="avs"><b>O que este ensaio NÃO prova.</b> Mede a <b>decisão</b> de encaminhamento,
+    não a poupança em euros de uma sessão inteira. Nesta sessão o router marcou
+    ${D.sessao.t0} de ${D.sessao.decisoes} pedidos como trabalho de graça e houve
+    <b>${D.sessao.deleg} delegações</b> — o motor acerta, a obediência é o próximo trabalho.
+    Enquanto não houver tokens medidos ponta a ponta, qualquer número de poupança seria
+    inventado, e por isso não aparece em lado nenhum destas peças.</div>
+
+  <h2>Trajectória · <span>como esta peça foi construída</span></h2>
+  <div class="cap">para quem perguntar «de onde vêm estes números?» — incluindo os passos em que
+    a peça piorou</div>
+  <div class="gui">
+    <div class="gl"><div class="gt">1 · sonda</div><div class="gx">Levantar que motores estão mesmo vivos nesta máquina, antes de medir seja o que for. O primeiro resultado foi mau: o motor de $0 estava declarado morto.</div></div>
+    <div class="gl"><div class="gt">2 · defeito</div><div class="gx">A causa era <b>OLLAMA_HOST</b> sem esquema — onze sítios do repositório concatenavam <code>http://</code> assumido e o fetch morria em silêncio. Corrigido com um normalizador partilhado.</div></div>
+    <div class="gl"><div class="gt">3 · gabarito</div><div class="gx">Usar como rótulos um ficheiro que já existia no repositório, escrito para outro fim — para nenhum rótulo poder ser escrito depois de ver o resultado.</div></div>
+    <div class="gl"><div class="gt">4 · três braços</div><div class="gx">Sem router (controlo) · router por LLM (adversário a correr mesmo) · Mooter. Preços do SSOT, nunca cravados no teste.</div></div>
+    <div class="gl"><div class="gt">5 · primeira versão</div><div class="gx">Deu <b>84,3%</b> contra 68,6%, com «+36 pontos» nas adversariais e um painel a dizer que só o Mooter era reprodutível. Foi esta a versão que quase saiu.</div></div>
+    <div class="gl"><div class="gt">6 · portão adversarial</div><div class="gx">Antes de publicar, 70 agentes independentes atacaram o próprio material — cada achado passado a dois refutadores encarregados de o provar falso. Sobreviveram <b>quatro bloqueios</b>, e três eram sobre esta peça.</div></div>
+    <div class="gl"><div class="gt">7 · o gabarito estava sujo</div><div class="gx"><b>10 das 70 amostras</b> foram escritas nos commits <code>4b6e4548</code> e <code>bc4f84f1</code> — que alteram o <code>classify.js</code> no <b>mesmo commit</b>. O Mooter fazia 10/10 nessas. Saíram: <b>84,3% → 81,7%</b>, e n passa a 60.</div></div>
+    <div class="gl"><div class="gt">8 · o adversário era examinado sobre matéria que não teve</div><div class="gx">~9 dos rótulos codificam convenções privadas do repositório (piso de risco, pin de modelo, sinal de qualidade) que o prompt do juiz nunca lhe dava. Passaram a ir por escrito: as adversariais do LLM sobem de 56,0% para <b>80,0%</b>, e o «+36 pontos» passa a <b>+12</b>.</div></div>
+    <div class="gl"><div class="gt">9 · a variância era nossa</div><div class="gx">O adversário corria a <code>temperature 0,2</code> por omissão, e nós publicávamos que ele mudava de opinião. Fixado a <b>0</b>, dá o mesmo resultado nas seis corridas — tal como o Mooter. O painel de reprodutibilidade foi retirado: deixou de haver diferença para mostrar.</div></div>
+    <div class="gl"><div class="gt">10 · recibo das seis</div><div class="gx">A mediana só existia numa mensagem de commit. Agora <code>--corridas 6</code> produz as seis num ficheiro só, e a mediana sai delas. Um número cuja única fonte é prosa não é auditável.</div></div>
+    <div class="gl"><div class="gt">11 · e a fraqueza não existia</div><div class="gx">Ao ir atacar os «68% em prompts longos», o dataset respondeu por escrito: essas 25 amostras são <code>assumed_correct</code>, rotuladas pela saída do próprio classificador, «for drift detection». E o texto guardado é <code>prompt_preview</code> — <code>slice(0, 80)</code>. Truncadas 2/10, inteiras 15/15. A fraqueza era o instrumento.</div></div>
+    <div class="gl"><div class="gt">12 · a confissão fica</div><div class="gx">Ler o <code>decisions.log</code> da própria sessão e publicar o que lá estava: 0 delegações em 43 oportunidades. Entra na peça em vez de ficar de fora.</div></div>
+  </div>
+
+  <div class="avs"><b>Porque é que os passos 7 a 9 estão aqui.</b> Cada um deles baixou um número
+    que já estava escrito e aprovado. É tentador contar só a trajectória em que tudo corre bem —
+    mas uma peça sobre auditabilidade que esconde a sua própria auditoria não vale o ficheiro
+    onde está guardada. A versão que quase saiu dizia 84,3%, «+36 pontos» e «só o nosso é
+    reprodutível». Nenhuma das três sobreviveu.</div>
+
+  <h2>Como gravar · <span>os dois ficheiros</span></h2>
+  <div class="gui">
+    <div class="gl"><div class="gt">a</div><div class="gx">Escolhe o separador (vertical para Reels/TikTok/Shorts, horizontal para YouTube/LinkedIn/X).</div></div>
+    <div class="gl"><div class="gt">b</div><div class="gx">Carrega <b>⛶ Ecrã inteiro</b> — o palco fica sem cromo nenhum à volta, só o conteúdo.</div></div>
+    <div class="gl"><div class="gt">c</div><div class="gx">Começa a gravação do ecrã e só depois <b>▶ Tocar</b>. O relógio no topo dá-te os tempos do guião.</div></div>
+    <div class="gl"><div class="gt">d</div><div class="gx">A locução do guião entra por cima na montagem. Sem música a subir no fim — o registo é de instrumento, não de anúncio.</div></div>
+  </div>
+
+  <div class="rod">Mooter · mooter.ai · MIT<br>
+    ensaio de 2026-09-01 · holdout n=70 · gold n=84 · recibos em <code>_handoff/ab-2026-09-01/</code><br>
+    reproduzir: <code>node tools/ab/mooter-vs-sem.mjs --holdout</code><br>
+    Todos os valores desta página são derivados dos recibos. Onde não houve medição, está escrito
+    <code>n/d</code> — nunca uma estimativa.</div>`;
+}
+
+montar(); guiao();
+})();
+</script>

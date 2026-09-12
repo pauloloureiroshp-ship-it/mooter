@@ -1,0 +1,339 @@
+{
+ "arm": "B",
+ "at": "2026-09-09T14:24:38.966Z",
+ "instrumented": true,
+ "note": "spawnSync captado antes do require: o corpo em argv[2] e o que SAIRIA; a corrida sob net-tap BLOCK mostra o destino real do filho e recusa-o",
+ "arbiter_source": "tools/router/arbiter.js:212",
+ "rows": [
+  {
+   "id": "n01",
+   "prompt_chars": 222,
+   "arbiter_called": 1,
+   "body_bytes": 2286,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n02",
+   "prompt_chars": 319,
+   "arbiter_called": 1,
+   "body_bytes": 2386,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n03",
+   "prompt_chars": 33,
+   "arbiter_called": 1,
+   "body_bytes": 2095,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n04",
+   "prompt_chars": 26,
+   "arbiter_called": 1,
+   "body_bytes": 2089,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n05",
+   "prompt_chars": 28,
+   "arbiter_called": 1,
+   "body_bytes": 2091,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n06",
+   "prompt_chars": 33,
+   "arbiter_called": 1,
+   "body_bytes": 2095,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n07",
+   "prompt_chars": 31,
+   "arbiter_called": 1,
+   "body_bytes": 2094,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n08",
+   "prompt_chars": 410,
+   "arbiter_called": 1,
+   "body_bytes": 2485,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n09",
+   "prompt_chars": 131,
+   "arbiter_called": 1,
+   "body_bytes": 2198,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n10",
+   "prompt_chars": 26,
+   "arbiter_called": 1,
+   "body_bytes": 2089,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n11",
+   "prompt_chars": 38,
+   "arbiter_called": 1,
+   "body_bytes": 2100,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n12",
+   "prompt_chars": 36,
+   "arbiter_called": 1,
+   "body_bytes": 2099,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n13",
+   "prompt_chars": 36,
+   "arbiter_called": 1,
+   "body_bytes": 2099,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n14",
+   "prompt_chars": 89,
+   "arbiter_called": 1,
+   "body_bytes": 2152,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n15",
+   "prompt_chars": 57,
+   "arbiter_called": 1,
+   "body_bytes": 2119,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n16",
+   "prompt_chars": 55,
+   "arbiter_called": 1,
+   "body_bytes": 2119,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n17",
+   "prompt_chars": 30,
+   "arbiter_called": 1,
+   "body_bytes": 2092,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n18",
+   "prompt_chars": 79,
+   "arbiter_called": 1,
+   "body_bytes": 2142,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n19",
+   "prompt_chars": 260,
+   "arbiter_called": 1,
+   "body_bytes": 2329,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  },
+  {
+   "id": "n20",
+   "prompt_chars": 27,
+   "arbiter_called": 1,
+   "body_bytes": 2089,
+   "raw_prompt_in_body": true,
+   "body_model": [
+    "claude-haiku-4-5-20251001"
+   ],
+   "would_send_to": [
+    "api.anthropic.com"
+   ],
+   "prompt_field_equals_prompt": true,
+   "result": "T2",
+   "error": null
+  }
+ ],
+ "tap_blocked_run": {
+  "tap": {
+   "processes_tapped": 2,
+   "connections": 0,
+   "by_host": {},
+   "external": []
+  },
+  "stdout": "null\n",
+  "stderr": ""
+ }
+}

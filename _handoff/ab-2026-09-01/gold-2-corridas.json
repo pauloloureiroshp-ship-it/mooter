@@ -1,0 +1,5301 @@
+{
+  "ts": "2026-09-01T12:59:43.766Z",
+  "corridas": 2,
+  "dataset": "tools/router/gold-labels.json (2026-04-11)",
+  "coautoradas": 0,
+  "resumo": [
+    {
+      "braco": "A1 · SEM ROUTER (tudo em T3)",
+      "corridas": 2,
+      "precisao_limpa_mediana": 0.16666666666666666,
+      "precisao_limpa_min": 0.16666666666666666,
+      "precisao_limpa_max": 0.16666666666666666,
+      "precisao_limpa_por_corrida": [
+        0.16666666666666666,
+        0.16666666666666666
+      ],
+      "precisao_total_mediana": 0.16666666666666666,
+      "identico_em_todas": true
+    },
+    {
+      "braco": "A2 · ROUTER POR LLM (qwen2.5-coder:14b)",
+      "corridas": 2,
+      "precisao_limpa_mediana": 0.75,
+      "precisao_limpa_min": 0.75,
+      "precisao_limpa_max": 0.75,
+      "precisao_limpa_por_corrida": [
+        0.75,
+        0.75
+      ],
+      "precisao_total_mediana": 0.75,
+      "identico_em_todas": true
+    },
+    {
+      "braco": "B · MOOTER (classify.js local)",
+      "corridas": 2,
+      "precisao_limpa_mediana": 0.9642857142857143,
+      "precisao_limpa_min": 0.9642857142857143,
+      "precisao_limpa_max": 0.9642857142857143,
+      "precisao_limpa_por_corrida": [
+        0.9642857142857143,
+        0.9642857142857143
+      ],
+      "precisao_total_mediana": 0.9642857142857143,
+      "identico_em_todas": true
+    }
+  ],
+  "detalhe": [
+    {
+      "ts": "2026-09-01T12:59:43.766Z",
+      "n": 84,
+      "total_gold": 84,
+      "dataset": "tools/router/gold-labels.json (2026-04-11)",
+      "coautoradas": 0,
+      "precos_ssot": "tools/router/pricing.js",
+      "resultados": [
+        {
+          "braco": "A1 · SEM ROUTER (tudo em T3)",
+          "linhas": [
+            {
+              "id": "gl-001",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-002",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-003",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-004",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-005",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-006",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-007",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-008",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-009",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-010",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-011",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-012",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-013",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-014",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-015",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-016",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-017",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-018",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-019",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-020",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-021",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-022",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-023",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-024",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-025",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-026",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-027",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-028",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-029",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-030",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-031",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-032",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-033",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-034",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-035",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-036",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-037",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-038",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-039",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-040",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-041",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-042",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-043",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-044",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-045",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-046",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-047",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-048",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-049",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-050",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-051",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-052",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-053",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-054",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-055",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-056",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-057",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-058",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-059",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-060",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-061",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-062",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-063",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-064",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-065",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-066",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-067",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-068",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-069",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-070",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-071",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-072",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-073",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-074",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-075",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-076",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-077",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-078",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-079",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-080",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-081",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-082",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-083",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-084",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            }
+          ],
+          "ms_total": 0,
+          "tokens_in": 0,
+          "tokens_out": 0,
+          "rede": false,
+          "modelo": "T3 sempre",
+          "total": 84,
+          "respondidas": 84,
+          "certas": 14,
+          "sem_resposta": 0,
+          "precisao_respondidas": 0.16666666666666666,
+          "precisao_total": 0.16666666666666666,
+          "n_limpas": 84,
+          "certas_limpas": 14,
+          "precisao_limpa": 0.16666666666666666,
+          "n_coautoradas": 0,
+          "certas_coautoradas": 0,
+          "subestimou": 0,
+          "sobrestimou": 70,
+          "ms_p50": 0,
+          "ms_p95": 0,
+          "custo": {
+            "usd_medido": 0,
+            "usd_medido_porque": "zero tokens — não houve chamada a modelo nenhum",
+            "usd_se_nuvem": null,
+            "usd_se_nuvem_modelo": "claude-opus-5",
+            "usd_se_nuvem_porque": "sem tokens medidos ou sem preço no SSOT — n/d, nunca estimado"
+          }
+        },
+        {
+          "braco": "A2 · ROUTER POR LLM (qwen2.5-coder:14b)",
+          "linhas": [
+            {
+              "id": "gl-001",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 280.861,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-002",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 78.0691,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-003",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.3312,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-004",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.2263,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-005",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.2837,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-006",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.9959,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-007",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.1379,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-008",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.465,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-009",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.7282,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-010",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 77.7849,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-011",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.6531,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-012",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.6514,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-013",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.5506,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-014",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.2246,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-015",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.7388,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-016",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.0988,
+              "tokens_in": 331,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-017",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.7757,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-018",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 77.3551,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-019",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.8266,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-020",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.2608,
+              "tokens_in": 328,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-021",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.5717,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-022",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.0426,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-023",
+              "esperado": "T3",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.0501,
+              "tokens_in": 319,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-024",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.6097,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-025",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.4486,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-026",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.5578,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-027",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.706,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-028",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 77.3682,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-029",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 76.2336,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-030",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 76.6653,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-031",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.5693,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-032",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.8737,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-033",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.5746,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-034",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.3427,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-035",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 75.2133,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-036",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.9147,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-037",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 75.2784,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-038",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.7726,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-039",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.4611,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-040",
+              "esperado": "T0",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.3015,
+              "tokens_in": 346,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-041",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.4615,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-042",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 76.2895,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-043",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.1244,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-044",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 72.5641,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-045",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 73.5184,
+              "tokens_in": 336,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-046",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.244,
+              "tokens_in": 333,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-047",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 77.4786,
+              "tokens_in": 328,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-048",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 80.2176,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-049",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.3399,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-050",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 78.1586,
+              "tokens_in": 333,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-051",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 80.2473,
+              "tokens_in": 332,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-052",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.7567,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-053",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.9904,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-054",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 77.1727,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-055",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 72.6635,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-056",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.61,
+              "tokens_in": 327,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-057",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.1582,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-058",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.5994,
+              "tokens_in": 327,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-059",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 76.8075,
+              "tokens_in": 328,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-060",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.0121,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-061",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.9668,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-062",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.2792,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-063",
+              "esperado": "T2",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.2119,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-064",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 79.2111,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-065",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.502,
+              "tokens_in": 332,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-066",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 79.9439,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-067",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 76.409,
+              "tokens_in": 330,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-068",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.0162,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-069",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.6786,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-070",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.0696,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-071",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 77.3795,
+              "tokens_in": 319,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-072",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.4129,
+              "tokens_in": 319,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-073",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.6033,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-074",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 76.5732,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-075",
+              "esperado": "T3",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 76.3756,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-076",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 76.7099,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-077",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 75.3018,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-078",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.9566,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-079",
+              "esperado": "T1",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 78.4796,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-080",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 75.2106,
+              "tokens_in": 327,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-081",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.0807,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-082",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 75.4596,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-083",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 73.2092,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-084",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.2443,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            }
+          ],
+          "ms_total": 6546.5059,
+          "tokens_in": 27248,
+          "tokens_out": 252,
+          "rede": true,
+          "modelo": "qwen2.5-coder:14b",
+          "total": 84,
+          "respondidas": 84,
+          "certas": 63,
+          "sem_resposta": 0,
+          "precisao_respondidas": 0.75,
+          "precisao_total": 0.75,
+          "n_limpas": 84,
+          "certas_limpas": 63,
+          "precisao_limpa": 0.75,
+          "n_coautoradas": 0,
+          "certas_coautoradas": 0,
+          "subestimou": 3,
+          "sobrestimou": 18,
+          "ms_p50": 75.2784,
+          "ms_p95": 79.2111,
+          "custo": {
+            "usd_medido": 0,
+            "usd_medido_porque": null,
+            "usd_se_nuvem": 0.14254,
+            "usd_se_nuvem_modelo": "claude-opus-5",
+            "usd_se_nuvem_porque": "equivalente a preço de tabela de claude-opus-5 — NÃO é despesa"
+          }
+        },
+        {
+          "braco": "B · MOOTER (classify.js local)",
+          "linhas": [
+            {
+              "id": "gl-001",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 2.8939,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-002",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.4199,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-003",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 6.8223,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-004",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 2.6822,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-005",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.9296,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-006",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0668,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-007",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0227,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-008",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.7542,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-009",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0407,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-010",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6417,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-011",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0392,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-012",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0247,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-013",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.5717,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-014",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.5599,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-015",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6381,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-016",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0514,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-017",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.615,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-018",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.7407,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-019",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6817,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-020",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0322,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-021",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.7867,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-022",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.5914,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-023",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.5811,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-024",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6715,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-025",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0345,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-026",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0242,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-027",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0197,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-028",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.5142,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-029",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.4573,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-030",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.632,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-031",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0982,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-032",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.4558,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-033",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.5808,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-034",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0363,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-035",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0213,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-036",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-037",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6245,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-038",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6094,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-039",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.7261,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-040",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6192,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-041",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.6875,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-042",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.7985,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-043",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 2.0829,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-044",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.7117,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-045",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.7378,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-046",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.6008,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-047",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.6293,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-048",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.7664,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-049",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.862,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-050",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.5674,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-051",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.6372,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-052",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0482,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-053",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.7037,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-054",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.5574,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-055",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.56,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-056",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.653,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-057",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.6211,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-058",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.5818,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-059",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.4592,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-060",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.6117,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-061",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.5754,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-062",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.7727,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-063",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.7324,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-064",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.5542,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-065",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.7502,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-066",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.5434,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-067",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.5314,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-068",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.9502,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-069",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0488,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-070",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.5898,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-071",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.6121,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-072",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 1.5324,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-073",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.4325,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-074",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.9395,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-075",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 1.6632,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-076",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0305,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-077",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0147,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-078",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.1052,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-079",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0196,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-080",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0484,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-081",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.6888,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-082",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0339,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-083",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.4312,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-084",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 1.703,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            }
+          ],
+          "ms_total": 110.6181,
+          "tokens_in": 0,
+          "tokens_out": 0,
+          "rede": false,
+          "modelo": "nenhum (regex determinística)",
+          "total": 84,
+          "respondidas": 84,
+          "certas": 81,
+          "sem_resposta": 0,
+          "precisao_respondidas": 0.9642857142857143,
+          "precisao_total": 0.9642857142857143,
+          "n_limpas": 84,
+          "certas_limpas": 81,
+          "precisao_limpa": 0.9642857142857143,
+          "n_coautoradas": 0,
+          "certas_coautoradas": 0,
+          "subestimou": 0,
+          "sobrestimou": 3,
+          "ms_p50": 1.5898,
+          "ms_p95": 1.9502,
+          "custo": {
+            "usd_medido": 0,
+            "usd_medido_porque": "zero tokens — não houve chamada a modelo nenhum",
+            "usd_se_nuvem": null,
+            "usd_se_nuvem_modelo": "claude-opus-5",
+            "usd_se_nuvem_porque": "sem tokens medidos ou sem preço no SSOT — n/d, nunca estimado"
+          }
+        }
+      ]
+    },
+    {
+      "ts": "2026-09-01T12:59:50.070Z",
+      "n": 84,
+      "total_gold": 84,
+      "dataset": "tools/router/gold-labels.json (2026-04-11)",
+      "coautoradas": 0,
+      "precos_ssot": "tools/router/pricing.js",
+      "resultados": [
+        {
+          "braco": "A1 · SEM ROUTER (tudo em T3)",
+          "linhas": [
+            {
+              "id": "gl-001",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-002",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-003",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-004",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-005",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-006",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-007",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-008",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-009",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-010",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-011",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-012",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-013",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-014",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-015",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-016",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-017",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-018",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-019",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-020",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-021",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-022",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-023",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-024",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-025",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-026",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-027",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-028",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-029",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-030",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-031",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-032",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-033",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-034",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-035",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-036",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-037",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-038",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-039",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-040",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-041",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-042",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-043",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-044",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-045",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-046",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-047",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-048",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-049",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-050",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-051",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-052",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-053",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-054",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-055",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-056",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-057",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-058",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-059",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-060",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-061",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-062",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-063",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-064",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-065",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-066",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-067",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-068",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-069",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-070",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-071",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-072",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-073",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-074",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-075",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-076",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-077",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-078",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-079",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-080",
+              "esperado": "T0",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-081",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-082",
+              "esperado": "T1",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-083",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-084",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            }
+          ],
+          "ms_total": 0,
+          "tokens_in": 0,
+          "tokens_out": 0,
+          "rede": false,
+          "modelo": "T3 sempre",
+          "total": 84,
+          "respondidas": 84,
+          "certas": 14,
+          "sem_resposta": 0,
+          "precisao_respondidas": 0.16666666666666666,
+          "precisao_total": 0.16666666666666666,
+          "n_limpas": 84,
+          "certas_limpas": 14,
+          "precisao_limpa": 0.16666666666666666,
+          "n_coautoradas": 0,
+          "certas_coautoradas": 0,
+          "subestimou": 0,
+          "sobrestimou": 70,
+          "ms_p50": 0,
+          "ms_p95": 0,
+          "custo": {
+            "usd_medido": 0,
+            "usd_medido_porque": "zero tokens — não houve chamada a modelo nenhum",
+            "usd_se_nuvem": null,
+            "usd_se_nuvem_modelo": "claude-opus-5",
+            "usd_se_nuvem_porque": "sem tokens medidos ou sem preço no SSOT — n/d, nunca estimado"
+          }
+        },
+        {
+          "braco": "A2 · ROUTER POR LLM (qwen2.5-coder:14b)",
+          "linhas": [
+            {
+              "id": "gl-001",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.4042,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-002",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.1395,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-003",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.8979,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-004",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.3507,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-005",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.6184,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-006",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.5909,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-007",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.9593,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-008",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.5944,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-009",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.5497,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-010",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.6602,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-011",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 77.0498,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-012",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.0417,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-013",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.8926,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-014",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.9314,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-015",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 72.7094,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-016",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.8703,
+              "tokens_in": 331,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-017",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.8919,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-018",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.3648,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-019",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.2369,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-020",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 78.7134,
+              "tokens_in": 328,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-021",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 76.0892,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-022",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 72.9681,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-023",
+              "esperado": "T3",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 78.542,
+              "tokens_in": 319,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-024",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.4238,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-025",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 74.8968,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-026",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.6299,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-027",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.9751,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-028",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 76.6078,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-029",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.9537,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-030",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 77.5047,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-031",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.8824,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-032",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.5372,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-033",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.4529,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-034",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.6508,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-035",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 72.9853,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-036",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.7187,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-037",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.5302,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-038",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 76.512,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-039",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.0096,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-040",
+              "esperado": "T0",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 79.7428,
+              "tokens_in": 346,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-041",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.4553,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-042",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 76.1837,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-043",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.1859,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-044",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.3955,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-045",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.6933,
+              "tokens_in": 336,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-046",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.7435,
+              "tokens_in": 333,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-047",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 77.2827,
+              "tokens_in": 328,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-048",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 73.7103,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-049",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.3366,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-050",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.6874,
+              "tokens_in": 333,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-051",
+              "esperado": "T2",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.3444,
+              "tokens_in": 332,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-052",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.7502,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-053",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 73.9556,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-054",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 73.5087,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-055",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.9965,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-056",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 75.2612,
+              "tokens_in": 327,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-057",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 76.3537,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-058",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.2465,
+              "tokens_in": 327,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-059",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.3726,
+              "tokens_in": 328,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-060",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 76.0881,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-061",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 73.8207,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-062",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 78.2593,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-063",
+              "esperado": "T2",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.6113,
+              "tokens_in": 320,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-064",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 73.3615,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-065",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.3862,
+              "tokens_in": 332,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-066",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.9645,
+              "tokens_in": 329,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-067",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.6494,
+              "tokens_in": 330,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-068",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.9376,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-069",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.3522,
+              "tokens_in": 325,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-070",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.7458,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-071",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 75.1514,
+              "tokens_in": 319,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-072",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 73.2367,
+              "tokens_in": 319,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-073",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 76.4177,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-074",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 74.2266,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-075",
+              "esperado": "T3",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.4377,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-076",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 73.3339,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-077",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 75.2557,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-078",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 80.0125,
+              "tokens_in": 321,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-079",
+              "esperado": "T1",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 73.923,
+              "tokens_in": 323,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-080",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 76.3254,
+              "tokens_in": 327,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-081",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 76.7106,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-082",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 74.0993,
+              "tokens_in": 322,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-083",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 74.2645,
+              "tokens_in": 326,
+              "tokens_out": 3,
+              "coautorada": false
+            },
+            {
+              "id": "gl-084",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 75.2901,
+              "tokens_in": 324,
+              "tokens_out": 3,
+              "coautorada": false
+            }
+          ],
+          "ms_total": 6303.5912,
+          "tokens_in": 27248,
+          "tokens_out": 252,
+          "rede": true,
+          "modelo": "qwen2.5-coder:14b",
+          "total": 84,
+          "respondidas": 84,
+          "certas": 63,
+          "sem_resposta": 0,
+          "precisao_respondidas": 0.75,
+          "precisao_total": 0.75,
+          "n_limpas": 84,
+          "certas_limpas": 63,
+          "precisao_limpa": 0.75,
+          "n_coautoradas": 0,
+          "certas_coautoradas": 0,
+          "subestimou": 3,
+          "sobrestimou": 18,
+          "ms_p50": 74.8926,
+          "ms_p95": 78.2593,
+          "custo": {
+            "usd_medido": 0,
+            "usd_medido_porque": null,
+            "usd_se_nuvem": 0.14254,
+            "usd_se_nuvem_modelo": "claude-opus-5",
+            "usd_se_nuvem_porque": "equivalente a preço de tabela de claude-opus-5 — NÃO é despesa"
+          }
+        },
+        {
+          "braco": "B · MOOTER (classify.js local)",
+          "linhas": [
+            {
+              "id": "gl-001",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0304,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-002",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0034,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-003",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0033,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-004",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-005",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0023,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-006",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-007",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-008",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-009",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-010",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.004,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-011",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-012",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-013",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-014",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0022,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-015",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-016",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-017",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-018",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-019",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-020",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-021",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-022",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-023",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-024",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-025",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-026",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0468,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-027",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0024,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-028",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-029",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0023,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-030",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-031",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-032",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-033",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-034",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-035",
+              "esperado": "T0",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0015,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-036",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-037",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-038",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0015,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-039",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-040",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0029,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-041",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0222,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-042",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-043",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.003,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-044",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-045",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0025,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-046",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-047",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-048",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-049",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-050",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-051",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-052",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-053",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-054",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-055",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-056",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0022,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-057",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-058",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-059",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-060",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-061",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-062",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-063",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-064",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0023,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-065",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-066",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0023,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-067",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0019,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-068",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-069",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-070",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0015,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-071",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-072",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0017,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-073",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-074",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.002,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-075",
+              "esperado": "T3",
+              "obtido": "T3",
+              "erro": null,
+              "ms": 0.0021,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-076",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0166,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-077",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.009,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-078",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0032,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-079",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0022,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-080",
+              "esperado": "T0",
+              "obtido": "T0",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-081",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0018,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-082",
+              "esperado": "T1",
+              "obtido": "T1",
+              "erro": null,
+              "ms": 0.0015,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-083",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            },
+            {
+              "id": "gl-084",
+              "esperado": "T2",
+              "obtido": "T2",
+              "erro": null,
+              "ms": 0.0016,
+              "tokens_in": 0,
+              "tokens_out": 0,
+              "coautorada": false
+            }
+          ],
+          "ms_total": 0.3004,
+          "tokens_in": 0,
+          "tokens_out": 0,
+          "rede": false,
+          "modelo": "nenhum (regex determinística)",
+          "total": 84,
+          "respondidas": 84,
+          "certas": 81,
+          "sem_resposta": 0,
+          "precisao_respondidas": 0.9642857142857143,
+          "precisao_total": 0.9642857142857143,
+          "n_limpas": 84,
+          "certas_limpas": 81,
+          "precisao_limpa": 0.9642857142857143,
+          "n_coautoradas": 0,
+          "certas_coautoradas": 0,
+          "subestimou": 0,
+          "sobrestimou": 3,
+          "ms_p50": 0.0019,
+          "ms_p95": 0.009,
+          "custo": {
+            "usd_medido": 0,
+            "usd_medido_porque": "zero tokens — não houve chamada a modelo nenhum",
+            "usd_se_nuvem": null,
+            "usd_se_nuvem_modelo": "claude-opus-5",
+            "usd_se_nuvem_porque": "sem tokens medidos ou sem preço no SSOT — n/d, nunca estimado"
+          }
+        }
+      ]
+    }
+  ]
+}

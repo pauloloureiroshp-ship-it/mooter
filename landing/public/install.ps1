@@ -57,27 +57,42 @@ $DeviceDir   = $MooterDir
 $LegacyDeviceIdFile = Join-Path $HOME ".frugal\device.id"
 
 # When run via `irm | iex`, $MyInvocation.MyCommand.Path is $null.
-# Clone the repo in that case.
+# Fetch the public repo in that case and remove the temporary checkout on exit.
+$RepoUrl = if ($env:MOOTER_REPO_URL) { $env:MOOTER_REPO_URL } else { "https://github.com/pauloloureiroshp-ship-it/mooter.git" }
+$CloneParent = $null
+
+try {
 $SrcDir = $null
 if ($MyInvocation.MyCommand.Path) {
     $SrcDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 if (-not $SrcDir -or -not (Test-Path (Join-Path $SrcDir "tools\router\classify.js"))) {
-    Write-Host ""
-    Write-Host "  mooter is currently in private friends-beta." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  To install:"
-    Write-Host "    1. Request access: " -NoNewline
-    Write-Host "https://mooter.ai" -ForegroundColor White -NoNewline
-    Write-Host " (or email paulo@mooter.ai)"
-    Write-Host "    2. Once invited, clone the repo and run this script locally:"
-    Write-Host "       git clone <your-invite-url> mooter" -ForegroundColor White
-    Write-Host "       cd mooter; .\install.ps1" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  The public one-liner (irm | iex) will light up when v1.0 ships" -ForegroundColor DarkGray
-    Write-Host "  with signed tarballs. Follow along at mooter.ai." -ForegroundColor DarkGray
-    Write-Host ""
-    exit 0
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Fail "git not found - install Git first, then re-run, or clone manually:"
+        Info "  git clone $RepoUrl mooter; cd mooter; .\install.ps1"
+        exit 1
+    }
+
+    $CloneParent = Join-Path ([System.IO.Path]::GetTempPath()) ("mooter-install-" + [guid]::NewGuid().ToString("N"))
+    $CloneDir = Join-Path $CloneParent "mooter"
+    Say "Fetching mooter from the public repo..."
+    try {
+        DoRun "git clone --depth 1 $RepoUrl $CloneDir" {
+            New-Item -ItemType Directory -Path $CloneParent -Force | Out-Null
+            & git clone --depth 1 $RepoUrl $CloneDir
+            if ($LASTEXITCODE -ne 0) { throw "git clone failed with exit code $LASTEXITCODE" }
+        }
+        $SrcDir = $CloneDir
+    } catch {
+        Fail "Couldn't fetch mooter - check your network, or clone manually:"
+        Info "  git clone $RepoUrl mooter; cd mooter; .\install.ps1"
+        exit 1
+    }
+
+    if (-not $DryRun -and -not (Test-Path (Join-Path $SrcDir "tools\router\classify.js"))) {
+        Fail "Fetched repo is missing the router runtime - please report at https://mooter.ai."
+        exit 1
+    }
 }
 
 # -- Version --------------------------------------------------------------
@@ -138,21 +153,23 @@ foreach ($d in @($RouterDir, $HooksDir, (Join-Path $ClaudeDir "agents"), (Join-P
     DoRun "mkdir $d" { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 }
 
-DoRun "Copy router .js" {
-    Get-ChildItem (Join-Path $SrcDir "tools\router") -Filter *.js -File -ErrorAction SilentlyContinue |
-        ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
-    Get-ChildItem (Join-Path $SrcDir "tools\router") -Filter *.json -File -ErrorAction SilentlyContinue |
-        ForEach-Object { Copy-Item $_.FullName $RouterDir -Force }
-    # Provider wrappers live in a subdir — the top-level *.js scan above misses them,
-    # so router-execute would fail with wrapper_missing for ollama/codex/openai pins
-    # (Wave 61). Copy the providers/ subdir explicitly.
-    $provSrc = Join-Path $SrcDir "tools\router\providers"
-    if (Test-Path $provSrc) {
-        $provDst = Join-Path $RouterDir "providers"
-        New-Item -ItemType Directory -Path $provDst -Force | Out-Null
-        Get-ChildItem $provSrc -Filter *.js -File -ErrorAction SilentlyContinue |
-            ForEach-Object { Copy-Item $_.FullName $provDst -Force }
-    }
+# The runtime mirror is defined ONCE, in tools/router/sync-runtime.js — the same
+# call install.sh and /mooter-update make. Until 2026-08-31 there were THREE
+# definitions of "the runtime" (here, install.sh, and the updater) and they had
+# already drifted: the updater's glob was non-recursive, so providers/ never got
+# refreshed on an updated machine. Measured that day: an update printed five OK
+# and left a stale providers/ollama-api.js behind, which is how a fix for the
+# free local engine reached the repo but never the runtime.
+#
+# sync-runtime.js walks recursively, derives the .json set from what the code
+# actually requires, copies only what git tracks (never local state such as
+# router-tuning.json, never coverage/), and skips the wired hooks — those are
+# installed to $HooksDir just below. It also drops the blanket *.json copy this
+# block used to do: package.json / tsconfig.json are project config, not runtime,
+# and a package.json inside $RouterDir governs module resolution for that tree.
+$syncRuntime = Join-Path $SrcDir "tools\router\sync-runtime.js"
+DoRun "Mirror router runtime" {
+    & node $syncRuntime --src (Join-Path $SrcDir "tools\router") --dest $RouterDir
 }
 
 # Hooks live under ~/.claude/hooks/ - move + delete duplicates in router/
@@ -360,3 +377,8 @@ Write-Host ""
 Write-Host "  Uninstall anytime: mooter uninstall" -ForegroundColor DarkGray
 Write-Host "  Docs: https://mooter.ai" -ForegroundColor DarkGray
 Write-Host ""
+} finally {
+    if ($CloneParent -and (Test-Path -LiteralPath $CloneParent)) {
+        Remove-Item -LiteralPath $CloneParent -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}

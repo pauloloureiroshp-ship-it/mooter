@@ -1,0 +1,520 @@
+You are the ADVERSARY (Codex, gpt-6-astra) for a pre-registered evidence package — proof P5. The author is a different engine (Claude). Your job is to KNOCK DOWN the numbers and the claims, not to comment on them. ROUND 3, on the v3 verdict and v3 slide (after your 27 attacks in rounds 1-2 were answered: medians made conventional, 'never' -> 0/40, causes as hypotheses, per-outcome stats for is_error, counter calibrated with a known-volume test, quantifiers narrowed, forbidden words removed). Be brief: only attacks that are NEW or still standing. Give the final SLIDE line.
+For EACH attack give: id (P5-NN), severity (fatal|serious|minor), the exact claim attacked, why it may not hold, and what evidence would settle it. Then: SURVIVE / REWORD / DEAD lists, and a final line SLIDE PUBLISHABLE AS IS / WITH THESE EDITS (give the edits) / NOT PUBLISHABLE. Be concrete and merciless; a verdict that only approves has not run. Do not rewrite the package. You have no repo access: attack what is in front of you, and say explicitly what you could not verify.
+
+=== PROTOCOL (protocol.json) ===
+{
+  "_schema": "provas-v1/protocol/1",
+  "id": "P5",
+  "title": "Atestação de egress — o que sai da máquina para DECIDIR",
+  "estado": "CONGELADO",
+  "congelado_em": "2026-09-09T13:40:15.000Z",
+  "regra": "Nenhum numero muda depois da primeira corrida. Emendas so por AMENDMENT-n.md. Este ficheiro e commitado ANTES da corrida (resposta ao ataque P1 do P1).",
+  "pergunta": "Com o Mooter ligado, quantos bytes de prompt saem do dispositivo por prompt, e para onde? E com um proxy no caminho?",
+  "instrumento": {
+    "net-tap": "lib/net-tap.cjs, preload por NODE_OPTIONS: regista TODAS as ligacoes de saida (host, porta, bytes escritos/lidos pelos contadores do proprio socket) de um processo Node e dos filhos Node. Controlo positivo: lib/net-tap.test.mjs (4/4: ve https, fetch, loopback; bloqueia com NET_TAP_BLOCK=1). Nao le conteudo.",
+    "counting-proxy": "lib/counting-proxy.mjs, HTTPS_PROXY em loopback: conta CONNECT host:porta e bytes do tunel sem desencriptar. Para processos que nao sao Node (claude.exe) ou que honram HTTPS_PROXY. Controlo positivo: lib/counting-proxy.test.mjs.",
+    "mock-llm": "lib/mock-llm.mjs: servidor loopback que responde a /v1/chat/completions, /v1/messages e /api/chat|generate com uma resposta fixa e CONTA bytes de corpo recebidos e o campo de prompt. E o 'fornecedor' para onde os proxies (ccr, LiteLLM) encaminham: assim mede-se o que o proxy manda para fora sem nada sair da maquina.",
+    "limite_declarado": "Um processo que nao e Node e nao honra HTTPS_PROXY nao e observado por nenhum destes; nesse caso a celula e n/d, com Get-NetTCPConnection amostrado como controlo grosseiro."
+  },
+  "corpus": "os 20 primeiros prompts reais (n01-n20) de P1/corpus-40.json — anonimizados; sha em P1/protocol.json",
+  "bracos": {
+    "A": "Mooter, hook REAL desta maquina (~/.claude/tools/router/inject_context.js, HOME real, credenciais reais, MOOTER_DECISIONS_LOG redirigido para nao poluir o log vivo), arbitro no estado por omissao (sem ANTHROPIC_API_KEY o arbitro nao corre), sob net-tap em modo observacao. Metrica: hosts e bytes por prompt; hosts esperados: 0 de prompt; possivelmente api.anthropic.com para o fetch de ORCAMENTO (OAuth), sem bytes de prompt — imprime-se o que aparecer.",
+    "A-block": "idem com NET_TAP_BLOCK=1: prova que, mesmo recusando toda a rede externa, o hook decide na mesma (tier igual ao braco A).",
+    "B": "Arbitro do Mooter (tools/router/arbiter.js) instrumentado: ANTHROPIC_API_KEY=presenca-falsa, https.request substituido em processo por um captador que grava o corpo do pedido que SAIRIA para api.anthropic.com e devolve uma resposta falsa. Metrica: bytes do corpo, e se o prompt cru esta la (procura-se o texto do prompt no corpo). Nada sai da maquina. Declarado [instrumented], nao [network-observed]. Sem chave real, o caminho de rede do arbitro nao e observavel de outra forma nesta maquina.",
+    "C": "musistudio/claude-code-router 3.0.22, servico + gateway em APPDATA isolado, provider = mock-llm (loopback), sob net-tap (o gateway e Node). Um cliente Anthropic-compativel envia os 20 prompts ao gateway. Metrica: bytes de corpo que chegam ao mock por prompt (= o que o proxy encaminha), hosts externos contactados pelo gateway durante a corrida. Se a configuracao headless (RPC) nao se conseguir em 60 min: n/d com o erro literal.",
+    "D": "LiteLLM 1.100.0 proxy, config yaml com 2 deployments do mesmo grupo (ollama local via mock-llm com preco 0; 'cloud' = mock-llm noutra porta com preco alto), routing_strategy cost-based-routing. Metrica: para onde foram os 20 pedidos (o mais barato?), bytes de corpo no mock, hosts externos (Get-NetTCPConnection amostrado; o proxy e Python — net-tap nao se aplica).",
+    "E": "Claude Code nativo (claude.exe -p, hooks desligados, tools desligadas, --max-turns 1) atraves do counting-proxy em modo passagem, 20 prompts. Metrica: bytes CONNECT para api.anthropic.com por prompt. E a referencia: 100 % do prompt sai, por desenho. Custa subscricao (API = 0).",
+    "PII_logs": "contagem de instancias de PII (nome do dono, email, caminhos do home) nos logs locais do router (~/.claude/tools/router/decisions.log, decisions_v2.jsonl, latencia-local.jsonl, ~/.mooter/ledger.jsonl). O MP diz que existem 30 hoje. Conta-se; nao se corrige aqui (e o log do dono)."
+  },
+  "metricas": "por braco e por prompt: ligacoes externas (destino, contagem), bytes de saida/entrada, bytes de corpo no mock, prompt cru presente no corpo (sim/nao). Sem media sem o bruto ao lado.",
+  "regra_de_paragem": "Falha de servico do proxy/gateway -> n/d com o erro literal. 0 retries.",
+  "expectativa_honesta": "A: 0 bytes de prompt; talvez 1 ligacao de orcamento. B: o corpo LEVA o prompt inteiro (arbiter.js:184 messages: [{role:user, content: prompt}]) — e uma derrota conhecida, impressa. C e D: decidem localmente (0 bytes para decidir) e encaminham 100 % do prompt para o fornecedor escolhido — igual ao nativo; o que muda e QUEM e o fornecedor e que ha um processo a mais no caminho. E: 100 %.",
+  "nao_prova": [
+    "SOC 2, DPA, retencao — nao se abre",
+    "o comportamento com chave real e arbitro ligado em rede (B e instrumentado)",
+    "proxies com providers reais (o mock recebe o que sairia)"
+  ],
+  "comando_reproduzir": "node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm A|A-block|B|C|D|E|pii && node run.mjs --analyse",
+  "congelado_em_fonte": "git commit 22388a20 (%cI 2026-09-09T10:40:15-03:00); o valor anterior '2026-09-09T13:50:00Z' era escrito a mao e errado — ERRATA-timestamps.md"
+}
+
+
+=== AMENDMENTS (AMENDMENT-1.md) ===
+# P5 · AMENDMENT-1 — três alterações de instrumento, nenhuma de métrica (2026-09-09)
+
+**Regra:** o protocolo (`22388a20`, commitado 13:40:15Z antes da primeira corrida) não muda; muda-se o instrumento onde ele falhou, escreve-se aqui, re-corre-se só o braço afectado.
+
+## 1 · Braço E (referência nativa): do counting-proxy ao `netstat` amostrado
+
+- **O que falhou:** o protocolo previa medir o `claude.exe -p` através do `counting-proxy` (HTTPS_PROXY em loopback, conta CONNECT + bytes do túnel). A sonda `e-probe.mjs` mostrou que o `claude.exe` **não honra `HTTPS_PROXY`** nesta máquina: com a variável definida fica pendurado (exit `null` aos 90 s, **0 ligações ao proxy**); sem ela responde em 8 s (defeito D8 em `09-DEFEITOS-APANHADOS.md`; não é do Mooter).
+- **O que se faz em vez disso:** o próprio protocolo já declarava o limite («um processo que não é Node e não honra HTTPS_PROXY não é observado por nenhum destes; nesse caso a célula é n/d, com Get-NetTCPConnection amostrado como controlo grosseiro»). `arm-e.mjs` amostra `netstat -ano -p tcp` a cada 150 ms durante cada chamada, filtrado pelo pid do `claude.exe` e dos filhos (`Win32_Process ParentProcessId`), e resolve os IPs remotos por DNS inverso.
+- **O que a célula passa a dizer:** ligações externas por prompt e destinos (**medido, grosseiro**); **bytes = n/d**; «o prompt saiu» atestado pelo próprio host (`usage.input_tokens` no JSON de saída — por desenho, 100 % do prompt vai para a API).
+- **O que NÃO se pode afirmar:** bytes por prompt do nativo; qualquer comparação de bytes entre E e os outros braços.
+
+## 2 · Braço B (árbitro instrumentado): a verificação «prompt cru no corpo» era literal
+
+- **O que falhou:** `raw_prompt_in_body` procurava o texto do prompt tal-e-qual no corpo do pedido; o corpo é JSON, e 2 dos 20 prompts têm aspas/quebras de linha que vão escapadas → contavam como «não está lá», o que era falso.
+- **Correcção:** procura-se também a forma JSON-escapada (`JSON.stringify(prompt).slice(1, -1)`).
+- **Re-corrida:** 20/20 com o prompt cru no corpo (era 18/20 por defeito do instrumento). Bytes médios de corpo 2 162. Continua **[instrumented]**, não [network-observed]: nada saiu da máquina.
+
+## 3 · Braço C (claude-code-router): `n/d` com o bloqueio literal
+
+Não é uma emenda ao instrumento — é a aplicação do R8 (60 min) e da regra de paragem do protocolo. O `--analyse` passa a imprimir `C_ccr: { status: 'n/d', blocker: … }` quando não há `C-ccr.json`. Detalhe, comandos tentados e comando para retomar em `ccr.md`.
+
+## O que não mudou
+
+Corpus (n01–n20), braços A/A-block/D/PII e os seus resultados de 13:42Z–13:5xZ, métricas, regra de paragem, `nao_prova`.
+
+
+=== VERDICT (verdict.md) ===
+# P5 · Atestação de egress — veredicto (v3, depois de duas rondas do adversário)
+
+**Corridas (horas dos ficheiros `at`, nenhuma à mão):** A, A-block, D, PII 13:41–13:53Z · B v2, D-invert, D-tiny, E v3 14:2x–14:3xZ · protocolo `22388a20` commitado 13:40:15Z · `AMENDMENT-1.md` (E por `netstat` — **superada**), `AMENDMENT-2.md` (E pelo proxy com spawn assíncrono; B por igualdade de campo; D com dois controlos **exploratórios, posteriores à ronda 1**; A bytes `n/d`; mediana convencional) · bruto em `results/` · `results/analysis.json` · adversário: `adversary-codex-round1.md`, `adversary-codex-round2.md` → `adversary.md`.
+
+## Veredicto em uma linha
+
+**Nesta configuração (sem `ANTHROPIC_API_KEY`, com o defeito D1 a forçar T0), o *tap* de 75 processos Node não registou nenhum destino externo enquanto o hook do Mooter decidia 20 prompts reais; nas 20 invocações instrumentadas com chave falsa, o árbitro construiu pedidos com o prompt inteiro; no LiteLLM, o *deployment* a preço 0 foi escolhido 0/40 vezes nas duas configurações com preço 0; e cada invocação do Claude Code nativo através deste proxy registou uma mediana de 40,5 CONNECT para 4 hosts e 1,62 MB de saída, com tráfego para o host de ingestão do Datadog em 20/20.**
+
+## Os números (20 prompts reais, n01–n20 do corpus do P1, mediana 37 caracteres, 26–410)
+
+| Braço | Observação **nesta montagem** | Instrumento e fronteira observada |
+|---|---|---|
+| **A · Mooter, hook vivo** (sem chave; árbitro por omissão não corre; tier T0 em 20/20 **por D1**) | 75 processos Node registados pelo *tap*, 35 eventos de ligação, **todos para loopback**: `127.0.0.1:7821` ×20 (porta de métricas do hook) e `127.0.0.1:11434` ×15 (Ollama, Option A). **Nenhum destino externo registado.** Bytes: **n/d** (só há registos de fase `open`; sem eventos finais não se afirma completude). | net-tap (socket, preload em processos Node). Fronteira: **os processos Node que carregaram o preload** — não o dispositivo: filhos não-Node, DNS/UDP e a saída do próprio Ollama não foram observados; não há inventário independente dos processos esperados. |
+| **A-block** (`NET_TAP_BLOCK=1`) | **0 tentativas interceptadas** (nada para bloquear); tiers iguais a A em 20/20 (todos T0). | O bloqueio não foi exercitado nesta corrida; controlo positivo só no teste unitário. |
+| **B · árbitro do Mooter** (`arbiter.js`, chave falsa, `spawnSync` do filho captado) | **Nas 20 invocações instrumentadas**, 20/20 pedidos construídos com `messages[último].content === prompt` (igualdade de campo); destino `api.anthropic.com` no script captado 20/20; corpo médio 2 162 bytes; modelo `claude-haiku-4-5-20251001`. | `[instrumented]`: nada foi transmitido; **não** se afirma número de ligações, retries, nem todos os caminhos de execução. Com chave real e em rede: não medido. |
+| **C · claude-code-router 3.0.22** | **n/d** — configuração headless não conseguida em 60 min (`ccr.md`). | — |
+| **D · LiteLLM 1.100.0**, `cost-based-routing`, 2 *deployments* do mesmo grupo, ambos `mock-llm` em loopback | Pré-registado — barato a **0**, caro a 1e-5/3e-5: **20/20 ao caro**. Controlos posteriores à ronda 1: preços invertidos (mesmas portas): **20/20 ao que passou a ter preço alto**; barato a **1e-9**: **20/20 ao barato**. Prompt cru encaminhado ao *mock* 20/20; corpo médio 179 bytes. | *Mock* em loopback: mede o que o proxy **reenvia**; egress externo do processo Python: n/d. Leitura: **o *deployment* a preço 0 foi escolhido 0/40 vezes nas duas configurações com preço 0** (limite superior unilateral 95 % ≈ 7 %, se os pedidos fossem independentes — não demonstrado). Hipótese não confirmada: 0 tratado como preço ausente. Não se extrapola para Ollama real sem o medir. |
+| **E · Claude Code nativo** (`claude.exe -p`, hooks e tools desligados, `--max-turns 1`), **por invocação, através deste proxy** | **4 hosts em 20/20**: `api.anthropic.com:443`, `mcp-proxy.anthropic.com:443`, `registry.npmjs.org:443`, `http-intake.logs.us5.datadoghq.com:443`. CONNECT registados por invocação: mediana **40,5** (37–46); para a API 14 (14–14); para o mcp-proxy 22 (19–28). Bytes de saída: mediana **1 622 528,5** (1 597 315–1 641 889); para a API 1 386 817 (1 363 977–1 402 892); para o Datadog **187 066** (168 794–192 440), presente em 20/20; para o registry 4 614. Entrada 1 424 539,5. 15,1 s por invocação (8,8–28,3). **13/20 `is_error`** (1 turno, sem tools): saída mediana 1 620 845 (n = 13) vs 1 631 030 (n = 7, sem erro); CONNECT 40 vs 41; API 14 vs 14. | counting-proxy (HTTPS_PROXY em loopback, spawn assíncrono, **um proxy por prompt**): conta CONNECT e bytes do túnel TLS por sentido, sem desencriptar. **Bytes do túnel ≠ bytes de prompt; o host não revela o conteúdo.** Calibração: `lib/counting-proxy.calibration.test.mjs` (N bytes conhecidos por um túnel → N em cada sentido; CONNECT recusado → 0). Tráfego directo sem proxy: não comparado (o proxy pode alterar reutilização/retries). Controlo positivo e negativo na mesma corrida (`e-probe.mjs` v2). Mediana convencional. |
+
+**Logs locais do router** (`pii-logs.json`, 13:42Z, regex): **752 correspondências do detector de caminho-do-*home*** (que contém o nome do dono) — 747 em `~/.mooter/ledger.jsonl` (727 linhas) e 5 em `decisions.log` (2 799 linhas); as correspondências do detector de nome estão dentro dessas. 0 correspondências de e-mail. **1 390 linhas** do `decisions.log` com um campo `prompt_preview` (descrito como até 80 caracteres de prompt; conteúdo não validado linha a linha). Não são instâncias únicas nem uma auditoria; não se compara com o «30 hoje» do MP. Não se corrige aqui.
+
+## Leitura honesta
+
+1. **O que sobrevive:** «nenhum destino externo registado pelo *tap* de 75 processos Node, nesta máquina, sem chave e com D1». Não é uma atestação de ausência de egress do dispositivo, e não é uma comparação com nada: A mede o hook de decisão, D mede reencaminhamento para um *mock*, E mede uma invocação completa do cliente. Não há aqui uma estimativa do efeito de ligar o Mooter sobre a mesma tarefa concluída.
+2. **A configuração pesa tanto como a arquitectura.** Sem chave o árbitro não corre; com D1 tudo é T0. B mostra o que o árbitro **construiu** nas 20 invocações instrumentadas: o prompt inteiro para `api.anthropic.com`. Corridas com D1 corrigido e com chave presente/ausente: não existem — `10-NAO-PROVADO.md`.
+3. **O LiteLLM tem um comportamento que interessa ao Mooter, mas só o observado se afirma:** 0/40 escolhas do *deployment* a preço 0 em duas configurações; 20/20 ao barato quando o barato tem um preço positivo minúsculo. O mecanismo não foi visto no código; o Ollama real não foi medido.
+4. **A referência nativa, por invocação e através deste proxy:** ~1,62 MB de saída e ~40 CONNECT para um prompt de 37 caracteres; o que vai em cada túnel não se sabe pelo host. É o custo de uma invocação nova (arranque incluído), não o custo marginal de um prompt numa sessão persistente.
+5. **O instrumento errou duas vezes e foi apanhado pelo adversário:** o proxy com `spawnSync` (D8, meu, retirado) e os bytes 0 do *tap* (agora `n/d`); e uma vez mais na convenção de mediana (corrigida). As correcções estão na AMENDMENT-2 com os brutos antigos guardados.
+
+## O que isto NÃO prova
+
+- Egress ao nível do **dispositivo** (DNS, UDP/QUIC, filhos não-Node, a saída do Ollama; completude do *tap*). «Toda a rede externa recusada» (nada tentou). SOC 2/DPA/retenção. O árbitro com chave real em rede ou em todos os caminhos de execução. Proxies com fornecedores reais; o egress próprio do processo Python do LiteLLM; o ccr. Que os bytes do túnel são bytes de prompt, ou o conteúdo de qualquer túnel. Que o tráfego do nativo seria igual sem proxy. O custo marginal por prompt numa sessão persistente.
+
+## Reproduzir
+
+```
+node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm A|A-block|B|D|E|pii
+node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --arm D --invert   # e --tiny (controlos posteriores)
+node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/run.mjs --analyse
+node _handoff/provas-v1-2026-09-09/P5-atestacao-de-egress/e-probe.mjs                # controlo do proxy (v2, assíncrono)
+node --test _handoff/provas-v1-2026-09-09/lib/counting-proxy.calibration.test.mjs    # calibração do contador
+```
+
+
+=== SLIDE (slide.md) ===
+# Slide P5 · No external destination recorded by a socket tap on 75 Node processes while the Mooter hook decided 20 real prompts — API key absent, live budget defect forced T0
+
+**Setup:** 20 real September prompts (median 37 chars); the hook installed on this machine; a socket-level tap preloaded into Node processes. Pre-registered protocol committed before the first run; two instrument amendments on file (one retracts our own claim about the client); LiteLLM controls added after adversary round 1 are labelled as such.
+
+| Path | Observation in this setup | Boundary observed |
+|---|---|---|
+| **Mooter hook** (rule + local pre-answer; no key, arbiter off, T0 ×20 by defect D1) | 35 connection events in 75 tapped Node processes, **all loopback** (own metrics port ×20, Ollama ×15); **no external destination recorded**; bytes n/d | tapped Node processes — not DNS, UDP, non-Node children, or Ollama's own egress; tap completeness not independently inventoried |
+| Mooter hook, tap in block mode | 0 intercepted attempts to block; same T0 on 20/20 | block path not exercised in this run |
+| **Mooter arbiter** (runs only with a key; 20 instrumented invocations with a fake key, nothing sent) | **20/20 constructed requests carried the whole prompt** (`messages[last].content == prompt`) addressed to api.anthropic.com, ~2.2 kB body | instrumented; no transmission observed; not all code paths |
+| LiteLLM 1.100.0 proxy, cost-based routing, two loopback mock deployments | pre-registered run (cheap priced 0): 20/20 to the expensive one. Post-round-1 controls: prices swapped → 20/20 to the now-expensive one; cheap priced 1e-9 → 20/20 to the cheap one. **The zero-priced deployment was selected 0/40 times across the two zero-price configurations.** Forwards the full prompt to the chosen provider 20/20 | loopback mock; mechanism not confirmed in code; real Ollama not measured; the proxy's own external egress unmeasured |
+| claude-code-router 3.0.22 | n/d — headless config not achieved in 60 min | — |
+| Claude Code native (`claude -p`, hooks/tools off), **per CLI invocation through this proxy** | **4 hosts on 20/20** (api.anthropic.com, mcp-proxy.anthropic.com, registry.npmjs.org, Datadog log intake); counter-reported median **40.5 CONNECT** and **1.62 MB outbound** (1.60–1.64); Datadog intake traffic recorded in 20/20, median 187 kB; **13/20 returned `is_error`** (medians 1.62 MB vs 1.63 MB for the 7 without) | HTTPS CONNECT counter (async, one proxy per prompt; calibrated on known volumes); tunnel bytes, not prompt bytes; proxy-induced overhead vs direct traffic not compared |
+
+**Local logs:** 752 matches of the home-path detector (contains the owner's name) and 1,390 lines with a `prompt_preview` field (up to 80 chars) in the router's own logs on this machine. Counted, not audited, not fixed.
+
+**Printed losses:** the arbiter's constructed requests carry the raw prompt (20/20 instrumented); the T0 ×20 comes from a live budget-cap defect (D1), not from good routing; the redirect of the decisions log was ignored (D6); our first proxy probe was wrong and blamed the client (D8, retracted).
+
+*Does not prove: device-level egress; that any external network was refused; SOC 2 / DPA / retention; behaviour with a real key on the network; proxies with real providers; that tunnel bytes are prompt bytes or what any tunnel carries; native traffic without a proxy; anything about claude-code-router. No comparison of a completed task with and without Mooter is made here.*
+
+
+=== ANALYSIS (results\analysis.json) ===
+{
+ "at": "2026-09-09T14:37:42.751Z",
+ "A": {
+  "prompts": 20,
+  "tap": {
+   "processes": 75,
+   "connections": 35,
+   "external_hosts": [],
+   "by_host": {
+    "127.0.0.1:7821": {
+     "n": 20,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    },
+    "127.0.0.1:11434": {
+     "n": 15,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    }
+   },
+   "bytes": "n/d — so ha registos de fase open (o filho ollama_call_node.js e morto pelo tecto de 1 s do hook antes do close; o exit do hook nao chegou a registar); o destino e conhecido no open, os bytes nao (P5-02)"
+  },
+  "proxy_counter_note": "o hook e Node e o Node nao honra HTTPS_PROXY por omissao: 0 CONNECT e esperado e nao prova nada (P5-01)",
+  "proxy_by_host": {},
+  "hook_events": {},
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0",
+  "arbiter_honored": 0
+ },
+ "A_block": {
+  "external_blocked": 0,
+  "tiers_identical_to_A": true,
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0"
+ },
+ "B_arbiter": {
+  "prompts": 20,
+  "calls": 20,
+  "raw_prompt_in_body": 20,
+  "prompt_field_equals_prompt": 20,
+  "body_bytes_mean": 2162.4,
+  "destinations": [
+   "api.anthropic.com"
+  ],
+  "instrumented_not_network": true
+ },
+ "D_litellm_invert": {
+  "variant": "precos INVERTIDOS (cheap=alto, dear=0), mesmas portas/identidades",
+  "up": true,
+  "to_cheap_port": 20,
+  "to_dear_port": 0,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200",
+  "reading": "com os precos invertidos foi 20/20 para a OUTRA porta — a que passou a ter o preco ALTO. Nas duas configuracoes o LiteLLM escolheu o deployment de preco mais alto: a seleccao segue o preco, ao contrario do esperado, ou trata 0 como sem preco (ver D_litellm_tiny)"
+ },
+ "D_litellm_tiny": {
+  "variant": "barato a 1e-9/3e-9 (nao zero), caro a 1e-5/3e-5",
+  "up": true,
+  "to_cheap_port": 20,
+  "to_dear_port": 0,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200",
+  "reading": "com o barato a 1e-9 (nao zero) foi 20/20 ao barato. Nas duas configuracoes com um deployment a preco 0, esse deployment foi escolhido 0/40 vezes. HIPOTESE (nao confirmada no codigo do LiteLLM): 0 e tratado como preco ausente. Nao se extrapola para Ollama real sem o medir"
+ },
+ "D_litellm": {
+  "up": true,
+  "to_cheap": 0,
+  "to_dear": 20,
+  "raw_prompt_forwarded": 20,
+  "body_bytes_cheap_mean": null,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200"
+ },
+ "E_native": {
+  "version": 3,
+  "prompts": 20,
+  "method": "counting-proxy em loopback (HTTPS_PROXY/HTTP_PROXY), spawn assincrono, um proxy por prompt; conta CONNECT host:porta e bytes do tunel por sentido, sem desencriptar — AMENDMENT-2",
+  "note": "bytes do tunel TLS: handshake + cabecalhos + corpo + respostas + retries; NAO sao bytes de prompt. Hosts alem da API (mcp-proxy, registry.npmjs.org, datadoghq) sao do proprio cliente, nao do prompt.",
+  "probe": "e-probe.mjs v2 (results/e-probe-v2.log): com proxy 41-43 CONNECT a 4 hosts; sem variaveis de proxy 0 — controlo positivo e negativo na mesma corrida",
+  "exits": "0 0 1 0 1 1 0 1 1 0 1 0 1 1 1 1 1 1 0 1",
+  "is_error_count": 13,
+  "hosts_per_prompt": {
+   "median": 4,
+   "min": 4,
+   "max": 4
+  },
+  "external_hosts": [
+   "api.anthropic.com:443",
+   "mcp-proxy.anthropic.com:443",
+   "registry.npmjs.org:443",
+   "http-intake.logs.us5.datadoghq.com:443"
+  ],
+  "connect_per_prompt": {
+   "median": 40.5,
+   "min": 37,
+   "max": 46
+  },
+  "bytes_out_per_prompt": {
+   "median": 1622528.5,
+   "min": 1597315,
+   "max": 1641889
+  },
+  "bytes_in_per_prompt": {
+   "median": 1424539.5,
+   "min": 1398895,
+   "max": 1447128
+  },
+  "bytes_out_api_anthropic": {
+   "median": 1386817,
+   "min": 1363977,
+   "max": 1402892
+  },
+  "connect_api_anthropic": {
+   "median": 14,
+   "min": 14,
+   "max": 14
+  },
+  "bytes_out_datadog": {
+   "median": 187066,
+   "min": 168794,
+   "max": 192440
+  },
+  "prompts_with_datadog": 20,
+  "connect_mcp_proxy": {
+   "median": 22,
+   "min": 19,
+   "max": 28
+  },
+  "bytes_out_registry_npmjs": {
+   "median": 4614,
+   "min": 4614,
+   "max": 4614
+  },
+  "prompt_chars": {
+   "median": 37,
+   "min": 26,
+   "max": 410
+  },
+  "ms": {
+   "median": 15057.5,
+   "min": 8789,
+   "max": 28257
+  },
+  "by_outcome": {
+   "exit0": {
+    "n": 7,
+    "bytes_out": {
+     "median": 1631030,
+     "min": 1601537,
+     "max": 1641889
+    },
+    "connect": {
+     "median": 41,
+     "min": 38,
+     "max": 46
+    },
+    "api_connect": {
+     "median": 14,
+     "min": 14,
+     "max": 14
+    }
+   },
+   "is_error": {
+    "n": 13,
+    "bytes_out": {
+     "median": 1620845,
+     "min": 1597315,
+     "max": 1635935
+    },
+    "connect": {
+     "median": 40,
+     "min": 37,
+     "max": 45
+    },
+    "api_connect": {
+     "median": 14,
+     "min": 14,
+     "max": 14
+    }
+   }
+  },
+  "median_convention": "mediana convencional: com n par, media dos dois valores centrais",
+  "usage_input_tokens": {
+   "median": 10,
+   "min": 10,
+   "max": 10
+  },
+  "per_prompt": [
+   "n01:exit0:conn41:out1632823:api1392540",
+   "n02:exit0:conn38:out1633557:api1395524",
+   "n03:exit1:conn41:out1620554:api1380543",
+   "n04:exit0:conn43:out1631030:api1390027",
+   "n05:exit1:conn40:out1624545:api1387295",
+   "n06:exit1:conn40:out1626291:api1388856",
+   "n07:exit0:conn46:out1610580:api1369762",
+   "n08:exit1:conn43:out1634119:api1391563",
+   "n09:exit1:conn37:out1597315:api1379912",
+   "n10:exit0:conn40:out1641889:api1402892",
+   "n11:exit1:conn37:out1635935:api1394886",
+   "n12:exit0:conn43:out1610756:api1371740",
+   "n13:exit1:conn41:out1624321:api1386339",
+   "n14:exit1:conn41:out1619474:api1381386",
+   "n15:exit1:conn39:out1618858:api1383668",
+   "n16:exit1:conn41:out1624212:api1387750",
+   "n17:exit1:conn39:out1613663:api1378422",
+   "n18:exit1:conn40:out1615393:api1387324",
+   "n19:exit0:conn40:out1601537:api1363977",
+   "n20:exit1:conn45:out1620845:api1382104"
+  ]
+ },
+ "C_ccr": {
+  "status": "n/d",
+  "blocker": "configuracao headless nao conseguida em 60 min: o gateway so responde com provider + API key criados pela UI/SQLite ou pelo RPC /api/ccr/rpc, que exige token web e cujo catalogo de metodos nao esta documentado — ver ccr.md",
+  "version": "3.0.22"
+ },
+ "pii": [
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions.log",
+   "exists": true,
+   "lines": 2799,
+   "bytes": 1269877,
+   "counts": {
+    "owner_name": 5,
+    "email": 0,
+    "home_path": 5
+   },
+   "prompt_preview_lines": 1390
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions_v2.jsonl",
+   "exists": true,
+   "lines": 5313,
+   "bytes": 991254,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\latencia-local.jsonl",
+   "exists": true,
+   "lines": 413,
+   "bytes": 39337,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.mooter\\ledger.jsonl",
+   "exists": true,
+   "lines": 727,
+   "bytes": 627384,
+   "counts": {
+    "owner_name": 747,
+    "email": 0,
+    "home_path": 747
+   },
+   "prompt_preview_lines": 0
+  }
+ ]
+}
+
+=== EXTRA (adversary.md) ===
+# P5 · adversário (crítico ≠ autor) — Codex CLI gpt-6-astra, duas rondas, e as respostas
+
+**Ronda 1:** `adversary-prompt-sent.txt` → `adversary-codex-round1.md` (13 ataques, 128 s). **Ronda 2** (sobre o veredicto v2 e o slide v2): `adversary-prompt-sent-round2.txt` → `adversary-codex-round2.md` (14 ataques, 131 s). Sem acesso ao repo nas duas. Foi a prova com mais churn de instrumento do pacote: a ronda 1 derrubou a AMENDMENT-1 inteira; a ronda 2 apanhou uma mediana mal definida e quantificadores a mais.
+
+## Ronda 1
+
+| # | Ataque | Gravidade (dele) | Resposta | Estado |
+|---|---|---|---|---|
+| P5-01 | «0 hosts» é cobertura do instrumento, não fronteira do dispositivo | fatal | **Aceite.** «Nenhum destino externo **registado pelo *tap* de processos Node**»; lista do que não foi observado; o contador CONNECT do A deixou de ser citado | reformulado |
+| P5-02 | contadores de bytes não validados: 35 ligações com 0 bytes | fatal | **Aceite.** Só há fase `open`; bytes do A → **`n/d`** | corrigido (análise) |
+| P5-03 | bloqueio sem tentativa é teste vazio | fatal | **Aceite.** «0 tentativas interceptadas»; «toda a rede externa recusada» saiu | reformulado |
+| P5-04 | mede uma configuração defeituosa (sem chave, D1) | fatal | **Aceite.** Limitado a «nesta configuração»; D1 no título do slide. Corridas com D1 corrigido / chave: não feitas | reformulado / não resolvido |
+| P5-05 | B: construção ≠ transmissão; `destinations: [null]`; *substring* | serious | **Aceite.** B re-corrido com igualdade de campo (20/20) e destino lido do script (`api.anthropic.com`) | corrigido |
+| P5-06 | LiteLLM 20/20 ao caro pode ser configuração minha | serious | **Aceite; dois controlos exploratórios** (invertido; 1e-9): 0/40 ao preço 0; 20/20 ao barato a 1e-9 | corrigido (2 corridas novas) |
+| P5-07 | *mock* ≠ dispositivo; C não entra em «os proxies» | serious | **Aceite.** «Fronteira observada» por braço; C fora de conclusões | reformulado |
+| P5-08 | «2 ligações por prompt» excede a amostragem `netstat` | serious | **Superado** pelo E v3 (proxy) | corrigido |
+| P5-09 | `usage.input_tokens` não atesta conteúdo | serious | **Aceite.** Retirado | reformulado |
+| P5-10 | a sonda podia bloquear o próprio proxy (`spawnSync`) | serious | **Aceite — era isso.** `e-probe` v2 assíncrono: o cliente honra `HTTPS_PROXY`; **D8 retirado**; E re-medido com bytes | corrigido |
+| P5-11 | «752» é soma de *matches*; «30 hoje» não comparável | serious | **Aceite.** «752 correspondências do detector»; comparação retirada | reformulado |
+| P5-12 | emendas não neutras; cronologia; n03 re-corrido | serious | **Aceite.** Cronologia pelos `at`; o n03 era diagnóstico e saiu | corrigido |
+| P5-13 | slide compara grandezas diferentes; palavras proibidas em negação | fatal | **Aceite.** Slide reescrito por «observação nesta montagem» + «fronteira»; palavras retiradas | reformulado |
+
+## Ronda 2
+
+| # | Ataque | Gravidade (dele) | Resposta | Estado |
+|---|---|---|---|---|
+| P5-14 | «nunca» excede 0/40 | serious | **Aceite.** «0/40 nas duas configurações com preço 0», com o limite superior de 95 % (~7 %) e a ressalva de independência | reformulado |
+| P5-15 | causa «0 = sem preço» apresentada como facto | serious | **Aceite.** Hipótese em todo o lado (`analysis.json` incluído) | reformulado |
+| P5-16 | *mock* a 0 ≠ Ollama real | serious | **Aceite.** Extrapolação retirada; «não se extrapola sem o medir» | reformulado |
+| P5-17 | o controlo do proxy não calibra os contadores | serious | **Aceite; resolvido por teste:** `lib/counting-proxy.calibration.test.mjs` — N bytes conhecidos por um túnel CONNECT dão N em cada sentido (sem dupla contagem, sem cabeçalho); CONNECT recusado fica a 0. O código conta uma perna por sentido (`clientSocket.on('data')` → out; `up.on('data')` → in) | corrigido |
+| P5-18 | o proxy pode alterar o comportamento; «por prompt» inclui arranque | serious | **Aceite.** «Por invocação, através deste proxy»; tráfego directo não comparado; custo marginal em sessão persistente não medido | reformulado |
+| P5-19 | 13/20 `is_error` é confound não resolvido | serious | **Aceite em parte.** Medianas por resultado publicadas (13 vs 7; 1,62 vs 1,63 MB; CONNECT 40 vs 41; API 14 vs 14) e no slide; motivo dos erros: não extraído (`n/d`) | corrigido / parcial |
+| P5-20 | medianas publicadas eram a mediana superior | serious | **Aceite — erro meu.** Mediana convencional na análise (declarada); veredicto v3 com os valores corrigidos (40,5; 1 622 528,5; 1 386 817) | corrigido |
+| P5-21 | host não revela conteúdo; «187 kB em cada» | serious | **Aceite.** Decomposição do conteúdo retirada; «registado em 20/20; mediana 187 kB» | reformulado |
+| P5-22 | «every Node process» não demonstrado; sem eventos finais | serious | **Aceite.** «75 processos Node registados pelo *tap*»; completude não inventariada | reformulado |
+| P5-23 | «vitória» e generalização sobre proxies | serious | **Aceite.** Retiradas; «não há aqui uma estimativa do efeito de ligar o Mooter sobre a mesma tarefa» | reformulado |
+| P5-24 | a emenda não documentava o `tiny` nem a cronologia | serious | **Aceite.** AMENDMENT-2 reescrita com os dois controlos, a ordem das decisões e a cronologia pelos `at` | corrigido |
+| P5-25 | B com quantificadores universais («whenever») | serious | **Aceite.** «Nas 20 invocações instrumentadas com chave falsa» | reformulado |
+| P5-26 | «80-char preview» inflacionado | minor | **Aceite.** «Até 80 caracteres; conteúdo não validado» | reformulado |
+| P5-27 | «privado/seguro» ainda no veredicto | minor | **Aceite.** Retirados do veredicto v3, mesmo em negação | corrigido |
+
+**Rejeitado:** nada nas duas rondas. **Não resolvido:** observação ao nível do dispositivo; D1 corrigido / chave presente; egress do processo Python do LiteLLM; Ollama real no LiteLLM; motivo dos `is_error`; tráfego directo sem proxy; o ccr.
+
+**Ronda 3:** se existir `adversary-codex-round3.md`, foi sobre o v3; senão, a quota do Codex foi reservada para P3, P7 e P8 e isso fica declarado.
+
+
+=== EXTRA (AMENDMENT-2.md) ===
+# P5 · AMENDMENT-2 — depois do adversário (ronda 1, 13 ataques): quatro defeitos de instrumento, uma retractação, dois controlos exploratórios
+
+**Gatilho:** `adversary-codex-round1.md` (Codex, gpt-6-astra, sem acesso ao repo). Regra do MP §3: derrubou defeito do instrumento → corrige-se, escreve-se a emenda, re-corre-se **só** o braço afectado. As reformulações de texto (P5-01, 03, 04, 07, 08, 09, 11, 13) entram no veredicto e no slide, não aqui. A ronda 2 (`adversary-codex-round2.md`, 14 ataques) obrigou a esta versão da emenda (documentar o controlo `tiny`, a cronologia, a convenção de mediana).
+
+| Ataque | O que estava errado | Correcção | Re-corrida |
+|---|---|---|---|
+| **P5-10** (serious → na prática **fatal para a AMENDMENT-1**) | `e-probe.mjs` v1 e o braço E v1 lançavam o `claude.exe` com `spawnSync` enquanto o counting-proxy vivia **no mesmo event loop**: o loop ficava bloqueado, o proxy não atendia, o cliente pendurava. Concluí que «o `claude.exe` não honra `HTTPS_PROXY`» (D8) e passei o E para `netstat` (AMENDMENT-1). **Errado.** | `e-probe.mjs` v2: `spawn` assíncrono, todas as variáveis de proxy limpas no controlo. Resultado (`results/e-probe-v2.log`): com proxy, **41–43 CONNECT a 4 hosts** para uma pergunta de 7 palavras; sem proxy, 0. O cliente honra a variável. `arm-e.mjs` v3: spawn assíncrono, **um proxy por prompt**, CONNECT + bytes por host e sentido. | Braço E re-corrido (v3, 14:2x–14:3xZ). O v2 por `netstat` fica em `results/E-native-netstat-v2.json` só como registo. **D8 retirado** como defeito do `claude.exe` e reescrito como defeito do meu instrumento (`09-DEFEITOS-APANHADOS.md`). |
+| **P5-02** | O tap do braço A mostrava `bytes_out: 0` em 35 ligações loopback e o veredicto deixava-o passar como «0». Os registos brutos só têm fase `open`: o filho `ollama_call_node.js` é morto pelo tecto de 1 s do hook antes do `close`, e o `exit` do hook não chegou a registar. | A análise passa a dizer **`bytes: n/d`** para A; o que o `open` prova é o **destino** (host:porta), não o volume. O contador CONNECT do A é vazio **por construção** (o Node não honra `HTTPS_PROXY` por omissão) e deixa de ser citado como evidência. | Só a análise; A não se re-corre (o bruto é o mesmo). |
+| **P5-05** | B media «prompt cru no corpo» por *substring*; `destinations: [null]` na análise. | B passa a verificar **igualdade** do campo `messages[último].content` com o prompt (`prompt_field_equals_prompt`) e a publicar `would_send_to` a partir do script capturado (`api.anthropic.com`). | B re-corrido: 20/20 substring, **20/20 igualdade de campo**, destino `api.anthropic.com` 20/20. Continua `[instrumented]`: não se afirma transmissão nem número de ligações. |
+| **P5-06** | «LiteLLM mandou 20/20 ao caro» podia ser configuração minha. | Dois controlos **exploratórios, decididos depois da ronda 1** (não pré-registados, ordem cronológica abaixo): (a) `--invert` — mesmas portas e identidades, preços trocados; (b) `--tiny` — decidido **depois de ver (a)**: o barato a 1e-9/3e-9 em vez de 0, para testar a hipótese de que 0 é tratado como preço ausente. | `results/D-litellm-invert.json` (20/20 à porta que passou a ter preço alto) e `results/D-litellm-tiny.json` (20/20 ao barato a 1e-9). Leitura em `analysis.json → D_litellm_invert / D_litellm_tiny`: **o *deployment* a preço 0 foi escolhido 0/40 vezes nas duas configurações com preço 0**; a causa («0 = sem preço») é **hipótese**, não confirmada no código do LiteLLM; não se extrapola para Ollama real. |
+
+**Convenção de mediana (P5-20):** a análise do E usava a mediana superior com n par; passou a mediana convencional (média dos dois centrais), declarada em `analysis.json → E_native.median_convention`. Os números do veredicto v3 são os da análise corrigida.
+
+**Cronologia (todas as horas dos ficheiros `at`, nenhuma à mão):** A, A-block, B v1, D, PII 13:41–13:53Z → E v2 (`netstat`) 14:04–14:16Z → ronda 1 do adversário 14:21Z → B v2, `e-probe` v2, D-invert, D-tiny, E v3 14:2x–14:3xZ → ronda 2 14:36Z → esta versão da emenda.
+
+**O que não mudou:** protocolo (`22388a20`), corpus, braços A/A-block (bruto de 13:42Z), PII, métricas, regra de paragem.
+
+**A lição (para o MP):** o instrumento que devolve «nada» (0 ligações) precisa de um **controlo positivo na mesma corrida**. O teste unitário do proxy (3/3) passava; a sonda estava partida na forma de a lançar. O adversário viu-o pela estrutura do código, sem o correr.
+
+
+=== EXTRA (counting-proxy.calibration.test.mjs) ===
+// counting-proxy.calibration.test.mjs — calibracao do contador com volumes CONHECIDOS (ataque P5-17 da ronda 2):
+// um tunel CONNECT para um eco TCP local; escrevem-se N bytes e le-se o eco; o contador tem de dar exactamente N em cada
+// sentido (bytes_out = cliente->upstream, bytes_in = upstream->cliente), sem dupla contagem e sem contar a resposta do proxy.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import net from 'node:net';
+import http from 'node:http';
+import { startCountingProxy } from './counting-proxy.mjs';
+
+function echoServer() { return new Promise((res) => { const s = net.createServer((c) => c.pipe(c)); s.listen(0, '127.0.0.1', () => res({ port: s.address().port, close: () => new Promise((r) => s.close(r)) })); }); }
+
+test('calibracao: N bytes por um tunel CONNECT contam exactamente N em cada sentido', async () => {
+  const echo = await echoServer();
+  const p = await startCountingProxy({ block: false });
+  const N = 100_000; const payload = Buffer.alloc(N, 0x61);
+  const u = new URL(p.url);
+  const got = await new Promise((resolve, reject) => {
+    const req = http.request({ host: u.hostname, port: Number(u.port), method: 'CONNECT', path: `127.0.0.1:${echo.port}` });
+    req.on('connect', (res, socket) => {
+      assert.equal(res.statusCode, 200);
+      let seen = 0; socket.on('data', (c) => { seen += c.length; if (seen >= N) { socket.end(); } });
+      socket.on('close', () => resolve(seen)); socket.on('error', reject);
+      socket.write(payload);
+    });
+    req.on('error', reject); req.end();
+  });
+  await new Promise((r) => setTimeout(r, 200));
+  const rep = p.report(); await p.close(); await echo.close();
+  assert.equal(got, N, 'o eco tinha de devolver N bytes');
+  assert.equal(rep.total_connections, 1);
+  const c = rep.connections[0];
+  assert.equal(c.host, '127.0.0.1'); assert.equal(c.port, echo.port);
+  assert.equal(c.bytes_out, N, `bytes_out ${c.bytes_out} != ${N} (dupla contagem ou cabecalho do CONNECT a entrar)`);
+  assert.equal(c.bytes_in, N, `bytes_in ${c.bytes_in} != ${N}`);
+});
+
+test('calibracao: CONNECT recusado (upstream fechado) fica registado com 0 bytes de tunel, nao como tunel estabelecido com dados', async () => {
+  const p = await startCountingProxy({ block: false });
+  const u = new URL(p.url);
+  const dead = await new Promise((res) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const port = s.address().port; s.close(() => res(port)); }); });
+  await new Promise((resolve) => {
+    const req = http.request({ host: u.hostname, port: Number(u.port), method: 'CONNECT', path: `127.0.0.1:${dead}` });
+    req.on('connect', (res, socket) => { socket.on('close', resolve); socket.on('error', resolve); socket.end(); });
+    req.on('response', (res) => { res.resume(); res.on('end', resolve); });
+    req.on('error', resolve); req.end();
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  const rep = p.report(); await p.close();
+  assert.equal(rep.total_connections, 1, 'a tentativa fica registada');
+  assert.equal(rep.connections[0].bytes_in, 0, 'nada veio do upstream');
+  assert.ok(rep.connections[0].bytes_out <= 0, `bytes_out ${rep.connections[0].bytes_out}: nao ha dados de tunel num CONNECT recusado`);
+});

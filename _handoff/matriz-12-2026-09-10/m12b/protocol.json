@@ -1,0 +1,23 @@
+{
+ "_schema": "matriz-12/m12b-prereg/1",
+ "congelado_em": "2026-09-11T22:45:40.184Z",
+ "pergunta": "Quanto da derrota do braço B nos 10 prompts T0 é a instrução «nunca mais de 3 frases» do system prompt local?",
+ "unica_variavel": "tools/router/providers/ollama-api.js, linha 3 do SYSTEM: «Respostas curtas e directas — nunca mais de 3 frases para perguntas simples.» → «Responde de forma directa, com o tamanho que o pedido exige: curto quando a pergunta é simples, completo quando pede um documento, um plano ou um passo a passo.»",
+ "o_que_nao_muda": "prompts.json (mesmo sha), modelo local (o que o probe recomenda), tecto 2048, D1 aplicado, classify congelado, rota (T0 nos mesmos 10), juízes J1/J2, rubrica, sorteio (mesma semente → mesma ordem), respostas de A/C/D (as originais, byte a byte)",
+ "ollama_api_sha256_com_d10": "a36363e4bec6702c3b7d9ef6d9366f01f9ecf002ffc640da0fc4ee34e83801a8",
+ "system_prompt_em_vigor": "'És um assistente de software engineering conciso.',\n  'Respondes em PT-PT (Portugal). Código e identificadores em inglês.',\n  'Responde de forma directa, com o tamanho que o pedido exige: curto quando a pergunta é simples, completo quando pede um documento, um plano ou um passo a passo.',\n  'Não uses preâmbulo. Não repitas o que o user perguntou.',",
+ "prompts_sha256": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "prompts_sha256_esperado": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "semente_do_sorteio": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "congelados": {
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "tools/router/patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5"
+ },
+ "previsoes": {
+  "B(m12b) > B nos 10 T0, pontos agregados J1+J2": "SIM",
+  "B(m12b) ≥ C (65,5) nos mesmos 10": "NÃO",
+  "B(m12b) recupera pelo menos metade da distância B→C (≥ 51,0)": "NÃO SEI — é a pergunta"
+ },
+ "regra_de_paragem": "se B(m12b) ≥ A (81,5) nos 10 T0, o instrumento está partido: parar e investigar.",
+ "ruido_de_borla": "A, C e D são pontuados outra vez, com o mesmo texto, mudando só o vizinho B. A diferença entre as duas rondas é ruído do juiz, medido em 30 respostas × 2 juízes."
+}

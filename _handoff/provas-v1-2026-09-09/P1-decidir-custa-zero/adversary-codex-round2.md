@@ -1,0 +1,17 @@
+Os números fornecidos resolvem a baseline omitida, o kappa, as caudas, o tier emitido, a redacção e a distribuição R-24. A pseudo-replicação dos 23 foi correctamente reconhecida. **Referir novos ficheiros, porém, não equivale a verificar o seu conteúdo.** Restam:
+
+- **SÉRIO — M3 continua aberto; o slide exagera a instrumentação.** A resposta admite que P1 usou wrappers + stub; o novo tap com controlo positivo é aplicável ao P5. A frase **“Measured with a positive-control instrument: 1,176 classifications…”** atribui à medição uma cobertura que não está demonstrada. Identificar o instrumento efectivamente usado e limitar “0 hosts” às saídas observadas.
+
+- **SÉRIO — Nova dependência dentro dos próprios 40.** O JSON revela seis hits logo na primeira passagem porque prompts partilham texto normalizado. Isso não prova equivalência semântica, mas exige examinar os grupos antes de tratar os 40 como observações independentes. Os intervalos e o McNemar precisam dessa ressalva ou de uma análise por grupos. S1 não fica completamente resolvido por remover os 23 R-24.
+
+- **SÉRIO — O título ainda transforma uma comparação amostral numa conclusão geral.** **“Off the training set, the rule is wrong more often than ‘always T2’”** deve dizer **“On these 40 sampled prompts…”**. São quatro acertos de diferença; não foi apresentado teste pareado contra T2. O p=0,059 compara juiz e regra, não regra e baseline. C1/S2 foram delimitados, não demonstrados como generalização.
+
+- **SÉRIO — “Misses” não demonstram timeouts.** **“Timed out 75/75 … (374 misses vs 36 hits in the live log)”** induz o leitor a interpretar ambos como a mesma falha. Sem definição dos eventos, os 374 misses não sustentam **“91 % em produção”**, nem a explicação causal de que o timeout mata o processo antes de o 14B responder. Remover a extrapolação; manter os 75/75 observados.
+
+- **SÉRIO — F5 foi parcialmente corrigido, mas criou uma generalização nova.** **“Its CLI fallback costs ~52k cached tokens and 6 s per call”** deriva de **uma chamada**, fora das 63 abstenções. Escrever: **“One separately invoked fallback call recorded ~52k cached tokens and 5.97 s; none fired on this corpus.”** Tokens de cache também não são uma medida monetária de custo.
+
+- **SÉRIO — L1/L3/F3/P1 receberam documentação ou ressalvas, não resolução integral.** Transcript, prompt e anterioridade não são verificáveis neste material; a ausência de precedência na rubrica permanece. Concordância em 26 casos não resolve essa ambiguidade. **“Two independent raters”** excede “dois motores distintos” sem evidência de isolamento entre rotulagens. A resposta também diz que v2 declara selecção e exposição indirecta, mas essas limitações não aparecem no texto apresentado.
+
+- **MODERADO — Precisão e latência continuam excessivamente condensadas.** **“The rule takes 0.002 ms”** omite que é p50 em processo, com p95 de 1,9 ms. “~870 bytes per prompt” é mediana; a média é ~998. Identificar também a precisão de 35% como variante **com chave simulada**, distinta dos 32,5% sem chave. Finalmente, **“the LLM … também não é a resposta”** não decorre de apenas três acertos adicionais sem avaliar utilidade e custos.
+
+**SLIDE PUBLISHABLE WITH THESE EDITS**

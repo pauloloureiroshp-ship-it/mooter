@@ -1,0 +1,1289 @@
+{
+  "schema": "mooter-r24-manifest/1",
+  "experiment_id": "use-vs-none-v1",
+  "gerado_em": "2026-09-03",
+  "n_tarefas": 25,
+  "n_exigido_pelo_prereg": 23,
+  "folga_para_substituicoes": 2,
+  "prompt_template": "No repositório em que estás, o ficheiro de teste `{test_file}` está a falhar.\n\nCorre-o e faz com que passe:\n\n    {cmd}\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+  "prompt_template_sha256": "63f3f3ce12ea4708b2dc578500e336e80364af8cffd6c6a57595a4253b4b99fc",
+  "nota_emenda_1": "A Emenda 1 do pré-registo cortou o critério «prompt existente antes da solução», que é insatisfazível neste repositório (6 de 1.997 commits têm ligação a sessão). Em vez de 25 prompts reconstruídos à mão por quem já viu a solução, o prompt é GERADO MECANICAMENTE a partir do teste que falha, com um template único e igual para todas as tarefas. Nenhum humano escreve o texto de nenhuma tarefa, e o prompt não revela mais do que o braço já vê ao correr o teste. O viés de reconstrução deixa de existir; o que fica é uma limitação de âmbito, que o relatório declara: o corpus é de tarefas DERIVADAS de commits reais, não de pedidos humanos originais.",
+  "verificacao_independente_2026_09_03": {
+    "por": "sessão principal, em clone --shared descartável, fora do minerador",
+    "tarefas": [
+      1,
+      13,
+      20,
+      24
+    ],
+    "resultado": "4/4 falham no commit-pai com o teste do filho instalado, e passam no commit-filho",
+    "nota": "os 25 foram verificados 3x pelo minerador; estes 4 foram reverificados por um processo diferente"
+  },
+  "tarefas": [
+    {
+      "n": 1,
+      "task_id": "t01-2e7599e021",
+      "commit": "2e7599e021eb8054506140ed826bfa7e8612ef9c",
+      "parent": "d9db061389991669f6a20c9e29ead44fadde7ab3",
+      "date": "2026-05-05",
+      "area": "tools/router",
+      "subject": "feat(statusline): narrative statusline (perfeição pivot 1)",
+      "test_file": "tools/router/statusline-multi.test.js",
+      "acceptance_cwd": "tools/router",
+      "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js",
+      "files_changed": [
+        "tools/router/package.json",
+        "tools/router/statusline-multi.js",
+        "tools/router/statusline-multi.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/statusline-multi.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "15e2d26c5b425b23bdfea00e93cbe356a41643cbc80fe05dc1df1b595cf9ffa2",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            18,
+            18,
+            18
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 18,
+          "wall_ms": [
+            111,
+            93,
+            94
+          ]
+        },
+        "first_failure_line": "✖ pickState: green when savings tracker reports healthy figures (1.0447ms)"
+      }
+    },
+    {
+      "n": 2,
+      "task_id": "t02-7bb45751d8",
+      "commit": "7bb45751d83ac7bb8d462c31de94b7ce1a49ddca",
+      "parent": "d73b7debd1eb2ac95987b7522d7423f7b087c7e4",
+      "date": "2026-05-07",
+      "area": "tools/router",
+      "subject": "feat(router): router-execute defers T3 / high_risk / override to subagent",
+      "test_file": "tools/router/router-execute.test.js",
+      "acceptance_cwd": "tools/router",
+      "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.test.js",
+      "files_changed": [
+        "tools/router/package.json",
+        "tools/router/router-execute.js",
+        "tools/router/router-execute.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/router-execute.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "16b84041dbff8a0109d8f6135766ba0b24ac0d02f0d9f28984d72ad8cff80c95",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            9,
+            9,
+            9
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 9,
+          "wall_ms": [
+            112,
+            98,
+            100
+          ]
+        },
+        "first_failure_line": "✖ I1: T3 classification always defers to model-architect (2.1428ms)"
+      }
+    },
+    {
+      "n": 3,
+      "task_id": "t03-8014c12435",
+      "commit": "8014c12435a6dc54e3ff4538a39b6acdd88ef476",
+      "parent": "c1e5a009cfe4d9763fde98db5b2f5ad466c728c4",
+      "date": "2026-05-07",
+      "area": "tools/router",
+      "subject": "feat(router): executor walks suggested_providers and dispatches calls",
+      "test_file": "tools/router/router-execute.mocks.test.js",
+      "acceptance_cwd": "tools/router",
+      "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.mocks.test.js",
+      "files_changed": [
+        "tools/router/router-execute.harness.js",
+        "tools/router/router-execute.js",
+        "tools/router/router-execute.mocks.js",
+        "tools/router/router-execute.mocks.test.js",
+        "tools/router/router-execute.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/router-execute.mocks.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" router-execute.mocks.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "663a86b1a22265ae3338c73ca41cd66906364ffd696a3e868b3df81b639de4e5",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            3,
+            3,
+            3
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 17,
+          "wall_ms": [
+            95,
+            94,
+            104
+          ]
+        },
+        "first_failure_line": "✖ createMockProvider: records usage on tracker when opts.tracker + opts.providerKey provided (0.5795ms)"
+      }
+    },
+    {
+      "n": 4,
+      "task_id": "t04-8617d5fc95",
+      "commit": "8617d5fc9576ffa5bb9ae79d1f188c83b0557510",
+      "parent": "5b8580bc6a6b6ed7c6ca2373e53cff5fa4702c94",
+      "date": "2026-05-07",
+      "area": "tools/router",
+      "subject": "feat(statusline): zen-underkill detector for LazyMoo mode",
+      "test_file": "tools/router/statusline-multi.test.js",
+      "acceptance_cwd": "tools/router",
+      "acceptance_cmd": "cd <repo>/tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js",
+      "files_changed": [
+        "tools/router/statusline-multi.js",
+        "tools/router/statusline-multi.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/router/statusline-multi.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./tools/router && node --test --test-force-exit --test-skip-pattern=\"(TUNED block is idempotent|deepseek-r1 specialist|gemma4:e4b)\" statusline-multi.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "15e2d26c5b425b23bdfea00e93cbe356a41643cbc80fe05dc1df1b595cf9ffa2",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            3,
+            3,
+            3
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 21,
+          "wall_ms": [
+            118,
+            94,
+            94
+          ]
+        },
+        "first_failure_line": "✖ zenUnderkillPct: 0 on empty, ignores low-complexity prompts (0.1231ms)"
+      }
+    },
+    {
+      "n": 5,
+      "task_id": "t05-cc706fa255",
+      "commit": "cc706fa2551571f7617163be5f1dc17b55146d93",
+      "parent": "46e599e8bad4a7dbacb01d4dae966cb426673797",
+      "date": "2026-06-12",
+      "area": "packages/vscode-extension",
+      "subject": "feat(vscode-cockpit): v0.6.0 — 🐄 Herd view: dynamic workflow live (the user's ask, verbatim)",
+      "test_file": "packages/vscode-extension/src/data.test.js",
+      "acceptance_cwd": "packages/vscode-extension",
+      "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/data.test.js",
+      "files_changed": [
+        "packages/vscode-extension/mooter-cockpit-0.6.0.vsix",
+        "packages/vscode-extension/package.json",
+        "packages/vscode-extension/src/data.test.js",
+        "packages/vscode-extension/src/extension.js",
+        "packages/vscode-extension/src/host-extra.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/data.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/data.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "4651fb934e902561766bcc417fecc7e26df045ea82eedfca5569b2dc626ffde5",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 15,
+          "wall_ms": [
+            158,
+            119,
+            124
+          ]
+        },
+        "first_failure_line": "✖ parseV2 + herdMatrix: real line, pivot via×llm (0.147ms)"
+      }
+    },
+    {
+      "n": 6,
+      "task_id": "t06-e408ea0afe",
+      "commit": "e408ea0afec6917631bc90c170c5c143a554eb60",
+      "parent": "cc706fa2551571f7617163be5f1dc17b55146d93",
+      "date": "2026-06-12",
+      "area": "packages/vscode-extension",
+      "subject": "fix(vscode-cockpit): v0.6.1 — template-literal escape bug + REAL-render webview test",
+      "test_file": "packages/vscode-extension/src/webview-syntax.test.js",
+      "acceptance_cwd": "packages/vscode-extension",
+      "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/webview-syntax.test.js",
+      "files_changed": [
+        "packages/vscode-extension/mooter-cockpit-0.6.1.vsix",
+        "packages/vscode-extension/package.json",
+        "packages/vscode-extension/src/extension.js",
+        "packages/vscode-extension/src/webview-syntax.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/webview-syntax.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/webview-syntax.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "0fd44a0c013607511d482e0af49fbedee042c303f6310643e9df8008f05dccf7",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 1,
+          "wall_ms": [
+            117,
+            89,
+            105
+          ]
+        },
+        "first_failure_line": "✖ webview script parses (real template evaluation) (25.5674ms)"
+      }
+    },
+    {
+      "n": 7,
+      "task_id": "t07-030073bef4",
+      "commit": "030073bef4a8c6ebdadde7c523dfb904ca89d01c",
+      "parent": "50c2c94a8e8f79c6747338262ab7886398989073",
+      "date": "2026-06-14",
+      "area": "packages/vscode-extension",
+      "subject": "feat(cockpit): click a live cow to open that CC session + \"your turn\" alert",
+      "test_file": "packages/vscode-extension/src/data.test.js",
+      "acceptance_cwd": "packages/vscode-extension",
+      "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/data.test.js",
+      "files_changed": [
+        "packages/vscode-extension/CHANGELOG.md",
+        "packages/vscode-extension/src/data.test.js",
+        "packages/vscode-extension/src/extension.js",
+        "packages/vscode-extension/src/host-extra.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/data.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/data.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "4651fb934e902561766bcc417fecc7e26df045ea82eedfca5569b2dc626ffde5",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 27,
+          "wall_ms": [
+            189,
+            163,
+            163
+          ]
+        },
+        "first_failure_line": "✖ recentSessions: each entry carries a full session id + 8-char short id (23.7562ms)"
+      }
+    },
+    {
+      "n": 8,
+      "task_id": "t08-1f5a793294",
+      "commit": "1f5a7932945d633718e5815a05c8e294d3c52054",
+      "parent": "f88c05ec95f1db2805fbd12a97f5aeb737c20fb4",
+      "date": "2026-06-14",
+      "area": "packages/vscode-extension",
+      "subject": "fix(cockpit): data coherence & honesty pass — show real executor, not routing intent",
+      "test_file": "packages/vscode-extension/src/data.test.js",
+      "acceptance_cwd": "packages/vscode-extension",
+      "acceptance_cmd": "cd <repo>/packages/vscode-extension && node --test src/data.test.js",
+      "files_changed": [
+        "packages/vscode-extension/CHANGELOG.md",
+        "packages/vscode-extension/src/data.test.js",
+        "packages/vscode-extension/src/extension.js",
+        "packages/vscode-extension/src/host-extra.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/vscode-extension/src/data.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/vscode-extension && node --test src/data.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "4651fb934e902561766bcc417fecc7e26df045ea82eedfca5569b2dc626ffde5",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            5,
+            5,
+            5
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 24,
+          "wall_ms": [
+            156,
+            130,
+            128
+          ]
+        },
+        "first_failure_line": "✖ readDecisions: tail window on a big file (>256KB) (4.0927ms)"
+      }
+    },
+    {
+      "n": 9,
+      "task_id": "t09-07bdf37783",
+      "commit": "07bdf37783398244d17e80f34ab08922bc77ac13",
+      "parent": "f1e5741b1a9b1cdb0e68a10f222a541e981b5e6f",
+      "date": "2026-06-20",
+      "area": "packages/mooter-bridge",
+      "subject": "feat(bridge): P1 mooter_run — delegate work to a headless Claude Code agent",
+      "test_file": "packages/mooter-bridge/server.test.js",
+      "acceptance_cwd": "packages/mooter-bridge",
+      "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test server.test.js",
+      "files_changed": [
+        "packages/mooter-bridge/server.js",
+        "packages/mooter-bridge/server.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/server.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test server.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "8ff3a8d416fbe14c6c3ce77caf1817e9da252b0aa28b88b28c767a8aed65e6eb",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            7,
+            7,
+            7
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 16,
+          "wall_ms": [
+            3153,
+            2940,
+            2899
+          ]
+        },
+        "first_failure_line": "✖ tools/list returns the bridge tools with schemas; read tools are read-only (0.9469ms)"
+      }
+    },
+    {
+      "n": 10,
+      "task_id": "t10-a6bf1a20b0",
+      "commit": "a6bf1a20b08705ff0514fd6dc1dac1374a71e8a0",
+      "parent": "481ae5afce77869611a87f32991a29079cfe211c",
+      "date": "2026-06-20",
+      "area": "packages/mooter-bridge",
+      "subject": "fix(bridge): graceful drain — don't cut off in-flight tool calls on stdin close",
+      "test_file": "packages/mooter-bridge/server.test.js",
+      "acceptance_cwd": "packages/mooter-bridge",
+      "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test server.test.js",
+      "files_changed": [
+        "packages/mooter-bridge/server.js",
+        "packages/mooter-bridge/server.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/server.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test server.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "8ff3a8d416fbe14c6c3ce77caf1817e9da252b0aa28b88b28c767a8aed65e6eb",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 10,
+          "wall_ms": [
+            2868,
+            2900,
+            2979
+          ]
+        },
+        "first_failure_line": "✖ subprocess: response to a slow tools/call arrives AFTER stdin closes (graceful drain) (87.2497ms)"
+      }
+    },
+    {
+      "n": 11,
+      "task_id": "t11-4bf34eb7c6",
+      "commit": "4bf34eb7c64a3ccef5ab4ca79e2b5f15b34bd077",
+      "parent": "fd4f425ce1c3e8c8fc3b201bc138db87f9c26058",
+      "date": "2026-07-26",
+      "area": "packages/mooter-bridge",
+      "subject": "feat(mooter-bridge): Onda 0.3 - referencia da quota calibravel via ~/.mooter/preferences.json (quota_referencia), com origem declarada; medicao real: inflacao 2.44x (2061 linhas -> 844 turnos), Codex disponivel",
+      "test_file": "packages/mooter-bridge/quota.test.js",
+      "acceptance_cwd": "packages/mooter-bridge",
+      "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test quota.test.js",
+      "files_changed": [
+        "packages/mooter-bridge/quota.js",
+        "packages/mooter-bridge/quota.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/quota.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test quota.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "c43898892fd2011fee0a59baf051e52e23e4be6dd5298b61622b86d94b903fdc",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 19,
+          "wall_ms": [
+            167,
+            123,
+            127
+          ]
+        },
+        "first_failure_line": "✖ Q19 — Onda 0.3: a referencia e AJUSTAVEL de verdade (preferences.json), e declara a origem (0.8657ms)"
+      }
+    },
+    {
+      "n": 12,
+      "task_id": "t12-bf358e765c",
+      "commit": "bf358e765cc2786d001a73daf49b282818f87948",
+      "parent": "530ac4bb54c97093820552b24123d73630aae5bb",
+      "date": "2026-07-27",
+      "area": "packages/mooter-bridge",
+      "subject": "fix(mooter-bridge): v1.19.0 - dois bugs de honestidade: o motor sem ferramentas deixa de aceitar pedidos de execucao que nao cumpre (respondia sem correr nada) e o tecto de tier da quota passa a ser aplicado ao modelo final (um job T0 acabou em opus a 0.81 USD com tecto sonnet declarado)",
+      "test_file": "packages/mooter-bridge/seamless.test.js",
+      "acceptance_cwd": "packages/mooter-bridge",
+      "acceptance_cmd": "cd <repo>/packages/mooter-bridge && node --test seamless.test.js",
+      "files_changed": [
+        "_handoff/INVENTARIO_PENDENTES_2026-07-27.md",
+        "packages/mooter-bridge/localfirst.js",
+        "packages/mooter-bridge/manifest.json",
+        "packages/mooter-bridge/seamless.js",
+        "packages/mooter-bridge/seamless.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/mooter-bridge/seamless.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/mooter-bridge && node --test seamless.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "00693c9c7adfb9689707e7253d57e9321ba69d0899528555b5de5ed05c2520b6",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            5,
+            5,
+            5
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 22,
+          "wall_ms": [
+            3190,
+            2822,
+            2894
+          ]
+        },
+        "first_failure_line": "✖ honestidade: pedido de execução fixado no moo é recusado antes do dispatch (1315.8655ms)"
+      }
+    },
+    {
+      "n": 13,
+      "task_id": "t13-ddb0cf50e1",
+      "commit": "ddb0cf50e170108324ae1f31a3328aec64d4a2a9",
+      "parent": "4347886a752c4954db04fda5ac99749749b62619",
+      "date": "2026-08-16",
+      "area": "tools/cockpit",
+      "subject": "feat(F3): \"o projeto está alinhado?\" passa a ter resposta medida",
+      "test_file": "tools/cockpit/runner/alignment.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/alignment.test.mjs",
+      "files_changed": [
+        "package.json",
+        "tools/cockpit/runner/alignment.mjs",
+        "tools/cockpit/runner/alignment.test.mjs",
+        "tools/cockpit/runner/f10-server.mjs",
+        "tools/cockpit/runner/fleet-state.mjs"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/alignment.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/alignment.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "bda0c0d0bc8d805e87b674b06677158799f3fec26a7737d400c2c8e165ad3013",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 15,
+          "wall_ms": [
+            204,
+            203,
+            208
+          ]
+        },
+        "first_failure_line": "✖ tools\\cockpit\\runner\\alignment.test.mjs (48.3094ms)"
+      }
+    },
+    {
+      "n": 14,
+      "task_id": "t14-01cebb9409",
+      "commit": "01cebb940905e72eaa9e5486c1ef9b1be527682a",
+      "parent": "eae75143f8bf0e7bb9e64173154adf6d5d4ded7b",
+      "date": "2026-08-17",
+      "area": "packages/slack-spike",
+      "subject": "slack-spike: o cartao nunca chegou ao Slack — a ligacao atirava os blocos ao chao",
+      "test_file": "packages/slack-spike/cartao.test.js",
+      "acceptance_cwd": "packages/slack-spike",
+      "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test cartao.test.js",
+      "files_changed": [
+        "packages/slack-spike/cartao.test.js",
+        "packages/slack-spike/correr.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/cartao.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test cartao.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "01fa2eed4a78f63d6387db41cbcd8f9d8b8d1e8e38dc52cc6e0f06a9cf91ac7f",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            2,
+            2,
+            2
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 40,
+          "wall_ms": [
+            292,
+            136,
+            130
+          ]
+        },
+        "first_failure_line": "✖ composicao · o que chega ao Slack e o CARTAO, nao a linha de fallback (69.4693ms)"
+      }
+    },
+    {
+      "n": 15,
+      "task_id": "t15-03039e0b33",
+      "commit": "03039e0b33f56ad26b8c64ae7b5acfaa9edd372c",
+      "parent": "ee209921ed7adf6e8dd261cd1ee23f677ee1e8e6",
+      "date": "2026-08-17",
+      "area": "tools/cockpit",
+      "subject": "fix(runner): reequilibrar o prompt de diff — o silencio tinha virado o novo ruido",
+      "test_file": "tools/cockpit/runner/runner-core.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+      "files_changed": [
+        "tools/cockpit/runner/context-pack.mjs",
+        "tools/cockpit/runner/runner-core.test.mjs",
+        "tools/ops/moo/CANARIO-DIFF.command"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/runner-core.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "955c71710f1f0d8043e6b258199aedbca886cb1aa9c15d8c11f442cd22765fe8",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 38,
+          "wall_ms": [
+            209,
+            197,
+            192
+          ]
+        },
+        "first_failure_line": "✖ o prompt de diff manda caçar defeitos reais e proibe nitpick, sem induzir silencio (0.4219ms)"
+      }
+    },
+    {
+      "n": 16,
+      "task_id": "t16-057bfc121a",
+      "commit": "057bfc121ad24b0b9984ef1d2aea188a84b9ac6c",
+      "parent": "01cebb940905e72eaa9e5486c1ef9b1be527682a",
+      "date": "2026-08-17",
+      "area": "packages/slack-spike",
+      "subject": "slack-spike: o cartao da decisao dizia n/d com o numero no ledger",
+      "test_file": "packages/slack-spike/ensaio.test.js",
+      "acceptance_cwd": "packages/slack-spike",
+      "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test ensaio.test.js",
+      "files_changed": [
+        "packages/slack-spike/adapter.js",
+        "packages/slack-spike/cartao.js",
+        "packages/slack-spike/ensaio.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/ensaio.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test ensaio.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "7b39b7e892a47827c530351d328fadcb8195bf1f7954fca403f0f20ff4d6b2ce",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 22,
+          "wall_ms": [
+            315,
+            215,
+            205
+          ]
+        },
+        "first_failure_line": "✖ decisao · o cartao publicado leva custo, modelo e impressao — nao n/d (6.1884ms)"
+      }
+    },
+    {
+      "n": 17,
+      "task_id": "t17-4b8090599c",
+      "commit": "4b8090599ca3d7aa36acf1c0b2e79eb45dfc0fa0",
+      "parent": "4db43d9796bb00d37d5aa3fe41073fdf7effaf16",
+      "date": "2026-08-17",
+      "area": "packages/slack-spike",
+      "subject": "slack-spike: um pendente NOSSO desaparecia do Slack quando o motor esquecia quem pediu",
+      "test_file": "packages/slack-spike/ensaio.test.js",
+      "acceptance_cwd": "packages/slack-spike",
+      "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test ensaio.test.js",
+      "files_changed": [
+        "packages/slack-spike/adapter.js",
+        "packages/slack-spike/correr.js",
+        "packages/slack-spike/ensaio.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/ensaio.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test ensaio.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "7b39b7e892a47827c530351d328fadcb8195bf1f7954fca403f0f20ff4d6b2ce",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            3,
+            3,
+            3
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 34,
+          "wall_ms": [
+            280,
+            222,
+            220
+          ]
+        },
+        "first_failure_line": "✖ pertenca · um job re-carimbado SEM actor continua a ser nosso (2.387ms)"
+      }
+    },
+    {
+      "n": 18,
+      "task_id": "t18-5d72b4c9e3",
+      "commit": "5d72b4c9e3ee9d4b7c5041ba981d812bbf4350d1",
+      "parent": "cb2bf46c523bc8416e23cce0d50ff8be91cd2fab",
+      "date": "2026-08-17",
+      "area": "packages/slack-spike",
+      "subject": "slack-spike: o 1o despacho real bateu na guarda do worktree — e a razao morria no adapter",
+      "test_file": "packages/slack-spike/despacho.test.js",
+      "acceptance_cwd": "packages/slack-spike",
+      "acceptance_cmd": "cd <repo>/packages/slack-spike && node --test despacho.test.js",
+      "files_changed": [
+        "packages/slack-spike/adapter.js",
+        "packages/slack-spike/correr.js",
+        "packages/slack-spike/despacho.js",
+        "packages/slack-spike/despacho.test.js"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `packages/slack-spike/despacho.test.js` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd ./packages/slack-spike && node --test despacho.test.js\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "a3b16b0c4d5a28a2186db48b5c2a86f374faae3e8516558449ef5e42129b4704",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 19,
+          "wall_ms": [
+            141,
+            123,
+            132
+          ]
+        },
+        "first_failure_line": "✖ worktree · vai por configuracao para o motor (1.8376ms)"
+      }
+    },
+    {
+      "n": 19,
+      "task_id": "t19-99f47261be",
+      "commit": "99f47261be117a071cd73a7a55e153eb4d77a771",
+      "parent": "1cb7db8e917108737146bd5b24d978a57596b9cc",
+      "date": "2026-08-17",
+      "area": "tools/cockpit",
+      "subject": "fix(runner): o gerador exige defeito REAL e recompensa SEM ACHADO",
+      "test_file": "tools/cockpit/runner/runner-core.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+      "files_changed": [
+        "tools/cockpit/runner/context-pack.mjs",
+        "tools/cockpit/runner/runner-core.test.mjs"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/runner-core.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "955c71710f1f0d8043e6b258199aedbca886cb1aa9c15d8c11f442cd22765fe8",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 30,
+          "wall_ms": [
+            170,
+            164,
+            165
+          ]
+        },
+        "first_failure_line": "✖ o contrato de saida exige ACHADO + PROVA e um defeito REAL, nao um nitpick (3.6989ms)"
+      }
+    },
+    {
+      "n": 20,
+      "task_id": "t20-e96defd8e0",
+      "commit": "e96defd8e07b66338556b8f44bdd4467c00fcf1d",
+      "parent": "c629f54377342eac47b8a5ae19e7add62bddbccd",
+      "date": "2026-08-17",
+      "area": "tools/cockpit",
+      "subject": "feat(runner): modo ANCORADO — o eslint deteta, o moo julga (fecha o F-A)",
+      "test_file": "tools/cockpit/runner/runner-core.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test tools/cockpit/runner/runner-core.test.mjs",
+      "files_changed": [
+        "tools/cockpit/runner/context-pack.mjs",
+        "tools/cockpit/runner/moo-runner.mjs",
+        "tools/cockpit/runner/runner-core.mjs",
+        "tools/cockpit/runner/runner-core.test.mjs"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/cockpit/runner/runner-core.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/cockpit/runner/runner-core.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "955c71710f1f0d8043e6b258199aedbca886cb1aa9c15d8c11f442cd22765fe8",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 34,
+          "wall_ms": [
+            170,
+            168,
+            171
+          ]
+        },
+        "first_failure_line": "SyntaxError: The requested module './context-pack.mjs' does not provide an export named 'ANCHORED_SYSTEM_PROMPT'"
+      }
+    },
+    {
+      "n": 21,
+      "task_id": "t21-96171ef138",
+      "commit": "96171ef1385fa47b8a604c0375c876761aa5f031",
+      "parent": "224f6ce3478a5e309745d4e7396d5409759c7632",
+      "date": "2026-08-27",
+      "area": "design/tools",
+      "subject": "fix(portao): \"One bill is 47% smaller\" estava na home e o portao deixava passar",
+      "test_file": "design/tools/moo-design-check.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+      "files_changed": [
+        "design/tokens/moo-tokens.json",
+        "design/tokens/moo-tokens.ts",
+        "design/tools/moo-design-check.mjs",
+        "design/tools/moo-design-check.test.mjs"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `design/tools/moo-design-check.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test design/tools/moo-design-check.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "d1592f4a738e57d91daa9150e9431c8c5a48cbdc705232d37ecdc835fd87a857",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            3,
+            3,
+            3
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 26,
+          "wall_ms": [
+            3119,
+            3067,
+            3169
+          ]
+        },
+        "first_failure_line": "✖ numero-honesto MORDE \"% smaller\" — a palavra faltava no vocabulario (119.8369ms)"
+      }
+    },
+    {
+      "n": 22,
+      "task_id": "t22-11f81c79b7",
+      "commit": "11f81c79b7356b7798b386541fffffb611dbdca0",
+      "parent": "8c39d3b7cc29ab16ec74fe214788171102cb4105",
+      "date": "2026-08-29",
+      "area": "design/tools",
+      "subject": "a11y(fleet-ui): quatro animações infinitas corriam para quem pediu que não corressem (#442)",
+      "test_file": "design/tools/moo-design-check.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+      "files_changed": [
+        "CLAUDE.md",
+        "design/tools/moo-design-check.mjs",
+        "design/tools/moo-design-check.test.mjs",
+        "packages/mooter-bridge/fleet-ui.html"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `design/tools/moo-design-check.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test design/tools/moo-design-check.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "d1592f4a738e57d91daa9150e9431c8c5a48cbdc705232d37ecdc835fd87a857",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 55,
+          "wall_ms": [
+            9381,
+            9493,
+            9510
+          ]
+        },
+        "first_failure_line": "✖ MORDIDA · guarda que NOMEIA selectores e deixa um de fora é incompleta (188.7835ms)"
+      }
+    },
+    {
+      "n": 23,
+      "task_id": "t23-1b929f35f1",
+      "commit": "1b929f35f1eae5745549cf305ddbfacbedade281",
+      "parent": "0c8f3e484bc26933a2b130a6516de0624680a20f",
+      "date": "2026-08-29",
+      "area": "design/tools",
+      "subject": "feat(auditor): o canvas declara o tema, e o auditor mede os dois — provando que os mediu (#447)",
+      "test_file": "design/tools/moo-visual-audit.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test design/tools/moo-visual-audit.test.mjs",
+      "files_changed": [
+        "design/canvas.json",
+        "design/tools/moo-visual-audit.mjs",
+        "design/tools/moo-visual-audit.test.mjs",
+        "plugin/mooter/skills/cockpit/cockpit.html",
+        "tools/cockpit/moo-pilot-shell.html"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `design/tools/moo-visual-audit.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test design/tools/moo-visual-audit.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "e548c554c0a7ec8e2f390e29358eb40e12c81e29fa95a18d956ea38f6eb5fb91",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            1,
+            1,
+            1
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 19,
+          "wall_ms": [
+            246,
+            247,
+            245
+          ]
+        },
+        "first_failure_line": "✖ vocabulário fechado — e a recusa acontece ANTES do browser (54.2694ms)"
+      }
+    },
+    {
+      "n": 24,
+      "task_id": "t24-318a3f63d7",
+      "commit": "318a3f63d7aead39fc479c89cff2812216fc7fe1",
+      "parent": "fff9edb0ac55e32aa03a9d45f2ec20ac12cf0e28",
+      "date": "2026-08-29",
+      "area": "design/tools",
+      "subject": "feat(portão): `landing/public` entra no âmbito — e lá estavam 3 claims públicos (#437)",
+      "test_file": "design/tools/moo-design-check.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test design/tools/moo-design-check.test.mjs",
+      "files_changed": [
+        "design/tokens/moo-tokens.json",
+        "design/tokens/moo-tokens.ts",
+        "design/tools/moo-design-check.mjs",
+        "design/tools/moo-design-check.test.mjs",
+        "landing/public/brand-guide.html"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `design/tools/moo-design-check.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test design/tools/moo-design-check.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "d1592f4a738e57d91daa9150e9431c8c5a48cbdc705232d37ecdc835fd87a857",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            2,
+            2,
+            2
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 44,
+          "wall_ms": [
+            6033,
+            6142,
+            6151
+          ]
+        },
+        "first_failure_line": "✖ MORDIDA · uma cifra poupada em `landing/public` é um claim PÚBLICO (141.8827ms)"
+      }
+    },
+    {
+      "n": 25,
+      "task_id": "t25-125b9a27b7",
+      "commit": "125b9a27b7e873905b001bad98299ff037db05a7",
+      "parent": "18e8c128ac137b83fa1066c1029dc9716feb02cc",
+      "date": "2026-09-01",
+      "area": "tools/ab",
+      "subject": "fix(ab): a «fraqueza historical 68%» não existia — era erro meu de método (#476)",
+      "test_file": "tools/ab/mooter-vs-sem.test.mjs",
+      "acceptance_cwd": ".",
+      "acceptance_cmd": "cd <repo> && node --test tools/ab/mooter-vs-sem.test.mjs",
+      "files_changed": [
+        "_handoff/ab-2026-09-01/banco-de-ensaio.html",
+        "_handoff/ab-2026-09-01/holdout-ground-truth.json",
+        "tools/ab/mooter-vs-sem.mjs",
+        "tools/ab/mooter-vs-sem.test.mjs",
+        "tools/ab/morde.mjs"
+      ],
+      "prompt": "No repositório em que estás, o ficheiro de teste `tools/ab/mooter-vs-sem.test.mjs` está a falhar.\n\nCorre-o e faz com que passe:\n\n    cd . && node --test tools/ab/mooter-vs-sem.test.mjs\n\nRegras:\n  - Não alteres o ficheiro de teste. Ele é o critério de aceitação e está congelado.\n  - Não enfraqueças, saltes nem marques como pendente nenhuma asserção.\n  - Não toques em `tools/router/classify.js` nem em `tools/router/patterns.js`.\n  - Quando o comando acima sair com 0, terminaste.\n",
+      "prompt_sha256": "1ee312c36e71bd7a6007ba3e03b291289da1906cb03680e72f7854fe18397693",
+      "prompt_origem": "gerado_mecanicamente_do_teste_que_falha",
+      "proof": {
+        "fails_at_parent": {
+          "runs": 3,
+          "exit_codes": [
+            1,
+            1,
+            1
+          ],
+          "failing_tests": [
+            4,
+            4,
+            4
+          ]
+        },
+        "passes_at_child": {
+          "runs": 3,
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "tests_total": 26,
+          "wall_ms": [
+            311,
+            260,
+            246
+          ]
+        },
+        "first_failure_line": "✖ holdout(): carrega o `trust` que o próprio dataset declara (2.6747ms)"
+      }
+    }
+  ]
+}

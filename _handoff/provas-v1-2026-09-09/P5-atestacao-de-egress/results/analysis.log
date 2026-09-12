@@ -1,0 +1,264 @@
+-> results\analysis.json
+{
+ "at": "2026-09-09T14:37:42.751Z",
+ "A": {
+  "prompts": 20,
+  "tap": {
+   "processes": 75,
+   "connections": 35,
+   "external_hosts": [],
+   "by_host": {
+    "127.0.0.1:7821": {
+     "n": 20,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    },
+    "127.0.0.1:11434": {
+     "n": 15,
+     "bytes_out": 0,
+     "bytes_in": 0,
+     "blocked": 0
+    }
+   },
+   "bytes": "n/d — so ha registos de fase open (o filho ollama_call_node.js e morto pelo tecto de 1 s do hook antes do close; o exit do hook nao chegou a registar); o destino e conhecido no open, os bytes nao (P5-02)"
+  },
+  "proxy_counter_note": "o hook e Node e o Node nao honra HTTPS_PROXY por omissao: 0 CONNECT e esperado e nao prova nada (P5-01)",
+  "proxy_by_host": {},
+  "hook_events": {},
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0",
+  "arbiter_honored": 0
+ },
+ "A_block": {
+  "external_blocked": 0,
+  "tiers_identical_to_A": true,
+  "tiers": "T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0 T0"
+ },
+ "B_arbiter": {
+  "prompts": 20,
+  "calls": 20,
+  "raw_prompt_in_body": 20,
+  "prompt_field_equals_prompt": 20,
+  "body_bytes_mean": 2162.4,
+  "destinations": [
+   "api.anthropic.com"
+  ],
+  "instrumented_not_network": true
+ },
+ "D_litellm_invert": {
+  "variant": "precos INVERTIDOS (cheap=alto, dear=0), mesmas portas/identidades",
+  "up": true,
+  "to_cheap_port": 20,
+  "to_dear_port": 0,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200",
+  "reading": "com os precos invertidos foi 20/20 para a OUTRA porta — a que passou a ter o preco ALTO. Nas duas configuracoes o LiteLLM escolheu o deployment de preco mais alto: a seleccao segue o preco, ao contrario do esperado, ou trata 0 como sem preco (ver D_litellm_tiny)"
+ },
+ "D_litellm_tiny": {
+  "variant": "barato a 1e-9/3e-9 (nao zero), caro a 1e-5/3e-5",
+  "up": true,
+  "to_cheap_port": 20,
+  "to_dear_port": 0,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200",
+  "reading": "com o barato a 1e-9 (nao zero) foi 20/20 ao barato. Nas duas configuracoes com um deployment a preco 0, esse deployment foi escolhido 0/40 vezes. HIPOTESE (nao confirmada no codigo do LiteLLM): 0 e tratado como preco ausente. Nao se extrapola para Ollama real sem o medir"
+ },
+ "D_litellm": {
+  "up": true,
+  "to_cheap": 0,
+  "to_dear": 20,
+  "raw_prompt_forwarded": 20,
+  "body_bytes_cheap_mean": null,
+  "statuses": "200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200"
+ },
+ "E_native": {
+  "version": 3,
+  "prompts": 20,
+  "method": "counting-proxy em loopback (HTTPS_PROXY/HTTP_PROXY), spawn assincrono, um proxy por prompt; conta CONNECT host:porta e bytes do tunel por sentido, sem desencriptar — AMENDMENT-2",
+  "note": "bytes do tunel TLS: handshake + cabecalhos + corpo + respostas + retries; NAO sao bytes de prompt. Hosts alem da API (mcp-proxy, registry.npmjs.org, datadoghq) sao do proprio cliente, nao do prompt.",
+  "probe": "e-probe.mjs v2 (results/e-probe-v2.log): com proxy 41-43 CONNECT a 4 hosts; sem variaveis de proxy 0 — controlo positivo e negativo na mesma corrida",
+  "exits": "0 0 1 0 1 1 0 1 1 0 1 0 1 1 1 1 1 1 0 1",
+  "is_error_count": 13,
+  "hosts_per_prompt": {
+   "median": 4,
+   "min": 4,
+   "max": 4
+  },
+  "external_hosts": [
+   "api.anthropic.com:443",
+   "mcp-proxy.anthropic.com:443",
+   "registry.npmjs.org:443",
+   "http-intake.logs.us5.datadoghq.com:443"
+  ],
+  "connect_per_prompt": {
+   "median": 40.5,
+   "min": 37,
+   "max": 46
+  },
+  "bytes_out_per_prompt": {
+   "median": 1622528.5,
+   "min": 1597315,
+   "max": 1641889
+  },
+  "bytes_in_per_prompt": {
+   "median": 1424539.5,
+   "min": 1398895,
+   "max": 1447128
+  },
+  "bytes_out_api_anthropic": {
+   "median": 1386817,
+   "min": 1363977,
+   "max": 1402892
+  },
+  "connect_api_anthropic": {
+   "median": 14,
+   "min": 14,
+   "max": 14
+  },
+  "bytes_out_datadog": {
+   "median": 187066,
+   "min": 168794,
+   "max": 192440
+  },
+  "prompts_with_datadog": 20,
+  "connect_mcp_proxy": {
+   "median": 22,
+   "min": 19,
+   "max": 28
+  },
+  "bytes_out_registry_npmjs": {
+   "median": 4614,
+   "min": 4614,
+   "max": 4614
+  },
+  "prompt_chars": {
+   "median": 37,
+   "min": 26,
+   "max": 410
+  },
+  "ms": {
+   "median": 15057.5,
+   "min": 8789,
+   "max": 28257
+  },
+  "by_outcome": {
+   "exit0": {
+    "n": 7,
+    "bytes_out": {
+     "median": 1631030,
+     "min": 1601537,
+     "max": 1641889
+    },
+    "connect": {
+     "median": 41,
+     "min": 38,
+     "max": 46
+    },
+    "api_connect": {
+     "median": 14,
+     "min": 14,
+     "max": 14
+    }
+   },
+   "is_error": {
+    "n": 13,
+    "bytes_out": {
+     "median": 1620845,
+     "min": 1597315,
+     "max": 1635935
+    },
+    "connect": {
+     "median": 40,
+     "min": 37,
+     "max": 45
+    },
+    "api_connect": {
+     "median": 14,
+     "min": 14,
+     "max": 14
+    }
+   }
+  },
+  "median_convention": "mediana convencional: com n par, media dos dois valores centrais",
+  "usage_input_tokens": {
+   "median": 10,
+   "min": 10,
+   "max": 10
+  },
+  "per_prompt": [
+   "n01:exit0:conn41:out1632823:api1392540",
+   "n02:exit0:conn38:out1633557:api1395524",
+   "n03:exit1:conn41:out1620554:api1380543",
+   "n04:exit0:conn43:out1631030:api1390027",
+   "n05:exit1:conn40:out1624545:api1387295",
+   "n06:exit1:conn40:out1626291:api1388856",
+   "n07:exit0:conn46:out1610580:api1369762",
+   "n08:exit1:conn43:out1634119:api1391563",
+   "n09:exit1:conn37:out1597315:api1379912",
+   "n10:exit0:conn40:out1641889:api1402892",
+   "n11:exit1:conn37:out1635935:api1394886",
+   "n12:exit0:conn43:out1610756:api1371740",
+   "n13:exit1:conn41:out1624321:api1386339",
+   "n14:exit1:conn41:out1619474:api1381386",
+   "n15:exit1:conn39:out1618858:api1383668",
+   "n16:exit1:conn41:out1624212:api1387750",
+   "n17:exit1:conn39:out1613663:api1378422",
+   "n18:exit1:conn40:out1615393:api1387324",
+   "n19:exit0:conn40:out1601537:api1363977",
+   "n20:exit1:conn45:out1620845:api1382104"
+  ]
+ },
+ "C_ccr": {
+  "status": "n/d",
+  "blocker": "configuracao headless nao conseguida em 60 min: o gateway so responde com provider + API key criados pela UI/SQLite ou pelo RPC /api/ccr/rpc, que exige token web e cujo catalogo de metodos nao esta documentado — ver ccr.md",
+  "version": "3.0.22"
+ },
+ "pii": [
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions.log",
+   "exists": true,
+   "lines": 2799,
+   "bytes": 1269877,
+   "counts": {
+    "owner_name": 5,
+    "email": 0,
+    "home_path": 5
+   },
+   "prompt_preview_lines": 1390
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\decisions_v2.jsonl",
+   "exists": true,
+   "lines": 5313,
+   "bytes": 991254,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.claude\\tools\\router\\latencia-local.jsonl",
+   "exists": true,
+   "lines": 413,
+   "bytes": 39337,
+   "counts": {
+    "owner_name": 0,
+    "email": 0,
+    "home_path": 0
+   },
+   "prompt_preview_lines": 0
+  },
+  {
+   "file": "C:\\Users\\Paulo Loureiro\\.mooter\\ledger.jsonl",
+   "exists": true,
+   "lines": 727,
+   "bytes": 627384,
+   "counts": {
+    "owner_name": 747,
+    "email": 0,
+    "home_path": 747
+   },
+   "prompt_preview_lines": 0
+  }
+ ]
+}

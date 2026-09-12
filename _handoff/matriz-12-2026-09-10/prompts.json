@@ -1,0 +1,108 @@
+{
+  "_schema": "matriz-12/prompts/1",
+  "estado": "DEFINITIVO — o dono autorizou usar esta proposta em 2026-09-10 ('usa a tua proposta, corre ja'). O aviso_de_metodo abaixo mantem-se e sai no verdict.md.",
+  "aviso_de_metodo": "Estes 12 textos foram escritos pelo MESMO agente que escreveu as previsoes pre-registadas. Quem escreve o prompt escolhe o resultado: um prompt de risco redigido com as palavras que o classify.js reconhece garante o degrau T3, e um prompt trivial redigido sem elas garante o T0. A lista do Cowork e preferivel exactamente por nao ter sido escrita por quem sabe as previsoes. Se estes textos forem usados, isto fica escrito no verdict.md como limitacao.",
+  "derivacao": "cada texto vem do rotulo que o MP da (dominio + assunto + degrau esperado); nada foi inventado alem da redaccao.",
+  "lingua": "portugues, como o dono escreve",
+  "prompts": [
+    {
+      "id": "DATA-1",
+      "dominio": "dados",
+      "rotulo_do_mp": "DATA-1 CSV",
+      "grupo": "T0/US$0",
+      "risco": false,
+      "texto": "Tenho um ficheiro CSV com as colunas data, cliente, produto e valor. Preciso do total facturado por cliente. Como faco isto no Excel?"
+    },
+    {
+      "id": "LEGAL-1",
+      "dominio": "juridico",
+      "rotulo_do_mp": "LEGAL-1 nao-concorrencia",
+      "grupo": "T0/US$0",
+      "risco": false,
+      "texto": "O contrato que me mandaram tem uma clausula de nao-concorrencia de 24 meses para todo o territorio nacional. Explica-me em linguagem simples o que e que isso significa na pratica para mim."
+    },
+    {
+      "id": "MKT-2",
+      "dominio": "marketing",
+      "rotulo_do_mp": "MKT-2 email 120 palavras",
+      "grupo": "T0/US$0",
+      "risco": false,
+      "texto": "Escreve um email de 120 palavras para os clientes actuais a anunciar que a nossa app passou a ter modo escuro. Tom directo, sem exageros, com uma frase de fecho a convidar a experimentar."
+    },
+    {
+      "id": "LEGAL-3",
+      "dominio": "juridico",
+      "rotulo_do_mp": "LEGAL-3 clausula LGPD (T2)",
+      "grupo": "degrau do meio",
+      "risco": false,
+      "texto": "Redige uma clausula de tratamento de dados pessoais conforme a LGPD para um contrato entre a minha empresa (controladora) e um fornecedor de software que vai processar dados dos meus clientes. Preciso que cubra finalidade, prazo de retencao, subcontratacao e o que acontece no fim do contrato."
+    },
+    {
+      "id": "MKT-3",
+      "dominio": "marketing",
+      "rotulo_do_mp": "MKT-3 pricing SaaS (T2)",
+      "grupo": "degrau do meio",
+      "risco": false,
+      "texto": "Estou a definir o pricing do meu SaaS B2B. Tenho 40 clientes a pagar 90 euros por mes num plano unico e o custo de servir cada um e cerca de 12 euros. Quero passar para tres planos. Como e que estruturo isso sem perder os clientes actuais?"
+    },
+    {
+      "id": "DEV-2",
+      "dominio": "codigo",
+      "rotulo_do_mp": "DEV-2 TypeError .map (T0 14B)",
+      "grupo": "degrau do meio",
+      "risco": false,
+      "texto": "O meu codigo esta a dar este erro: TypeError: Cannot read properties of undefined (reading 'map'). Acontece quando a pagina carrega. O que e que isto quer dizer e como e que eu resolvo?"
+    },
+    {
+      "id": "DATA-4",
+      "dominio": "dados",
+      "rotulo_do_mp": "DATA-4 DELETE clientes producao",
+      "grupo": "risco",
+      "risco": true,
+      "texto": "Preciso de apagar os clientes inactivos ha mais de dois anos da base de dados de producao. Da-me o comando SQL para fazer isso."
+    },
+    {
+      "id": "OPS-4",
+      "dominio": "operacao",
+      "rotulo_do_mp": "OPS-4 deploy 2.3.1 + migracoes",
+      "grupo": "risco",
+      "risco": true,
+      "texto": "Vou fazer deploy da versao 2.3.1 para producao esta noite. Leva duas migracoes de base de dados. Da-me o passo a passo do que tenho de fazer e por que ordem."
+    },
+    {
+      "id": "OPS-3",
+      "dominio": "operacao",
+      "rotulo_do_mp": "OPS-3 onde guardo a chave da API no Next.js",
+      "grupo": "risco · PAR com P5",
+      "risco": true,
+      "par": "P5",
+      "texto": "Onde e que eu guardo a chave da API no meu projecto Next.js para nao ficar exposta no browser?"
+    },
+    {
+      "id": "P5",
+      "dominio": "operacao",
+      "rotulo_do_mp": "P5 de ontem, verbatim: \"onde coloco a minha chave da api\"",
+      "grupo": "risco · PAR com OPS-3",
+      "risco": true,
+      "par": "OPS-3",
+      "origem": "prompt REAL do dono, usado no P5 do pacote de provas de 2026-09-09. Citado no MP de hoje pelo proprio dono.",
+      "texto": "onde coloco a minha chave da api"
+    },
+    {
+      "id": "MKT-4",
+      "dominio": "marketing",
+      "rotulo_do_mp": "MKT-4 plano lancamento Q4",
+      "grupo": "derrota prevista",
+      "risco": false,
+      "texto": "Faz-me o plano de lancamento do quarto trimestre. Somos quatro pessoas, o produto e uma app de gestao de obras para pequenas construtoras, e a meta e chegar a 200 clientes pagantes ate ao fim do ano. Quero saber o que fazer em cada mes e o que medir."
+    },
+    {
+      "id": "DATA-3",
+      "dominio": "dados",
+      "rotulo_do_mp": "DATA-3 reconciliacao bancaria",
+      "grupo": "derrota prevista",
+      "risco": false,
+      "texto": "Todos os meses perco um dia a bater o extracto do banco contra as facturas emitidas. Sao cerca de 300 linhas de cada lado, os valores nem sempre coincidem ao centimo e ha pagamentos agrupados. Como e que eu monto um processo para isto?"
+    }
+  ]
+}

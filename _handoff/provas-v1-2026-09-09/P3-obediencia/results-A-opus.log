@@ -1,0 +1,10 @@
+n01 A exit 0 23s delegations 0  ollama 0 hook 
+-> results\A-opus.json
+n02 A exit 0 53s delegations 0  ollama 0 hook 
+-> results\A-opus.json
+n03 A exit 0 64s delegations 0  ollama 1 hook 
+-> results\A-opus.json
+n04 A exit 0 52s delegations 0  ollama 1 hook 
+-> results\A-opus.json
+n05 A exit 1 110s delegations 1 local-summarizer/- ollama 1 hook 
+-> results\A-opus.json

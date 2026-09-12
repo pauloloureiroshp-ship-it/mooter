@@ -10,6 +10,56 @@ Fatos duradouros sobre o projeto. Decisões arquiteturais estáveis, constraints
 
 ---
 
+## 2026-09-01 — a-alegacao-que-o-produto-pode-fazer
+
+**Decisão:** o Mooter afirma publicamente que **bate não-ter-router**, e só isso.
+Contra outro router não afirma precisão superior — afirma custo, latência e
+privacidade, que são contagens e propriedades de construção, não estimativas.
+
+**Por quê:** medido a 2026-09-01 sobre 35 rótulos `ground_truth`, McNemar exacto
+emparelhado. O número tem de ser lido nos **dois extremos**, porque o
+`patterns.js` foi afinado contra estes rótulos depois de eles existirem:
+
+| `patterns.js` | Mooter | vs sem router | vs router-por-LLM |
+|---|---|---|---|
+| **anterior aos rótulos** (`b13262a1`) | **82,9%** | 18 a 3 · **p = 0,0015** | 5 a 5 · p = 1,000 |
+| de hoje — score de **treino** | 91,4% | 19 a 1 · p < 0,0001 | 5 a 2 · p = 0,45 |
+
+**A alegação sobrevive nos dois extremos.** Mesmo no pessimista — os padrões como
+estavam antes de alguém olhar para estes rótulos — bate não-ter-router com
+p = 0,0015. Contra o router-por-LLM é **empate literal**: 29/35 contra 29/35.
+
+**O 91,4% é um score de treino e diz-se como tal.** Cinco commits afinaram padrões
+contra o `validation-set` depois de os rótulos nascerem, e as mensagens deles
+dizem-no: «three classifier safety fixes **found by validation-set**»,
+«Adversarial accuracy: 80% → 92%», «gaps **caught by adversarial probe**».
+
+Contra o router-por-LLM o que se afirma é: **0 tokens contra 23 182**, **1,85 ms
+contra 74,5 ms**, e **0 bytes para a rede**. Nenhum precisa de teste estatístico.
+
+**Implicações imutáveis:**
+
+- Publicar uma diferença de percentagens sem teste emparelhado é publicar ruído.
+  O harness passa a recusá-lo: `mcnemar()` sai no relatório e no CLI.
+- Rótulo escrito pelo próprio classificador (`trust: assumed_correct`) mede
+  **deriva**, nunca precisão. As duas nunca mais entram na mesma média.
+- Um braço sem uma única resposta vale `n/d`, nunca 0% — senão o ensaio fabrica
+  a vitória para quem não tem a dependência instalada.
+- O comando publicado como reprodução tem de imprimir **o número publicado**.
+- **Congelar um ficheiro que delega o que interessa a outro não congelado é um
+  invariante que só existe no papel.** O `classify.js` tinha sha; o `patterns.js`,
+  que ele importa e onde vivem todas as regex de tier, não tinha. Com o
+  `classify.js` byte-a-byte congelado e só o `patterns.js` a variar, a precisão
+  anda entre **74,3% e 94,3%** nos mesmos 35 rótulos — 20 pontos de comportamento
+  sem o sha mexer um bit. Corrigido: `patterns.js.sha256` + passo próprio no CI.
+- **Um contrafactual que não vai suficientemente atrás refuta o que está certo.**
+  Testei o `patterns.js` revertido a `~1` de quatro commits e declarei a acusação
+  refutada; o mais antigo desses pontos já continha o commit onde estava o salto.
+  Antes de refutar uma acusação de contaminação, a janela tem de começar **antes
+  de os rótulos existirem**, não num ponto qualquer do histórico.
+
+**Reproduz:** `node tools/ab/mooter-vs-sem.mjs --holdout --corridas 6`
+
 ## 2026-04-21 — tese-perene
 
 **Decisão:** Mooter é o protocolo aberto de observabilidade e roteamento para agentes de AI.

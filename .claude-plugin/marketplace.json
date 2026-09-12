@@ -1,6 +1,6 @@
 {
   "name": "mooter",
-  "description": "Official marketplace for mooter — the router for Claude Code (local-first model routing, measured savings, MIT)",
+  "description": "Official marketplace for mooter — the router for Claude Code (local-first model routing, auditable receipt, MIT)",
   "owner": {
     "name": "Paulo Loureiro",
     "email": "paulo@mooter.ai"

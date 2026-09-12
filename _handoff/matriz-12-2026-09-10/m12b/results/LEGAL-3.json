@@ -1,0 +1,36 @@
+{
+ "id": "LEGAL-3",
+ "iniciado": "2026-09-11T22:46:37.496Z",
+ "braco": "B_m12b",
+ "ok": true,
+ "rota": {
+  "tier": "T0",
+  "task_category": "ambiguous_medium",
+  "risk_level": "low",
+  "confidence": 0.6,
+  "recommended_backend": "ollama",
+  "recommended_model_do_classify": "qwen2.5-coder:14b",
+  "suggested_subagent": "local-summarizer",
+  "classify_ms": 91.3,
+  "hw_t0_injectado": "qwen2.5-coder:14b",
+  "porque": "ambiguous_medium / risco low / confianca 0.6"
+ },
+ "backend": "ollama",
+ "modelo": "qwen2.5-coder:14b",
+ "texto": "**Clausula de Tratamento de Dados Pessoais**\n\n**Artigo 1: Finalidade do Tratamento**\n\nO Fornecedor de Software concorda em processar os Dados Pessoais dos Clientes exclusivamente para as finalidades específicas e legítimas estabelecidas no presente contrato, incluindo mas não se limitando a fornecer, manter, atualizar e eliminar os Dados Pessoais conforme solicitado pela Controladora.\n\n**Artigo 2: Prazo de Retenção**\n\nO Fornecedor de Software manterá os Dados Pessoais dos Clientes por um período não superior a [prazo específico], a contar da data da última vez que a Controladora solicitou o processamento desses dados. Após o término deste prazo, o Fornecedor de Software eliminará os Dados Pessoais dos Clientes, exceto quando necessário para cumprir obrigações legais ou regulamentares.\n\n**Artigo 3: Subcontratação**\n\nO Fornecedor de Software não subcontratará o processamento dos Dados Pessoais dos Clientes sem o consentimento prévio e por escrito da Controladora. Qualquer subcontratante adicional deverá estar sujeito aos mesmos termos e condições de tratamento de dados previstos neste contrato e deverá ser obrigado a cumprir as obrigações de segurança e confidencialidade estabelecidas pela LGPD.\n\n**Artigo 4: Fim do Contrato**\n\nNo caso de rescisão, término ou expiração deste contrato, o Fornecedor de Software compromete-se a retornar ou eliminar todos os Dados Pessoais dos Clientes sob sua posse ou controle, a menos que a LGPD ou outras leis aplicáveis exijam o armazenamento dos dados por um período mais longo. O Fornecedor de Software também compromete-se a informar a Controladora sobre a eliminação ou devolução dos Dados Pessoais.\n\n**Artigo 5: Responsabilidade**\n\nO Fornecedor de Software será responsável por qualquer violação da LGPD decorrente do processamento dos Dados Pessoais dos Clientes, incluindo mas não se limitando a incidentes de segurança que resultem na exposição, alteração, destruição ou acesso não autorizado aos Dados Pessoais.\n\n**Artigo 6: Disposições Gerais**\n\nEsta cláusula de tratamento de dados pessoais substitui quaisquer acordos anteriores entre as partes relacionados ao processamento de Dados Pessoais dos Clientes e constitui a totalidade do acordo entre as partes sobre o assunto. Qualquer modificação ou adição a esta cláusula deve ser feita por escrito e assinada por ambas as partes.\n\n**Assinaturas:**\n\n_________________________  \n[Nome da Controladora]  \n[Data]\n\n_________________________  \n[Nome do Fornecedor de Software]  \n[Data]",
+ "tokens_in": 176,
+ "tokens_out": 637,
+ "cache_creation": 0,
+ "cache_read": 0,
+ "decorrido_ms": 10489.5036,
+ "duration_api_ms": 10380,
+ "tecto_tokens": 2048,
+ "truncou": false,
+ "preco": {
+  "input": 0,
+  "output": 0
+ },
+ "custo_resposta_usd": 0,
+ "custo_faturado_usd": 0,
+ "nota": "modelo instalado no Ollama desta maquina: $0 de fornecedor (a GPU e do dono, e gasta energia)"
+}

@@ -1,0 +1,156 @@
+{
+ "id": "MKT-4",
+ "chave": {
+  "R1": "C",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "A",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta ações e métricas mensais, mas não sustenta o volume de aquisição e propõe três meses grátis incompatíveis com contar esses clientes como pagantes em dezembro.",
+     "total": 7,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Expõe raciocínio repetitivo com contas contraditórias, confunde participantes beta com pagantes e termina sem apresentar o plano de dezembro.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Define pressupostos, responsabilidades, ações mensais e métricas úteis, distingue crescimento líquido e testa a capacidade comercial, embora concentre demasiado esforço em dezembro.",
+     "total": 10,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Oferece ações concretas, mas acumula afirmações sem suporte e contradições entre a margem de 220 clientes, as metas brutas de 200 e os limiares de intervenção superiores à trajetória planeada.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Lista tarefas e métricas por mês, mas não distribui responsabilidades pelas quatro pessoas nem traduz os 200 pagantes em metas intermédias e esforço comercial.",
+     "total": 7,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta ações e métricas mensais, mas não sustenta o volume de aquisição e propõe três meses grátis incompatíveis com contar esses clientes como pagantes em dezembro.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Expõe raciocínio repetitivo com contas contraditórias, confunde participantes beta com pagantes e termina sem apresentar o plano de dezembro.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Define pressupostos, responsabilidades, ações mensais e métricas úteis, distingue crescimento líquido e testa a capacidade comercial, embora concentre demasiado esforço em dezembro.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Oferece ações concretas, mas acumula afirmações sem suporte e contradições entre a margem de 220 clientes, as metas brutas de 200 e os limiares de intervenção superiores à trajetória planeada.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Lista tarefas e métricas por mês, mas não distribui responsabilidades pelas quatro pessoas nem traduz os 200 pagantes em metas intermédias e esforço comercial.\"}}",
+   "custo_tokens": {
+    "in": 33997,
+    "out": 442,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "plano generico com metricas soltas e sem justificar os numeros 50/120/200",
+     "total": 4,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "expoe raciocinio interno em ingles e termina a meio da frase em dezembro, inutilizavel",
+     "total": 0,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "plano claro com premissas explicitas, funil, metricas e teste de capacidade, sem encher",
+     "total": 9,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "muito completo e realista com contas de capacidade, pontos de decisao e riscos, mas extenso para o pedido",
+     "total": 9,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "generico tipo template, sem numeros nem logica de como chegar a 200 clientes",
+     "total": 3,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"plano generico com metricas soltas e sem justificar os numeros 50/120/200\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"expoe raciocinio interno em ingles e termina a meio da frase em dezembro, inutilizavel\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"plano claro com premissas explicitas, funil, metricas e teste de capacidade, sem encher\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"muito completo e realista com contas de capacidade, pontos de decisao e riscos, mas extenso para o pedido\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"generico tipo template, sem numeros nem logica de como chegar a 200 clientes\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 484,
+    "cache_write": 17187,
+    "cache_read": 3298
+   }
+  }
+ }
+}

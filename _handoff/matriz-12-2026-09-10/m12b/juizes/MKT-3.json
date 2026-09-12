@@ -1,0 +1,156 @@
+{
+ "id": "MKT-3",
+ "chave": {
+  "R1": "B",
+  "R2": "D",
+  "R3": "B2",
+  "R4": "C",
+  "R5": "A"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Propõe três planos plausíveis, mas deixa vagas a diferenciação e a proteção das condições dos clientes atuais.",
+     "total": 6,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Apresenta contas corretas, preços como hipóteses e uma transição concreta com proteção dos atuais, validação e monitorização.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 0,
+     "porque": "Preserva o plano atual, mas não define diferenciação, confunde contribuição com lucro e inclui extensa deliberação repetitiva.",
+     "total": 4,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 1,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Sugere preservar condições, mas promete ausência de churn, inventa custos e apresenta preços inconsistentes e uma conclusão financeira sem suporte.",
+     "total": 4,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Oferece uma transição detalhada, mas confunde custo com valor, subestima custos de serviço e prescreve alterações de preço com regras sem fundamento.",
+     "total": 5,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Propõe três planos plausíveis, mas deixa vagas a diferenciação e a proteção das condições dos clientes atuais.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Apresenta contas corretas, preços como hipóteses e uma transição concreta com proteção dos atuais, validação e monitorização.\"},\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":0,\"porque\":\"Preserva o plano atual, mas não define diferenciação, confunde contribuição com lucro e inclui extensa deliberação repetitiva.\"},\"R4\":{\"RESOLVE\":1,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Sugere preservar condições, mas promete ausência de churn, inventa custos e apresenta preços inconsistentes e uma conclusão financeira sem suporte.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Oferece uma transição detalhada, mas confunde custo com valor, subestima custos de serviço e prescreve alterações de preço com regras sem fundamento.\"}}",
+   "custo_tokens": {
+    "in": 30896,
+    "out": 427,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "Estrutura generica sem usar os numeros do cliente nem tratar a fio o risco de churn.",
+     "total": 4,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Usa os numeros reais, propoe grandfathering claro com prazo e comunicacao, mas e bastante extenso.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe todo o raciocinio interno (chain-of-thought) antes de uma resposta final minima e generica.",
+     "total": 3,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Resposta concisa e accionavel com grandfather clause, tabela de margens e quantificacao simples do risco de churn.",
+     "total": 9,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Analise rigorosa com quantificacao do risco de migrar clientes actuais e regras claras de grandfathering, mas muito extensa.",
+     "total": 9,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"Estrutura generica sem usar os numeros do cliente nem tratar a fio o risco de churn.\"},\n\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Usa os numeros reais, propoe grandfathering claro com prazo e comunicacao, mas e bastante extenso.\"},\n\"R3\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe todo o raciocinio interno (chain-of-thought) antes de uma resposta final minima e generica.\"},\n\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Resposta concisa e accionavel com grandfather clause, tabela de margens e quantificacao simples do risco de churn.\"},\n\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Analise rigorosa com quantificacao do risco de migrar clientes actuais e regras claras de grandfathering, mas muito extensa.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 2006,
+    "cache_write": 11986,
+    "cache_read": 3298
+   }
+  }
+ }
+}
