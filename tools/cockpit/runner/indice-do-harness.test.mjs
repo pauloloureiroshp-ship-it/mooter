@@ -468,7 +468,7 @@ test('C1 (c): contra o vitest REAL, quando esta instalado em landing/node_module
   // A mordida acima e contra a LEITURA do config. Esta corre o vitest de
   // verdade, se houver um — no worktree de auditoria nao ha, e diz-se. A
   // 2026-09-12 os seis casos bateram contra o Vitest 2.1.9 do checkout
-  // principal (`frugal/landing/node_modules`), com o mesmo procedimento.
+  // principal (`landing/node_modules` do repositorio), com o mesmo procedimento.
   const vitest = path.join(RAIZ_REPO, 'landing', 'node_modules', 'vitest', 'vitest.mjs');
   const config = path.join(RAIZ_REPO, 'landing', 'node_modules', 'vitest', 'dist', 'config.js');
   if (!fs.existsSync(vitest) || !fs.existsSync(config)) {
