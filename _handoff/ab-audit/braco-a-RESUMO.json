@@ -1,0 +1,485 @@
+{
+  "gerado_em": "2026-09-12T10:25:11.033Z",
+  "dir": "C:\\Users\\Paulo Loureiro\\frugal-ab-braco-a\\_handoff\\ab-audit",
+  "sujeitos": [
+    {
+      "id": "S1",
+      "nome": "mooter",
+      "recibo_da_corrida": {
+        "sujeito": "S1",
+        "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/mooter",
+        "head_da_raiz": "97ad846b40d7e1939e02d7b826e4388fe65d60e6",
+        "modo": "limpo",
+        "tracer": null,
+        "extra_do_modo": [],
+        "rc": 0,
+        "parede_s": 132.546,
+        "ficheiros_na_lista": 972,
+        "regras_correram": 89,
+        "semgrep": "1.174.0",
+        "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
+        "corrido_em": "2026-09-12T01:49:47Z",
+        "sha256_lista_ambito": "d1fe247d7cdf2dcd495c0d07f5049f015bfc5ad1fc9bc2e28bca1acb56f0d0a5",
+        "sha256_regras": {
+          "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
+          "p-typescript.yaml": "63fbcca1826e787ca43282bf139ccec16745ad6551c87850b9ccee9ca9f98c0b",
+          "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
+          "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
+        },
+        "sha256_json": "50735379e7b34596490bd9e4d89b8e8512eba1fe9ce63c6f63d05fe8558fefc3"
+      },
+      "volume_entregue_ao_humano": 22,
+      "achados_distintos_apos_colapso_exacto": 22,
+      "erros": 6,
+      "erros_por_nivel": {
+        "warn": 6
+      },
+      "erros_por_tipo": {
+        "PartialParsing": 6
+      },
+      "ficheiros_varridos": 972,
+      "ficheiros_saltados": "n/d — o semgrep so emite paths.skipped com --verbose, e esta corrida nao o usou",
+      "ficheiros_com_analise_degradada": 6,
+      "quais_degradados": [
+        "_handoff/piloto/baralhar.mjs",
+        "landing/app/(app)/dashboard/_matrix_panel.tsx",
+        "landing/app/api/admin/matrix/route.ts",
+        "packages/cli/src/fable-observe/store.ts",
+        "packages/vscode-extension/src/overclock-fill.mjs",
+        "tools/cockpit/runner/build-shell-snapshot.mjs"
+      ],
+      "ambito_integro": {
+        "medido": true,
+        "na_lista": 972,
+        "varridos": 972,
+        "igual": true,
+        "so_na_lista": 0,
+        "so_nos_varridos": 0,
+        "exemplos_so_na_lista": [],
+        "exemplos_so_nos_varridos": [],
+        "recibo_concorda": true
+      },
+      "n_classes": 4,
+      "top10_classes": [
+        {
+          "n": 18,
+          "check_id": "javascript.lang.security.detect-child-process.detect-child-process"
+        },
+        {
+          "n": 2,
+          "check_id": "javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration"
+        },
+        {
+          "n": 1,
+          "check_id": "javascript.express.security.cors-misconfiguration.cors-misconfiguration"
+        },
+        {
+          "n": 1,
+          "check_id": "problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification"
+        }
+      ],
+      "todas_as_classes": [
+        {
+          "n": 18,
+          "check_id": "javascript.lang.security.detect-child-process.detect-child-process"
+        },
+        {
+          "n": 2,
+          "check_id": "javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration"
+        },
+        {
+          "n": 1,
+          "check_id": "javascript.express.security.cors-misconfiguration.cors-misconfiguration"
+        },
+        {
+          "n": 1,
+          "check_id": "problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification"
+        }
+      ],
+      "consequencia_mecanica_do_par_3": {
+        "candidatos": 22,
+        "baldes": [
+          {
+            "classe": "javascript.lang.security.detect-child-process.detect-child-process",
+            "n": 18
+          },
+          {
+            "classe": "cauda",
+            "n": 4
+          }
+        ],
+        "calibracao_consome": 22,
+        "resta_para_avaliacao": 0,
+        "n_de_avaliacao": 0,
+        "inconclusivo_por_par_7_3": true,
+        "porque": "a calibracao do §3 consome todos os candidatos; o §3.1 nao deixa reutilizar os ja usados; n = 0 => §7.3 INCONCLUSIVO"
+      },
+      "controlo_sem_rede": {
+        "medido": true,
+        "brutos": 22,
+        "erros": 6,
+        "erros_por_tipo": {
+          "PartialParsing": 6
+        },
+        "ficheiros_varridos": 972,
+        "achados_identicos": true,
+        "so_no_limpo": 0,
+        "so_no_outro": 0
+      },
+      "corrida_sob_strace": {
+        "medido": true,
+        "brutos": 22,
+        "erros": 6,
+        "erros_por_tipo": {
+          "PartialParsing": 6
+        },
+        "ficheiros_varridos": 972,
+        "achados_identicos": true,
+        "so_no_limpo": 0,
+        "so_no_outro": 0
+      },
+      "criterio_5_rede": {
+        "medido": true,
+        "prova_de_execucao": {
+          "pid": 832,
+          "executavel": "/home/paulo/.local/bin/semgrep"
+        },
+        "total_connect": 0,
+        "af_unix": 0,
+        "loopback": 0,
+        "externos": [],
+        "saiu_da_maquina": false
+      },
+      "criterio_5_declaracao": "(a) sob strace, 0 connect() numa corrida com 22 achados — conjunto de achados identico ao da corrida limpa; (b) em netns sem interface, conjunto de achados identico ao da corrida limpa (22 vs 22) — a varredura nao precisou de rede",
+      "custo_em_dolares": {
+        "medido": false,
+        "por_construcao": "$0",
+        "porque": "$0 por construcao: nenhuma chamada a API paga foi feita (0 connect() sob strace numa corrida com o mesmo conjunto de achados; netns sem interface com o mesmo conjunto de achados) — nao e um recibo de custo"
+      }
+    },
+    {
+      "id": "S2",
+      "nome": "fastify",
+      "recibo_da_corrida": {
+        "sujeito": "S2",
+        "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/fastify",
+        "head_da_raiz": "1beaf7e72d24b2fc63a02a7f5806772a00e45454",
+        "modo": "limpo",
+        "tracer": null,
+        "extra_do_modo": [],
+        "rc": 0,
+        "parede_s": 10.844,
+        "ficheiros_na_lista": 54,
+        "regras_correram": 89,
+        "semgrep": "1.174.0",
+        "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
+        "corrido_em": "2026-09-12T10:22:20Z",
+        "sha256_lista_ambito": "8eeb34211fe8253e53863dd97d2899e4df4dde96c1fb8ecd6b1a851ea4998e28",
+        "sha256_regras": {
+          "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
+          "p-typescript.yaml": "63fbcca1826e787ca43282bf139ccec16745ad6551c87850b9ccee9ca9f98c0b",
+          "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
+          "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
+        },
+        "sha256_json": "0ebc5a1fec0087a1b55dba157c2508f1025a81bc4984fa3b9f387a483e619dd8"
+      },
+      "volume_entregue_ao_humano": 2,
+      "achados_distintos_apos_colapso_exacto": 2,
+      "erros": 0,
+      "erros_por_nivel": {},
+      "erros_por_tipo": {},
+      "ficheiros_varridos": 54,
+      "ficheiros_saltados": "n/d — o semgrep so emite paths.skipped com --verbose, e esta corrida nao o usou",
+      "ficheiros_com_analise_degradada": 0,
+      "quais_degradados": [],
+      "ambito_integro": {
+        "medido": true,
+        "na_lista": 54,
+        "varridos": 54,
+        "igual": true,
+        "so_na_lista": 0,
+        "so_nos_varridos": 0,
+        "exemplos_so_na_lista": [],
+        "exemplos_so_nos_varridos": [],
+        "recibo_concorda": true
+      },
+      "n_classes": 1,
+      "top10_classes": [
+        {
+          "n": 2,
+          "check_id": "javascript.express.security.audit.xss.direct-response-write.direct-response-write"
+        }
+      ],
+      "todas_as_classes": [
+        {
+          "n": 2,
+          "check_id": "javascript.express.security.audit.xss.direct-response-write.direct-response-write"
+        }
+      ],
+      "consequencia_mecanica_do_par_3": {
+        "candidatos": 2,
+        "baldes": [
+          {
+            "classe": "cauda",
+            "n": 2
+          }
+        ],
+        "calibracao_consome": 2,
+        "resta_para_avaliacao": 0,
+        "n_de_avaliacao": 0,
+        "inconclusivo_por_par_7_3": true,
+        "porque": "a calibracao do §3 consome todos os candidatos; o §3.1 nao deixa reutilizar os ja usados; n = 0 => §7.3 INCONCLUSIVO"
+      },
+      "controlo_sem_rede": {
+        "medido": true,
+        "brutos": 2,
+        "erros": 1,
+        "erros_por_tipo": {
+          "Timeout": 1
+        },
+        "ficheiros_varridos": 54,
+        "achados_identicos": true,
+        "so_no_limpo": 0,
+        "so_no_outro": 0
+      },
+      "corrida_sob_strace": {
+        "medido": true,
+        "brutos": 2,
+        "erros": 0,
+        "erros_por_tipo": {},
+        "ficheiros_varridos": 54,
+        "achados_identicos": true,
+        "so_no_limpo": 0,
+        "so_no_outro": 0
+      },
+      "criterio_5_rede": {
+        "medido": true,
+        "prova_de_execucao": {
+          "pid": 806,
+          "executavel": "/home/paulo/.local/bin/semgrep"
+        },
+        "total_connect": 0,
+        "af_unix": 0,
+        "loopback": 0,
+        "externos": [],
+        "saiu_da_maquina": false
+      },
+      "criterio_5_declaracao": "(a) sob strace, 0 connect() numa corrida com 2 achados — conjunto de achados identico ao da corrida limpa; (b) em netns sem interface, conjunto de achados identico ao da corrida limpa (2 vs 2) — a varredura nao precisou de rede",
+      "custo_em_dolares": {
+        "medido": false,
+        "por_construcao": "$0",
+        "porque": "$0 por construcao: nenhuma chamada a API paga foi feita (0 connect() sob strace numa corrida com o mesmo conjunto de achados; netns sem interface com o mesmo conjunto de achados) — nao e um recibo de custo"
+      }
+    },
+    {
+      "id": "S3",
+      "nome": "hono",
+      "recibo_da_corrida": {
+        "sujeito": "S3",
+        "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/hono",
+        "head_da_raiz": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+        "modo": "limpo",
+        "tracer": null,
+        "extra_do_modo": [],
+        "rc": 0,
+        "parede_s": 26.107,
+        "ficheiros_na_lista": 221,
+        "regras_correram": 89,
+        "semgrep": "1.174.0",
+        "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
+        "corrido_em": "2026-09-12T10:23:23Z",
+        "sha256_lista_ambito": "0149fc8663c8c6bc4275c941542270b2889c7f43207735e188ff2e20117435a0",
+        "sha256_regras": {
+          "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
+          "p-typescript.yaml": "63fbcca1826e787ca43282bf139ccec16745ad6551c87850b9ccee9ca9f98c0b",
+          "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
+          "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
+        },
+        "sha256_json": "26b8f39fe5a173a5a499de20eb94afb19aaa5fbf00f551161512890d5c226cb6"
+      },
+      "volume_entregue_ao_humano": 4,
+      "achados_distintos_apos_colapso_exacto": 4,
+      "erros": 8,
+      "erros_por_nivel": {
+        "warn": 8
+      },
+      "erros_por_tipo": {
+        "Syntax error": 2,
+        "PartialParsing": 6
+      },
+      "ficheiros_varridos": 221,
+      "ficheiros_saltados": "n/d — o semgrep so emite paths.skipped com --verbose, e esta corrida nao o usou",
+      "ficheiros_com_analise_degradada": 8,
+      "quais_degradados": [
+        "src/helper/factory/index.ts",
+        "src/types.ts",
+        "src/context.ts",
+        "src/helper/ssg/middleware.ts",
+        "src/jsx/dom/index.ts",
+        "src/jsx/hooks/index.ts",
+        "src/jsx/index.ts",
+        "src/utils/body.ts"
+      ],
+      "ambito_integro": {
+        "medido": true,
+        "na_lista": 221,
+        "varridos": 221,
+        "igual": true,
+        "so_na_lista": 0,
+        "so_nos_varridos": 0,
+        "exemplos_so_na_lista": [],
+        "exemplos_so_nos_varridos": [],
+        "recibo_concorda": true
+      },
+      "n_classes": 2,
+      "top10_classes": [
+        {
+          "n": 3,
+          "check_id": "typescript.react.security.react-insecure-request.react-insecure-request"
+        },
+        {
+          "n": 1,
+          "check_id": "javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag"
+        }
+      ],
+      "todas_as_classes": [
+        {
+          "n": 3,
+          "check_id": "typescript.react.security.react-insecure-request.react-insecure-request"
+        },
+        {
+          "n": 1,
+          "check_id": "javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag"
+        }
+      ],
+      "consequencia_mecanica_do_par_3": {
+        "candidatos": 4,
+        "baldes": [
+          {
+            "classe": "cauda",
+            "n": 4
+          }
+        ],
+        "calibracao_consome": 4,
+        "resta_para_avaliacao": 0,
+        "n_de_avaliacao": 0,
+        "inconclusivo_por_par_7_3": true,
+        "porque": "a calibracao do §3 consome todos os candidatos; o §3.1 nao deixa reutilizar os ja usados; n = 0 => §7.3 INCONCLUSIVO"
+      },
+      "controlo_sem_rede": {
+        "medido": true,
+        "brutos": 4,
+        "erros": 8,
+        "erros_por_tipo": {
+          "Syntax error": 2,
+          "PartialParsing": 6
+        },
+        "ficheiros_varridos": 221,
+        "achados_identicos": true,
+        "so_no_limpo": 0,
+        "so_no_outro": 0
+      },
+      "corrida_sob_strace": {
+        "medido": true,
+        "brutos": 4,
+        "erros": 8,
+        "erros_por_tipo": {
+          "Syntax error": 2,
+          "PartialParsing": 6
+        },
+        "ficheiros_varridos": 221,
+        "achados_identicos": true,
+        "so_no_limpo": 0,
+        "so_no_outro": 0
+      },
+      "criterio_5_rede": {
+        "medido": true,
+        "prova_de_execucao": {
+          "pid": 1406,
+          "executavel": "/home/paulo/.local/bin/semgrep"
+        },
+        "total_connect": 0,
+        "af_unix": 0,
+        "loopback": 0,
+        "externos": [],
+        "saiu_da_maquina": false
+      },
+      "criterio_5_declaracao": "(a) sob strace, 0 connect() numa corrida com 4 achados — conjunto de achados identico ao da corrida limpa; (b) em netns sem interface, conjunto de achados identico ao da corrida limpa (4 vs 4) — a varredura nao precisou de rede",
+      "custo_em_dolares": {
+        "medido": false,
+        "por_construcao": "$0",
+        "porque": "$0 por construcao: nenhuma chamada a API paga foi feita (0 connect() sob strace numa corrida com o mesmo conjunto de achados; netns sem interface com o mesmo conjunto de achados) — nao e um recibo de custo"
+      }
+    }
+  ],
+  "totais": {
+    "n_de_avaliacao_por_sujeito": {
+      "S1": 0,
+      "S2": 0,
+      "S3": 0
+    },
+    "custo_em_dolares": {
+      "medido": false,
+      "por_construcao": "$0",
+      "porque": "nos tres sujeitos: nenhuma chamada a API paga foi feita — ver custo_em_dolares de cada um; nao e um recibo de custo"
+    },
+    "volume_entregue_ao_humano": 28,
+    "erros": 14,
+    "ficheiros_varridos": 1247,
+    "classes_distintas_no_braco": 7,
+    "top10_classes_do_braco": [
+      {
+        "n": 18,
+        "check_id": "javascript.lang.security.detect-child-process.detect-child-process"
+      },
+      {
+        "n": 3,
+        "check_id": "typescript.react.security.react-insecure-request.react-insecure-request"
+      },
+      {
+        "n": 2,
+        "check_id": "javascript.browser.security.wildcard-postmessage-configuration.wildcard-postmessage-configuration"
+      },
+      {
+        "n": 2,
+        "check_id": "javascript.express.security.audit.xss.direct-response-write.direct-response-write"
+      },
+      {
+        "n": 1,
+        "check_id": "javascript.express.security.cors-misconfiguration.cors-misconfiguration"
+      },
+      {
+        "n": 1,
+        "check_id": "javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag"
+      },
+      {
+        "n": 1,
+        "check_id": "problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification"
+      }
+    ]
+  },
+  "corridas_invalidadas": [
+    {
+      "sujeito": "S1",
+      "head_da_raiz": "2d5fd762",
+      "ficheiros": [
+        "braco-a-S1.INVALIDO-2d5fd762.connect.trace",
+        "braco-a-S1.INVALIDO-2d5fd762.json",
+        "braco-a-S1.INVALIDO-2d5fd762.meta.json",
+        "braco-a-S1.INVALIDO-2d5fd762.semrede.json",
+        "braco-a-S1.INVALIDO-2d5fd762.semrede.meta.json",
+        "braco-a-S1.INVALIDO-2d5fd762.strace.json",
+        "braco-a-S1.INVALIDO-2d5fd762.strace.meta.json"
+      ],
+      "recibo_da_corrida_invalidada": {
+        "raiz": "/mnt/c/Users/Paulo Loureiro/frugal-ab-audit",
+        "corrido_em": "2026-08-26T19:40:11Z",
+        "ficheiros_na_lista": 974,
+        "sha256_lista_ambito": "4b8c0e5fa8e7f545eb8d880b05f7166f96d37e24bbdab7fae2a71f5e78920d20",
+        "sha256_json": "85337b0c8ff204bfe82b19b630170d79879675904dfd5db45f3fab6f90a97195"
+      },
+      "conta": false,
+      "porque": "lista gerada em 2d5fd762, fora do sha pre-registado 97ad846b — §10.2 do pre-registo: trocar o sha de um sujeito invalida a corrida. A varredura feita sobre esta lista nao conta; os seus artefactos ficam com o prefixo braco-a-S1.INVALIDO-2d5fd762."
+    }
+  ]
+}

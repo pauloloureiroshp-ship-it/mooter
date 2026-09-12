@@ -1,0 +1,78 @@
+{
+  "regra": "AB_MOO_AUDIT_PREREGISTO.md §2.2 (branch ab-audit/preregisto)",
+  "escrito_em": "2026-09-12T01:46:47Z",
+  "produtor": "tools/cockpit/runner/ambito-ab.mjs --manifesto",
+  "como_verificar": "node tools/cockpit/runner/ab-vendorizado.mjs   (bytes)\nnode tools/cockpit/runner/ambito-ab.mjs --verificar        (regenera das raizes e compara)",
+  "sujeitos": [
+    {
+      "id": "S1",
+      "nome": "mooter",
+      "ficheiro": "ambito-S1.txt",
+      "raiz": "C:/Users/Paulo Loureiro/ab-audit-subjects/mooter",
+      "sha_preregisto": "97ad846b40d7e1939e02d7b826e4388fe65d60e6",
+      "head_da_raiz_ao_versionar": "97ad846b40d7e1939e02d7b826e4388fe65d60e6",
+      "no_sha_preregistado": true,
+      "ficheiros_no_ambito": 972,
+      "bytes": 36534,
+      "sha256": "d1fe247d7cdf2dcd495c0d07f5049f015bfc5ad1fc9bc2e28bca1acb56f0d0a5",
+      "gerado_em": "2026-09-12T01:46:47Z"
+    },
+    {
+      "id": "S2",
+      "nome": "fastify",
+      "ficheiro": "ambito-S2.txt",
+      "raiz": "C:/Users/Paulo Loureiro/ab-audit-subjects/fastify",
+      "sha_preregisto": "1beaf7e72d24b2fc63a02a7f5806772a00e45454",
+      "head_da_raiz_ao_versionar": "1beaf7e72d24b2fc63a02a7f5806772a00e45454",
+      "no_sha_preregistado": true,
+      "ficheiros_no_ambito": 54,
+      "bytes": 1182,
+      "sha256": "8eeb34211fe8253e53863dd97d2899e4df4dde96c1fb8ecd6b1a851ea4998e28",
+      "gerado_em": "2026-09-12T01:46:47Z"
+    },
+    {
+      "id": "S3",
+      "nome": "hono",
+      "ficheiro": "ambito-S3.txt",
+      "raiz": "C:/Users/Paulo Loureiro/ab-audit-subjects/hono",
+      "sha_preregisto": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+      "head_da_raiz_ao_versionar": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+      "no_sha_preregistado": true,
+      "ficheiros_no_ambito": 221,
+      "bytes": 6512,
+      "sha256": "0149fc8663c8c6bc4275c941542270b2889c7f43207735e188ff2e20117435a0",
+      "gerado_em": "2026-09-12T01:46:47Z"
+    }
+  ],
+  "totais": {
+    "ficheiros_no_ambito": 1247,
+    "bytes_das_listas": 44228
+  },
+  "substituidos": [
+    {
+      "id": "S1",
+      "nome": "mooter",
+      "ficheiro": "ambito-S1.txt",
+      "raiz": "C:/Users/Paulo Loureiro/frugal-ab-audit",
+      "sha_preregisto": "97ad846b40d7e1939e02d7b826e4388fe65d60e6",
+      "head_da_raiz_ao_versionar": "2d5fd76294dfa16ef3d67e712c5a51394f72790d",
+      "no_sha_preregistado": false,
+      "ficheiros_no_ambito": 974,
+      "bytes": 36619,
+      "sha256": "4b8c0e5fa8e7f545eb8d880b05f7166f96d37e24bbdab7fae2a71f5e78920d20",
+      "gerado_em": "2026-08-26T15:27:32Z",
+      "substituido_em": "2026-09-12T01:46:47Z",
+      "substituido_por_sha256": "d1fe247d7cdf2dcd495c0d07f5049f015bfc5ad1fc9bc2e28bca1acb56f0d0a5",
+      "porque": "lista gerada em 2d5fd762, fora do sha pre-registado 97ad846b — §10.2 do pre-registo: trocar o sha de um sujeito invalida a corrida. A varredura feita sobre esta lista nao conta; os seus artefactos ficam com o prefixo braco-a-S1.INVALIDO-2d5fd762.",
+      "artefactos_da_corrida_invalidada": [
+        "braco-a-S1.INVALIDO-2d5fd762.connect.trace",
+        "braco-a-S1.INVALIDO-2d5fd762.json",
+        "braco-a-S1.INVALIDO-2d5fd762.meta.json",
+        "braco-a-S1.INVALIDO-2d5fd762.semrede.json",
+        "braco-a-S1.INVALIDO-2d5fd762.semrede.meta.json",
+        "braco-a-S1.INVALIDO-2d5fd762.strace.json",
+        "braco-a-S1.INVALIDO-2d5fd762.strace.meta.json"
+      ]
+    }
+  ]
+}

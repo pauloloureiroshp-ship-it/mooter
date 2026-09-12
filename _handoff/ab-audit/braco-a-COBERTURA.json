@@ -1,0 +1,12 @@
+{
+  "medido_em": "2026-08-26T19:49:46Z",
+  "alvo": "um .js trivial + um .ts trivial",
+  "conjuntos": [
+    { "conjunto": "p-javascript", "ids_no_ficheiro": 74, "correram_em_js_ts": 74 },
+    { "conjunto": "p-typescript", "ids_no_ficheiro": 74, "correram_em_js_ts": 74 },
+    { "conjunto": "p-security-audit", "ids_no_ficheiro": 225, "correram_em_js_ts": 22 },
+    { "conjunto": "p-nodejs", "ids_no_ficheiro": 36, "correram_em_js_ts": 36 }
+  ],
+  "uniao_dos_quatro_correram_em_js_ts": 89,
+  "nota": "O total de ids distintos vendorizados (292) NAO e cobertura. A cobertura do braco A e a uniao acima, e e a mesma nos tres sujeitos porque o ambito do §2.2 e JS/TS nos tres."
+}
