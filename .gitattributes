@@ -33,6 +33,23 @@ tools/router/classify.js.sha256 -text
 # ── comparado byte a byte com uma string embutida em slash-commands.ts ────────
 packages/cli/skills-templates/mooter/SKILL.md -text
 
+# ── os artefactos vendorizados do A/B do Moo Audit ───────────────────────────
+#
+# O pre-registo (§2.1) manda guardar as regras do semgrep "com o sha256 de cada
+# ficheiro registado", e (§2.2) manda que os tres bracos leiam a MESMA lista de
+# ambito. As duas promessas sao sha256 — e um sha256 so significa alguma coisa se
+# os bytes no disco forem os bytes no objecto.
+#
+# O `* text=auto eol=lf` la em baixo ja daria LF em todas as plataformas. Estas
+# duas linhas sao `-text` pela mesma razao que as tres de cima: para ficheiros
+# cujo sha256 E a promessa, a redundancia e barata e a ambiguidade nao. Foi
+# exactamente esta classe de conversao que, a 2026-08-20, poz o sha do
+# `classify.js` a nao bater em Windows.
+#
+# Os yaml das regras sairam do repo a 2026-09-12 (licenca sem distribuicao; ver
+# `_handoff/ab-audit/regras-semgrep/MANIFESTO.json`) — fica so a lista de ambito.
+_handoff/ab-audit/ambito-S*.txt         -text
+
 # ── A CLASSE INTEIRA, e nao so os tres de cima ────────────────────────────────
 #
 # `text=auto eol=lf`: o git decide o que e texto, normaliza para LF no objecto,

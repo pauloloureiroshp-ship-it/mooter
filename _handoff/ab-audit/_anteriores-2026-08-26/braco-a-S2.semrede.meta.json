@@ -1,0 +1,20 @@
+{
+  "sujeito": "S2",
+  "raiz": "/mnt/c/Users/Paulo Loureiro/ab-audit-subjects/fastify",
+  "modo": "sem-rede",
+  "rc": 0,
+  "parede_s": 11.526,
+  "ficheiros_na_lista": 54,
+  "regras_correram": 89,
+  "semgrep": "1.174.0",
+  "uname": "Linux 6.6.87.2-microsoft-standard-WSL2",
+  "corrido_em": "2026-08-26T19:42:39Z",
+  "sha256_lista_ambito": "8eeb34211fe8253e53863dd97d2899e4df4dde96c1fb8ecd6b1a851ea4998e28",
+  "sha256_regras": {
+    "p-javascript.yaml": "e65e8449157ef5d587f2c2a0c17ed388910ca90336e514d27941ccd25543cf4e",
+    "p-typescript.yaml": "63fbcca1826e787ca43282bf139ccec16745ad6551c87850b9ccee9ca9f98c0b",
+    "p-security-audit.yaml": "b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f",
+    "p-nodejs.yaml": "eed00ab904b1c439c4c4d6064fd61a50407f042c288a92c9cbd347ddf2fea78f"
+  },
+  "sha256_json": "99c06c1164502b9760cad9253558f40462fb09d77aa553a364c1eee21b68f7b2"
+}

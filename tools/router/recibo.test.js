@@ -228,6 +228,22 @@ test('o cache é contado, e com o multiplicador de cada tipo', () => {
   assert.equal(Math.round(c.cacheEscr * 100) / 100, inputM * 1.25 + inputM * 2.0);
 });
 
+test('MORDIDA · a leitura de cache do Fable 5.1 é $0,25/MTok, não 0,1× do input', () => {
+  // Tabela do fornecedor (platform.claude.com/docs/en/about-claude/pricing,
+  // lida a 2026-09-12): Fable 5.1 = $10 in · $50 out · cache-read $0,25 (0,025×)
+  // — a única linha fora da regra 0,1×. Com o multiplicador cego, 1M de
+  // cache lido valeria $1,00 em vez de $0,25: 4× a mais no maior condutor de
+  // custo. O Fable 5, ao lado, continua a 0,1× ($1,00).
+  const u = usage({ i: 1_000_000, o: 1_000_000, cr: 1_000_000 });
+  const f51 = R.custoDe('claude-fable-5-1', u);
+  assert.ok(f51, 'fable-5-1 tem de estar na tabela — a 2026-09-12 eram 211 chamadas «sem preço»');
+  assert.equal(Math.round(f51.input * 100) / 100,    10);
+  assert.equal(Math.round(f51.output * 100) / 100,   50);
+  assert.equal(Math.round(f51.cacheLer * 100) / 100, 0.25, 'cacheRead de pricing.js, não o multiplicador');
+  const f5 = R.custoDe('claude-fable-5', u);
+  assert.equal(Math.round(f5.cacheLer * 100) / 100,  1.00, 'sem cacheRead, a regra 0,1× mantém-se');
+});
+
 test('MORDIDA · um modelo sem preço devolve null — nunca zero', () => {
   // Somar zero em silêncio faria o recibo parecer mais barato do que é, que é
   // a forma mais fácil de mentir com um total.

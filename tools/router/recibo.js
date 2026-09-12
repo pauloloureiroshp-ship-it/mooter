@@ -121,6 +121,12 @@ const path = require('path');
 // publicados pela Anthropic sobre o preço de input do próprio modelo, e ficam
 // declarados como multiplicadores — não como preços inventados — para que
 // qualquer um os possa conferir contra a tabela do fornecedor.
+//
+// A excepção declarada: quando uma linha de `pricing.js` traz `cacheRead`
+// (USD/MTok), é esse o preço da leitura de cache, não o multiplicador. Existe
+// porque o Fable 5.1 cobra a leitura a 0,025× do input ($0,25/MTok) e não a
+// 0,1× — aplicar-lhe o multiplicador sobrestimava a cache 4× (tabela do
+// fornecedor, lida a 2026-09-12).
 const MULT_CACHE = Object.freeze({
   leitura: 0.1,     // cache read  — 10% do input
   escrita5m: 1.25,  // cache write, TTL 5 minutos  — 125% do input
@@ -157,7 +163,7 @@ function custoDe(modelo, usage) {
   return {
     input:      (inTok   / M) * p.input,
     output:     (outTok  / M) * p.output,
-    cacheLer:   (leitura / M) * p.input * MULT_CACHE.leitura,
+    cacheLer:   (leitura / M) * (p.cacheRead != null ? p.cacheRead : p.input * MULT_CACHE.leitura),
     cacheEscr:  (w5m / M) * p.input * MULT_CACHE.escrita5m
               + (w1h / M) * p.input * MULT_CACHE.escrita1h,
     get total() {
