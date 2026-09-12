@@ -66,7 +66,7 @@ de uma alteração ao acaso, e passa a esconder o defeito real.
 
 ---
 
-## W1-D2 · `npm audit` HIGH em três pacotes — dívida de `main`, não desta onda (aberto)
+## W1-D2 · `npm audit` HIGH em três pacotes — ⚠️ **o portão é não-determinista no tempo** (2026-09-12)
 
 **Encontrado:** 2026-09-10, no CI do PR #492.
 **Decisão do dono:** deixar em aberto e seguir para W2.
@@ -305,3 +305,55 @@ Os **20** testes de `test:integration` deixam de correr em CI, porque precisam d
 o runner não tem. Antes disto corriam **truncados** (o `pin-timeout` dava 9 de 20 com a flag), o
 que não é melhor — mas é uma diferença e fica escrita. Fechá-la a sério exige um runner com
 `codex`/`ollama`, e isso é uma decisão de infraestrutura, não desta onda.
+
+
+---
+
+## W1-D2 · reaberto com uma conclusão diferente (2026-09-12)
+
+**O que eu tinha escrito:** «dívida pré-existente de `main`, três pacotes com HIGH». Isso descrevia
+o sintoma. A causa é outra, e é mais interessante.
+
+### Medido
+
+| quando | onde | resultado |
+|---|---|---|
+| 2026-09-10 | CI, PR #492 | `1 high severity vulnerability` → **FALHA** |
+| 2026-09-12 | CI, PR #503 | `found 0 vulnerabilities` → **PASSA** (nos três pacotes) |
+| 2026-09-12 | esta bancada, cache limpa | `js-yaml 4.0.0 - 4.3.1 · high` → reporta |
+
+E o que **não** mudou, verificado no git:
+
+- `git log --since=2026-09-09 origin/main -- '*package-lock.json'` → **vazio**. Os lockfiles são
+  os mesmos.
+- `tools/router/package-lock.json` fixa `js-yaml` em **4.3.1**, que está **dentro** do intervalo
+  declarado pelo aviso (`4.0.0 - 4.3.1`).
+
+### A conclusão honesta
+
+**A mesma entrada deu resultados opostos com dois dias de intervalo.** O `npm audit` não é uma
+função do repositório: é uma função do repositório **e** de uma base de avisos viva que muda sem
+commit nenhum. O portão pode ficar vermelho sem ninguém ter tocado em código, e verde outra vez
+pela mesma razão.
+
+**O que não sei, e não invento:** não consegui explicar porque é que esta bancada continua a
+reportar o aviso enquanto o CI já não o reporta — mesma versão de npm (10.9.2 / Node 22), cache
+limpa, mesmo lockfile. Fica `n/d`. As hipóteses (resposta em cache do lado do registry, aviso
+actualizado com propagação desigual) não foram verificadas e por isso não são afirmadas.
+
+### O que isto muda na prática
+
+1. **O `npm audit` não vai bloquear os PRs empilhados** — hoje passa. O que eu disse ao dono
+   («espero que apanhe o npm audit») estava errado.
+2. **Não se deve "arrumar" este vermelho com um bump feito à pressa.** O bump certo continua a
+   fazer sentido por si (uma dependência de dev numa versão com aviso), mas fazê-lo *porque o CI
+   está vermelho hoje* é agir sobre um sinal que se move sozinho.
+3. **Vale a pena o portão registar a data da base de avisos** que usou. Sem isso, dois resultados
+   opostos são indistinguíveis de um teste instável — e a primeira reacção de quem apanha um
+   vermelho destes é desconfiar do próprio portão.
+
+### O que fica aberto
+
+`js-yaml@4.3.1` (transitiva de dev, via `eslint` → `@eslint/eslintrc`) e `sharp` no `landing`
+continuam nas versões que o aviso nomeia. Subir continua a ser boa ideia; deixa de ser urgente.
+Para `packages/cli` continua a exigir entrada de allowlist — é pacote de motor congelado.
