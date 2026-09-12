@@ -163,6 +163,19 @@ const DUMMIES = new Map([
   ['AKIAABCDEFGHIJKLMNOP', 'alfabeto sequencial — fixture do proprio lp-secret-scan'],
   ['sk-ant-abcdefghijklmnop1234567890', 'fixture publica do sanitizador (ja allowlisted no detector)'],
   ['sk-ant-abcdefghij0123456789XYZ', 'alfabeto sequencial — fixture do audit_pii_redactor'],
+  // Encontrado a 2026-08-26 pela varredura do HISTORICO, nao pela da arvore:
+  // vive em `packages/mooter-bridge/egress.test.js` numa branch LOCAL que nunca
+  // foi empurrada (`kimi-egress/fail-closed`). Alfabeto sequencial a seguir ao
+  // prefixo `api03-` — declara-se falso a olho.
+  ['sk-ant-api03-abcdefghijklmnop', 'alfabeto sequencial — fixture do egress.test.js do mooter-bridge'],
+  // O caso mais engracado da corrida de 2026-08-26, e o mais instrutivo: este
+  // placeholder vivia num teste que ja nao existe em HEAD. Assim que a varredura
+  // do historico passou a ler MENSAGENS DE COMMIT, apanhou quatro copias novas
+  // dele — no relatorio que o descrevia, na allowlist que o declarava, e na
+  // mensagem do commit que fazia as duas coisas. Um relatorio sobre segredos que
+  // cita o segredo passa a ser, ele proprio, um sitio onde o segredo esta.
+  // Sufixo de 26 chars em palavras minusculas; uma chave real tem `api03-` e ~100.
+  ['sk-ant-inherited-friend-build-key', 'placeholder em palavras — fixture do backtest.test.js, e as citacoes dele'],
 ]);
 
 /**
