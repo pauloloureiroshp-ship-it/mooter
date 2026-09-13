@@ -23,15 +23,14 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^15.5.15",
-    "@types/node": "^20.11.0",
+    "@types/node": "^22.20.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitest/ui": "^2.1.9",
     "code-inspector-plugin": "^1.6.4",
     "eslint": "^9.39.4",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.58.2",
-    "vitest": "^2.1.9"
+    "vitest": "^5.0.0"
   },
   "_overrides_rationale": "2026-09-12 (seguimento #507) — postcss ^8.5.23 limpa <=8.5.22 (GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849). O next@15.5.x fixa postcss 8.4.31 EXACTO e o unico caminho que o npm propoe e next@16 (major). O override e a alternativa nao-breaking, o mesmo gesto do hub e do dashboard; a prova e o `next build` + vitest a fechar em 0.",
   "overrides": {

@@ -11,11 +11,15 @@ import { defineConfig } from 'vitest/config';
 // `StatuslineCard`, achado da triagem de 25/08) bateu nisto de imediato.
 export default defineConfig({
   // JSX pelo runtime automatico do React 19. O `tsconfig` do Next diz
-  // `"jsx": "preserve"` (o compilador do Next e que trata disso), e o esbuild
-  // do vitest herda-o e deixa o JSX cru — dai o `React is not defined`.
-  esbuild: { jsx: 'automatic' },
+  // `"jsx": "preserve"` (o compilador do Next e que trata disso), e o
+  // transformador do vitest herda-o e deixa o JSX cru — dai o `React is not
+  // defined`. Ate ao vitest 2 isto era `esbuild: { jsx: 'automatic' }`; o
+  // vite 8 (vitest 5) transforma com oxc/rolldown e IGNORA `esbuild.*` em
+  // silencio — os 3 ficheiros .tsx da suite passaram a falhar no parse
+  // (2026-09-13, subida do vitest por causa de GHSA-5xrq-8626-4rwp).
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
-    alias: { '@': path.resolve(__dirname) },
+    alias: { '@': path.resolve(import.meta.dirname) },
   },
   test: {
     environment: 'node',

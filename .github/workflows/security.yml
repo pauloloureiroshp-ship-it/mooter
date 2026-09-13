@@ -29,9 +29,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Backend/CLI packages block on HIGH. `landing` is audited separately
-        # (non-blocking) because its Next.js toolchain carries pre-existing HIGH
-        # advisories tracked in audit/NPM_AUDIT_BASELINE.md (SC: `npm audit fix`).
+        # Every package with a lockfile that ships, installs, or tests code
+        # blocks on HIGH. `landing` was audited separately (non-blocking) from
+        # 2026-06-07 to 2026-09-13 because its Next.js toolchain carried
+        # pre-existing HIGH advisories; that carve-out ended the day the same
+        # `next` line turned out to hold two unauthenticated-RCE criticals
+        # (#513 closed the runtime, this change closed the vitest toolchain).
         # `packages/router` joined on 2026-09-11 (#489 follow-up): it was the one
         # package the CLI bundle inlines from and nobody audited — it carried
         # 3 HIGH nodes (fast-uri, thrift, @dsnp/parquetjs) invisibly. A package
@@ -42,7 +45,7 @@ jobs:
         # `dashboard` joined last (#504 follow-up): the dashboard's next@15.5.15
         # sat inside two CRITICAL unauthenticated-RCE advisories, one of them
         # specifically for Windows-hosted servers — which is exactly how it runs.
-        pkg: [tools/router, packages/cli, hub, packages/router, packs, '.', dashboard]
+        pkg: [tools/router, packages/cli, hub, packages/router, packs, '.', dashboard, landing]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,20 +63,6 @@ jobs:
             exit 1
           fi
           echo "${{ matrix.pkg }}: no HIGH/critical advisories."
-
-  audit-landing:
-    name: npm audit landing (informational)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: npm audit landing (non-blocking)
-        working-directory: landing
-        run: npm audit --audit-level=high --package-lock-only || echo "::warning::landing has pre-existing HIGH advisories — tracked in audit/NPM_AUDIT_BASELINE.md (non-blocking)"
 
   threat-probes:
     name: validation threat-model probes
