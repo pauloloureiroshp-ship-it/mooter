@@ -50,6 +50,40 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-13 · Auditoria npm — 6 PRs, a matriz passa de 3 a 8 pernas, dois RCE fechados em produção
+
+Squash merges, cada um com `final-reviewer` (2× no #489 e no #501), rebase sobre `main` e CI
+verde contra a base real antes de fundir: #489 `9c9f3d34` · #501 `a346230c` · #504 `478481b6`
+· #507 `3d86792c` · #513 `49ecf00b` · #516 `0a7aca49`. Ponto de partida (10/09): as 3 pernas
+do `npm audit (block on HIGH)` vermelhas há dias sem ninguém ver — o audit não é check
+*required*. Ponto de chegada: `security.yml` com 8 pernas
+(`tools/router, packages/cli, hub, packages/router, packs, '.', dashboard, landing`), os 14
+`package-lock.json` do repo a **0 HIGH/critical e 0 moderate** (2 lows fora da matriz),
+`audit/NPM_AUDIT_BASELINE.md` refeito com os 14 medidos.
+
+- **O achado que pesa:** `dashboard` e `landing` corriam `next 15.5.15`, dentro de **dois
+  critical de RCE não autenticado** (GHSA-p293-qw3h-jr36, Windows-hosted; GHSA-2xp9-vwfh-vxw4,
+  Image Optimization). O `landing` é o que está na Vercel e o seu `start` faz bind em `0.0.0.0`.
+  Fechado em #507 (dashboard) e #513 (landing, `next 15.5.25`); produção READY a 13/09 18:41Z,
+  `mooter.ai` HTTP 200 da deployment nova; CSS gerado byte-idêntico.
+- **Um pacote que ninguém audita não fica verde, fica invisível:** `packages/router` (3 HIGH),
+  raiz (2), `dashboard` (6 + 1 critical), `landing` (8 + 3 critical) — nenhum aparecia em lado
+  nenhum. O `landing` esteve fora da matriz desde 2026-06-07 «por HIGH de toolchain»; a
+  excepção acabou no dia em que o mesmo `next` passou a ter RCE.
+- **O bundle do CLI inlina duas cópias de `js-yaml`** (cli + `packages/router/node_modules`);
+  corrigir só o cli deixava a 2.ª a 4.2.0. Gate apanhou no #489.
+- **`latest` pode ser um publish partido:** `@dsnp/parquetjs@1.9.3` traz 9 ficheiros e nenhum
+  `dist/`; `1.8.9` pede Node ≥24.18. Pin exacto `1.8.8`, e o smoke que o apanhou entrou como
+  `packages/router/tests/benchmark-libs.test.ts` (ajv + parquet tinham 0 cobertura).
+- **`npm audit fix --force` propunha um downgrade** (wrangler ^4.83 → 4.15.2). Nunca às cegas.
+- **Vite 8 ignora `esbuild.*` em silêncio** — na subida do vitest 2→5 (#516) os 3 ficheiros de
+  teste com JSX falharam no parse até trocar para `oxc.jsx.runtime`.
+- Vercel `build-rate-limit` (quota Hobby) deixou o #513 sem preview um dia; SHA novo
+  re-dispara; preview verificado por `web_fetch_vercel_url` antes do merge.
+- Fica de fora, declarado: `packages/router` recebe `npm ci` no CI mas nunca `npm test`
+  (3 falhas de ambiente pré-existentes); `packages/mooter-bench` e `packages/workflow` 1 low cada.
+- Allowlist do `CLAUDE.md`: entradas de 2026-09-10 e 2026-09-11 (packages/cli e packages/router).
+
 ## 2026-09-12 · A/B do Moo Audit — os 7 em `main`; o 7.º reconstruído sem as regras vendorizadas (licença)
 
 Ordem e commits de merge (merge commits, sem force-push; cada PR actualizado com `main` e

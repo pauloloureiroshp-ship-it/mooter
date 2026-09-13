@@ -20,6 +20,67 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-13-o-audit-verde-media-tres-pacotes-e-o-rce-estava-num-quarto
+
+**Contexto:** a 10/09 as 3 pernas do `npm audit (block on HIGH)` estavam
+vermelhas há dias — ninguém viu porque o audit não é check *required*. O
+pedido era «corrigir o advisory do sharp». Seis PRs depois (#489 → #516) a
+matriz tem 8 pernas, os 14 lockfiles estão a 0 HIGH/critical, e dois RCE não
+autenticados saíram de produção. Quase nada disto estava no pedido.
+
+**Observado:**
+
+1. **Um pacote que ninguém audita não fica verde, fica invisível.** A matriz
+   media `tools/router`, `packages/cli` e `hub`. Fora dela, sem nenhum sinal em
+   lado nenhum: `packages/router` 3 HIGH, raiz 2, `dashboard` 6 + 1 critical,
+   `landing` 8 + 3 critical — e o `landing` é o que está na Vercel. O verde da
+   matriz era verdadeiro sobre o que media e mudo sobre o resto. A régua «só
+   tornar visível corrige» tem um corolário: **só o que está na matriz existe**.
+
+2. **A excepção documentada envelhece sem avisar.** O `landing` esteve fora
+   da matriz desde 2026-06-07 «porque o toolchain do Next tem HIGH
+   pré-existentes». Era verdade quando foi escrita (advisories de ferramentas
+   de build). Ninguém a reviu quando o mesmo `next` passou a ter RCE — a
+   excepção não distingue «HIGH de toolchain» de «RCE no servidor», e o
+   `continue-on-error` trata os dois da mesma maneira.
+
+3. **A premissa do pedido estava errada e o gate é que o disse.** «Um
+   advisory faz falhar as três» — eram dois (sharp no hub, js-yaml nos outros
+   dois). Depois: «corrigir o js-yaml no cli» — o bundle inlina **duas**
+   cópias, a segunda vinda de `packages/router/node_modules`, e corrigir só o
+   cli punha as 3 pernas verdes e deixava a 4.2.0 dentro do `mooter.js`. O
+   `final-reviewer` apanhou-o por medir o artefacto, não o lockfile.
+
+4. **`latest` não é «a mais recente que funciona».** `@dsnp/parquetjs@1.9.3`
+   traz 9 ficheiros e nenhum `dist/` — o `main` aponta para um ficheiro que
+   não existe. Um `^1.8.9` resolvia para ele. A `1.8.9` funciona mas pede Node
+   ≥24.18 (CI em 22). Só um pin exacto diz «esta e nenhuma acima» — e só um
+   smoke que carregue o pacote de verdade apanha um publish partido (ajv e
+   parquetjs tinham 0 cobertura; passaram a ter).
+
+5. **`npm audit fix --force` propõe o que resolve o grafo, não o que faz
+   sentido:** no hub propunha `wrangler@4.15.2` — um *downgrade* face ao
+   `^4.83.0` declarado. O caminho não-breaking existia sempre (o override já
+   lá estava com o caret certo; o lockfile é que estava velho).
+
+6. **O transformador muda e a config antiga não reclama.** Vite 8 (vitest 5)
+   ignora `esbuild.*` em silêncio; os 3 ficheiros de teste com JSX passaram a
+   falhar no parse. Não é regressão da suite — é a config a ser lida por outro
+   motor. `oxc.jsx.runtime` é o equivalente; o aviso `configLoader: 'native'`
+   era o único sinal e não nomeava a causa.
+
+7. **Números escritos de cabeça foram apanhados cinco vezes em quatro PRs**
+   (churn do lockfile «88» → 59/36; «122.902 bytes» → 122.986; «9 packs» → 10;
+   «197/20/67» → 131/14/61; «esbuild HIGH» → low + `thrift` omitido). Sempre
+   pelo gate, nunca pela leitura. A contagem certa é por diferença de conjuntos
+   das chaves `packages`, não por linhas do diff — e a única maneira de não
+   errar é medir e colar, não lembrar.
+
+**Custo declarado:** 6 PRs, 8 corridas do `final-reviewer` (Opus), um dia de
+espera pela quota de builds da Vercel (Hobby `build-rate-limit`, ver
+`~/.claude` memória `vercel-preview-rate-limit`). O que fica: `packages/router`
+tem `npm ci` no CI mas nunca `npm test`; `SYNC.md` passou as ~200 linhas.
+
 ### 2026-09-12-o-sha256-provava-integridade-e-ninguem-leu-a-linha-da-licenca
 
 **Contexto:** o gate de pré-merge dos 7 PRs do A/B do Moo Audit, corrido a
