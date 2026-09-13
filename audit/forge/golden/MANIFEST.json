@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0-starter",
+  "frozen": true,
+  "note": "STARTER — expand core-frozen to 50-100 human-curated examples before F4 gate is authoritative.",
+  "core_frozen": {
+    "path": "audit/forge/golden/core-frozen.jsonl",
+    "count": 15,
+    "sha256": "4e71208195bd6529071ae4ff9c494fc321007ded9d546d90c73468a0a4477956",
+    "capabilities": {
+      "reasoning": 2,
+      "format_adherence": 2,
+      "no_hallucination": 2,
+      "honesty": 2,
+      "refuse_dangerous": 2,
+      "reversibility": 1,
+      "instruction_following": 2,
+      "groundedness": 2
+    },
+    "gate": "hard",
+    "epsilon": 0
+  },
+  "domain_rolling": {
+    "source": "tools/router/decisions.log",
+    "tau_days": 60,
+    "resample": "weekly",
+    "gate": "soft",
+    "status": "config-only (sampler is a later Forge step)"
+  },
+  "promotion_rule": "serve iff core >= baseline-epsilon AND domain_rolling > incumbent"
+}

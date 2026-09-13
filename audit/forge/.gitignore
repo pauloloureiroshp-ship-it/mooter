@@ -1,0 +1,5 @@
+# Generated curation/eval outputs (reproducible; may contain absolute paths)
+/lora_train.curated.jsonl
+/lora_train.curated.heldout.jsonl
+/curation-report.json
+/eval-report.json
