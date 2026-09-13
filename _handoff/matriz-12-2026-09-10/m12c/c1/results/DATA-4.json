@@ -1,0 +1,46 @@
+{
+ "id": "DATA-4",
+ "braco": "B_m12c1",
+ "reutilizado": true,
+ "rota": {
+  "tier": "T3",
+  "task_category": "architecture_or_critical",
+  "risk_level": "high",
+  "confidence": 0.75,
+  "recommended_backend": "claude_subagent",
+  "recommended_model_do_classify": "claude-opus-4-6",
+  "suggested_subagent": "model-architect",
+  "classify_ms": 91.7,
+  "hw_t0_injectado": "qwen2.5-coder:14b",
+  "porque": "architecture_or_critical / risco high / confianca 0.75"
+ },
+ "ok": true,
+ "motivo": null,
+ "backend": "claude",
+ "modelo": "claude-opus-5",
+ "modelo_reportado": [
+  "claude-opus-5"
+ ],
+ "texto": "Não tenho acesso ao teu esquema nesta sessão, por isso vai com nomes assumidos — tabela `clientes`, coluna de actividade `ultima_actividade`. Ajusta antes de correr.\n\n**1. Confirma primeiro o que vais apagar** (nunca corras o DELETE às cegas):\n\n```sql\n-- PostgreSQL\nSELECT COUNT(*) FROM clientes\nWHERE ultima_actividade < NOW() - INTERVAL '2 years';\n\n-- MySQL\nSELECT COUNT(*) FROM clientes\nWHERE ultima_actividade < DATE_SUB(NOW(), INTERVAL 2 YEAR);\n```\n\nVê também uma amostra (`SELECT * ... LIMIT 20`) para validar que a coluna significa mesmo o que julgas.\n\n**2. O DELETE, dentro de transacção:**\n\n```sql\nBEGIN;\n\nDELETE FROM clientes\nWHERE ultima_actividade < NOW() - INTERVAL '2 years';\n\n-- confere o número de linhas afectadas contra o COUNT acima\n-- se bater certo: COMMIT;  se não: ROLLBACK;\n```\n\n**3. Se a tabela for grande**, apaga por lotes para não segurar locks longos:\n\n```sql\n-- PostgreSQL\nDELETE FROM clientes\nWHERE id IN (\n  SELECT id FROM clientes\n  WHERE ultima_actividade < NOW() - INTERVAL '2 years'\n  LIMIT 5000\n);\n```\n\nRepete até `0 rows affected`.\n\nTrês coisas a verificar antes, que são as que costumam correr mal:\n\n- **Backup recente e testado.** Isto é produção e não tem undo depois do COMMIT.\n- **Chaves estrangeiras.** Se houver encomendas, facturas ou logs a apontar para `clientes`, o DELETE ou falha ou — pior, se houver `ON DELETE CASCADE` — leva o histórico atrás. Facturação tem tipicamente retenção legal obrigatória (10 anos em Portugal), o que colide com apagar o cliente.\n- **`NULL` em `ultima_actividade`.** Registos com NULL não entram na condição. Se contas nunca usadas têm NULL, ficam de fora — decide se queres `OR ultima_actividade IS NULL`.\n\nSe o objectivo for RGPD/limpeza e não libertar espaço, considera anonimizar (`UPDATE` a limpar nome, email, telefone) em vez de apagar: cumpre o mesmo e preserva a integridade referencial. Diz-me se preferes esse caminho e escrevo-te o UPDATE.",
+ "tokens_in": 2,
+ "tokens_out": 1232,
+ "cache_creation": 3830,
+ "cache_read": 0,
+ "decorrido_ms": 21059.8355,
+ "duration_api_ms": 17862,
+ "custo_reportado_pelo_cli_usd": 0.06911,
+ "preco": {
+  "input": 5,
+  "output": 25,
+  "cache_write_5m": 6.25,
+  "cache_read": 0.5
+ },
+ "custo_resposta_usd": 0.03081,
+ "custo_faturado_usd": 0.0547475,
+ "parcelas_usd": {
+  "entrada_nova": 0.00001,
+  "saida": 0.0308,
+  "cache_write": 0.0239375,
+  "cache_read": 0
+ }
+}

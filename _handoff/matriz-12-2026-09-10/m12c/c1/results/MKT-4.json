@@ -1,0 +1,50 @@
+{
+ "id": "MKT-4",
+ "braco": "B_m12c1",
+ "reutilizado": false,
+ "rota": {
+  "exit": 0,
+  "ms": 207,
+  "tier": "T1",
+  "task_category": "ambiguous_medium",
+  "risk_level": "low",
+  "recommended_model": "claude-haiku-4-5-20251001",
+  "confidence": 0.6,
+  "escalation": null,
+  "arbiter": "não correu (nenhuma linha ARBITER no hint)",
+  "arbiter_reasoning": null,
+  "hint_bruto": "<retomar-camada1>\nsessao_origem: n/d\ntranscript: n/d\nfatos:\n- session_files_touched: n/d (caminho do transcript ausente)\n- session_failed_commands: n/d (caminho do transcript ausente)\n- session_red_tests: n/d (caminho do transcript ausente)\n- session_red_test_file: n/d (caminho do transcript ausente)\n- session_branch: n/d (caminho do transcript ausente)\n- session_cwd: n/d (caminho do transcript ausente)\n- session_worktree: n/d (caminho do transcript ausente)\n- git_unpushed_commits: n/d (cwd ausente no payload do hook)\n- git_uncommitted_files: n/d (cwd ausente no payload do hook)\n- git_branch: n/d (cwd ausente no payload do hook)\n- git_worktree: n/d (cwd ausente no payload do hook)\n- pending_chips: n/d (nenhum arquivo de estado reconhecido (C:\\Users\\Paulo Loureiro\\frugal\\.claude\\worktrees\\matriz-12-mooter-comparison-3c2b8e\\_handoff\\matriz-12-2026-09-10\\m12c\\sandbox\\.mooter\\retomar-chips.json))\nsugestoes:\n- nenhuma regra disparou\n</retomar-camada1>\n<router-hint>\ntask_category: ambiguous_medium\nrisk_level: low\ntier: T1\nrecommended_backend: claude_subagent\nrecommended_model: claude-haiku-4-5-20251001\nsuggested_subagent: cheap-triage\nconfidence: 0.6\nmax_tier: T3\nsuggested_providers: haiku\nanthropic_quota: n/d (sem quota-live: o Claude Code ainda não renderizou a statusline nesta janela — n/d)\ncodex_quota: n/d (não existe fonte oficial de quota do Codex nesta máquina — o antigo codex_quota vinha de um orçamento local (quota-tracker.js:319) e já se provou errado (hint dizia 0%, o motor correu))\nRouting policy: see ~/.claude/docs/ROUTING_POLICY.md\nIf this is a structural/critical task, prefer the suggested subagent.\nIf this is a trivial local task, delegate to local-summarizer / local-transformer.\n</router-hint>\n\n<reasoning-effort>low</reasoning-effort>\n\n<session-affinity>this session has been on qwen2.5-coder:14b; switching to claude-haiku-4-5-20251001 abandons the warm prompt cache (re-write the prefix). If claude-haiku-4-5-20251001 is not needed for quality, staying on qwen2.5-coder:14b keeps the cache warm. Advisory — routing is unchanged.</session-affinity>\n\n<tier-badge>[🐎 ☁ haiku 0.60]</tier-badge>\n",
+  "stderr_head": "",
+  "original": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.6,
+   "task_category": "ambiguous_medium"
+  },
+  "mudou": true
+ },
+ "ok": true,
+ "motivo": null,
+ "modelo": "claude-haiku-4-5-20251001",
+ "backend": "claude",
+ "texto": "# Plano de Lançamento Q4 — 200 Clientes Pagantes\n\n## Contexto\n**Tempo disponível:** 3 meses | **Equipa:** 4 pessoas | **Meta:** 200 clientes pagantes até 31 dez\n\nAssumindo que têm MVP funcional, o foco é **aquisição rápida + retenção**.\n\n---\n\n## OUTUBRO — Aquisição (Validação + Primeiros Clientes)\n\n**Focos:**\n- Lançamento público (se ainda não feito) ou intensificação\n- 30-40 clientes pagantes (primeiros)\n- Validar product-market fit com construtoras reais\n\n**Ações principais:**\n1. **Outreach direto** — 1 pessoa contacta 50-100 construtoras/PMEs (LinkedIn, telefonemas, emails personalizados, contactos locais)\n2. **Landing page otimizada** — 1 pessoa: copy focada em pain points, testimonials, CTA claro\n3. **Trial gratuito com suporte** — Onboarding manual para os primeiros clientes (aprender o que funciona)\n4. **Parcerias** — Explorar contactos com vendedores de materiais, engenheiros, consultores que trabalham com PMEs\n\n**Equipa:**\n- 1 pessoa: Sales/Outreach full-time\n- 1 pessoa: Product/Suporte (trial, feedback, fixes)\n- 2 pessoas: Produto (features críticas + performance)\n\n**Métricas a medir:**\n- Conversões de trial → pago (%)\n- CAC (custo de aquisição, mesmo que 0 € nesta fase — registar horas)\n- NPS dos primeiros clientes\n- Churn/uso activo\n\n---\n\n## NOVEMBRO — Escalagem + Retenção (80 clientes)\n\n**Focos:**\n- 40-60 clientes novos (total ~100)\n- Solidificar produto baseado em feedback\n- Construir confiança e repetição\n\n**Ações principais:**\n1. **Automação de outreach** — Email sequences + LinkedIn outreach escalada\n2. **Conteúdo** — 2-3 case studies com primeiros clientes (antes/depois, ROI)\n3. **Programa de referral** — Incentivar primeiros clientes a recomendar\n4. **Otimização onboarding** — Reduzir atrito, criar video/tutorial de 5 min\n5. **Parcerias aceleradas** — Fechar 2-3 parceiros que distribuam a app\n\n**Equipa:**\n- 1 pessoa: Sales + Parcerias\n- 1 pessoa: Marketing/Conteúdo + Referrals\n- 2 pessoas: Produto (bugs, features baseadas em feedback)\n\n**Métricas a medir:**\n- MRR (Monthly Recurring Revenue)\n- Activation rate (% que usam a app nos primeiros 7 dias)\n- Churn mensal\n- CAC vs LTV (ainda em construção)\n- Satisfação (NPS ou surveys)\n\n---\n\n## DEZEMBRO — Aceleração Final (120+ clientes)\n\n**Focos:**\n- 70-100+ clientes novos (total ~200)\n- Solidificar operações\n- Começar a otimizar retenção\n\n**Ações principais:**\n1. **Intensificação de vendas** — Todas as alavancas juntas (referrals, content, outreach, partnerships)\n2. **Pricing experiments** — Se há oportunidade de aumentar plano/preço\n3. **Retenção agressiva** — Check-ins com churners, suporte reativo\n4. **Comunicação** — Newsletter aos clientes, atualizações mensais (built-in trust)\n5. **Preparação Q1** — O que aprendeste, quais features vêm a seguir\n\n**Equipa:**\n- 1 pessoa: Sales full-time (parceiros + direto)\n- 1 pessoa: Suporte + Retenção (surveys, follow-ups)\n- 2 pessoas: Produto (estabilidade, features pedidas por clientes)\n\n**Métricas a medir:**\n- Total clientes pagantes\n- MRR\n- Churn acumulado\n- Acquisition cost por canal\n- Unit economics (CAC, LTV, payback period)\n\n---\n\n## Dashboard Mínimo para Medir\n\n| Métrica | Frequência | Target Q4 |\n|---------|-----------|-----------|\n| Clientes pagantes | Semanal | 200 até 31 dez |\n| MRR | Semanal | €X (depende preço) |\n| Trial → Pago % | Semanal | >20% |\n| Churn mensal | Mensal | <5% (ideal <2%) |\n| NPS | Mensal | >40 |\n| CAC por canal | Mensal | Clarificar qual canal rende |\n| Uso activo (DAU/MAU) | Semanal | >60% do cliente base |\n\n---\n\n## Notas Críticas\n\n**Equipar para vencer:**\n- Sem sales time não chegam a 200. Alguém tem de fazer outreach direto.\n- Suporte de qualidade = retenção. Não negligiem.\n- Feedback rápido do cliente = produto certo. Conversem sempre.\n\n**Red flags a evitar:**\n- Crescimento sem retenção (chegam a 200 mas perdem tudo em janeiro)\n- Overselling funcionalidades que não têm\n- Negligenciar produto porque focam só em sales\n\n**Ajustes:**\n- Se o CAC for muito alto em outubro, pivotem estratégia em novembro\n- Se churn > 10%, algo está errado no produto ou onboarding\n- Se chegarem a 150 em novembro, podem ambicionar 250 em vez de 200\n\nQuer que aprofunde alguma área? (pricing, outreach, retenção, parcerias)",
+ "tokens_in": 10,
+ "tokens_out": 1817,
+ "cache_creation": 6738,
+ "cache_read": 0,
+ "decorrido_ms": 21389.0609,
+ "preco": {
+  "input": 1,
+  "output": 5,
+  "cache_write_5m": 1.25,
+  "cache_read": 0.1
+ },
+ "custo_resposta_usd": 0.009095,
+ "custo_faturado_usd": 0.0175175,
+ "parcelas_usd": {
+  "entrada_nova": 0.00001,
+  "saida": 0.009085,
+  "cache_write": 0.0084225,
+  "cache_read": 0
+ }
+}

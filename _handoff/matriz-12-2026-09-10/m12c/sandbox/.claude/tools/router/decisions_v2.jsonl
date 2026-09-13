@@ -1,0 +1,12 @@
+{"ts":"2026-09-12T01:00:06.806Z","op":"ambiguous_short","tier":"T0","llm":"qwen2.5-coder:14b","tokens_in":0,"tokens_out":0,"reason":"none","via":"local-summarizer","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:07.022Z","op":"simple_transform_or_explain","tier":"T1","llm":"haiku","tokens_in":0,"tokens_out":0,"reason":"none","via":"cheap-triage","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:07.231Z","op":"ambiguous_short","tier":"T0","llm":"qwen2.5-coder:14b","tokens_in":0,"tokens_out":0,"reason":"none","via":"local-summarizer","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:07.439Z","op":"ambiguous_medium","tier":"T1","llm":"haiku","tokens_in":0,"tokens_out":0,"reason":"none","via":"cheap-triage","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:07.650Z","op":"ambiguous_short","tier":"T0","llm":"qwen2.5-coder:14b","tokens_in":0,"tokens_out":0,"reason":"none","via":"local-summarizer","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:07.870Z","op":"simple_transform_or_explain","tier":"T1","llm":"haiku","tokens_in":0,"tokens_out":0,"reason":"none","via":"cheap-triage","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:08.076Z","op":"architecture_or_critical","tier":"T3","llm":"opus","tokens_in":0,"tokens_out":0,"reason":"none","via":"model-architect","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:08.280Z","op":"architecture_or_critical","tier":"T3","llm":"opus","tokens_in":0,"tokens_out":0,"reason":"none","via":"model-architect","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:08.483Z","op":"ambiguous_short","tier":"T0","llm":"qwen2.5-coder:14b","tokens_in":0,"tokens_out":0,"reason":"none","via":"local-summarizer","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:08.687Z","op":"trivial_local","tier":"T0","llm":"qwen2.5-coder:14b","tokens_in":0,"tokens_out":0,"reason":"none","via":"local-summarizer","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:09.653Z","op":"ambiguous_medium","tier":"T1","llm":"haiku","tokens_in":0,"tokens_out":0,"reason":"none","via":"cheap-triage","auto_skill":null,"auto_skill_conf":null}
+{"ts":"2026-09-12T01:00:09.859Z","op":"ambiguous_short","tier":"T0","llm":"qwen2.5-coder:14b","tokens_in":0,"tokens_out":0,"reason":"none","via":"local-summarizer","auto_skill":null,"auto_skill_conf":null}

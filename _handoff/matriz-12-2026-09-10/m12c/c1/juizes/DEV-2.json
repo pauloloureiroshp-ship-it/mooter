@@ -1,0 +1,156 @@
+{
+ "id": "DEV-2",
+ "chave": {
+  "R1": "A",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "C",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Dá passos úteis para diagnosticar e corrigir, mas alonga-se e inclui causas que produziriam mensagens de erro diferentes.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "A orientação está correta, mas falta um exemplo aplicável e sobra um longo raciocínio repetitivo em inglês.",
+     "total": 6,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explica o erro, apresenta correções concretas e distingue proteção temporária de correção da causa, sem excesso.",
+     "total": 10,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Fornece soluções úteis, mas o exemplo apresentado como esperar pelo carregamento não impede por si só a renderização inicial com undefined.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Permite diagnosticar e corrigir o problema, mas afirma incorretamente que data || [] garante um array e inclui algum excesso.",
+     "total": 8,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Dá passos úteis para diagnosticar e corrigir, mas alonga-se e inclui causas que produziriam mensagens de erro diferentes.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"A orientação está correta, mas falta um exemplo aplicável e sobra um longo raciocínio repetitivo em inglês.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explica o erro, apresenta correções concretas e distingue proteção temporária de correção da causa, sem excesso.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Fornece soluções úteis, mas o exemplo apresentado como esperar pelo carregamento não impede por si só a renderização inicial com undefined.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Permite diagnosticar e corrigir o problema, mas afirma incorretamente que data || [] garante um array e inclui algum excesso.\"}}",
+   "custo_tokens": {
+    "in": 29925,
+    "out": 385,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Explica bem, causas e correcoes concretas, avisa do risco de mascarar bugs com optional chaining, mas e longa.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe todo o raciocínio interno em inglês antes da resposta final curta, o que é confuso e pouco profissional.",
+     "total": 3,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Direta, com causa provável, código corrigido e aviso sobre a diferença entre mascarar e corrigir, sem excesso.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "Boa explicação e exemplos práticos de correção, pede código para diagnóstico exato mas dá soluções imediatas.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Cobre causas e soluções corretamente com exemplos, ligeiramente redundante face às outras respostas.",
+     "total": 8,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Explica bem, causas e correcoes concretas, avisa do risco de mascarar bugs com optional chaining, mas e longa.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe todo o raciocínio interno em inglês antes da resposta final curta, o que é confuso e pouco profissional.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Direta, com causa provável, código corrigido e aviso sobre a diferença entre mascarar e corrigir, sem excesso.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"Boa explicação e exemplos práticos de correção, pede código para diagnóstico exato mas dá soluções imediatas.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Cobre causas e soluções corretamente com exemplos, ligeiramente redundante face às outras respostas.\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 528,
+    "cache_write": 10246,
+    "cache_read": 3298
+   }
+  }
+ }
+}

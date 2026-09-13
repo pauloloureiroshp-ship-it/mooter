@@ -1,0 +1,12 @@
+{
+  "created_at": "2026-05-30T22:58:29.075Z",
+  "profiles": {
+    "anthropic": "unknown"
+  },
+  "routing_hints": {
+    "prefer_local_t0": true,
+    "haiku_available": false,
+    "budget_tracking": "oauth"
+  },
+  "notes": "Auto-created (non-interactive context). Update via: node setup-profile.js"
+}

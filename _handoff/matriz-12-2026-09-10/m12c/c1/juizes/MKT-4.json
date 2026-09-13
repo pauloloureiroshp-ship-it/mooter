@@ -1,0 +1,156 @@
+{
+ "id": "MKT-4",
+ "chave": {
+  "R1": "C",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "A",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Cobre meses, equipa e métricas, mas não sustenta as metas com um funil e sugere três meses gratuitos incompatíveis com angariar pagantes até dezembro.",
+     "total": 7,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Expõe raciocínio repetitivo e contraditório, confunde utilizadores beta com pagantes e termina sem apresentar o plano de dezembro.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explicita pressupostos, distribui responsabilidades e apresenta ações mensais, metas líquidas e métricas úteis, com um teste de capacidade e recalibração.",
+     "total": 10,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "É operacional, mas apresenta hipóteses como certezas, recomenda 220 aquisições sem as incorporar nas metas e exige 140 clientes em dezembro após prever apenas 130 em novembro.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Apresenta ações e métricas relevantes, mas os títulos e totais mensais divergem e falta dimensionar a aquisição necessária para alcançar 200 pagantes.",
+     "total": 6,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Cobre meses, equipa e métricas, mas não sustenta as metas com um funil e sugere três meses gratuitos incompatíveis com angariar pagantes até dezembro.\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Expõe raciocínio repetitivo e contraditório, confunde utilizadores beta com pagantes e termina sem apresentar o plano de dezembro.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explicita pressupostos, distribui responsabilidades e apresenta ações mensais, metas líquidas e métricas úteis, com um teste de capacidade e recalibração.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"É operacional, mas apresenta hipóteses como certezas, recomenda 220 aquisições sem as incorporar nas metas e exige 140 clientes em dezembro após prever apenas 130 em novembro.\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Apresenta ações e métricas relevantes, mas os títulos e totais mensais divergem e falta dimensionar a aquisição necessária para alcançar 200 pagantes.\"}}",
+   "custo_tokens": {
+    "in": 34759,
+    "out": 444,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "C": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "plano generico com metricas soltas e sem justificar como 50/120/200 sao atingiveis",
+     "total": 4,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 0,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "expõe todo o raciocinio interno em ingles e a resposta fica cortada a meio, inutilizavel",
+     "total": 0,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "plano claro por mes com metricas e um teste de capacidade que valida a exequibilidade da meta, conciso e accionavel",
+     "total": 9,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "muito completo com contas de capacidade, pontos de decisao e riscos legais/operacionais tratados a serio, mas e extenso",
+     "total": 9,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 1,
+     "porque": "plano razoavel mas generico, numeros mensais nao justificados e sem tratar riscos especificos do negocio",
+     "total": 4,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"plano generico com metricas soltas e sem justificar como 50/120/200 sao atingiveis\"},\"R2\":{\"RESOLVE\":0,\"CORRECTO\":0,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"expõe todo o raciocinio interno em ingles e a resposta fica cortada a meio, inutilizavel\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"plano claro por mes com metricas e um teste de capacidade que valida a exequibilidade da meta, conciso e accionavel\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"muito completo com contas de capacidade, pontos de decisao e riscos legais/operacionais tratados a serio, mas e extenso\"},\"R5\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":1,\"porque\":\"plano razoavel mas generico, numeros mensais nao justificados e sem tratar riscos especificos do negocio\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 517,
+    "cache_write": 18499,
+    "cache_read": 3298
+   }
+  }
+ }
+}

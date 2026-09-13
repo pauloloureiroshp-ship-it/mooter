@@ -1,0 +1,127 @@
+{
+ "_schema": "matriz-12/m12c-prereg/1",
+ "congelado_em": "2026-09-12T01:00:06.612Z",
+ "variante": "c1",
+ "pergunta": "Com ANTHROPIC_API_KEY presente no env do hook real e o arbiter DESLIGADO, quais prompts deixam de ser rebaixados de T1 para T0 (classify.js:901), e o que isso faz aos pontos e ao custo do braço B?",
+ "unica_variavel": "o braço B passa por tools/router/inject_context.js com ANTHROPIC_API_KEY presente e MOOTER_ARBITER_DISABLE=1. O único efeito esperado é o T1 deixar de degradar para T0. Tudo o resto — prompts, modelos por degrau, tecto 2048, system prompt local COMO ESTÁ, juízes, sorteio, respostas de A/C/D — igual à corrida principal.",
+ "chave": {
+  "presente": true,
+  "origem": "~\\frugal\\tools\\router\\.env",
+  "nota": "valor nunca gravado nem impresso"
+ },
+ "sandbox": {
+  "router_dir": "~\\frugal\\.claude\\worktrees\\matriz-12-mooter-comparison-3c2b8e\\_handoff\\matriz-12-2026-09-10\\m12c\\sandbox\\.claude\\tools\\router",
+  "hw_capability_sha256": "298e81e95ad776203c1b4c21de37d0d59366453f026c322f497a6e3adb804e78",
+  "subscription_profile_presente": true,
+  "o_que_o_hook_escreve_aqui": [
+   "decisions.log",
+   ".classify-cache.json",
+   ".arbiter-cache.json",
+   ".budget-cache.json"
+  ],
+  "runtime_real_tocado": false
+ },
+ "congelados": {
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "tools/router/patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5",
+  "tools/router/inject_context.js": "c11e0e0806755623ebd28207697ae1a8ec236904f6fe58ec4a324b35b35f5231",
+  "tools/router/arbiter.js": "edb1040ecb07af1e5975a5829e73b27a79a62db66546fb008603aa9ac12fc894",
+  "tools/router/providers/ollama-api.js": "9d7bd67427cdd794f0afe374286b7e2734674b20932031b9f784d97e760d35c6"
+ },
+ "prompts_sha256": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "semente_do_sorteio": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "rotas_da_corrida_principal": {
+  "DATA-1": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "LEGAL-1": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.85,
+   "task_category": "simple_transform_or_explain"
+  },
+  "MKT-2": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "LEGAL-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.6,
+   "task_category": "ambiguous_medium"
+  },
+  "MKT-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "DEV-2": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.85,
+   "task_category": "simple_transform_or_explain"
+  },
+  "DATA-4": {
+   "tier": "T3",
+   "modelo": "claude-opus-5",
+   "confidence": 0.75,
+   "task_category": "architecture_or_critical"
+  },
+  "OPS-4": {
+   "tier": "T3",
+   "modelo": "claude-opus-5",
+   "confidence": 0.9,
+   "task_category": "architecture_or_critical"
+  },
+  "OPS-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "P5": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.8,
+   "task_category": "trivial_local"
+  },
+  "MKT-4": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.6,
+   "task_category": "ambiguous_medium"
+  },
+  "DATA-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  }
+ },
+ "gatilho_do_arbiter": "confidence < 0.75 OU task_category ambiguous_* (inject_context.js ~l.925)",
+ "prompts_no_gatilho": [
+  "DATA-1",
+  "MKT-2",
+  "LEGAL-3",
+  "MKT-3",
+  "OPS-3",
+  "MKT-4",
+  "DATA-3"
+ ],
+ "reutilizacao": "onde o hook devolver o MESMO degrau e o MESMO modelo da corrida principal, a resposta original do B é reutilizada byte a byte — não se gera outra vez",
+ "previsoes": {
+  "exactamente os 4 prompts que a regra classifica como T1 (LEGAL-1, LEGAL-3, DEV-2, MKT-4) sobem para T1/Haiku; os outros 8 não mudam": "SIM",
+  "nenhuma linha ARBITER no hint (kill-switch respeitado)": "SIM",
+  "B(c1) > B (56,5) nos 12": "SIM",
+  "B(c1) ≥ C (80,5) nos 12": "NÃO",
+  "nos 4 que sobem, B(c1) fica a ≤ 2 pontos de C (é o mesmo modelo, Haiku)": "SIM",
+  "custo imputado de B(c1) > custo de C (0,1527)": "SIM (os 2 Opus dos T3 pesam)"
+ },
+ "regra_de_paragem": "se B(m12c) ≥ A (100,5) nos 12, o instrumento está partido: parar e investigar."
+}
