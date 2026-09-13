@@ -1123,33 +1123,42 @@ export function controloDoFilho(ctx, ids) {
 /** `--verificar`: $0 — o pré-voo da corrida e os worktrees (o teste falha no pai e passa no filho). */
 export async function verificar(ctx, { semControlo = false } = {}) {
   const log = ctx.log;
-  const pv = await preVooDaCorrida(ctx, { comModelo: false });
+  const pv = await (ctx.preVooImpl || preVooDaCorrida)(ctx, { comModelo: false });
   log(pv.ok ? 'pre-voo da corrida: ok' : `pre-voo da corrida: ${pv.falhas.length} falha(s)`);
   const porTier = {}; for (const [id, c] of Object.entries(ctx.classificacoes)) if (c.ok) (porTier[c.tier] = porTier[c.tier] || []).push(id);
   log(`classify (runtime, ambiente da corrida): ${Object.entries(porTier).map(([t, ids]) => `${t} ${ids.length}`).join(' · ')} · modelo local ${ctx.modeloLocal || 'n/d'} @ ${ctx.modeloLocalDigest ? ctx.modeloLocalDigest.slice(0, 12) : 'n/d'}${ctx.overrides.modelo_local ? ' (emenda)' : ' (prereg: OLLAMA_OPTION_A_MODEL || qwen2.5:3b)'}${ctx.classifyRecomenda && ctx.classifyRecomenda.length ? ` · o classify recomendaria ${ctx.classifyRecomenda.join(', ')}` : ''}`);
   fs.mkdirSync(ctx.raiz, { recursive: true });
-  const ids = [...ctx.prereg.corpus.tarefas.map((t) => t.task_id), ...ctx.prereg.corpus.suplentes];
-  const dirsNm = [...new Set(ids.map((id) => ctx.tarefasPorId.get(id).acceptance_cwd).concat(['.']))];
-  prepararCacheNodeModules({ repo: ctx.repo, cache: ctx.cache, dirs: dirsNm, log });
+  // 157, no --verificar: uma tarefa --excluir por emenda nao corre pai/filho aqui nem conta como falha — correr() ja a saltava (idsControlo), so o --verificar contava-a a mais (dono, 2026-09-12)
+  const excluirIds = (ctx.overrides && Array.isArray(ctx.overrides.excluir)) ? ctx.overrides.excluir : [];
+  const idsTodas = [...ctx.prereg.corpus.tarefas.map((t) => t.task_id), ...ctx.prereg.corpus.suplentes];
+  const ids = idsTodas.filter((id) => !excluirIds.includes(id));
+  const excluidas = idsTodas.filter((id) => excluirIds.includes(id));
+  const dirsNm = [...new Set(idsTodas.map((id) => ctx.tarefasPorId.get(id).acceptance_cwd).concat(['.']))];
+  (ctx.cacheNmImpl || prepararCacheNodeModules)({ repo: ctx.repo, cache: ctx.cache, dirs: dirsNm, log });
+  for (const id of excluidas) {
+    const t = tarefaCompleta(ctx, id);
+    log(`  —  ${id} ${t.tier_classificado} hist ${t.tests_total_historico} (excluida por emenda)${t.suplente ? ' (suplente)' : ''}`);
+  }
   let falhas = 0;
   for (const id of ids) {
     const t = tarefaCompleta(ctx, id);
-    const prep = prepararWorktrees(ctx, t, { nomes: ['verificar'] });
+    const prep = (ctx.prepararImpl || prepararWorktrees)(ctx, t, { nomes: ['verificar'] });
     if (!prep.ok) { log(`  ✖ ${id}: ${prep.motivo}`); falhas++; continue; }
-    const pai = correrAceitacaoComProva({ cwd: path.join(prep.dirs.verificar, t.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env });
+    const pai = correrAceitacaoComProva({ cwd: path.join(prep.dirs.verificar, t.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl: ctx.spawnImpl || spawnSync });
     const okPai = !pai.erro && pai.sumario_ok && pai.exit_code !== 0;
     let filho = null;
     if (!semControlo) {
       const destino = path.join(ctx.snapshots, `${id}-controlo`);
-      const s = prepararSnapshot({ repo: ctx.repo, parent: t.commit, destino, acceptanceCwd: t.acceptance_cwd, cacheNm: ctx.cache });
-      if (s.ok) { instalarTesteDeAceitacao({ snapshotDir: destino, ficheiroTeste: t.test_file, conteudo: prep.conteudo_teste }); filho = correrAceitacaoComProva({ cwd: path.join(destino, t.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env }); }
+      const s = (ctx.snapshotImpl || prepararSnapshot)({ repo: ctx.repo, parent: t.commit, destino, acceptanceCwd: t.acceptance_cwd, cacheNm: ctx.cache });
+      if (s.ok) { (ctx.instalarTesteImpl || instalarTesteDeAceitacao)({ snapshotDir: destino, ficheiroTeste: t.test_file, conteudo: prep.conteudo_teste }); filho = correrAceitacaoComProva({ cwd: path.join(destino, t.acceptance_cwd), comando: prep.comando, args: prep.args, env: ctx.env, spawnImpl: ctx.spawnImpl || spawnSync }); }
       else filho = { erro: s.motivo };
     }
     const okFilho = semControlo || (filho && !filho.erro && filho.sumario_ok && filho.exit_code === 0 && filho.tests_corridos >= t.tests_total_historico && filho.tests_passados >= t.tests_total_historico);
     if (!okPai || !okFilho) falhas++;
     log(`  ${okPai && okFilho ? 'ok' : '✖ '} ${id} ${t.tier_classificado} hist ${t.tests_total_historico} · pai exit ${pai.erro || pai.exit_code} ${pai.sumario_ok ? `${pai.tests_passados}/${pai.tests_corridos} skips ${pai.skips}` : 'SEM SUMARIO'}${filho ? ` · filho exit ${filho.erro || filho.exit_code} ${filho.sumario_ok ? `${filho.tests_passados}/${filho.tests_corridos} skips ${filho.skips}` : 'SEM SUMARIO'}` : ''}${t.suplente ? ' (suplente)' : ''}`);
   }
-  log(`verificar: ${ids.length - falhas}/${ids.length} tarefas ok · ${pv.falhas.length} falha(s) de pre-voo · ${pv.avisos.length} aviso(s)`);
+  const excluidasTxt = excluidas.length ? ` · ${excluidas.length} excluida${excluidas.length > 1 ? 's' : ''} por emenda` : '';
+  log(`verificar: ${ids.length - falhas}/${ids.length} tarefas ok${excluidasTxt} · ${pv.falhas.length} falha(s) de pre-voo · ${pv.avisos.length} aviso(s)`);
   return pv.ok && falhas === 0 ? 0 : 2;
 }
 

@@ -17,7 +17,7 @@ import {
   parseSumarioNodeTest, listagemSha, tectoDoOrcamento, encontrarTranscript, tokensDoTranscript, parseJsonDoCli,
   Ledger, linhaVazia, correrAceitacaoComProva, decidirAceite, argsClaudeP, correrClaudeP, correrLocal, classificar,
   construirContexto, carregarProtocolo, tarefaCompleta, ollamaHost, MODELO_OPUS, SENTINELA_CONTEUDO,
-  correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore, modeloLocalDoPrereg, MODELO_LOCAL_DEFAULT, correr, sondar, caminhoDoSentinela, SO_MAXIMO,
+  correrTarefa, tentativaClaudeP, ollamaTagsComRetry, matarArvore, modeloLocalDoPrereg, MODELO_LOCAL_DEFAULT, correr, sondar, caminhoDoSentinela, SO_MAXIMO, verificar,
 } from './correr-custo.mjs';
 import { CHAVES_OBRIGATORIAS, TIPOS_OBRIGATORIOS, violacoesDeTipo, SUPLENTES_ESPERADOS, analisar, lerLedger, TRANSCRIPT_MINIMO } from './custo-analise.mjs';
 import { relogio, anterioridadeDaEmenda } from './correr-custo.mjs';
@@ -769,4 +769,57 @@ test('correr() com --excluir de um SUPLENTE por emenda: fica na lista e e regist
   const p = d2.eventos().at(-1);
   assert.equal(p.evento, 'paragem'); assert.match(p.motivo, /sem suplentes/); assert.equal(fs.existsSync(caminhoDoSentinela(d2.ctx.routerDirVivo)), false);
   assert.equal(d2.julgar().primaria.limiar_descritivo_cumprido, null);
+});
+
+// ── `--verificar` e o 157: uma tarefa em `overrides.excluir` nao pode contar como falha ──────
+
+/** Um `verificar()` hermetico sobre o harness de 2 tarefas (t22, t21): pai a falhar por
+ * construcao (esperado), filho a passar — excepto quando `falharFilhoPara` nomeia o id
+ * cujo filho deve falhar (mordida do controlo negativo). */
+function construirCtxDeVerificar({ excluir = [], falharFilhoPara = null } = {}) {
+  const h = harness();
+  const ctx = h.ctx;
+  ctx.raiz = path.join(ctx.home, 'raiz');
+  ctx.classificacoes = {};   // preVooDaCorrida normalmente preenche isto; aqui e mockado
+  ctx.overrides.excluir = excluir;
+  ctx.preVooImpl = async () => ({ ok: true, falhas: [], avisos: [] });
+  ctx.cacheNmImpl = () => [];
+  ctx.snapshotImpl = () => ({ ok: true });
+  ctx.instalarTesteImpl = () => {};
+  const idsVistos = [];
+  ctx.prepararImpl = (c, tarefa) => {
+    idsVistos.push(tarefa.task_id);
+    const d = path.join(ctx.snapshots, `${tarefa.task_id}-verificar`);
+    fs.mkdirSync(d, { recursive: true });
+    return { ok: true, dirs: { verificar: d }, comando: 'node', args: ['--test', tarefa.test_file], conteudo_teste: 'export {};\n' };
+  };
+  const sumario = (verde, hist) => (verde ? `ℹ tests ${hist}\nℹ pass ${hist}\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\n` : `ℹ tests ${hist}\nℹ pass ${hist - 1}\nℹ fail 1\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\n`);
+  ctx.spawnImpl = (exe, args, opts) => {
+    const cwd = String(opts.cwd);
+    const idAlvo = cwd.includes('t22-') ? 't22-11f81c79b7' : 't21-96171ef138';
+    const hist = idAlvo === 't22-11f81c79b7' ? 55 : 26;
+    if (cwd.includes('-verificar')) return { status: 1, signal: null, stdout: sumario(false, hist), stderr: '' };   // pai: falha por construcao (o esperado)
+    if (cwd.includes('-controlo')) { const falha = idAlvo === falharFilhoPara; return { status: falha ? 1 : 0, signal: null, stdout: sumario(!falha, hist), stderr: '' }; }
+    throw new Error(`spawn inesperado em verificar(): ${cwd}`);
+  };
+  const logs = []; ctx.log = (m) => logs.push(String(m));
+  return { ctx, idsVistos, logs };
+}
+
+test('verificar(): --excluir por emenda fica «excluida por emenda», nao chama prepararImpl e nao conta como falha (157 no --verificar); sem excluir, um filho que falha da ✖ e exit 2 — a exclusao nao tapa tudo', async () => {
+  // o filho da excluida FALHA (como a t23, morta por construcao): e exactamente o caso que dava exit 2 com «pre-voo da corrida: ok»
+  const c1 = construirCtxDeVerificar({ excluir: ['t21-96171ef138'], falharFilhoPara: 't21-96171ef138' });
+  const codigo1 = await verificar(c1.ctx);
+  assert.equal(codigo1, 0, c1.logs.join(' | '));
+  assert.ok(!c1.idsVistos.includes('t21-96171ef138'), 'a tarefa excluida nunca chega ao prepararImpl');
+  assert.ok(c1.logs.some((l) => /^\s+—\s+t21-96171ef138.*excluida por emenda/.test(l)), c1.logs.join(' | '));
+  assert.ok(c1.logs.some((l) => /^verificar: 1\/1 tarefas ok.*1 excluida por emenda/.test(l)), c1.logs.at(-1));
+
+  // controlo negativo: sem --excluir, o filho de t21 falha -> nao passa a mensagem por baixo do tapete
+  const c2 = construirCtxDeVerificar({ excluir: [], falharFilhoPara: 't21-96171ef138' });
+  const codigo2 = await verificar(c2.ctx);
+  assert.equal(codigo2, 2, c2.logs.join(' | '));
+  assert.ok(c2.idsVistos.includes('t21-96171ef138'), 'sem exclusao a tarefa corre na mesma');
+  assert.ok(c2.logs.some((l) => /^\s+✖\s+t21-96171ef138\b/.test(l)), c2.logs.join(' | '));
+  assert.ok(!c2.logs.some((l) => /excluida por emenda/.test(l)), 'sem overrides.excluir nao ha linha de exclusao');
 });
