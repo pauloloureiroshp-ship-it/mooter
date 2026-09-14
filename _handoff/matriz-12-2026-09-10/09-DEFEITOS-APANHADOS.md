@@ -1,8 +1,10 @@
 # MATRIZ 12 · defeitos apanhados
 
-Doze. Nove antes da corrida (D1–D9: preflight e ensaio de fumo), dois durante
+Quinze. Nove antes da corrida (D1–D9: preflight e ensaio de fumo), dois durante
 (D10 nos dados, D11 nos juizes), um apanhado por outra sessao depois (D12, a
-sonda de hardware). Sete teriam feito a tabela mentir sem ninguem dar por isso.
+sonda de hardware), e tres ao preparar e correr o M12-c (D13, a chave que o
+produto nao le; D14, o T1 que nao existe sem ela; D15, o arbiter que falha em
+silencio). Sete teriam feito a tabela mentir sem ninguem dar por isso.
 
 Data: 2026-09-10 · worktree `claude/matriz-12-mooter-comparison-3c2b8e` · HEAD `f66813e9`
 
@@ -212,3 +214,60 @@ fez; verificado a posteriori que **nao mudou** entre o probe (16:46:10Z) e o fim
 (mtime = probed_at). Fica como regra para M12-c/M12-d.
 
 Defeito do produto, fora do ambito desta corrida; nao corrigido aqui.
+
+## D13 · a chave existe e o produto nao a vai buscar
+
+Apanhado ao preparar o M12-c (2026-09-11). O dono tem `ANTHROPIC_API_KEY` em
+`~/frugal/tools/router/.env` desde o inicio (108 chars, `sk-ant-…`, valida: a
+API reconhece-a). **Nenhum componente do produto le esse ficheiro**: nem
+`inject_context.js` (0 ocorrencias de `.env`/`dotenv`), nem `arbiter.js` (le
+`process.env.ANTHROPIC_API_KEY` e mais nada), nem `anthropic_call.sh` (sai com
+4 se a variavel nao estiver ja no ambiente). Nao ha variavel de utilizador nem
+de maquina no Windows, nem bloco `env` em nenhum `settings.json`.
+
+Consequencia: o arbiter de Haiku — a peca feita para os prompts ambiguos, que
+o D7 registou como «inerte por falta de chave» — esteve inerte **com a chave a
+tres directorios de distancia**, em todo o uso real do dono. O D7 estava mal
+nomeado: nao e «falta chave», e «o produto nao a carrega».
+
+Segundo facto, separado: a conta da API a que a chave pertence esta **sem
+saldo** (`400 — Your credit balance is too low`, medido com uma chamada de 5
+tokens ao Haiku). O M12-c fica a espera de credito; o instrumento
+(`m12c.mjs`) le a chave do ficheiro certo so para o `env` do hook, nunca a
+imprime, e recusa-se a correr sem ela.
+
+O que o worktree escondia: `.env` e gitignored e nao vem nos worktrees, por
+isso a primeira busca desta sessao disse «nao existe» — procurou no worktree e
+em `~/.claude`, nao no checkout principal. Corrigido antes de qualquer chamada.
+
+## D14 · sem chave no env, o T1 nao existe — e o verdict chamou-lhe outra coisa
+
+Apanhado ao correr o M12-c1 (2026-09-12). `classify.js:901`, congelado:
+
+```
+if (tier === 'T1' && !anthropicKey && (...)) { tier = 'T0';
+  escalation_rule = 'haiku_unavailable_no_provider_degraded_to_local'; }
+```
+
+**Sem `ANTHROPIC_API_KEY` no env, todo o T1 e rebaixado para T0 local.** A
+corrida principal correu o `classify.js` sem chave (D13: nada a carrega), e o
+verdict escreveu «nenhum destes 12 prompts foi encaminhado para T1 ou T2» como
+se fosse o classificador a saltar o degrau do meio. Nao era: **4 dos 12**
+(LEGAL-1, LEGAL-3, DEV-2, MKT-4) sao T1 por regra e foram apagados para local
+pela ausencia da chave. Medido no M12-c1 com a chave presente e o arbiter
+desligado: exactamente esses 4 sobem para Haiku, **B 56,5 → 71,5** (+15 em
+128), custo 0,1620 → 0,2209 — ainda abaixo do Haiku puro (80,5) e mais caro.
+
+Consequencia para o produto: no dia-a-dia do dono (D13), o Mooter e um router
+de **dois degraus** — local ou Opus. O «degrau do meio» que o livro descreve so
+existe em maquinas com a chave no ambiente.
+
+## D15 · o arbiter falha em silencio
+
+Na ronda invalida do M12-c2 (chave presente, org sem saldo), o `arbiter.js`
+tentou 6 vezes (o 7.º prompt do gatilho, OPS-3, nem lhe chegou: apanhou uma
+entrada da `.classify-cache.json` de 23:51Z), recebeu `400 credit balance too
+low` em 62 ms e devolveu `null`. O hint que o utilizador ve **nao diz nada** — nem «arbiter falhou»,
+nem «arbiter saltado»; a unica marca e `arbiter_call outcome:failed` no
+`decisions.log`. Um utilizador com chave e sem saldo pensa que tem arbiter e
+nao tem. Evidencia: `m12c/decisions.arbiter-falhou-sem-saldo.log`.

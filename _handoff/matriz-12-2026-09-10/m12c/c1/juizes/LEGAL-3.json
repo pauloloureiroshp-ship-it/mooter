@@ -1,0 +1,156 @@
+{
+ "id": "LEGAL-3",
+ "chave": {
+  "R1": "A",
+  "R2": "B2",
+  "R3": "D",
+  "R4": "C",
+  "R5": "B"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Cobre amplamente o pedido, mas exige harmonizar disposições, atribui indevidamente ao artigo 16 a conservação para exercício de direitos e excede bastante o necessário.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Aborda os quatro temas superficialmente, confunde exigência legal com autorização contratual de subcontratação e inclui extensa deliberação sem definir prazos nem procedimentos suficientes.",
+     "total": 3,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Apresenta uma minuta equilibrada com finalidade, retenção, suboperadores e encerramento operacionalizados, distinguindo prazos contratuais de legais, embora falte preencher parâmetros e prever ausência de instrução no encerramento.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Cobre o pedido, mas usa processadora em vez de operadora, deixa a retenção após o término mal articulada e não exige eliminar as cópias quando houver devolução.",
+     "total": 6,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Cobre os temas pedidos, mas equipara eliminação a direito ao esquecimento, deixa retenção e encerramento por harmonizar e exige dos subcontratados apenas compromissos de confidencialidade e segurança.",
+     "total": 6,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Cobre amplamente o pedido, mas exige harmonizar disposições, atribui indevidamente ao artigo 16 a conservação para exercício de direitos e excede bastante o necessário.\"},\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Aborda os quatro temas superficialmente, confunde exigência legal com autorização contratual de subcontratação e inclui extensa deliberação sem definir prazos nem procedimentos suficientes.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Apresenta uma minuta equilibrada com finalidade, retenção, suboperadores e encerramento operacionalizados, distinguindo prazos contratuais de legais, embora falte preencher parâmetros e prever ausência de instrução no encerramento.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Cobre o pedido, mas usa processadora em vez de operadora, deixa a retenção após o término mal articulada e não exige eliminar as cópias quando houver devolução.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Cobre os temas pedidos, mas equipara eliminação a direito ao esquecimento, deixa retenção e encerramento por harmonizar e exige dos subcontratados apenas compromissos de confidencialidade e segurança.\"}}",
+   "custo_tokens": {
+    "in": 36109,
+    "out": 501,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "A": {
+     "rotulo": "R1",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "Cláusula muito completa com anexo e pontos de negociação, mas extensa em relação ao pedido.",
+     "total": 9,
+     "maximo": 10
+    },
+    "B2": {
+     "rotulo": "R2",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Expõe todo o raciocínio interno como texto e entrega uma cláusula final rasa sem prazos nem mecanismos concretos.",
+     "total": 2,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Cobre bem os quatro pontos, cita artigos da LGPD e trata backups/excepções legais com cuidado, mantendo-se conciso.",
+     "total": 9,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Estrutura clara e pronta a usar cobrindo todos os pontos, mas trata riscos (backups, incidentes) de forma mais superficial que outras.",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Bem organizada e utilizável de imediato, mas menos aprofundada na gestão de riscos (ex. cadeia de responsabilidade em subcontratação).",
+     "total": 8,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"Cláusula muito completa com anexo e pontos de negociação, mas extensa em relação ao pedido.\"},\n\"R2\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Expõe todo o raciocínio interno como texto e entrega uma cláusula final rasa sem prazos nem mecanismos concretos.\"},\n\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Cobre bem os quatro pontos, cita artigos da LGPD e trata backups/excepções legais com cuidado, mantendo-se conciso.\"},\n\"R4\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Estrutura clara e pronta a usar cobrindo todos os pontos, mas trata riscos (backups, incidentes) de forma mais superficial que outras.\"},\n\"R5\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Bem organizada e utilizável de imediato, mas menos aprofundada na gestão de riscos (ex. cadeia de responsabilidade em subcontratação).\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 3296,
+    "cache_write": 21293,
+    "cache_read": 3298
+   }
+  }
+ }
+}

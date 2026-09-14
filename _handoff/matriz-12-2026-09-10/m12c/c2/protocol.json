@@ -1,0 +1,132 @@
+{
+ "_schema": "matriz-12/m12c-prereg/1",
+ "congelado_em": "2026-09-11T23:52:01.872Z",
+ "pergunta": "Com o arbiter de Haiku ACTIVO (via o hook real), quantos dos prompts ambíguos mudam de degrau, para onde, e o que isso faz aos pontos e ao custo do braço B?",
+ "unica_variavel": "o braço B passa por tools/router/inject_context.js com ANTHROPIC_API_KEY presente; o arbiter (arbiter.js) deixa de ser no-op. Tudo o resto — prompts, modelos por degrau, tecto 2048, system prompt local COMO ESTÁ (com «3 frases»), juízes, sorteio, respostas de A/C/D — igual à corrida principal.",
+ "chave": {
+  "presente": true,
+  "origem": "~/frugal/tools/router/.env (checkout principal; gitignored, por isso ausente do worktree)",
+  "nota": "valor nunca gravado nem impresso. O pre-registo dizia «ausente» porque o runner procurava no worktree e em ~/.claude; corrigido ANTES de qualquer chamada ao arbiter. Nenhuma previsao mudou.",
+  "descoberta": "NINGUEM carrega este .env para o env do hook (nem inject_context.js, nem arbiter.js, nem anthropic_call.sh, que exige a variavel ja definida). No dia-a-dia do dono o arbiter esteve sempre no-op com a chave a 3 directorios de distancia. Registado como D13."
+ },
+ "sandbox": {
+  "router_dir": "~\\frugal\\.claude\\worktrees\\matriz-12-mooter-comparison-3c2b8e\\_handoff\\matriz-12-2026-09-10\\m12c\\sandbox\\.claude\\tools\\router",
+  "hw_capability_sha256": "298e81e95ad776203c1b4c21de37d0d59366453f026c322f497a6e3adb804e78",
+  "subscription_profile_presente": true,
+  "o_que_o_hook_escreve_aqui": [
+   "decisions.log",
+   ".classify-cache.json",
+   ".arbiter-cache.json",
+   ".budget-cache.json"
+  ],
+  "runtime_real_tocado": false
+ },
+ "congelados": {
+  "tools/router/classify.js": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "tools/router/patterns.js": "daf8270869f374a0be61c620f48224163d4f0433548a5d959a99097e728f18e5",
+  "tools/router/inject_context.js": "c11e0e0806755623ebd28207697ae1a8ec236904f6fe58ec4a324b35b35f5231",
+  "tools/router/arbiter.js": "edb1040ecb07af1e5975a5829e73b27a79a62db66546fb008603aa9ac12fc894",
+  "tools/router/providers/ollama-api.js": "9d7bd67427cdd794f0afe374286b7e2734674b20932031b9f784d97e760d35c6"
+ },
+ "prompts_sha256": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "semente_do_sorteio": "f51e1993c15b14d47ae1da971714dd5a0dcca864a5ada2dfa7309d1222c5ea74",
+ "rotas_da_corrida_principal": {
+  "DATA-1": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "LEGAL-1": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.85,
+   "task_category": "simple_transform_or_explain"
+  },
+  "MKT-2": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "LEGAL-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.6,
+   "task_category": "ambiguous_medium"
+  },
+  "MKT-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "DEV-2": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.85,
+   "task_category": "simple_transform_or_explain"
+  },
+  "DATA-4": {
+   "tier": "T3",
+   "modelo": "claude-opus-5",
+   "confidence": 0.75,
+   "task_category": "architecture_or_critical"
+  },
+  "OPS-4": {
+   "tier": "T3",
+   "modelo": "claude-opus-5",
+   "confidence": 0.9,
+   "task_category": "architecture_or_critical"
+  },
+  "OPS-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  },
+  "P5": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.8,
+   "task_category": "trivial_local"
+  },
+  "MKT-4": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.6,
+   "task_category": "ambiguous_medium"
+  },
+  "DATA-3": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.65,
+   "task_category": "ambiguous_short"
+  }
+ },
+ "gatilho_do_arbiter": "confidence < 0.75 OU task_category ambiguous_* (inject_context.js ~l.925)",
+ "prompts_no_gatilho": [
+  "DATA-1",
+  "MKT-2",
+  "LEGAL-3",
+  "MKT-3",
+  "OPS-3",
+  "MKT-4",
+  "DATA-3"
+ ],
+ "reutilizacao": "onde o hook devolver o MESMO degrau e o MESMO modelo da corrida principal, a resposta original do B é reutilizada byte a byte — não se gera outra vez",
+ "previsoes": {
+  "o arbiter corre nos 7 prompts do gatilho": "SIM",
+  "pelo menos 4 dos prompts do gatilho sobem de degrau (T0 → T1 ou T2)": "SIM",
+  "OPS-3 (segurança) sobe de degrau": "SIM",
+  "o arbiter recusa (refused) pelo menos um por HIGH_RISK": "NÃO SEI",
+  "B(m12c) > B (56,5) nos 12": "SIM",
+  "B(m12c) ≥ C (80,5) nos 12": "NÃO SEI — é a pergunta",
+  "custo imputado de B(m12c) > custo de C (0,1527)": "NÃO SEI"
+ },
+ "regra_de_paragem": "se B(m12c) ≥ A (100,5) nos 12, o instrumento está partido: parar e investigar.",
+ "estado": "NAO CORRIDA",
+ "porque_nao_correu": "a unica chave disponivel nesta maquina (~/frugal/tools/router/.env, de 2026-05-07) pertence a org aa542445… / workspace wrkspc_01CG…, que responde «400 credit balance is too low» (sondas de 5 tokens a 2026-09-12 00:55Z, 00:56Z, 01:04Z, 13:39Z, 13:41Z e 2026-09-13 21:56Z — horas anotadas à mão a partir do output da sonda; a sonda imprime, não grava). O dono pos credito e criou chave nova noutra org; nenhuma das duas chegou ao ficheiro que o instrumento le (mtime inalterado). Decisao do dono a 2026-09-13: fechar o pacote sem a c2.",
+ "como_correr_depois": "1) pôr saldo na org aa542445… (platform.claude.com, mudar de org, Plans & Billing) OU substituir a linha ANTHROPIC_API_KEY= em <checkout principal>/tools/router/.env por uma chave de org com saldo; 2) apagar m12c/sandbox/.claude/tools/router/.classify-cache.json (com cache hit o hook nunca chama o arbiter — inject_context.js:928); 3) node _handoff/matriz-12-2026-09-10/m12c.mjs rotas --variante=c2 (a sonda de 5 tokens tem de passar; senao PARA); 4) correr, julgar, comparar --variante=c2. Compara contra a c1 (m12c/c1/COMPARACAO.md).",
+ "ronda_invalida": "m12c/rotas.arbiter-falhou-sem-saldo.json + m12c/decisions.arbiter-falhou-sem-saldo.log — 12 chamadas ao hook em que o arbiter tentou 6x (o 7.o do gatilho, OPS-3, apanhou cache de 23:51Z) e falhou em 62 ms sem nada no hint. Nao e usada para nenhum numero."
+}

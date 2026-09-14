@@ -121,6 +121,10 @@ tools/router/.sentry.json
 !_handoff/provas-v1-2026-09-09/**/*.jsonl
 !_handoff/provas-v1-2026-09-09/**/*.log
 !_handoff/matriz-12-2026-09-10/**/*.jsonl
+# M12-c: o decisions.log do sandbox e a ronda invalida do arbiter SAO a prova (D14/D15)
+!_handoff/matriz-12-2026-09-10/m12c/**/*.log
+!_handoff/matriz-12-2026-09-10/m12c/sandbox/**/hw-capability.json
+!_handoff/matriz-12-2026-09-10/m12c/sandbox/**/subscription-profile.json
 training-*.json
 model-weights/
 *.onnx

@@ -1,0 +1,50 @@
+{
+ "id": "LEGAL-3",
+ "braco": "B_m12c1",
+ "reutilizado": false,
+ "rota": {
+  "exit": 0,
+  "ms": 206,
+  "tier": "T1",
+  "task_category": "ambiguous_medium",
+  "risk_level": "low",
+  "recommended_model": "claude-haiku-4-5-20251001",
+  "confidence": 0.6,
+  "escalation": null,
+  "arbiter": "não correu (nenhuma linha ARBITER no hint)",
+  "arbiter_reasoning": null,
+  "hint_bruto": "<retomar-camada1>\nsessao_origem: n/d\ntranscript: n/d\nfatos:\n- session_files_touched: n/d (caminho do transcript ausente)\n- session_failed_commands: n/d (caminho do transcript ausente)\n- session_red_tests: n/d (caminho do transcript ausente)\n- session_red_test_file: n/d (caminho do transcript ausente)\n- session_branch: n/d (caminho do transcript ausente)\n- session_cwd: n/d (caminho do transcript ausente)\n- session_worktree: n/d (caminho do transcript ausente)\n- git_unpushed_commits: n/d (cwd ausente no payload do hook)\n- git_uncommitted_files: n/d (cwd ausente no payload do hook)\n- git_branch: n/d (cwd ausente no payload do hook)\n- git_worktree: n/d (cwd ausente no payload do hook)\n- pending_chips: n/d (nenhum arquivo de estado reconhecido (C:\\Users\\Paulo Loureiro\\frugal\\.claude\\worktrees\\matriz-12-mooter-comparison-3c2b8e\\_handoff\\matriz-12-2026-09-10\\m12c\\sandbox\\.mooter\\retomar-chips.json))\nsugestoes:\n- nenhuma regra disparou\n</retomar-camada1>\n<router-hint>\ntask_category: ambiguous_medium\nrisk_level: low\ntier: T1\nrecommended_backend: claude_subagent\nrecommended_model: claude-haiku-4-5-20251001\nsuggested_subagent: cheap-triage\nconfidence: 0.6\nmax_tier: T3\nsuggested_providers: haiku\nanthropic_quota: n/d (sem quota-live: o Claude Code ainda não renderizou a statusline nesta janela — n/d)\ncodex_quota: n/d (não existe fonte oficial de quota do Codex nesta máquina — o antigo codex_quota vinha de um orçamento local (quota-tracker.js:319) e já se provou errado (hint dizia 0%, o motor correu))\nRouting policy: see ~/.claude/docs/ROUTING_POLICY.md\nIf this is a structural/critical task, prefer the suggested subagent.\nIf this is a trivial local task, delegate to local-summarizer / local-transformer.\n</router-hint>\n\n<reasoning-effort>low</reasoning-effort>\n\n<session-affinity>this session has been on qwen2.5-coder:14b; switching to claude-haiku-4-5-20251001 abandons the warm prompt cache (re-write the prefix). If claude-haiku-4-5-20251001 is not needed for quality, staying on qwen2.5-coder:14b keeps the cache warm. Advisory — routing is unchanged.</session-affinity>\n\n<tier-badge>[🐎 ☁ haiku 0.60]</tier-badge>\n",
+  "stderr_head": "",
+  "original": {
+   "tier": "T0",
+   "modelo": "qwen2.5-coder:14b",
+   "confidence": 0.6,
+   "task_category": "ambiguous_medium"
+  },
+  "mudou": true
+ },
+ "ok": true,
+ "motivo": null,
+ "modelo": "claude-haiku-4-5-20251001",
+ "backend": "claude",
+ "texto": "# Cláusula de Tratamento de Dados Pessoais – LGPD\n\n## 1. DEFINIÇÕES E PAPÉIS\n\n1.1 **Controlador**: A CONTRATANTE, responsável por determinar as finalidades e meios do tratamento de dados pessoais dos seus clientes.\n\n1.2 **Operador**: O CONTRATADO, que processará dados pessoais exclusivamente em nome e sob instruções da Controladora.\n\n1.3 **Dados Pessoais**: Toda informação relacionada a pessoa natural identificada ou identificável, conforme artigo 5.º da LGPD.\n\n## 2. FINALIDADE E ESCOPO DO PROCESSAMENTO\n\n2.1 O Operador processará dados pessoais dos clientes da Controladora **exclusivamente** para:\n- [Descrever especificamente: ex. \"hospedagem e gestão de plataforma SaaS\", \"processamento de pagamentos\", \"suporte técnico\", etc.]\n\n2.2 Qualquer processamento para finalidade diversa requer autorização prévia e expressa da Controladora, por escrito.\n\n2.3 O Operador não poderá utilizar os dados para fins próprios ou comerciais, salvo se previamente autorizado e com consentimento dos titulares.\n\n## 3. PRAZO DE RETENÇÃO DOS DADOS\n\n3.1 Os dados pessoais serão retidos **apenas pelo tempo necessário** para cumprir as finalidades descritas no item 2.1, observando:\n- Prazos legais de retenção aplicáveis (ex. contábil, fiscal, judicial)\n- Necessidade comercial da Controladora\n- Direitos dos titulares dos dados\n\n3.2 **Termo final**: [Especificar - Ex: \"até 12 meses após término do contrato\", \"conforme solicitação da Controladora\", \"até revogação do consentimento\"]\n\n3.3 O Operador manterá registos documentados sobre retenção e eliminação de dados, disponibilizando-os à Controladora mediante solicitação.\n\n## 4. SEGURANÇA E CONFIDENCIALIDADE\n\n4.1 O Operador implementará e manterá medidas técnicas e organizacionais de segurança adequadas, incluindo:\n- Encriptação em trânsito e em repouso\n- Controle de acessos (autenticação, autorização)\n- Testes de segurança regulares\n- Plano de resposta a incidentes\n\n4.2 O Operador obriga-se ao sigilo e confidencialidade dos dados, durante e após o término do contrato.\n\n4.3 Qualquer incidente de segurança que comprometa dados pessoais deve ser comunicado à Controladora em até **24 horas**.\n\n## 5. SUBCONTRATAÇÃO E TERCEIROS\n\n5.1 O Operador **não poderá subcontratar** o processamento de dados a terceiros sem consentimento prévio, expresso e documentado da Controladora.\n\n5.2 Caso autorizada a subcontratação, o Operador é **responsável integral** pelos atos e omissões do subcontratado, como se fossem seus próprios.\n\n5.3 Qualquer subcontratado deve assinar termo equivalente de compromisso de confidencialidade e segurança, antes de qualquer acesso aos dados.\n\n5.4 A Controladora reserva-se o direito de auditar ou solicitar evidências de conformidade do subcontratado.\n\n## 6. DIREITOS DOS TITULARES\n\n6.1 O Operador colocará à disposição da Controladora recursos técnicos para atender aos seguintes direitos dos titulares:\n- Acesso aos seus dados\n- Correção de dados inexatos\n- Eliminação/apagamento (direito ao esquecimento)\n- Portabilidade dos dados\n- Oposição ao processamento\n\n6.2 O Operador não responderá diretamente a solicitações de titulares; estas devem ser encaminhadas à Controladora, que instruirá o Operador conforme necessário.\n\n## 7. FIM DO CONTRATO E DESTINO DOS DADOS\n\n7.1 **Ao término deste contrato**, independentemente do motivo (rescisão, expiração, resolução), o Operador **obriga-se a**:\n\na) **Eliminar completamente** todos os dados pessoais num prazo máximo de **[30/60/90] dias**, salvo se determinado de outra forma pela Controladora;\n\nb) **Fornecer comprovação documentada** da eliminação (certificado, relatório técnico);\n\nc) **Não reter cópias** dos dados, salvo quando obrigado por lei (auditoria, conformidade regulatória);\n\nd) **Devolver dados** em formato estruturado e interoperável, caso a Controladora o requeira.\n\n7.2 Os dados em poder de subcontratados devem ser tratados com idêntico rigor.\n\n7.3 O Operador permanece obrigado ao sigilo e confidencialidade mesmo após término do contrato.\n\n## 8. AUDITORIAS E CONFORMIDADE\n\n8.1 A Controladora reserva-se o direito de auditar as práticas de segurança e conformidade do Operador, com notificação de **[5-10] dias úteis**.\n\n8.2 O Operador disponibilizará registos de processamento, políticas de segurança e evidências de conformidade quando solicitado.\n\n8.3 O não cumprimento desta cláusula constitui incumprimento material do contrato.\n\n## 9. LEI APLICÁVEL E JURISDIÇÃO\n\nEsta cláusula é regida pela **Lei Geral de Proteção de Dados (LGPD)** e pela lei brasileira, com foro competente em [Jurisdição aplicável].\n\n---\n\n**Nota importante**: Adapte os parâmetros em **[colchetes]** ao seu caso específico. Recomendo validação por um consultor jurídico especializado em LGPD antes de implementação, pois a lei é complexa e tem implicações significativas.",
+ "tokens_in": 10,
+ "tokens_out": 1854,
+ "cache_creation": 6740,
+ "cache_read": 0,
+ "decorrido_ms": 21164.0412,
+ "preco": {
+  "input": 1,
+  "output": 5,
+  "cache_write_5m": 1.25,
+  "cache_read": 0.1
+ },
+ "custo_resposta_usd": 0.00928,
+ "custo_faturado_usd": 0.017705,
+ "parcelas_usd": {
+  "entrada_nova": 0.00001,
+  "saida": 0.00927,
+  "cache_write": 0.008425,
+  "cache_read": 0
+ }
+}

@@ -46,6 +46,14 @@ Ou seja: **a peca do Mooter desenhada exactamente para os prompts ambiguos nao
 correu.** Numa maquina com chave, a rota de mais de metade da matriz podia ser
 outra, e as conclusoes sobre "o Mooter manda isto para local" nao se transferem.
 
+**Adenda (M12-c, 2026-09-13).** Metade disto foi medida. A chave presente no env do hook
+faz mais do que ligar o arbiter: sem ela o `classify.js:901` rebaixa todo o T1 para T0
+(D14), e foi isso — nao o arbiter — que mandou LEGAL-1, LEGAL-3, DEV-2 e MKT-4 para
+local. Com chave e arbiter desligado (c1), os quatro sobem para Haiku e B vai de 56,5 a
+71,5 (`m12c/c1/COMPARACAO.md`). **O arbiter continua por medir**: a c2 nao correu porque a
+unica chave da maquina pertence a uma org sem saldo, e sem saldo o arbiter falha em
+silencio (D15) — a corrida mediria nada. Receita em `m12c/c2/protocol.json`.
+
 ## 4. Nenhum dolar foi poupado
 
 Os dois motores de nuvem correm por subscricao: Claude Code por OAuth, Codex por

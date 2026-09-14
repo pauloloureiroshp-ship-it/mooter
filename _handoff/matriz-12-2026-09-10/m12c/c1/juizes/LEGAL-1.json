@@ -1,0 +1,156 @@
+{
+ "id": "LEGAL-1",
+ "chave": {
+  "R1": "B2",
+  "R2": "A",
+  "R3": "D",
+  "R4": "B",
+  "R5": "C"
+ },
+ "notas": {
+  "J1": {
+   "motor": {
+    "motor": "codex",
+    "modelo": "gpt-6-astra"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 1,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "Explica a restrição, mas assume país, início e validade sem fundamento e inclui um longo raciocínio desnecessário.",
+     "total": 3,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 0,
+     "porque": "Explica efeitos e verificações úteis, mas inventa referência ao email, faz generalizações excessivas e alonga-se muito além do pedido.",
+     "total": 7,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "Explica os efeitos práticos, distingue intenção contratual de validade e enquadra as condições legais sem assumir país ou início do prazo.",
+     "total": 10,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "É compreensível, mas apresenta a compensação como facultativa no enquadramento laboral português e assume restrições sem conhecer a redação.",
+     "total": 5,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 0,
+     "EXECUTAVEL": 1,
+     "RISCO": 1,
+     "ECONOMIA": 1,
+     "porque": "Explica o impacto, mas atribui genericamente o ónus da prova ao trabalhador sem fundamento e omite a condição de compensação no contrato de trabalho português.",
+     "total": 5,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":1,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"Explica a restrição, mas assume país, início e validade sem fundamento e inclui um longo raciocínio desnecessário.\"},\"R2\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":0,\"porque\":\"Explica efeitos e verificações úteis, mas inventa referência ao email, faz generalizações excessivas e alonga-se muito além do pedido.\"},\"R3\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"Explica os efeitos práticos, distingue intenção contratual de validade e enquadra as condições legais sem assumir país ou início do prazo.\"},\"R4\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"É compreensível, mas apresenta a compensação como facultativa no enquadramento laboral português e assume restrições sem conhecer a redação.\"},\"R5\":{\"RESOLVE\":2,\"CORRECTO\":0,\"EXECUTAVEL\":1,\"RISCO\":1,\"ECONOMIA\":1,\"porque\":\"Explica o impacto, mas atribui genericamente o ónus da prova ao trabalhador sem fundamento e omite a condição de compensação no contrato de trabalho português.\"}}",
+   "custo_tokens": {
+    "in": 30424,
+    "out": 401,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  },
+  "J2": {
+   "motor": {
+    "motor": "claude",
+    "modelo": "claude-sonnet-5"
+   },
+   "ok": true,
+   "motivo": null,
+   "notas": {
+    "B2": {
+     "rotulo": "R1",
+     "RESOLVE": 1,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 0,
+     "RISCO": 0,
+     "ECONOMIA": 0,
+     "porque": "expõe raciocínio interno em inglês e a resposta final é uma única frase incompleta, sem falar de compensação ou validade legal",
+     "total": 2,
+     "maximo": 10
+    },
+    "A": {
+     "rotulo": "R2",
+     "RESOLVE": 2,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 2,
+     "RISCO": 2,
+     "ECONOMIA": 1,
+     "porque": "explicação completa e legalmente rigorosa (compensação, proporcionalidade, negociação), mas bastante extensa para um pedido de linguagem simples",
+     "total": 9,
+     "maximo": 10
+    },
+    "D": {
+     "rotulo": "R3",
+     "RESOLVE": 1,
+     "CORRECTO": 2,
+     "EXECUTAVEL": 1,
+     "RISCO": 2,
+     "ECONOMIA": 2,
+     "porque": "correta e concisa, mas fica incompleta ao pedir o texto da cláusula antes de dar resposta definitiva",
+     "total": 8,
+     "maximo": 10
+    },
+    "B": {
+     "rotulo": "R4",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "clara e prática, mas trata a compensação como opcional quando em Portugal é requisito legal de validade",
+     "total": 8,
+     "maximo": 10
+    },
+    "C": {
+     "rotulo": "R5",
+     "RESOLVE": 2,
+     "CORRECTO": 1,
+     "EXECUTAVEL": 2,
+     "RISCO": 1,
+     "ECONOMIA": 2,
+     "porque": "boa estrutura e exemplos práticos, mas a menção às limitações legais é vaga e não refere a exigência de compensação",
+     "total": 8,
+     "maximo": 10
+    }
+   },
+   "bruto": "{\"R1\":{\"RESOLVE\":1,\"CORRECTO\":1,\"EXECUTAVEL\":0,\"RISCO\":0,\"ECONOMIA\":0,\"porque\":\"expõe raciocínio interno em inglês e a resposta final é uma única frase incompleta, sem falar de compensação ou validade legal\"},\n\"R2\":{\"RESOLVE\":2,\"CORRECTO\":2,\"EXECUTAVEL\":2,\"RISCO\":2,\"ECONOMIA\":1,\"porque\":\"explicação completa e legalmente rigorosa (compensação, proporcionalidade, negociação), mas bastante extensa para um pedido de linguagem simples\"},\n\"R3\":{\"RESOLVE\":1,\"CORRECTO\":2,\"EXECUTAVEL\":1,\"RISCO\":2,\"ECONOMIA\":2,\"porque\":\"correta e concisa, mas fica incompleta ao pedir o texto da cláusula antes de dar resposta definitiva\"},\n\"R4\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"clara e prática, mas trata a compensação como opcional quando em Portugal é requisito legal de validade\"},\n\"R5\":{\"RESOLVE\":2,\"CORRECTO\":1,\"EXECUTAVEL\":2,\"RISCO\":1,\"ECONOMIA\":2,\"porque\":\"boa estrutura e exemplos práticos, mas a menção às limitações legais é vaga e não refere a exigência de compensação\"}}",
+   "custo_tokens": {
+    "in": 2,
+    "out": 2298,
+    "cache_write": 11367,
+    "cache_read": 3298
+   }
+  }
+ }
+}

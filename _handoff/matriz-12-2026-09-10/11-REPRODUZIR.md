@@ -152,3 +152,24 @@ fixa o sha `a36363e4…` do ficheiro com ele aplicado); o teste que o guarda
 (`ollama-system-prompt.test.js`, 4 testes, **2** dos quais reprovam com a linha antiga — os outros
 2 são estruturais) vai num PR rascunho separado. Para reproduzir o M12-b: `git apply
 _handoff/matriz-12-2026-09-10/m12b/D10.diff` antes de `m12b.mjs correr`.
+
+## M12-c — o hook real, com a chave no env
+
+```sh
+node _handoff/matriz-12-2026-09-10/m12c.mjs congelar --variante=c1   # ou c2
+node _handoff/matriz-12-2026-09-10/m12c.mjs rotas    --variante=c1   # só o hook, $0 (c2: ~$0,01 de arbiter)
+node _handoff/matriz-12-2026-09-10/m12c.mjs correr   --variante=c1   # executa só as rotas que mudaram
+node _handoff/matriz-12-2026-09-10/m12c.mjs julgar   --variante=c1
+node _handoff/matriz-12-2026-09-10/m12c.mjs comparar --variante=c1
+```
+
+A chave é lida de `process.env.ANTHROPIC_API_KEY`, de `~/.claude/tools/router/.env` ou de
+`<checkout principal>/tools/router/.env`; entra só no `env` do processo do hook e nunca é impressa.
+c1 força `MOOTER_ARBITER_DISABLE=1`; c2 faz uma sonda de 5 tokens e **pára** se a org da chave não
+tiver saldo — sem isso o arbiter falha em silêncio (D15) e a corrida mediria nada. O hook corre com
+`USERPROFILE`/`HOME` apontados a `m12c/sandbox/`, que começa só com `hw-capability.json` e
+`subscription-profile.json` copiados do runtime; tudo o que o hook escreve fica lá (o commitado tem
+12 ficheiros, incluindo a `.classify-cache.json`). **Antes de `rotas`, apaga
+`m12c/sandbox/.claude/tools/router/.classify-cache.json`**: com cache hit (TTL 24 h) o
+`inject_context.js:928` nunca chama o arbiter — foi assim que a c1 correu (12/12 `cache_hit:true`),
+o que não lhe mudou as rotas mas faria a c2 medir nada.

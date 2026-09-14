@@ -1,0 +1,76 @@
+{
+  "probed_at": "2026-09-10T16:46:10.847Z",
+  "vendor": "nvidia",
+  "name": "RTX 4090",
+  "vram_mb": 23028,
+  "hw_tier": "gpu-high",
+  "t0_models_available": [
+    {
+      "model": "granite4.2:3b",
+      "vram_req_mb": 8294,
+      "can_run": true
+    },
+    {
+      "model": "granite4.2:8b",
+      "vram_req_mb": 16384,
+      "can_run": true
+    },
+    {
+      "model": "gemma4:12b",
+      "vram_req_mb": 8294,
+      "can_run": true
+    },
+    {
+      "model": "gpt-oss:20b",
+      "vram_req_mb": 12288,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5-coder:14b",
+      "vram_req_mb": 15360,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5:3b",
+      "vram_req_mb": 2048,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5-coder:7b",
+      "vram_req_mb": 4096,
+      "can_run": true
+    },
+    {
+      "model": "deepseek-r1:7b",
+      "vram_req_mb": 4096,
+      "can_run": true
+    },
+    {
+      "model": "gemma3:12b",
+      "vram_req_mb": 8192,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5-coder:14b-q4",
+      "vram_req_mb": 9216,
+      "can_run": true
+    },
+    {
+      "model": "gemma4:e4b",
+      "vram_req_mb": 9830,
+      "can_run": true
+    },
+    {
+      "model": "qwen2.5:32b-q4",
+      "vram_req_mb": 20480,
+      "can_run": true
+    },
+    {
+      "model": "qwen3:30b",
+      "vram_req_mb": 20480,
+      "can_run": true
+    }
+  ],
+  "recommended_t0": "qwen2.5-coder:14b",
+  "option_a_model": "qwen2.5:3b"
+}

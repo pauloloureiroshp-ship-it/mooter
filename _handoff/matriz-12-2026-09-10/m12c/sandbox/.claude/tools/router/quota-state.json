@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "providers": {
+    "anthropic": {
+      "window_5h": {
+        "tokens_used": 0,
+        "reset_at": "2026-09-12T06:00:06.811Z",
+        "limit": 200000
+      },
+      "today": {
+        "tokens": 0,
+        "cost_usd": 0,
+        "reset_at": "2026-09-13T01:00:06.811Z"
+      }
+    },
+    "openai_codex_cli": {
+      "window_5h": {
+        "messages_used": 0,
+        "reset_at": "2026-09-12T06:00:06.811Z",
+        "limit": 150
+      },
+      "weekly": {
+        "pct_used": 0,
+        "reset_at": "2026-09-19T01:00:06.811Z"
+      },
+      "last_status_check": null,
+      "exhausted": false
+    },
+    "openai_api": {
+      "today": {
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0,
+        "reset_at": "2026-09-13T01:00:06.811Z"
+      }
+    },
+    "ollama": {
+      "today": {
+        "calls": 0,
+        "reset_at": "2026-09-13T01:00:06.811Z"
+      }
+    }
+  },
+  "last_updated": "2026-09-12T01:00:06.811Z"
+}
