@@ -40,5 +40,8 @@ test('P1-A/W2: the extension never BUNDLES the SDK, and the manifest is honest a
     'the Agent SDK is NOT a bundled extension dependency — it is resolved from the workspace at edit time');
   const cap = pkg.capabilities && pkg.capabilities.untrustedWorkspaces;
   assert.ok(cap && typeof cap.description === 'string', 'manifest declares the untrustedWorkspaces capability');
-  assert.ok(/trust the workspace/i.test(cap.description), 'manifest is honest: the Agent SDK runs only when you trust the workspace');
+  assert.ok(cap.description.includes('Agent SDK edits and dev-server execution require Workspace Trust'),
+    'manifest pins that Agent SDK edits and dev-server execution require Workspace Trust');
+  assert.ok(cap.description.includes('those paths stay disabled until the workspace is trusted'),
+    'manifest pins that both restricted paths stay disabled until the workspace is trusted');
 });

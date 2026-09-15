@@ -1,7 +1,7 @@
 {
   "name": "mooter-cockpit",
-  "displayName": "Mooter — Cost Cockpit for Claude Code",
-  "description": "See what your Claude Code routing saves — live decisions, tier mix, counterfactual $ savings. Read-only cockpit for the mooter router. Community project, not affiliated with Anthropic.",
+  "displayName": "Mooter — AI Project Cockpit",
+  "description": "Operate a Claude Code project from VS Code: resume context, plan work, watch agents and Live Preview, review guarded edits, and see local-first routing decisions. Community project.",
   "version": "0.16.78",
   "publisher": "mooter",
   "license": "MIT",
@@ -25,13 +25,15 @@
   "keywords": [
     "claude",
     "claude-code",
+    "ai-agents",
+    "project-cockpit",
+    "live-preview",
+    "code-review",
     "router",
-    "cost",
-    "savings",
     "ollama",
     "local-first",
     "llm",
-    "cost-optimization",
+    "developer-tools",
     "telemetry"
   ],
   "icon": "media/icon.png",
@@ -49,7 +51,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true,
-      "description": "Read-only over your local mooter telemetry (~/.claude). The optional Live-Edit cloud escalation runs the workspace's Agent SDK only when you trust the workspace; in an untrusted workspace it stays disabled and no workspace code is executed."
+      "description": "Telemetry views remain available in untrusted workspaces. Agent SDK edits and dev-server execution require Workspace Trust; those paths stay disabled until the workspace is trusted."
     },
     "virtualWorkspaces": {
       "supported": false,
@@ -188,28 +190,28 @@
       {
         "id": "mooter.gettingStarted",
         "title": "Get started with Mooter",
-        "description": "See what your Claude Code routing saves — in three steps.",
+        "description": "Set up the engine, open the project cockpit, and review a guarded change in three steps.",
         "steps": [
           {
             "id": "engine",
-            "title": "Install the mooter engine",
-            "description": "Mooter routes each prompt to the cheapest capable model. Install the engine, then this cockpit lights up.\n[Open Cockpit](command:mooter.openCockpit)",
+            "title": "Install the Mooter engine",
+            "description": "Mooter's deterministic local-first engine routes prompts and records local evidence for the cockpit. Install it once, then open the cockpit to inspect the project.\n[Open Cockpit](command:mooter.openCockpit)",
             "media": {
               "markdown": "walkthrough/engine.md"
             }
           },
           {
             "id": "open",
-            "title": "Open the Cockpit",
-            "description": "Click the 🐮 in the Activity Bar to see live savings, the tier mix, and every routing decision.\n[Open Cockpit](command:mooter.openCockpit)",
+            "title": "Open the project cockpit",
+            "description": "Resume session context, inspect roadmap and WIP, see routing decisions, and watch agents. Open Live Preview when you want to inspect or change the app.\n[Open Cockpit](command:mooter.openCockpit)",
             "media": {
               "markdown": "walkthrough/open.md"
             }
           },
           {
             "id": "launch",
-            "title": "Launch a routed session",
-            "description": "Start Claude Code with mooter hints active and watch the decisions feed fill in.\n[New session](command:mooter.newSession)",
+            "title": "Review and publish a change",
+            "description": "Live Preview separates preview-first local edits, trusted Agent SDK edits, Security Review, selective Commit + Push, and confirmed Vercel deploy. Each action names what it can change.\n[Open Live Preview](command:mooter.openLivePreview)",
             "media": {
               "markdown": "walkthrough/launch.md"
             }
