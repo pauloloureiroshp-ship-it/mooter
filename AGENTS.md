@@ -110,6 +110,7 @@ canon for the eight questions; the vault is not duplicated here.
 - `packages/arbitrage-monitor` — opt-in provider status-page poller; advisory within-tier bias only.
 - `packages/minimax-watcher` — polls HuggingFace for MiniMax-M3 GGUF weights; opt-in install when released.
 - `packages/mooter-bench` — MooterBench: open, reproducible routing benchmark (honest methodology).
+- `packages/m1-proxy` — **M1 v0, OFF by default**: opt-in loopback (`127.0.0.1` only) OpenAI-compatible proxy. Refuses to *construct* without `MOOTER_M1_PROXY=1`. No cloud step in v0: a tier the local engine cannot serve is refused with the reason, never escalated silently. Calls the FROZEN `classify.js`; never writes prompt content to its receipt. Decision: signed ADR `20-decisions/2026-08-25-adr-m1-hook-para-proxy.md`.
 
 ## Conventions
 

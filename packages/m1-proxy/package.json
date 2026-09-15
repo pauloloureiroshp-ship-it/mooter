@@ -1,0 +1,11 @@
+{
+  "name": "@mooter/m1-proxy",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "M1 v0 — opt-in loopback OpenAI-compatible proxy. OFF by default; refuses to construct without MOOTER_M1_PROXY=1. Zero dependencies.",
+  "main": "./proxy.mjs",
+  "scripts": { "test": "node --test" },
+  "engines": { "node": ">=22" },
+  "license": "MIT"
+}
