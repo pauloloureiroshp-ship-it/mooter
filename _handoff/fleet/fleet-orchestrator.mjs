@@ -39,6 +39,7 @@ import { createLeaseManager, inMemoryLocks } from "../../packages/fleet-commande
 import { gateProposal } from "../../packages/fleet-commander/src/proof-gate.mjs";
 import { transition } from "../../packages/fleet-commander/src/fsm.mjs";
 import { runBoundedPool } from "../../packages/overclock-moo/src/pool.mjs";
+import { probeVramFreeMb, probeOllamaPs } from "./vram-preflight.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -155,6 +156,7 @@ async function cloudPillar(loop) {
     const cp = spawn(process.execPath, [runner], {
       env: { ...process.env, LOOP_DIR: abs(loop.pillar.workdir), REPO, MAX_ROUNDS: "1" },
       stdio: "inherit",
+      windowsHide: true, // flicker fix 2026-07-10: pm2 parent is windowless — never open a console
     });
     cp.on("exit", (code) => (code === 0 ? res() : rej(new Error(`sdk-runner exited ${code}`))));
     cp.on("error", rej);
@@ -291,7 +293,17 @@ export async function runFleet(opts = {}) {
       summary.peakCloud = Math.max(summary.peakCloud, res.peak.cloud);
       summary.peakPool = Math.max(summary.peakPool, res.peak.pool);
     }
-    try { writeHeartbeat(heartbeatPath, { dry_run: !!dryRun, round, running: [], summary_peakGpu: summary.peakGpu, summary_peakCloud: summary.peakCloud }, now); } catch {}
+    // F4: enrich the heartbeat with GPU contention state (cronista DIGEST reads it).
+    let vramFreeMb = null, foreignModels = [];
+    if (!dryRun) {
+      try {
+        vramFreeMb = probeVramFreeMb();
+        const fleetBase = (process.env.FLEET_LOCAL_MODEL || "qwen3:30b").split(":")[0];
+        const ps = await probeOllamaPs((process.env.OLLAMA_HOST || "http://127.0.0.1:11434").replace(/\/$/, ""));
+        foreignModels = ps.map((m) => m.name || m.model).filter((n) => n && n.split(":")[0] !== fleetBase);
+      } catch { /* heartbeat enrichment is best-effort — never blocks the fleet */ }
+    }
+    try { writeHeartbeat(heartbeatPath, { dry_run: !!dryRun, round, running: [], summary_peakGpu: summary.peakGpu, summary_peakCloud: summary.peakCloud, vram_free_mb: vramFreeMb, foreign_models: foreignModels }, now); } catch {}
   }
   summary.spentUsd = spent.usd;
   emit({ event: "shutdown", ...summary });
