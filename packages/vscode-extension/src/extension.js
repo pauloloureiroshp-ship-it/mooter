@@ -27,6 +27,10 @@ const extra = require('./host-extra.js');
 let COWORK = null, MR = null;
 try { COWORK = require('./cowork-waiting'); } catch { COWORK = { badge: () => null, CSS: '' }; }
 try { MR = require('./mode-registry'); } catch { MR = { byProject: (rows) => ({ Unassigned: rows }) }; }
+// VS-W1 · Semáforo Moo (projeção pura registry+queue→UI nativa; aditivo, fallback seguro).
+let SEMAFORO = null, BEACON = null;
+try { SEMAFORO = require('./semaforo-decorations'); } catch { SEMAFORO = null; }
+try { BEACON = require('./paste-beacon'); } catch { BEACON = null; }
 // WCOCKPIT-3: row renderer module (serialised into webview via fn.toString())
 let RR = null;
 try { RR = require('./row-renderer'); } catch { RR = null; }
@@ -8409,6 +8413,31 @@ function activate(ctx) {
   makeStatusBar(ctx, data);
   const cockpitProvider = new CockpitProvider(ctx, data);
   ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('mooterCockpit', cockpitProvider));
+  // ── VS-W1 · Semáforo Moo: FileDecoration nas worktrees + Paste Beacon + ViewBadge (projeção pura). ──
+  if (SEMAFORO && BEACON) {
+    const wsRoot = () => {
+      try { return cockpitProvider._wsRoot(); } catch { /* fall through */ }
+      const f = vscode.workspace.workspaceFolders;
+      return f && f[0] ? f[0].uri.fsPath : process.cwd();
+    };
+    let _validator;
+    const validate = (item) => { try { _validator = _validator || require(path.join(wsRoot(), 'tools', 'agent-sync', 'dispatch-queue-validate.js')); return _validator.validateDocument(item); } catch { return { ok: true }; } };
+    let model = { worktrees: [], sessions: [], queue: [], gateFor: null, gateCount: 0 };
+    const deco = SEMAFORO.register(vscode, { refreshData: () => model });
+    const beacon = BEACON.create(vscode, {
+      readQueue: () => model.queue, gateCount: () => model.gateCount, validate,
+      readFile: (p) => fs.readFileSync(path.join(wsRoot(), p), 'utf8'),
+    });
+    const tick = () => {
+      try { model = SEMAFORO.readAgentSync({ syncDir: path.join(wsRoot(), '_handoff', 'agent-sync'), worktrees: () => (MR.worktrees ? MR.worktrees(wsRoot()) : []), readCoworkPending: COWORK.readCoworkPending }); } catch { /* keep last */ }
+      deco.refresh(); beacon.refresh();
+      const v = cockpitProvider._view;
+      if (v) { const n = BEACON.pendingActionCount({ queue: model.queue, gateCount: model.gateCount, validate }); v.badge = n > 0 ? { value: n, tooltip: `Mooter — ${n} ação(ões) humana(s) pendente(s)` } : undefined; }
+    };
+    tick();
+    const timer = setInterval(tick, 5000);
+    ctx.subscriptions.push(deco, beacon, { dispose: () => clearInterval(timer) });
+  }
   let livePreviewSidebar = null;
   if (LPSIDEBAR_PROVIDER && LPSIDEBAR_PROVIDER.LivePreviewSidebarProvider) {
     livePreviewSidebar = new LPSIDEBAR_PROVIDER.LivePreviewSidebarProvider(vscode, {
