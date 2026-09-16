@@ -1,0 +1,10 @@
+{
+  "schema": "prisma-experiment-pins/0.1",
+  "why": "O kit importa DOIS módulos do motor Mooter — e só estes. Se algum deles mudar, o hash canónico ou a taxonomia de falhas podem mudar por baixo de uma onda aberta. Por isso o kit recusa arrancar (openJournal) e recusa enviar (preflight) enquanto o sha256 medido não bater com o pinado. Actualizar este ficheiro é uma decisão registada, não um efeito colateral.",
+  "pinned_at_sha": "8dfdb8b899f75d9ebdcca29d6337831c8d2c9ce5",
+  "pinned_at": "2026-09-16",
+  "files": {
+    "tools/router/ledger-prov.js": "b7a2496e4d16df423d92c1d81b84b1accad2d1ca7ddb54bd6433afd636489c64",
+    "tools/router/provider-health.js": "bddbdf3d526ce9dac13f0394e2f5fc1d8f93c6bfe586695819f4547011ce6a37"
+  }
+}
