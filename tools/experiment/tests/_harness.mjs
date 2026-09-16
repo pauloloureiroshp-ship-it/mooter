@@ -110,3 +110,63 @@ export const linhas = (ctx) => fs.readFileSync(ctx.eventsPath, 'utf8').split('\n
 export const kindsDe = (ctx, slotId) => linhas(ctx).map((l) => JSON.parse(l)).filter((e) => e.slot_id === slotId).map((e) => e.kind);
 export const intentFile = (ctx, slotId) => path.join(ctx.rawDir, slotId, '.intent');
 export const voidFiles = (ctx, slotId) => { try { return fs.readdirSync(path.join(ctx.rawDir, slotId)).filter((n) => n.startsWith('.intent.void-')); } catch { return []; } };
+
+// ── passo 2: manifestos SINTÉTICOS (ids Qxx/Nxx — nunca D01–D04, nunca marca) ──
+import { freezeWave } from '../freeze.mjs';
+import { openFromManifest } from '../open.mjs';
+
+const CONDITION = (over = {}) => ({
+  surface: 'chatgpt-web', observed_plan: null, selected_model_label: 'LBL-SYN', observed_model_label: null,
+  reasoning_control: null, auto_switch: null, personalization: 'off-required', search_available: true, search_used: null,
+  prompt_language: 'pt-BR', timestamp: null, prompt_hash: null, capture_method: 'manual-paste', operator_id: null, ...over,
+});
+const QUEUE = (over = {}) => ({ max_concurrency_total: 1, primary_send_attempts_per_slot: 1, interval_seconds: 60, jitter_seconds: [0, 15], jitter_seed: 'seed-synthetic', wallclock_minutes: 45, closeout_reserve_minutes: 5, ...over });
+
+export function syntheticManifest(waveId, over = {}) {
+  return {
+    schema: 'prisma-experiment-manifest/0.3-proposed', brief_id: 'brief-syn', wave_id: waveId, condition_id: 'cond-syn', partition: 'synthetic-qualification', surface: 'chatgpt-web',
+    condition_requested: CONDITION(over.condition || {}),
+    prompts: [{ id: 'S01', text: 'Pergunta sintética número um, neutra.', role: 'synthetic', prompt_hash: null }, { id: 'S02', text: 'Pergunta sintética número dois, também neutra.', role: 'synthetic', prompt_hash: null }],
+    order: ['S01', 'S02', 'S02', 'S01'], caps: { coverage_per_wave: 4, planned_eligible: 0, negative: 0 },
+    queue_policy: QUEUE(over.queue || {}), adapter_version: 'manual-paste/0.1', rubric_ref: null, authorization_ref: null, manifest_hash: null,
+    forbidden_markers: ['CANARY-COORD-7f3a', 'MASTER-PROMPT'],
+    ...(over.top || {}),
+  };
+}
+
+/** Braço primário sintético: 3 elegíveis + 1 negativo × 2 = 8, ordem espelhada. */
+export function primaryManifest(waveId, over = {}) {
+  return {
+    schema: 'prisma-experiment-manifest/0.3-proposed', brief_id: 'brief-syn', wave_id: waveId, condition_id: 'cond-syn-primary', partition: 'primary', surface: 'chatgpt-web',
+    condition_requested: CONDITION({ operator_id: 'op-syn', ...(over.condition || {}) }),
+    prompts: [
+      { id: 'Q01', text: 'Pergunta elegível sintética um.', role: 'eligible', prompt_hash: null },
+      { id: 'Q02', text: 'Pergunta elegível sintética dois.', role: 'eligible', prompt_hash: null },
+      { id: 'Q03', text: 'Pergunta elegível sintética três.', role: 'eligible', prompt_hash: null },
+      { id: 'N04', text: 'Pergunta de controlo negativo sintética.', role: 'negative', prompt_hash: null },
+    ],
+    order: ['Q01', 'Q02', 'Q03', 'N04', 'N04', 'Q03', 'Q02', 'Q01'], caps: { coverage_per_wave: 8, planned_eligible: 6, negative: 2 },
+    queue_policy: QUEUE(over.queue || {}), adapter_version: 'manual-paste/0.1', rubric_ref: 'rubric-syn-v0', authorization_ref: 'auth-syn-0001', manifest_hash: null,
+    forbidden_markers: ['CANARY-COORD-7f3a', 'MASTER-PROMPT'],
+    ...(over.top || {}),
+  };
+}
+
+/** O que a UI mostra, coerente com o manifesto (o operador preenche isto à mão na vida real). */
+export function observedFor(manifest, over = {}) {
+  const c = manifest.condition_requested;
+  return { surface: c.surface, observed_plan: null, selected_model_label: c.selected_model_label, observed_model_label: c.selected_model_label, reasoning_control: c.reasoning_control, auto_switch: c.auto_switch, personalization: 'off', search_available: c.search_available, prompt_language: c.prompt_language, capture_method: c.capture_method, operator_id: c.operator_id, ...over };
+}
+
+export const capabilityEligible = (over = {}) => ({ schema: 'prisma-capability-record/0.1-proposed', surface: 'chatgpt-web', eligible_primary: true, essential: { retries_controllable: { value: null } }, ...over });
+
+export const bytesOf = (manifest, promptId) => Buffer.from(manifest.prompts.find((p) => p.id === promptId).text, 'utf8');
+
+/** freeze + open a partir do manifesto; devolve { ctx, root, clk, manifest (congelado), input }. */
+export function frozenOpenWave({ root = tmpRoot(), waveId = 'W-syn', clk = clock(), fsImpl = fs, manifest } = {}) {
+  const input = manifest || syntheticManifest(waveId);
+  const ctx = J.openJournal({ root, waveId, now: clk.now, fs: fsImpl });
+  const f = freezeWave(ctx, { manifest: input });
+  openFromManifest(ctx);
+  return { ctx, root, clk, manifest: f.manifest, input };
+}

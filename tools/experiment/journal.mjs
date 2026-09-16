@@ -37,7 +37,10 @@
 // (decisão E-2: C:/Users/Paulo Loureiro/prisma-data/). Não há default.
 //
 // Zero dependências além de dois módulos do motor, pinados por sha256 em
-// pins.json (condição C3): ledger-prov.js (provHash). Tudo o resto é node:.
+// pins.json (condição C3): ledger-prov.js (provHash, usado AQUI) e
+// provider-health.js (taxonomia de falhas + lerReposicao, usado pelo
+// preflight/importador — pinado desde já porque openJournal verifica os dois
+// de uma vez). Tudo o resto é node:.
 
 import nodeFs from 'node:fs';
 import path from 'node:path';
@@ -504,6 +507,13 @@ export function resume(ctx) {
     if (from === null || !SLOT_TRANSITIONS[from].includes('submission_uncertain')) {
       // Sem evento nenhum (ou estado que não pode receber submission_uncertain):
       // regista o órfão no relatório; não inventa transições.
+      //
+      // Caso documentado (nota do Cowork Prisma, 16/09): um `.intent` num slot
+      // já em `known_not_submitted` cai aqui. O diário tem prova positiva de
+      // não-envio; o disco tem um token que devia ter sido renomeado (a
+      // anulação é best-effort). Disco e diário discordam — e quando discordam
+      // o kit REPORTA, não escolhe. O operador decide: anular o ficheiro à mão
+      // (com nota) ou, se a prova estava errada, registar a incerteza.
       orphans.push({ slot_id: slotId, state: from, action: 'reported_only' });
       continue;
     }
