@@ -73,10 +73,14 @@ export function preflight(ctx, { slot_id, bytes, observed = {}, capability = nul
   const reasons = [];
   const push = (code, detail, extra = {}) => reasons.push({ code, detail, ...extra });
   const seen_hash = sha256(bytes);
-  // search_used só existe DEPOIS de haver resposta (caso 19): se o operador o
-  // passar aqui, não entra no registo do preflight — não é ignorado por
-  // descuido, é recusado por definição.
-  if ('search_used' in observed) { observed = { ...observed }; delete observed.search_used; }
+  // search_used só existe DEPOIS de haver resposta (caso 19). Se o operador o
+  // passar aqui, não vale como observação — mas também não se apaga: fica
+  // registado como reportado-antes-da-captura e ignorado, com o valor
+  // (decisão do Cowork Prisma, 16/09: nada se apaga, tudo tem proveniência).
+  if ('search_used' in observed) {
+    const { search_used, ...resto } = observed;
+    observed = { ...resto, search_used_reported_pre_capture: { value: search_used ?? null, ignored: true, why: 'search_used é observação pós-resposta; registado no importador' } };
+  }
 
   // 0 · diário utilizável
   if (isBlocked(ctx)) push('journal_blocked', 'o diário está bloqueado; correr reconcile');

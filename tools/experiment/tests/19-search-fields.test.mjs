@@ -47,7 +47,10 @@ test('19c · search_used NÃO é elegibilidade: o preflight ignora-o (é observa
     const r = preflight(ctx, { slot_id: 'Q02-1', bytes: bytesOf(manifest, 'Q02'), observed: observedFor(manifest, { search_used: v }), capability: cap });
     assert.equal(r.ok, true, `search_used=${v}: ${JSON.stringify(r.reasons)}`);
     assert.equal(r.reasons.some((x) => /search_used/.test(x.code)), false);
-    if (r.entry) assert.equal('search_used' in r.entry.payload.observed, false, 'o preflight não regista search_used, venha de onde vier');
+    if (r.entry) {
+      assert.equal('search_used' in r.entry.payload.observed, false, 'search_used não é observação de preflight');
+      assert.deepEqual(r.entry.payload.observed.search_used_reported_pre_capture, { value: v, ignored: true, why: 'search_used é observação pós-resposta; registado no importador' }, 'mas o que o operador reportou fica, com proveniência — nada se apaga');
+    }
   }
   // O manifesto congelado guarda search_used como null — só se preenche por observação.
   assert.equal(manifest.condition_requested.search_used, null);
