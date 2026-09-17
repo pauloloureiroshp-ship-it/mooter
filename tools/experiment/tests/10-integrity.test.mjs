@@ -105,12 +105,14 @@ test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed; extern
   assert.deepEqual(am[0].items.filter((i) => i.status === 'applied').map((i) => i.commit), ['2f671ea8', 'd4bf406c', '84420bef', '3fb3ac75']);
   assert.equal(am[0].external_review_after, 'corrections_applied_pending_confirmation');
   // AMENDMENT-001b: o suplemento vive no mesmo registo (supplement_001b) e entra no alcance do estado.
-  assert.equal(am[0].supplements.length, 1);
   assert.equal(am[0].supplements[0].id, 'AMENDMENT-001b'); assert.equal(am[0].supplements[0].key, 'supplement_001b'); assert.equal(am[0].supplements[0].date, '2026-09-17');
   assert.equal(am[0].supplements[0].source_sha256, '07ca1e65275d3b561af2cb1bde83f7f84575ca17be3e2ca771a3d4a15ae1dcd4', 'o sha do AMENDMENT-001b-20260917.txt');
   assert.deepEqual(am[0].supplements[0].items.map((i) => i.id), ['B1', 'B2', 'B3', 'B4']);
   assert.deepEqual(am[0].supplements[0].items.map((i) => i.commit), ['1d9d7b37', '179bddb8', '011cd546', 'ada344a9']);
-  assert.equal(closed.conclusion.external_review_detail, 'corrections_applied_pending_confirmation (001+001b)');
+  assert.equal(am[0].supplements.length, 2);
+  assert.equal(am[0].supplements[1].id, 'AMENDMENT-001c'); assert.equal(am[0].supplements[1].source_sha256, '97e36afb2a8a6ae00fdcfc0bb7d09abffda550a5b482e4cca9c0f33c63e65cd7');
+  assert.deepEqual(am[0].supplements[1].items.map((i) => i.id), ['C1', 'C2']);
+  assert.equal(closed.conclusion.external_review_detail, 'corrections_applied_pending_confirmation (001+001b+001c)');
   assert.equal(externalReviewDetail([]), 'pending');
   // Sem registo ⇒ pending; e o estado escrito à mão em desacordo com o registo é problema.
   assert.equal(externalReviewState([]), 'pending');

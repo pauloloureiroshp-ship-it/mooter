@@ -15,7 +15,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import * as J from '../journal.mjs';
-import { openedWave, clock, fakeExecutor, operatorTriesToSend, linhas, kindsDe, intentFile, voidFiles, tmpRoot, T0, MIN, PROMPT_HASH, MANIFEST_HASH } from './_harness.mjs';
+import { fileURLToPath } from 'node:url';
+import { importCapture, ImportError } from '../import.mjs';
+import { closeoutWave } from '../closeout.mjs';
+import { openedWave, clock, fakeExecutor, operatorTriesToSend, linhas, kindsDe, intentFile, voidFiles, tmpRoot, T0, MIN, PROMPT_HASH, MANIFEST_HASH, frozenOpenWave, driveSlot, observedFor, HUMAN_OK } from './_harness.mjs';
+
+const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('04a · CW2/CW3: intent persistida, envio feito, crash antes do recibo → retoma marca submission_uncertain; 1 envio no total; commitIntent no mesmo slot → attempt_token_exists', () => {
   const root = tmpRoot();
@@ -134,4 +139,77 @@ test('04e · known_not_submitted exige prova escrita; anula o token (renomeado) 
   assert.equal(J.slotState(ctx, 'S01-1').attempt_token, 'S01-1-0002');
   assert.deepEqual(voidFiles(ctx, 'S01-1'), ['.intent.void-0001']);
   assert.equal(exec.calls, 1, 'este é o 1.º envio real do slot — o anterior nunca saiu');
+});
+
+// ── AMENDMENT-001c · C1 (2026-09-17) · fecho do `.intent` órfão ─────────────────
+// AMENDMENT-001c-20260917.txt (sha256 97e36afb…): um único caso, as cinco asserções.
+// Semântica de attempted=false (texto literal do registo, supplement_001c): «ausência de
+// tentativa contabilizada pelo diário — NÃO prova de não-envio».
+// Mordida: (a) resume() a ignorar o .intent órfão ⇒ passo 1; (b) closeout a classificar o
+// slot como not_started ⇒ passo 4; (c) commitIntent a aceitar o slot ⇒ passo 3
+// (tools/experiment/mordida/morde-amend001c.mjs).
+
+test('04f · C1 · .intent órfão (crash entre o wx e o appendEvent): resume marca submission_uncertain; importCapture recusa; commitIntent recusa e nada é reenviado; o fecho dá exactamente unknown com attempted=false; o slot fica visível, não liberta orçamento, não volta a queued', () => {
+  const { ctx, manifest, clk, root } = frozenOpenWave({ waveId: 'W-04f' });
+  const exec = fakeExecutor();
+  // Estado inicial: S01-1 com prepared → preflight_ok; .intent no disco; NENHUM intent_committed.
+  driveSlot(ctx, manifest, 'S01-1', { to: 'preflight_ok' });
+  fs.mkdirSync(path.dirname(intentFile(ctx, 'S01-1')), { recursive: true });
+  fs.writeFileSync(intentFile(ctx, 'S01-1'), JSON.stringify({ attempt_token: 'S01-1-0001', slot_id: 'S01-1', wave_id: 'W-04f' }) + '\n');
+  assert.deepEqual(kindsDe(ctx, 'S01-1'), ['prepared', 'preflight_ok']);
+  assert.equal(exec.calls, 0);
+
+  // 1 · resume ⇒ submission_uncertain{orphan_intent_file}; relatório lista o órfão.
+  clk.advance(1 * MIN);
+  const r = J.resume(J.openJournal({ root, waveId: 'W-04f', now: clk.now }));
+  assert.deepEqual(r.orphans, [{ slot_id: 'S01-1', state: 'preflight_ok', action: 'marked_submission_uncertain' }]);
+  assert.deepEqual(r.marked, ['S01-1']);
+  assert.equal(J.slotState(ctx, 'S01-1').state, 'submission_uncertain');
+  const su = J.readEvents(ctx).filter((e) => e.slot_id === 'S01-1').at(-1);
+  assert.equal(su.kind, 'submission_uncertain'); assert.equal(su.payload.reason, 'orphan_intent_file');
+  assert.equal(fs.existsSync(intentFile(ctx, 'S01-1')), true, 'o órfão não é apagado nem renomeado pelo resume');
+
+  // 2 · importCapture sem recover ⇒ recusado; nenhum answer.txt.
+  assert.throws(() => importCapture(ctx, { slot_id: 'S01-1', answer_bytes: Buffer.from('resposta de origem desconhecida', 'utf8'), capture_completeness: 'full', capture_method: 'manual-paste', observed: observedFor(manifest, { search_used: null }) }), (e) => e instanceof ImportError && e.code === 'no_intent_for_slot');
+  assert.equal(fs.existsSync(path.join(ctx.rawDir, 'S01-1', 'answer.txt')), false, 'nada escrito');
+  // …nem com recover: sem intent_committed no diário, a resposta não é deste slot.
+  assert.throws(() => importCapture(ctx, { slot_id: 'S01-1', answer_bytes: Buffer.from('x', 'utf8'), capture_completeness: 'full', capture_method: 'manual-paste', observed: observedFor(manifest, { search_used: null }), recover: true, note: 'inspecção manual: parecia a mesma conversa' }), (e) => e.code === 'no_intent_for_slot');
+
+  // 3 · commitIntent ⇒ attempt_token_exists; zero despachos.
+  let err = null;
+  try { J.commitIntent(ctx, { slot_id: 'S01-1', prompt_hash: manifest.prompts[0].prompt_hash, manifest_hash: manifest.manifest_hash }); exec.send('S01-1'); } catch (e) { err = e; }
+  assert.equal(err?.code, 'attempt_token_exists', 'o operador tenta reenviar com os hashes certos e o diário recusa');
+  assert.equal(exec.calls, 0, 'nenhum reenvio');
+  assert.equal(kindsDe(ctx, 'S01-1').filter((k) => k === 'intent_committed').length, 0);
+
+  // 4 · fecho pelo operador ⇒ exactamente uma classe: unknown; identidade afirmada; attempted=false.
+  clk.advance(1 * MIN);
+  const before = J.waveState(ctx);
+  const closed = closeoutWave(ctx, { human: HUMAN_OK, reason: 'fecho antecipado para fixar o fecho do .intent órfão (C1)' });
+  const c = closed.conclusion;
+  assert.match(c.wave.closing_reason, /^operator: /);
+  const s = c.per_slot['S01-1'];
+  assert.equal(s.outcome, 'unknown');
+  assert.equal(s.rule, 'R3_submission_uncertain_without_sufficient_capture');
+  assert.equal(['complete', 'partial', 'failed', 'unknown', 'not_started'].filter((o) => o === s.outcome).length, 1, 'exactamente uma classe');
+  assert.equal(c.identity.planned_equals_sum, true);
+  assert.equal(c.planned, c.complete + c.partial + c.failed + c.unknown + c.not_started);
+  assert.deepEqual([c.planned, c.unknown, c.not_started, c.attempted], [4, 1, 3, 0]);
+  assert.equal(s.attempted, false);
+  assert.equal(s.intent_recorded, false, 'attempted=false porque o diário não tem intent_committed — não porque haja prova de não-envio');
+  assert.equal(s.not_submitted_proven, false, 'NÃO é prova de não-envio: não há known_not_submitted');
+
+  // 5 · documentação e limites: a semântica de attempted=false está no registo (literal) e no README; o slot fica visível
+  //     no histórico; não liberta orçamento; não volta a queued.
+  const registry = JSON.parse(fs.readFileSync(path.join(KIT, 'amendments', 'AMENDMENT-001.json'), 'utf8'));
+  const literal = 'ausência de tentativa contabilizada pelo diário — NÃO prova de não-envio';
+  assert.equal(registry.supplement_001c.attempted_false_semantics, literal);
+  assert.match(fs.readFileSync(path.join(KIT, 'README.md'), 'utf8').split('**').join(''), /ausência de tentativa contabilizada pelo diário — NÃO prova de não-envio/, 'o README diz o mesmo (sem a marcação bold)');
+  assert.deepEqual(s.history, ['prepared', 'preflight_ok', 'submission_uncertain'], 'submission_uncertain permanece visível');
+  assert.equal(s.last_operational_kind, 'submission_uncertain');
+  assert.equal(c.eligible_evaluable_denominator.coverage_per_wave, before.state === 'open' ? 4 : 4, 'posições inalteradas');
+  assert.equal(c.planned, 4, 'o slot não liberta orçamento: planned não muda');
+  assert.equal(c.eligible_evaluable_denominator.caps_declared.coverage_per_wave, 4);
+  assert.throws(() => J.appendEvent(ctx, { slot_id: 'S01-1', kind: 'queued' }), (e) => e.code === 'bad_transition', 'não volta a queued (e a onda já fechou)');
+  assert.equal(fs.existsSync(intentFile(ctx, 'S01-1')), true, 'o token continua no disco depois do fecho');
 });

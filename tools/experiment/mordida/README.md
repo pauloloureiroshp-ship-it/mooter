@@ -12,6 +12,7 @@ guarda nada — `feedback_guarda_sem_teste_de_mordida`.
 | `morde-amend001-a5.mjs` | AMENDMENT-001 · A5 | import.mjs | 7/7 |
 | `morde-amend001-registo.mjs` | AMENDMENT-001 · registo/A4 | closeout.mjs | 6/6 |
 | `morde-amend001b.mjs B1\|B2\|B3\|B4` | AMENDMENT-001b | closeout.mjs, scores.mjs, freeze.mjs, effort.mjs | 4/4 · 5/5 · 4/4 · 5/5 |
+| `morde-amend001c.mjs` | AMENDMENT-001c · C1 | journal.mjs, closeout.mjs | 3/3 |
 
 Correr a partir de qualquer directório: `node tools/experiment/mordida/morde-amend001b.mjs B2`.
 O relatório JSON vai para `$MORDIDA_OUT` ou `<tmpdir>/prisma-mordida/`. Os scripts nunca fazem

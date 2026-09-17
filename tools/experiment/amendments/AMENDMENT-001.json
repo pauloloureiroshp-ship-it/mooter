@@ -210,5 +210,52 @@
       "A1/B1 · .intent órfão: pela máquina, prepared → preflight_ok → submission_uncertain (órfão) fica unknown com attempted=false (não há intent_committed no diário); a API não deixa importar (no_intent_for_slot). Conservador por desenho; sem fixture própria de fecho — se a semântica desejada for outra, é 001c.",
       "A3/B2 · «evaluable» tem duas acepções no conclusion.json: eligible_evaluable (operacional, regra do piloto) e evaluable_by_field (adjudicada). Alias acrescentado; renomear o campo pedido pela A3 seria outra emenda."
     ]
+  },
+  "supplement_001c": {
+    "id": "AMENDMENT-001c",
+    "date": "2026-09-17",
+    "title": "Suplemento de PROVA (uma fixture): fecho do .intent órfão. Sem alteração funcional.",
+    "source": {
+      "file": "AMENDMENT-001c-20260917.txt",
+      "sha256": "97e36afb2a8a6ae00fdcfc0bb7d09abffda550a5b482e4cca9c0f33c63e65cd7",
+      "origin": "Cowork Prisma → Claude Code, a partir da confirmação do GPT Prisma (17/09) sobre cc-p1-20260917-v1: A2–A5 e reservadas confirmados; A1 pendente só desta fixture"
+    },
+    "external_review_after": "corrections_applied_pending_confirmation",
+    "note_2_evaluable": "aceite como está — sem renomeação: eligible_capture_sufficient para a camada operacional, evaluable_by_field para a científica, eligible_evaluable como legado documentado; relatórios científicos usam o denominador adjudicado por campo",
+    "attempted_false_semantics": "ausência de tentativa contabilizada pelo diário — NÃO prova de não-envio",
+    "attempted_false_semantics_long": "attempted=false num slot com .intent órfão significa que o diário não tem intent_committed para o contabilizar como tentativa — não significa que nada foi enviado. A prova de não-envio é known_not_submitted (com proof), que aqui não existe; por isso a classe é unknown (submission_uncertain), o slot fica visível no histórico, não liberta orçamento e não volta a queued.",
+    "items": [
+      {
+        "id": "C1",
+        "kind": "proof",
+        "status": "applied",
+        "commit": null,
+        "summary": "Fixture única (04f): onda aberta, S01-1 com prepared → preflight_ok, raw/S01-1/.intent no disco, nenhum intent_committed. (1) resume ⇒ submission_uncertain{orphan_intent_file}, orphans[].action = marked_submission_uncertain; (2) importCapture sem e com recover ⇒ no_intent_for_slot, nenhum answer.txt; (3) commitIntent ⇒ attempt_token_exists, 0 despachos; (4) fecho pelo operador ⇒ outcome unknown (R3_submission_uncertain_without_sufficient_capture), exactamente uma classe, identidade afirmada, attempted=false, intent_recorded=false, not_submitted_proven=false; (5) semântica literal no registo e no README, submission_uncertain visível no history, planned/caps inalterados, queued recusado (bad_transition), token continua no disco.",
+        "files": [],
+        "tests": [
+          "tests/04-crash-after-intent.test.mjs: 04f"
+        ],
+        "functional_change": false,
+        "mutation": "3/3 (tools/experiment/mordida/morde-amend001c.mjs)"
+      },
+      {
+        "id": "C2",
+        "kind": "registry",
+        "status": "applied",
+        "commit": null,
+        "summary": "supplement_001c no registo; uma frase no README (secção 3, retoma) com o significado de attempted=false; external_review_detail passa a «corrections_applied_pending_confirmation (001+001b+001c)» (derivado).",
+        "files": [
+          "tools/experiment/amendments/AMENDMENT-001.json",
+          "tools/experiment/README.md"
+        ],
+        "tests": [
+          "tests/10-integrity.test.mjs: 10d"
+        ],
+        "functional_change": false
+      }
+    ],
+    "explicitly_out": [
+      "Nenhum comportamento mudou: a fixture passou contra o código de e32ae663 sem tocar em journal.mjs, import.mjs ou closeout.mjs."
+    ]
   }
 }
