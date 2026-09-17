@@ -109,7 +109,7 @@ test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed; extern
   assert.equal(am[0].supplements[0].id, 'AMENDMENT-001b'); assert.equal(am[0].supplements[0].key, 'supplement_001b'); assert.equal(am[0].supplements[0].date, '2026-09-17');
   assert.equal(am[0].supplements[0].source_sha256, '07ca1e65275d3b561af2cb1bde83f7f84575ca17be3e2ca771a3d4a15ae1dcd4', 'o sha do AMENDMENT-001b-20260917.txt');
   assert.deepEqual(am[0].supplements[0].items.map((i) => i.id), ['B1', 'B2', 'B3', 'B4']);
-  assert.deepEqual(am[0].supplements[0].items.filter((i) => i.commit).map((i) => i.commit), ['1d9d7b37', '179bddb8', '011cd546']);
+  assert.deepEqual(am[0].supplements[0].items.map((i) => i.commit), ['1d9d7b37', '179bddb8', '011cd546', 'ada344a9']);
   assert.equal(closed.conclusion.external_review_detail, 'corrections_applied_pending_confirmation (001+001b)');
   assert.equal(externalReviewDetail([]), 'pending');
   // Sem registo ⇒ pending; e o estado escrito à mão em desacordo com o registo é problema.

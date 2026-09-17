@@ -168,7 +168,7 @@
         "id": "B4",
         "kind": "annex",
         "status": "applied",
-        "commit": null,
+        "commit": "ada344a9",
         "summary": "Limiar de utilidade E-6 (RECONCILIACAO-CC-PLAN-v1-20260916) como módulo puro effort.mjs com as três provas por par: (i) empate integral = EMPATE, (ii) duas vitórias conjuntas em 2 de 3, (iii) condição falhada num replay ⇒ esse replay não conta, nunca combinar entre replays; pares e diferenças absolutas publicados, sem percentagens. Custo/esforço: USD de tabela = estimated; «Ollama = 0 USD» = encargos de API 0; tokens à parte dos USD. caps.negative ↔ negative_planned documentado no annex final.",
         "files": [
           "tools/experiment/effort.mjs",
