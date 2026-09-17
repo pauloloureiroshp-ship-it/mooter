@@ -229,7 +229,7 @@
         "id": "C1",
         "kind": "proof",
         "status": "applied",
-        "commit": null,
+        "commit": "7bc52dd4",
         "summary": "Fixture única (04f): onda aberta, S01-1 com prepared → preflight_ok, raw/S01-1/.intent no disco, nenhum intent_committed. (1) resume ⇒ submission_uncertain{orphan_intent_file}, orphans[].action = marked_submission_uncertain; (2) importCapture sem e com recover ⇒ no_intent_for_slot, nenhum answer.txt; (3) commitIntent ⇒ attempt_token_exists, 0 despachos; (4) fecho pelo operador ⇒ outcome unknown (R3_submission_uncertain_without_sufficient_capture), exactamente uma classe, identidade afirmada, attempted=false, intent_recorded=false, not_submitted_proven=false; (5) semântica literal no registo e no README, submission_uncertain visível no history, planned/caps inalterados, queued recusado (bad_transition), token continua no disco.",
         "files": [],
         "tests": [
