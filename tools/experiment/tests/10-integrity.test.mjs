@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import * as J from '../journal.mjs';
-import { closeoutWave, auditClosed, integrityReport, artifactsAndHashes, buildConclusion, checkConclusion, loadAmendments, externalReviewState, isBareNd, CloseoutError, SEMANTICS_VERSION, EXTERNAL_REVIEW_STATES, CLOSEOUT_REQUIRED } from '../closeout.mjs';
+import { closeoutWave, auditClosed, integrityReport, artifactsAndHashes, buildConclusion, checkConclusion, loadAmendments, externalReviewState, externalReviewDetail, isBareNd, CloseoutError, SEMANTICS_VERSION, EXTERNAL_REVIEW_STATES, CLOSEOUT_REQUIRED } from '../closeout.mjs';
 import { frozenOpenWave, driveSlot, HUMAN_OK, MIN, tmpRoot } from './_harness.mjs';
 
 function closedWave(waveId) {
@@ -104,6 +104,14 @@ test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed; extern
   assert.deepEqual(am[0].items.map((i) => i.id), ['A4', 'A1', 'A2', 'A3', 'A5']);
   assert.deepEqual(am[0].items.filter((i) => i.status === 'applied').map((i) => i.commit), ['2f671ea8', 'd4bf406c', '84420bef', '3fb3ac75']);
   assert.equal(am[0].external_review_after, 'corrections_applied_pending_confirmation');
+  // AMENDMENT-001b: o suplemento vive no mesmo registo (supplement_001b) e entra no alcance do estado.
+  assert.equal(am[0].supplements.length, 1);
+  assert.equal(am[0].supplements[0].id, 'AMENDMENT-001b'); assert.equal(am[0].supplements[0].key, 'supplement_001b'); assert.equal(am[0].supplements[0].date, '2026-09-17');
+  assert.equal(am[0].supplements[0].source_sha256, '07ca1e65275d3b561af2cb1bde83f7f84575ca17be3e2ca771a3d4a15ae1dcd4', 'o sha do AMENDMENT-001b-20260917.txt');
+  assert.deepEqual(am[0].supplements[0].items.map((i) => i.id), ['B1', 'B2', 'B3', 'B4']);
+  assert.deepEqual(am[0].supplements[0].items.filter((i) => i.commit).map((i) => i.commit), ['1d9d7b37', '179bddb8', '011cd546']);
+  assert.equal(closed.conclusion.external_review_detail, 'corrections_applied_pending_confirmation (001+001b)');
+  assert.equal(externalReviewDetail([]), 'pending');
   // Sem registo ⇒ pending; e o estado escrito à mão em desacordo com o registo é problema.
   assert.equal(externalReviewState([]), 'pending');
   assert.deepEqual(loadAmendments({ dir: tmpRoot() }), [], 'directório sem emendas: lista vazia, não erro');
@@ -117,6 +125,14 @@ test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed; extern
   assert.throws(() => loadAmendments({ dir }), (e) => e instanceof CloseoutError && e.code === 'amendment_invalid' && /semantics_version/.test(e.message));
   fs.writeFileSync(path.join(dir, 'AMENDMENT-002.json'), JSON.stringify({ id: 'AMENDMENT-002', date: '2026-09-18', items: [], semantics_version: '0.3-proposed', external_review_after: 'aprovado' }));
   assert.throws(() => loadAmendments({ dir }), (e) => e.code === 'amendment_invalid' && /external_review_after/.test(e.message));
+  // …nem um suplemento inválido.
+  fs.writeFileSync(path.join(dir, 'AMENDMENT-002.json'), JSON.stringify({ id: 'AMENDMENT-002', date: '2026-09-18', items: [], semantics_version: '0.3-proposed', external_review_after: 'pending', supplement_002b: { id: 'AMENDMENT-002b', date: '2026-09-19', items: [], external_review_after: 'confirmado' } }));
+  assert.throws(() => loadAmendments({ dir }), (e) => e.code === 'amendment_invalid' && /supplement_002b/.test(e.message));
+  // O estado deriva do mais recente, suplementos incluídos.
+  fs.writeFileSync(path.join(dir, 'AMENDMENT-002.json'), JSON.stringify({ id: 'AMENDMENT-002', date: '2026-09-18', items: [], semantics_version: '0.3-proposed', external_review_after: 'pending', supplement_002b: { id: 'AMENDMENT-002b', date: '2026-09-19', items: [], external_review_after: 'done' } }));
+  const dois = loadAmendments({ dir });
+  assert.equal(externalReviewState(dois), 'done');
+  assert.equal(externalReviewDetail(dois), 'done (002+002b)');
   assert.match(closed.conclusion.amendment_rule, /AMENDMENT datada/);
   assert.equal(closed.conclusion.inference_note.includes('Sem IC agregado, sem +2, sem efeito causal'), true);
   const onDisk = JSON.parse(fs.readFileSync(closed.file, 'utf8'));

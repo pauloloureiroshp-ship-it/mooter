@@ -10,8 +10,15 @@
     "verified_by": "Cowork Prisma: todas as não-conformidades confirmadas nos ficheiros"
   },
   "references": {
-    "contract": { "version": "prisma-engine-draft-0.3-proposed", "path": "tools/experiment/contract/engine-contract-0.3-proposed.json", "sha256": "61acea27efd7f9d2fcc7c047fc309d37bd6df17843a7303140a2be11fb3f5c20" },
-    "protocol": { "version": "PROTOCOLO-PILOTO-0.2-proposed", "sha256": "4564ab1d9cf1de9e25e7eb74e2894c6010a4bd3755c76e0b82b163a50c060ba4" }
+    "contract": {
+      "version": "prisma-engine-draft-0.3-proposed",
+      "path": "tools/experiment/contract/engine-contract-0.3-proposed.json",
+      "sha256": "61acea27efd7f9d2fcc7c047fc309d37bd6df17843a7303140a2be11fb3f5c20"
+    },
+    "protocol": {
+      "version": "PROTOCOLO-PILOTO-0.2-proposed",
+      "sha256": "4564ab1d9cf1de9e25e7eb74e2894c6010a4bd3755c76e0b82b163a50c060ba4"
+    }
   },
   "semantics_version": "0.3-proposed",
   "external_review_after": "corrections_applied_pending_confirmation",
@@ -23,8 +30,18 @@
       "status": "applied",
       "commit": "2f671ea8",
       "summary": "closeout_required tem 21 entradas no contrato 0.3, não 20 — a lista é lida do ficheiro congelado e pinado (sha256), nunca de uma constante.",
-      "files": ["tools/experiment/contract/engine-contract-0.3-proposed.json", "tools/experiment/contract.mjs", "tools/experiment/pins.json", "tools/experiment/closeout.mjs", "tools/experiment/scores.mjs", "tools/experiment/freeze.mjs"],
-      "tests": ["tests/contract.test.mjs (novo: contract-a, contract-b)", "tests/pins.test.mjs (3 pins)"],
+      "files": [
+        "tools/experiment/contract/engine-contract-0.3-proposed.json",
+        "tools/experiment/contract.mjs",
+        "tools/experiment/pins.json",
+        "tools/experiment/closeout.mjs",
+        "tools/experiment/scores.mjs",
+        "tools/experiment/freeze.mjs"
+      ],
+      "tests": [
+        "tests/contract.test.mjs (novo: contract-a, contract-b)",
+        "tests/pins.test.mjs (3 pins)"
+      ],
       "completeness_rule": "Completude = campos com julgamento concluído / len(lista). <<TODO>> e «n/d» sem justificação escrita contam como em falta (checkConclusion.todos; conclusion.completeness)."
     },
     {
@@ -33,8 +50,12 @@
       "status": "applied",
       "commit": "d4bf406c",
       "summary": "reduceSlotHistory(events): redução PURA do histórico do slot a exactamente uma classe ∈ slot_outcomes, com precedência explícita R1 failed > R2 captured (unknown|partial|complete pela captura; o último captured supersede) > R3 enviado/incerto sem captura suficiente ⇒ unknown > R4 known_not_submitted/preparação ⇒ not_started; scored/closed nunca alteram a classe; attempted é dimensão separada (known_not_submitted conta como attempted=false); identidade planned = Σ outcomes afirmada (lança).",
-      "files": ["tools/experiment/closeout.mjs"],
-      "tests": ["tests/07-reset-beyond-window.test.mjs (07d actualizado; 07e casos (a)–(e) + failed prevalece + captured→policy_review; 07f históricos sintéticos, precedência, exaustividade, conflito R1 vs R4)"]
+      "files": [
+        "tools/experiment/closeout.mjs"
+      ],
+      "tests": [
+        "tests/07-reset-beyond-window.test.mjs (07d actualizado; 07e casos (a)–(e) + failed prevalece + captured→policy_review; 07f históricos sintéticos, precedência, exaustividade, conflito R1 vs R4)"
+      ]
     },
     {
       "id": "A2",
@@ -43,7 +64,9 @@
       "commit": "84420bef",
       "summary": "Observações científicas conformes; fixture do 20 reforçada com recommended_appropriately=true e page_or_domain_cited=false no mesmo slot (independência dos campos). Sem alteração de desenho.",
       "files": [],
-      "tests": ["tests/20-scientific-independence.test.mjs (20d)"]
+      "tests": [
+        "tests/20-scientific-independence.test.mjs (20d)"
+      ]
     },
     {
       "id": "A3",
@@ -51,8 +74,15 @@
       "status": "applied",
       "commit": "84420bef",
       "summary": "eligible_evaluable_denominator por POSIÇÃO: coverage_per_wave, planned_eligible, negative_planned (identidade afirmada; contrato 6/2/8 lido e comparado), evaluability_by_outcome, eligible_by_outcome, negative_by_outcome, eligible_evaluable, negative_evaluable, e by_field[<campo>] com a evidência que cada campo exige (new_fact_used: fact_ref; recommended_appropriately: rubric_ref + asks_recommendation — nunca search_used; crawl_access sem resposta). prompts[].evidence declarada no manifesto, validada no freeze, gravada em wave.frozen. countObservations ganha n_evaluable e observed_outside_denominator.",
-      "files": ["tools/experiment/closeout.mjs", "tools/experiment/freeze.mjs", "tools/experiment/scores.mjs"],
-      "tests": ["tests/11-denominators.test.mjs (11a actualizado; 11e evidência explícita; 11f validação; 11g regra do piloto pelo negativo)", "tests/20-scientific-independence.test.mjs (20a/20d)"]
+      "files": [
+        "tools/experiment/closeout.mjs",
+        "tools/experiment/freeze.mjs",
+        "tools/experiment/scores.mjs"
+      ],
+      "tests": [
+        "tests/11-denominators.test.mjs (11a actualizado; 11e evidência explícita; 11f validação; 11g regra do piloto pelo negativo)",
+        "tests/20-scientific-independence.test.mjs (20a/20d)"
+      ]
     },
     {
       "id": "A5",
@@ -60,8 +90,13 @@
       "status": "applied",
       "commit": "3fb3ac75",
       "summary": "cost.basis fica no enum observed|estimated|imputed|unknown (aggregateUsage recusa outro valor); parcialidade em coverage ∈ full|partial|none e components_known; total desconhecido ⇒ value null E basis unknown; exact_total null sempre; componentes preservados sem preencher com 0; tokens × lista = estimated (imputed se os tokens o forem), nunca observed; kind api_charges_at_list_price.",
-      "files": ["tools/experiment/import.mjs"],
-      "tests": ["tests/18-partial-usage.test.mjs (18a/18c/18d actualizados; 18e rejeição)", "tests/09-usage-null.test.mjs (09b/09c)"]
+      "files": [
+        "tools/experiment/import.mjs"
+      ],
+      "tests": [
+        "tests/18-partial-usage.test.mjs (18a/18c/18d actualizados; 18e rejeição)",
+        "tests/09-usage-null.test.mjs (09b/09c)"
+      ]
     }
   ],
   "explicitly_out": [
@@ -70,5 +105,86 @@
     "Imputar preço a um modelo sem linha em pricing.js: fica unknown{no_price_row}; um preço imputado seria decisão do operador com source, noutra emenda.",
     "A4 · limiar de utilidade (effort-measures-prereg: pares A vs B, empate apresentado como EMPATE) e a referência de aprovação E-6: vivem no annex do plano (cc-plan-20260916-v1), não em tools/experiment/**; ficam para o passo 5.",
     "A3 · R01/R02 (partição independent-reserved sob custódia) continuam fora dos 8 e fora do kit (C4: holdout/ é README + directório)."
-  ]
+  ],
+  "supplement_001b": {
+    "id": "AMENDMENT-001b",
+    "date": "2026-09-17",
+    "title": "Suplemento de PROVAS à AMENDMENT-001: fixtures esclarecedoras (A1, A3), rejeição explícita da partição reservada, annex do passo 5. Nada reabre o desenho.",
+    "source": {
+      "file": "AMENDMENT-001b-20260917.txt",
+      "sha256": "07ca1e65275d3b561af2cb1bde83f7f84575ca17be3e2ca771a3d4a15ae1dcd4",
+      "origin": "Cowork Prisma → Claude Code, a partir da confirmação do GPT Prisma (17/09) sobre AMENDMENT-001-applied.json"
+    },
+    "gpt_state_before": "A2 e A5 confirmados; A1 e A3 aguardam fixtures; A4 mecânico confirmado, annex pendente",
+    "external_review_after": "corrections_applied_pending_confirmation",
+    "items": [
+      {
+        "id": "B1",
+        "kind": "proof",
+        "status": "applied",
+        "commit": "1d9d7b37",
+        "summary": "A falha que decide R1 é a TERMINAL (sem saída em SLOT_TRANSITIONS — derivado, não escrito); preflight_failed é histórica: fica em history[] e prior_failures, nunca decide. attempted: known_not_submitted só produz false sem submitted/submission_uncertain posterior.",
+        "files": [
+          "tools/experiment/closeout.mjs"
+        ],
+        "tests": [
+          "tests/07-reset-beyond-window.test.mjs: 07g (a)(b)(c)(c′); 07f ajustado"
+        ],
+        "mutation": "4/4 (morde-amend001b.mjs B1)"
+      },
+      {
+        "id": "B2",
+        "kind": "proof",
+        "status": "applied",
+        "commit": "179bddb8",
+        "summary": "Três camadas por campo, nunca igualadas: applicable (manifesto declara a evidência) ≥ capture_sufficient (com resposta) ≥ evaluable (adjudicação ≠ null em scores.jsonl). applicable_by_field / evaluable_by_field na conclusão; per_slot.applicable_for / capture_sufficient_for / evaluable_for; countObservations n_applicable / n_capture_sufficient / n_evaluable / observed_outside_denominator.",
+        "files": [
+          "tools/experiment/closeout.mjs",
+          "tools/experiment/scores.mjs"
+        ],
+        "tests": [
+          "tests/11-denominators.test.mjs: 11h (a)(b)(c); 11a/11e ajustados",
+          "tests/19-search-fields.test.mjs: 19e",
+          "tests/20-scientific-independence.test.mjs: 20a/20d ajustados"
+        ],
+        "mutation": "5/5 (morde-amend001b.mjs B2)"
+      },
+      {
+        "id": "B3",
+        "kind": "exclusion",
+        "status": "applied",
+        "commit": "011cd546",
+        "summary": "O kit REJEITA a partição reservada até existir custodiante: freeze recusa (reserved_partition_unsupported: partition independent-reserved, ids Rd{2}, role reserved, order) sem escrever nada; scores recusa R01-*/R02-* (slot_unknown); holdout/README.md declara a rejeição, a ausência de custódia e o que a activação exige (custodiante + AMENDMENT própria).",
+        "files": [
+          "tools/experiment/freeze.mjs",
+          "tools/experiment/holdout/README.md"
+        ],
+        "tests": [
+          "tests/12-holdout.test.mjs: 12e"
+        ],
+        "mutation": "4/4 (morde-amend001b.mjs B3)"
+      },
+      {
+        "id": "B4",
+        "kind": "annex",
+        "status": "applied",
+        "commit": null,
+        "summary": "Limiar de utilidade E-6 (RECONCILIACAO-CC-PLAN-v1-20260916) como módulo puro effort.mjs com as três provas por par: (i) empate integral = EMPATE, (ii) duas vitórias conjuntas em 2 de 3, (iii) condição falhada num replay ⇒ esse replay não conta, nunca combinar entre replays; pares e diferenças absolutas publicados, sem percentagens. Custo/esforço: USD de tabela = estimated; «Ollama = 0 USD» = encargos de API 0; tokens à parte dos USD. caps.negative ↔ negative_planned documentado no annex final.",
+        "files": [
+          "tools/experiment/effort.mjs",
+          "tools/experiment/amendments/AMENDMENT-001.json",
+          "tools/experiment/closeout.mjs"
+        ],
+        "tests": [
+          "tests/effort.test.mjs: effort-i/ii/iii/iv",
+          "tests/10-integrity.test.mjs: 10d ajustado"
+        ],
+        "mutation": "5/5 (morde-amend001b.mjs B4)"
+      }
+    ],
+    "explicitly_out": [
+      "B4 · replays reais do ensaio de esforço: não corridos — o módulo só aplica a regra a pares já medidos; os 3 replays (ordem A,B / B,A / A,B) ficam para depois do kit ser aceite.",
+      "B3 · vocabulário de custódia (custody.sealed / custody.released) e holdout.mjs: só com custodiante nomeado + AMENDMENT própria."
+    ]
+  }
 }

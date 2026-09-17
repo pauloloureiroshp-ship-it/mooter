@@ -71,13 +71,29 @@ export function loadAmendments({ fs = nodeFs, dir = AMENDMENTS_DIR } = {}) {
     if (!EXTERNAL_REVIEW_STATES.includes(a.external_review_after)) throw new CloseoutError('amendment_invalid', `${n}: external_review_after ∈ ${EXTERNAL_REVIEW_STATES.join('|')}`);
     if (a.semantics_version !== SEMANTICS_VERSION) throw new CloseoutError('amendment_invalid', `${n}: semantics_version ${a.semantics_version} ≠ ${SEMANTICS_VERSION} — outra versão da semântica é outro kit`);
     if (!Array.isArray(a.items) || !a.items.every((it) => it && typeof it.id === 'string' && typeof it.status === 'string')) throw new CloseoutError('amendment_invalid', `${n}: items[] com id e status`);
-    return { id: a.id, date: a.date, file: `amendments/${n}`, sha256: sha256(bytes), source_sha256: a.source?.sha256 ?? null, items: a.items.map((it) => ({ id: it.id, kind: it.kind ?? null, status: it.status, commit: it.commit ?? null })), external_review_after: a.external_review_after };
+    // Suplementos (AMENDMENT-001b): secções supplement_<sufixo> no mesmo ficheiro — só provas,
+    // limite operacional e annex; nunca desenho. Validados como a emenda-mãe.
+    const supplements = Object.entries(a).filter(([k]) => /^supplement_/.test(k)).map(([k, s]) => {
+      for (const kk of ['id', 'date', 'items', 'external_review_after']) if (!s || !(kk in s)) throw new CloseoutError('amendment_invalid', `${n}.${k}: falta ${kk}`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s.date)) throw new CloseoutError('amendment_invalid', `${n}.${k}: date tem de ser YYYY-MM-DD`);
+      if (!EXTERNAL_REVIEW_STATES.includes(s.external_review_after)) throw new CloseoutError('amendment_invalid', `${n}.${k}: external_review_after ∈ ${EXTERNAL_REVIEW_STATES.join('|')}`);
+      if (!Array.isArray(s.items) || !s.items.every((it) => it && typeof it.id === 'string' && typeof it.status === 'string')) throw new CloseoutError('amendment_invalid', `${n}.${k}: items[] com id e status`);
+      return { key: k, id: s.id, date: s.date, source_sha256: s.source?.sha256 ?? null, items: s.items.map((it) => ({ id: it.id, kind: it.kind ?? null, status: it.status, commit: it.commit ?? null })), external_review_after: s.external_review_after };
+    });
+    return { id: a.id, date: a.date, file: `amendments/${n}`, sha256: sha256(bytes), source_sha256: a.source?.sha256 ?? null, items: a.items.map((it) => ({ id: it.id, kind: it.kind ?? null, status: it.status, commit: it.commit ?? null })), external_review_after: a.external_review_after, supplements };
   });
 }
-/** Estado de revisão externa DERIVADO do registo: sem emendas ⇒ pending; com emendas ⇒ o da mais recente. */
+/** Estado de revisão externa DERIVADO do registo: sem emendas ⇒ pending; com emendas ⇒ o da mais recente (suplementos incluídos). */
 export function externalReviewState(amendments) {
   if (!amendments.length) return 'pending';
-  return [...amendments].sort((a, b) => (a.date + a.id).localeCompare(b.date + b.id)).at(-1).external_review_after;
+  const all = amendments.flatMap((a) => [{ date: a.date, id: a.id, state: a.external_review_after }, ...(a.supplements || []).map((s) => ({ date: s.date, id: s.id, state: s.external_review_after }))]);
+  return all.sort((a, b) => (a.date + a.id).localeCompare(b.date + b.id)).at(-1).state;
+}
+/** «corrections_applied_pending_confirmation (001+001b)» — o estado com o alcance, derivado do registo. */
+export function externalReviewDetail(amendments) {
+  const state = externalReviewState(amendments);
+  const ids = amendments.flatMap((a) => [a.id, ...(a.supplements || []).map((s) => s.id)]).map((id) => id.replace(/^AMENDMENT-/, ''));
+  return ids.length ? `${state} (${ids.join('+')})` : state;
 }
 
 // AMENDMENT-001 (correcção mecânica): o vocabulário normativo vem do contrato
@@ -547,6 +563,7 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
     semantics_version: SEMANTICS_VERSION,
     contract: { version: CONTRACT.version, sha256: CONTRACT.sha256, closeout_required_count: CLOSEOUT_REQUIRED.length },
     external_review: externalReviewState(amendments),
+    external_review_detail: externalReviewDetail(amendments),
     amendments,
     amendment_rule: 'Qualquer alteração à semântica (outcomes, denominadores, regras de derivação) é uma AMENDMENT datada, com testes, referenciada aqui — nunca edição silenciosa deste ficheiro.',
     wave_id: ctx.waveId,
