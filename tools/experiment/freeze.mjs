@@ -40,6 +40,11 @@ export const CONDITION_KEYS = loadContract().condition_required;
 export const OBSERVED_ONLY_KEYS = Object.freeze(['observed_plan', 'observed_model_label', 'search_used', 'timestamp', 'prompt_hash']);
 export const PARTITIONS = Object.freeze(['synthetic-qualification', 'primary', 'informed-diagnostic', 'independent-reserved']);
 export const PROMPT_ROLES = Object.freeze(['eligible', 'negative', 'synthetic']);
+// AMENDMENT-001b · B3: a partição reservada (R01/R02, PROTOCOLO 0.2 §3-4, ≤4 conversas)
+// é REJEITADA operacionalmente pelo kit até existir custodiante nomeado + AMENDMENT própria.
+// Não é código de custódia — é exclusão verificável: o freeze recusa, nada se escreve.
+export const RESERVED_ID = /^R\d{2}$/;
+export const RESERVED_REASON = 'reserved_partition_unsupported';
 
 export class FreezeError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'FreezeError'; this.code = code; this.details = details; }
@@ -61,6 +66,7 @@ export function validateManifestInput(m, { waveId } = {}) {
   if (isStr(m.wave_id) && !SAFE_ID.test(m.wave_id)) push('bad_id', `wave_id ${m.wave_id}`);
   if (waveId && m.wave_id !== waveId) push('wave_id_mismatch', `manifesto diz ${m.wave_id}, diário é ${waveId}`);
   if (!PARTITIONS.includes(m.partition)) push('bad_partition', `partition ∈ ${PARTITIONS.join('|')}`);
+  if (m.partition === 'independent-reserved') push('reserved_partition_unsupported', 'a partição reservada não tem custodiante nomeado: o kit recusa congelá-la (B3); activação exige custodiante + AMENDMENT própria');
   if (m.manifest_hash != null) push('manifest_hash_must_be_null', 'o freeze calcula o manifest_hash; a entrada não o traz');
   if (!('rubric_ref' in m)) push('missing_field', 'rubric_ref (string ou null)');
   if (!('authorization_ref' in m)) push('missing_field', 'authorization_ref (string ou null)');
@@ -91,6 +97,8 @@ export function validateManifestInput(m, { waveId } = {}) {
     if (!p || !isStr(p.id) || !SAFE_ID.test(p.id)) { push('bad_prompt', `prompts[${i}].id`); return; }
     if (ids.has(p.id)) push('duplicate_prompt_id', p.id);
     ids.add(p.id);
+    if (RESERVED_ID.test(p.id)) push('reserved_partition_unsupported', `${p.id}: id reservado (R01/R02) numa onda do kit — sem custodiante, nada se congela`);
+    if (p.role === 'reserved') push('reserved_partition_unsupported', `${p.id}: role reserved — sem custodiante, nada se congela`);
     if (!isStr(p.text)) push('bad_prompt', `prompts[${i}].text vazio`);
     if (!PROMPT_ROLES.includes(p.role)) push('bad_prompt', `prompts[${i}].role ∈ ${PROMPT_ROLES.join('|')}`);
     if (p.prompt_hash != null && isStr(p.text) && p.prompt_hash !== sha256(Buffer.from(p.text, 'utf8'))) push('prompt_hash_mismatch', `${p.id}: prompt_hash declarado ≠ sha256(bytes de text)`);
@@ -112,7 +120,7 @@ export function validateManifestInput(m, { waveId } = {}) {
 
   // ordem → slots
   if (!Array.isArray(m.order) || m.order.length === 0) push('missing_field', 'order[]');
-  else for (const id of m.order) if (!ids.has(id)) push('order_unknown_prompt', id);
+  else for (const id of m.order) { if (!ids.has(id)) push('order_unknown_prompt', id); if (RESERVED_ID.test(id)) push('reserved_partition_unsupported', `order contém ${id}`); }
 
   // caps
   const caps = m.caps;

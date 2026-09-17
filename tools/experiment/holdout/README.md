@@ -2,6 +2,16 @@
 
 **Estado (2026-09-16, condição C4 do Cowork Prisma):** README + directório. Sem código. Fica assim até existir um custodiante nomeado (pendência E-8 do plano `cc-plan-20260916-v1`).
 
+## Rejeição operacional (AMENDMENT-001b · B3, 2026-09-17)
+
+**A partição reservada é REJEITADA pelo kit.** PROTOCOLO 0.2 §4: R01/R02, ≤4 conversas no total, só por custodiante independente. Não há custódia demonstrada — não existe custodiante nomeado, não existe `custody.json` selado, não existe evento de custódia no vocabulário do diário. Por isso o kit não a aceita:
+
+- `freeze.mjs` recusa qualquer manifesto com `partition: 'independent-reserved'`, com prompts de id `R01`/`R02` (padrão `R\d{2}`), com `role: 'reserved'`, ou com esses ids em `order` — razão `reserved_partition_unsupported`; **nada é congelado, nada é escrito** (`manifest.json` não nasce, o diário fica sem `wave.frozen`).
+- `scores.appendScore` recusa observações sobre `R01-*`/`R02-*` — `slot_unknown`, porque não estão em nenhum manifesto congelado.
+- `closeout` não percorre nem lista o directório reservado; a conclusão não sabe que ele existe.
+
+Provado pelo teste 12 (12e: as duas recusas; 12b/12c: ausência de caminhos). **Isto não é código de custódia — é exclusão verificável.** A activação exige, por esta ordem: custodiante nomeado (decisão do Paulo, E-8) **e** uma AMENDMENT própria, datada, com o vocabulário de custódia (`custody.sealed` / `custody.released`) e os testes que a provam. Até lá, «reservado» significa «o kit diz não».
+
 ## O que é
 
 PROTOCOLO 0.2 §3: «R01/R02, duas repetições cada, só por custodiante independente antes de conhecer resultados de desenvolvimento. Textos ficam fora do contexto do optimizador. Sem custódia, não executar; não substituir por perguntas improvisadas. Com custódia, executar após W2 sem novas alterações e reportar separadamente.»

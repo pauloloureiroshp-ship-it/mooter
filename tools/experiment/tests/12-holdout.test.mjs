@@ -24,7 +24,8 @@ import * as J from '../journal.mjs';
 import { REPO_ROOT } from '../pins.mjs';
 import { appendScore } from '../scores.mjs';
 import { closeoutWave, artifactsAndHashes } from '../closeout.mjs';
-import { frozenOpenWave, driveSlot, HUMAN_OK, MIN } from './_harness.mjs';
+import { freezeWave, validateManifestInput, FreezeError } from '../freeze.mjs';
+import { frozenOpenWave, driveSlot, HUMAN_OK, MIN, primaryManifest, tmpRoot, clock, T0 } from './_harness.mjs';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
@@ -89,4 +90,57 @@ test('12d · MORDIDA · o closeout não «aprende»: fechar duas ondas iguais d�
   for (const k of ['planned', 'attempted', 'complete', 'failed', 'not_started', 'unknown']) assert.equal(ca[k], cb[k], k);
   const top = fs.readdirSync(a.root).sort();
   assert.deepEqual(top, ['waves'], `no root só há waves/ (sem ficheiros de estado partilhado, sem tuning): ${top.join(',')}`);
+});
+
+// ── AMENDMENT-001b · B3 (2026-09-17) · o kit REJEITA a partição reservada ────
+// AMENDMENT-001b-20260917.txt §B3: sem custodiante, o freeze recusa R01/R02 (nada
+// congelado, nada escrito) e o ledger científico recusa observações sobre R01.
+// Mordida: aceitar R01 no freeze ⇒ 12e vermelho (morde-amend001b.mjs B3).
+
+test('12e · B3 · freeze recusa manifesto com R01/R02 (id, role reserved, order, partition independent-reserved) com reserved_partition_unsupported — nada congelado, nada escrito; scores recusa R01-1 (slot_unknown); o README declara a rejeição', () => {
+  const root = tmpRoot();
+  const reasons = (m, wid) => validateManifestInput(m, { waveId: wid }).filter((f) => f.code === 'reserved_partition_unsupported');
+  // (1) id reservado entre os prompts + na ordem
+  const comR01 = primaryManifest('W-12e-1');
+  comR01.prompts.push({ id: 'R01', text: 'PERGUNTA RESERVADA SINTÉTICA', role: 'eligible', prompt_hash: null });
+  comR01.order = [...comR01.order, 'R01'];
+  comR01.caps = { coverage_per_wave: 9, planned_eligible: 7, negative: 2 };
+  assert.ok(reasons(comR01, 'W-12e-1').length >= 2, JSON.stringify(reasons(comR01, 'W-12e-1')));
+  const c1 = J.openJournal({ root, waveId: 'W-12e-1', now: clock(T0).now });
+  assert.throws(() => freezeWave(c1, { manifest: comR01 }), (e) => e instanceof FreezeError && e.code === 'manifest_invalid' && e.details.failures.some((f) => f.code === 'reserved_partition_unsupported'));
+  assert.equal(fs.existsSync(path.join(c1.dir, 'manifest.json')), false, 'nada congelado');
+  assert.equal(J.readEvents(c1).length, 0, 'nada escrito no diário');
+  // (2) role reserved
+  const comRole = primaryManifest('W-12e-2');
+  comRole.prompts[0] = { ...comRole.prompts[0], role: 'reserved' };
+  assert.ok(reasons(comRole, 'W-12e-2').length >= 1);
+  // (3) partition independent-reserved, mesmo sem ids R
+  const comPart = primaryManifest('W-12e-3');
+  comPart.partition = 'independent-reserved';
+  assert.ok(reasons(comPart, 'W-12e-3').some((f) => /custodiante/.test(f.detail)));
+  const c3 = J.openJournal({ root, waveId: 'W-12e-3', now: clock(T0).now });
+  assert.throws(() => freezeWave(c3, { manifest: comPart }), (e) => e.code === 'manifest_invalid');
+  assert.equal(fs.existsSync(path.join(c3.dir, 'manifest.json')), false);
+  // (4) R02 só na order (sem prompt) — recusado pelas duas razões
+  const comOrder = primaryManifest('W-12e-4');
+  comOrder.order = [...comOrder.order, 'R02'];
+  const r4 = validateManifestInput(comOrder, { waveId: 'W-12e-4' });
+  assert.ok(r4.some((f) => f.code === 'order_unknown_prompt') && r4.some((f) => f.code === 'reserved_partition_unsupported'));
+  // O manifesto normal continua a passar — a regra só morde o reservado.
+  assert.deepEqual(reasons(primaryManifest('W-12e-5'), 'W-12e-5'), []);
+  // scores: R01-1 é slot_unknown numa onda congelada normal (tornado explícito, como pede a 001b).
+  const { ctx, manifest, clk } = frozenOpenWave({ waveId: 'W-12e-6', manifest: primaryManifest('W-12e-6') });
+  driveSlot(ctx, manifest, 'Q01-1', { to: 'captured' });
+  const prov = { source: 's', timestamp: new Date(clk.t).toISOString(), evidence_reference: {}, reviewer: 'r' };
+  for (const sid of ['R01-1', 'R02-1', 'R01-2']) {
+    assert.throws(() => appendScore(ctx, { slot_id: sid, field: 'crawl_access', value: true, ...prov }), (e) => e.code === 'score_invalid' && e.details.failures.some((f) => f.code === 'slot_unknown'), sid);
+  }
+  assert.equal(fs.existsSync(path.join(ctx.dir, 'scores.jsonl')), false, 'nada escrito no ledger científico');
+  // README: a rejeição está declarada em texto.
+  const readme = read(path.join(KIT, 'holdout', 'README.md'));
+  assert.match(readme, /REJEITADA pelo kit/);
+  assert.match(readme, /reserved_partition_unsupported/);
+  assert.match(readme, /custodiante nomeado/);
+  assert.match(readme, /AMENDMENT própria/);
+  assert.match(readme, /não é código de custódia/i);
 });
