@@ -66,7 +66,10 @@ test('09b · 8 slots: 3 observados, 2 estimados (chars/4 etiquetado), 3 sem usag
   assert.equal(fromJournal[5].cost_usd.basis, 'unknown');
   assert.equal(fromJournal[5].cost_usd.reason, 'no_usage');
   assert.equal(fromJournal[3].cost_usd.basis, 'estimated', 'custo sobre tokens estimados é custo estimado — nunca «real»');
-  assert.equal(fromJournal[0].cost_usd.basis, 'observed');
+  assert.equal(fromJournal[0].cost_usd.basis, 'estimated', 'A5: tokens observados × lista também é estimado — só uma cobrança real seria observed');
+  assert.equal(fromJournal[0].cost_usd.input_component.tokens_basis, 'observed');
+  assert.equal(fromJournal[0].cost_usd.coverage, 'full');
+  assert.equal(fromJournal[5].cost_usd.coverage, 'none');
   assert.equal(fromJournal[0].cost_usd.price_basis.last_reviewed, '2026-09-12', 'a data do SSOT de preços fica no envelope');
   assert.match(fromJournal[0].cost_usd.price_basis.sha256, /^[0-9a-f]{64}$/);
   assert.equal(exec.calls, 8);
@@ -91,9 +94,12 @@ test('09c · aggregateUsage: soma só o que tem valor, por base; unknown conta, 
   assert.equal(agg.tokens_out.coverage, 0.375);
   assert.equal(agg.tokens_out.exact_total, null, 'com 3 unknown e 2 estimated não existe total exacto — e o campo diz null, não 7543');
   assert.equal(agg.cost_usd.n_unknown, 3);
-  assert.equal(agg.cost_usd.n_observed, 3);
-  assert.equal(agg.cost_usd.n_estimated, 2);
-  assert.ok(Math.abs(agg.cost_usd.observed_sum - ((300 + 310 + 305) * 1 + (1500 + 1400 + 1600) * 5) / 1e6) < 1e-12);
+  assert.equal(agg.cost_usd.n_observed, 0, 'A5: nenhum custo é observado neste escopo — não há cobrança real');
+  assert.equal(agg.cost_usd.n_estimated, 5);
+  assert.ok(Math.abs(agg.cost_usd.estimated_sum - ((300 + 310 + 305 + 300 + 298) * 1 + (1500 + 1400 + 1600 + 1553 + 1490) * 5) / 1e6) < 1e-12);
+  assert.equal(agg.cost_usd.observed_sum, 0);
+  assert.deepEqual(agg.cost_usd.cost_coverage, { full: 5, partial: 0, none: 3 });
+  assert.equal(agg.tokens_out.n_observed, 3, 'os TOKENS observados continuam observados — a medida de esforço separa tokens de USD');
   // Um envelope inteiramente vazio não muda somas nem cobertura para além do denominador.
   const agg2 = aggregateUsage([...envs, usageEnvelope({})]);
   assert.equal(agg2.tokens_out.observed_sum, 4500);

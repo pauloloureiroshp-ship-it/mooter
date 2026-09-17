@@ -21,7 +21,17 @@
 //   2. Cada métrica de consumo é { value, basis, source }, basis ∈ observed |
 //      estimated | imputed | unknown. value null ⇒ basis unknown. Nenhuma soma
 //      trata null como 0 (caso 09). Input conhecido + output desconhecido ⇒
-//      custo `partial`, nunca total (caso 18).
+//      custo com value null, basis unknown e coverage 'partial', nunca total
+//      (caso 18).
+//      AMENDMENT-001 · A5 (2026-09-17, AMENDMENT-001-20260916.txt; contrato 0.3
+//      sha256 61acea27…): o passo 3 devolvia basis 'partial' — fora do enum do
+//      contrato. Agora: basis fica no enum (aggregateUsage RECUSA outro valor);
+//      a parcialidade vive em `coverage` ∈ full | partial | none e em
+//      `components_known`; tokens × preço de tabela é custo ESTIMATED (ou
+//      imputed se algum lado for imputado), NUNCA observed — só uma cobrança
+//      real seria observed, e este escopo manual não a tem (exact_total=null
+//      sempre); `kind: api_charges_at_list_price` — «Ollama = 0 USD» significa
+//      encargos adicionais de API = 0, nunca custo total.
 //   3. O preço vem da linha EXACTA de pricing.js (PRICES[model_key]); sem linha
 //      ⇒ custo unknown com reason 'no_price_row'. O fallback do SSOT nunca é
 //      chamado. O envelope grava o sha256 e o «Last reviewed» de pricing.js —
@@ -50,6 +60,10 @@ const pricing = require('../router/pricing.js');               // NÃO pinado: p
 
 export const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 export const BASIS = Object.freeze(['observed', 'estimated', 'imputed', 'unknown']);
+/** A5: parcialidade é um campo próprio, não uma basis. */
+export const COVERAGE = Object.freeze(['full', 'partial', 'none']);
+/** A5: o que o envelope de custo mede — encargos de API a preço de lista, não o custo total. */
+export const COST_KIND = 'api_charges_at_list_price';
 export const COMPLETENESS = Object.freeze(['full', 'partial', 'unknown']);
 export const IMPORTABLE_FROM = Object.freeze(['submitted', 'submission_uncertain', 'capture_uncertain', 'policy_review']);
 
@@ -90,21 +104,29 @@ export function pricingProvenance({ fs = null } = {}) {
  * Custo com proveniência. NUNCA chama pricing.getPrice/priceTurn (fallback
  * silencioso): lê a linha exacta. Devolve sempre um envelope, nunca lança por
  * falta de dados.
+ *
+ * A5: { value, basis ∈ BASIS, coverage ∈ COVERAGE, components_known, reason,
+ * kind, price_basis, input_component, output_component }. value null ⇔ basis
+ * unknown. Um componente calculado tem basis estimated|imputed e guarda a base
+ * dos tokens de que veio (tokens_basis); o que não se sabe fica null, nunca 0.
  */
 export function costEnvelope({ model_key = null, tokens_in, tokens_out }) {
   const ti = metric(tokens_in, { name: 'tokens_in' });
   const to = metric(tokens_out, { name: 'tokens_out' });
   const prov = pricingProvenance();
   const row = model_key && Object.prototype.hasOwnProperty.call(pricing.PRICES, model_key) ? pricing.PRICES[model_key] : null;
-  const base = { model_key: model_key ?? null, price_basis: row ? { input_per_mtok: row.input, output_per_mtok: row.output, ...prov } : { ...prov, row: null } };
+  const components_known = [ti.value !== null ? 'input' : null, to.value !== null ? 'output' : null].filter(Boolean);
+  const coverage = components_known.length === 2 ? 'full' : components_known.length === 1 ? 'partial' : 'none';
+  const base = { kind: COST_KIND, model_key: model_key ?? null, coverage, components_known, price_basis: row ? { input_per_mtok: row.input, output_per_mtok: row.output, ...prov } : { ...prov, row: null } };
   if (!row) return { value: null, basis: 'unknown', reason: model_key ? 'no_price_row' : 'no_model_key', ...base, input_component: null, output_component: null };
-  const comp = (m, per) => (m.value === null ? { value: null, basis: 'unknown' } : { value: (m.value * per) / 1e6, basis: m.basis, source: m.source });
+  // tokens × preço de tabela é sempre um custo CALCULADO: estimated, ou imputed se os tokens o forem. Nunca observed.
+  const comp = (m, per) => (m.value === null ? { value: null, basis: 'unknown', tokens_basis: 'unknown' } : { value: (m.value * per) / 1e6, basis: m.basis === 'imputed' ? 'imputed' : 'estimated', tokens_basis: m.basis, source: m.source });
   const ic = comp(ti, row.input);
   const oc = comp(to, row.output);
-  if (ic.value === null && oc.value === null) return { value: null, basis: 'unknown', reason: 'no_usage', ...base, input_component: ic, output_component: oc };
-  if (ic.value === null || oc.value === null) return { value: null, basis: 'partial', reason: ic.value === null ? 'input_unknown' : 'output_unknown', ...base, input_component: ic, output_component: oc };
-  const worst = [ti.basis, to.basis].includes('imputed') ? 'imputed' : [ti.basis, to.basis].includes('estimated') ? 'estimated' : 'observed';
-  return { value: ic.value + oc.value, basis: worst, reason: null, ...base, input_component: ic, output_component: oc };
+  if (coverage === 'none') return { value: null, basis: 'unknown', reason: 'no_usage', ...base, input_component: ic, output_component: oc };
+  if (coverage === 'partial') return { value: null, basis: 'unknown', reason: ic.value === null ? 'input_unknown' : 'output_unknown', ...base, input_component: ic, output_component: oc };
+  const basis = [ic.basis, oc.basis].includes('imputed') ? 'imputed' : 'estimated';
+  return { value: ic.value + oc.value, basis, reason: null, derivation: 'tokens × list price (pricing.js)', ...base, input_component: ic, output_component: oc };
 }
 
 /** Envelope completo de consumo de uma resposta. */
@@ -122,17 +144,19 @@ export function usageEnvelope({ model_key = null, tokens_in = null, tokens_out =
 export function aggregateUsage(envelopes) {
   const out = {};
   for (const k of ['tokens_in', 'tokens_out', 'cost_usd']) {
-    const acc = { observed_sum: 0, estimated_sum: 0, imputed_sum: 0, partial_sum: null, n_observed: 0, n_estimated: 0, n_imputed: 0, n_partial: 0, n_unknown: 0, n_total: 0, coverage: null };
+    const acc = { observed_sum: 0, estimated_sum: 0, imputed_sum: 0, n_observed: 0, n_estimated: 0, n_imputed: 0, n_unknown: 0, n_total: 0, coverage: null, cost_coverage: k === 'cost_usd' ? { full: 0, partial: 0, none: 0 } : null };
     for (const env of envelopes) {
       const m = env && env[k];
       acc.n_total++;
+      // A5: basis fora do enum é recusada — 'partial' era o caso; parcialidade é `coverage`.
+      if (m && !BASIS.includes(m.basis)) throw new ImportError('metric_bad_basis', `${k}: basis ${JSON.stringify(m.basis)} fora de ${BASIS.join('|')} — parcialidade é coverage, não basis`);
+      if (k === 'cost_usd' && m && COVERAGE.includes(m.coverage)) acc.cost_coverage[m.coverage]++;
       if (!m || m.value === null || m.basis === 'unknown') { acc.n_unknown++; continue; }
-      if (m.basis === 'partial') { acc.n_partial++; continue; }
       acc[`n_${m.basis}`]++;
       acc[`${m.basis}_sum`] += m.value;
     }
     acc.coverage = acc.n_total ? acc.n_observed / acc.n_total : null;
-    acc.exact_total = null; // nunca existe um «total exacto» com unknown/estimated/partial no meio
+    acc.exact_total = null; // nunca existe um «total exacto»: neste escopo manual não há cobrança real, só tokens × lista
     out[k] = acc;
   }
   return out;
