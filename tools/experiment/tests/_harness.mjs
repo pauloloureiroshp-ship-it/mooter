@@ -68,6 +68,7 @@ export function failingFs() {
     mkdirSync: wrap('mkdirSync', (p) => String(p)),
     renameSync: wrap('renameSync', (p) => String(p)),
     readdirSync: (...a) => fs.readdirSync(...a),
+    statSync: (...a) => fs.statSync(...a),
   };
   const err = (code, msg) => { const e = new Error(msg || code); e.code = code; return e; };
   return {
@@ -170,3 +171,31 @@ export function frozenOpenWave({ root = tmpRoot(), waveId = 'W-syn', clk = clock
   openFromManifest(ctx);
   return { ctx, root, clk, manifest: f.manifest, input };
 }
+
+// ── passo 4: levar um slot até um estado, pelo caminho oficial (preflight → intent → …) ──
+import { preflight as _preflight } from '../preflight.mjs';
+import { importCapture as _importCapture, importFailure as _importFailure, markCaptureUncertain as _markCaptureUncertain } from '../import.mjs';
+
+/**
+ * driveSlot: percorre o caminho real até `to` ∈ preflight_ok | intent | submitted |
+ * captured | failed | capture_uncertain | submission_uncertain (via resume).
+ * Devolve o que o último passo devolveu. Usa o executor fake se dado.
+ */
+export function driveSlot(ctx, manifest, slotId, { to = 'captured', exec = null, capability = null, observed = {}, answer = 'resposta sintética', completeness = 'full', literal = 'Something went wrong.', usage = {}, refusal = false } = {}) {
+  const pid = manifest.slots.find((s) => s.slot_id === slotId).prompt_id;
+  const cap = capability ?? (manifest.partition === 'synthetic-qualification' ? null : capabilityEligible());
+  const r = _preflight(ctx, { slot_id: slotId, bytes: bytesOf(manifest, pid), observed: observedFor(manifest, observed), capability: cap });
+  if (!r.ok) throw new Error(`driveSlot ${slotId}: preflight falhou ${JSON.stringify(r.reasons)}`);
+  if (to === 'preflight_ok') return r;
+  const c = J.commitIntent(ctx, { slot_id: slotId, prompt_hash: manifest.prompts.find((p) => p.id === pid).prompt_hash, manifest_hash: manifest.manifest_hash });
+  if (exec) exec.send(slotId);
+  if (to === 'intent') return c;
+  if (to === 'submission_uncertain') return J.resume(ctx);
+  const s = J.appendEvent(ctx, { slot_id: slotId, kind: 'submitted', payload: { ts_submitted: new Date(ctx.now()).toISOString() } });
+  if (to === 'submitted') return s;
+  if (to === 'failed') return _importFailure(ctx, { slot_id: slotId, literal });
+  if (to === 'capture_uncertain') return _markCaptureUncertain(ctx, { slot_id: slotId, literal, partial_bytes: Buffer.from(String(answer).slice(0, 8)) });
+  return _importCapture(ctx, { slot_id: slotId, answer_bytes: Buffer.from(answer, 'utf8'), capture_completeness: completeness, capture_method: 'manual-paste', observed: observedFor(manifest, { search_used: null, ...observed }), usage, refusal });
+}
+
+export const HUMAN_OK = Object.freeze({ hypothesis_id: 'H-syn-01', expected_result: 'n/d (sintético)', counterevidence: 'n/d', confounders: 'n/d', decision: 'inconclusive', reviewer: 'rev-syn', next_hypothesis_id: 'n/d' });

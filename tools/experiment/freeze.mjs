@@ -204,6 +204,12 @@ function appendFrozenEvent(ctx, frozen, fileSha) {
       manifest_file_sha256: fileSha,
       prompts: Object.fromEntries(frozen.prompts.map((x) => [x.id, x.prompt_hash])),
       slots: frozen.slots.length,
+      // O closeout deriva `planned` DAQUI, não do ficheiro: se manifest.json for
+      // adulterado depois, o diário continua a saber quantos slots havia e de que tipo.
+      slot_ids: frozen.slots.map((x) => x.slot_id),
+      roles: Object.fromEntries(frozen.slots.map((x) => [x.slot_id, x.role])),
+      prompt_of: Object.fromEntries(frozen.slots.map((x) => [x.slot_id, x.prompt_id])),
+      caps: frozen.caps,
       partition: frozen.partition,
       engine_pins: frozen.engine_pins,
     },

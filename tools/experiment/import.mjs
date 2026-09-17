@@ -279,6 +279,9 @@ export function markCaptureUncertain(ctx, { slot_id, literal, partial_bytes = nu
     const shelved = shelveExisting(ctx, slot_id);
     const b = Buffer.from(partial_bytes);
     writeDurably(ctx, path.join(dir, 'answer.txt'), b);
+    // O parcial também é evidência: leva o seu hash ao lado, para o integrityReport o verificar
+    // como a qualquer captura (apanhado pelo teste 10c).
+    writeDurably(ctx, path.join(dir, 'answer.sha256'), Buffer.from(`${sha256(b)}  answer.txt\n`, 'utf8'));
     partial = { file: 'raw/' + slot_id + '/answer.txt', sha256: sha256(b), bytes: b.length, shelved };
   }
   return appendEvent(ctx, { slot_id, kind: 'capture_uncertain', payload: { class: 'capture_failure', literal: literal.slice(0, 2000), partial, capture_method } });
