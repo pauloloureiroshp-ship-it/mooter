@@ -37,7 +37,7 @@ import nodeFs from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import { appendEvent, readEvents, waveState, slotStates, verifyChain, JournalError, SLOT_KINDS } from './journal.mjs';
+import { appendEvent, readEvents, waveState, slotStates, verifyChain, JournalError, SLOT_KINDS, SLOT_TRANSITIONS } from './journal.mjs';
 import { aggregateUsage } from './import.mjs';
 import { readScores, countObservations, SCIENCE_FIELDS } from './scores.mjs';
 import { verifyPins } from './pins.mjs';
@@ -146,8 +146,14 @@ function frozenPayload(events) {
 /** Kinds que não alteram a classe operacional (A1 §6). */
 export const NON_OPERATIONAL_KINDS = Object.freeze(['scored', 'closed']);
 const OPERATIONAL_KINDS = Object.freeze(SLOT_KINDS.filter((k) => !NON_OPERATIONAL_KINDS.includes(k)));
+// AMENDMENT-001b · B1: a falha que decide R1 é a TERMINAL — a que não tem transição de
+// saída em SLOT_TRANSITIONS (hoje só `failed`). preflight_failed tem saída (→ prepared): é
+// uma falha HISTÓRICA, fica no history[] e é reportada, mas não decide a classe.
+export const TERMINAL_FAILURE_KINDS = Object.freeze(SLOT_KINDS.filter((k) => /fail/.test(k) && (SLOT_TRANSITIONS[k] || []).length === 0));
+export const HISTORICAL_FAILURE_KINDS = Object.freeze(SLOT_KINDS.filter((k) => /fail/.test(k) && !TERMINAL_FAILURE_KINDS.includes(k)));
 const R3_KINDS = Object.freeze(['intent_committed', 'submitted', 'submission_uncertain', 'capture_uncertain', 'policy_review']);
 const R4_KINDS = Object.freeze(['known_not_submitted', 'prepared', 'preflight_ok', 'preflight_failed', 'queued']);
+const SENT_KINDS = Object.freeze(['submitted', 'submission_uncertain']);
 
 /**
  * Reduz o histórico de UM slot a exactamente uma classe, com a regra que a
@@ -159,7 +165,13 @@ export function reduceSlotHistory(events) {
   const intent_recorded = ops.some((e) => e.kind === 'intent_committed');
   const known_not_submitted_recorded = ops.some((e) => e.kind === 'known_not_submitted');
   const last = ops.length ? ops[ops.length - 1] : null;
-  const failedEv = ops.find((e) => e.kind === 'failed') || null;
+  const failedEv = ops.find((e) => TERMINAL_FAILURE_KINDS.includes(e.kind)) || null;
+  // B1 (c): known_not_submitted só produz attempted=false quando NÃO há submitted |
+  // submission_uncertain DEPOIS dele — uma tentativa posterior que chegou a sair conta.
+  const lastKnsIdx = ops.map((e) => e.kind).lastIndexOf('known_not_submitted');
+  const sentAfterKns = lastKnsIdx >= 0 && ops.slice(lastKnsIdx + 1).some((e) => SENT_KINDS.includes(e.kind));
+  const attempted = intent_recorded && (lastKnsIdx < 0 || sentAfterKns);
+  const prior_failures = Object.fromEntries(HISTORICAL_FAILURE_KINDS.map((k) => [k, ops.filter((e) => e.kind === k).length]));
   const capturedEv = last && last.kind === 'captured' ? last : null;
   const lastCapturedAny = [...ops].reverse().find((e) => e.kind === 'captured') || null;
   let outcome, rule;
@@ -179,9 +191,11 @@ export function reduceSlotHistory(events) {
   if (!OUTCOMES.includes(outcome)) throw new CloseoutError('outcome_out_of_contract', `redução devolveu ${outcome}, fora de slot_outcomes do contrato`);
   return {
     outcome, rule,
-    attempted: intent_recorded && outcome !== 'not_started',
+    attempted,
     intent_recorded,
     not_submitted_proven: known_not_submitted_recorded && outcome === 'not_started',
+    history: events.map((e) => e.kind),          // B1 (a): a falha anterior fica no histórico e é reportada, nunca apagada
+    prior_failures,                               // falhas HISTÓRICAS (com saída na máquina), por kind
     last_operational_kind: last ? last.kind : null,
     captured: capturedEv ? capturedEv.payload : null,          // a captura que decidiu a classe (só em R2)
     last_capture_any: lastCapturedAny ? lastCapturedAny.payload : null, // para hashes/consumo mesmo quando a classe não é R2
@@ -274,6 +288,7 @@ export function deriveOutcomes(events) {
       state: s.state, attempt_token: s.attempt_token,
       outcome: r.outcome, rule: r.rule,
       attempted: r.attempted, intent_recorded: r.intent_recorded, not_submitted_proven: r.not_submitted_proven,
+      history: r.history, prior_failures: r.prior_failures,
       last_operational_kind: r.last_operational_kind,
       capture_completeness: cap ? cap.capture_completeness : null,
       condition_divergent: cap ? !!cap.condition_divergent : null,

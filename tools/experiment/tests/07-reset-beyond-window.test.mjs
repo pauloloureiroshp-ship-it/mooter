@@ -16,8 +16,8 @@ import assert from 'node:assert/strict';
 
 import * as J from '../journal.mjs';
 import { preflight } from '../preflight.mjs';
-import { importFailure } from '../import.mjs';
-import { closeoutWave, deriveOutcomes, reduceSlotHistory, CloseoutError } from '../closeout.mjs';
+import { importFailure, importCapture } from '../import.mjs';
+import { closeoutWave, deriveOutcomes, reduceSlotHistory, CloseoutError, TERMINAL_FAILURE_KINDS, HISTORICAL_FAILURE_KINDS } from '../closeout.mjs';
 import { frozenOpenWave, primaryManifest, observedFor, bytesOf, capabilityEligible, fakeExecutor, driveSlot, HUMAN_OK, T0, MIN } from './_harness.mjs';
 
 const ISO = (ms) => new Date(ms).toISOString();
@@ -192,11 +192,77 @@ test('07f · A1 · reduceSlotHistory é pura e exaustiva: precedência R1 > R2 >
   // Conflito sintético R1 vs R4: o diário de hoje não deixa nada seguir-se a `failed`, mas a
   // precedência é uma propriedade da REDUÇÃO, não da máquina de estados — se um dia a máquina
   // mudar, a regra 1 continua a mandar. É este o caso que morde a troca 1↔4 (A1 · mordida).
-  assert.deepEqual(R([ev('prepared'), ev('preflight_ok'), ev('intent_committed'), ev('submitted'), ev('failed', { class: 'auth_failed' }), ev('known_not_submitted')]), ['failed', 'R1_failed_terminal', true]);
+  assert.deepEqual(R([ev('prepared'), ev('preflight_ok'), ev('intent_committed'), ev('submitted'), ev('failed', { class: 'auth_failed' }), ev('known_not_submitted')]), ['failed', 'R1_failed_terminal', false], 'B1 (c): o último known_not_submitted sem envio posterior ⇒ attempted=false; a classe é failed por R1 na mesma');
   assert.deepEqual(R([ev('prepared'), ev('preflight_ok'), ev('intent_committed'), ev('submitted'), ev('failed', { class: 'auth_failed' }), ev('prepared'), ev('preflight_failed')]), ['failed', 'R1_failed_terminal', true]);
   // §6 scoring/fecho não alteram a classe.
   assert.deepEqual(R([ev('prepared'), ev('preflight_ok'), ev('intent_committed'), ev('submitted'), ev('captured', partial), ev('scored'), ev('closed')]), ['partial', 'R2_captured_partial', true]);
   assert.deepEqual(R([ev('scored'), ev('closed')]), ['unknown', 'R0_inconsistent_history', false]);
   // Exaustividade: cada kind de slot, sozinho no fim de um histórico, tem classe.
   for (const k of J.SLOT_KINDS) { const r = reduceSlotHistory([ev('prepared'), ev(k, k === 'captured' ? full : {})]); assert.ok(['complete', 'partial', 'failed', 'unknown', 'not_started'].includes(r.outcome), `${k} → ${r.outcome}`); }
+});
+
+// ── AMENDMENT-001b · B1 (2026-09-17) · falha terminal VIGENTE, não histórica ─
+// AMENDMENT-001b-20260917.txt §B1: a falha que decide R1 é a que não tem saída em
+// SLOT_TRANSITIONS (`failed`); preflight_failed tem saída (→ prepared) e é histórica.
+// Mordida: tratar «qualquer failed histórico» como R1 ⇒ (a) vermelho (morde-amend001b.mjs).
+
+test('07g · B1 · (a) preflight_failed → prepared → preflight_ok → queued → intent → submitted → captured{full} → scored ⇒ complete, com a falha anterior no history[]; (b) failed terminal prevalece mesmo sobre eventos posteriores não permitidos; (c) known_not_submitted seguido de submitted ⇒ attempted=true', () => {
+  const { ctx, manifest, clk } = frozenOpenWave({ waveId: 'W-07g', manifest: primaryManifest('W-07g') });
+  const exec = fakeExecutor();
+  // (a) Q01-1
+  clk.advance(2 * MIN);
+  const pfa = preflight(ctx, { slot_id: 'Q01-1', bytes: bytesOf(manifest, 'Q02'), observed: observedFor(manifest), capability: capabilityEligible() });
+  assert.equal(pfa.ok, false, 'bytes do prompt errado ⇒ preflight_failed');
+  clk.advance(2 * MIN);
+  const pfb = preflight(ctx, { slot_id: 'Q01-1', bytes: bytesOf(manifest, 'Q01'), observed: observedFor(manifest), capability: capabilityEligible() });
+  assert.equal(pfb.ok, true, JSON.stringify(pfb.reasons));
+  J.appendEvent(ctx, { slot_id: 'Q01-1', kind: 'queued' });
+  J.commitIntent(ctx, { slot_id: 'Q01-1', prompt_hash: manifest.prompts.find((p) => p.id === 'Q01').prompt_hash, manifest_hash: manifest.manifest_hash });
+  exec.send('Q01-1');
+  J.appendEvent(ctx, { slot_id: 'Q01-1', kind: 'submitted', payload: { ts_submitted: new Date(ctx.now()).toISOString() } });
+  importCapture(ctx, { slot_id: 'Q01-1', answer_bytes: Buffer.from('resposta completa', 'utf8'), capture_completeness: 'full', capture_method: 'manual-paste', observed: observedFor(manifest, { search_used: null }) });
+  J.appendEvent(ctx, { slot_id: 'Q01-1', kind: 'scored', payload: { n_records: 1 } });
+  // (c) Q02-1: intent → known_not_submitted → queued → intent → submitted → captured
+  clk.advance(2 * MIN);
+  driveSlot(ctx, manifest, 'Q02-1', { to: 'intent', exec });
+  J.knownNotSubmitted(ctx, { slot_id: 'Q02-1', proof: 'o botão de enviar ficou inactivo; conversa sem mensagens' });
+  clk.advance(2 * MIN);
+  driveSlot(ctx, manifest, 'Q02-1', { to: 'captured', exec });
+  // (c′) Q03-1: intent → known_not_submitted, e fica assim ⇒ attempted=false
+  clk.advance(2 * MIN);
+  driveSlot(ctx, manifest, 'Q03-1', { to: 'intent', exec });
+  J.knownNotSubmitted(ctx, { slot_id: 'Q03-1', proof: 'a página recarregou antes do envio; conversa vazia' });
+
+  const d = deriveOutcomes(J.readEvents(ctx));
+  const a = d.per_slot['Q01-1'];
+  assert.deepEqual([a.outcome, a.rule, a.attempted], ['complete', 'R2_captured_full_condition_ok', true]);
+  assert.deepEqual(a.history, ['prepared', 'preflight_failed', 'prepared', 'preflight_ok', 'queued', 'intent_committed', 'submitted', 'captured', 'scored'], 'a falha anterior fica no histórico, nunca apagada');
+  assert.deepEqual(a.prior_failures, { preflight_failed: 1 }, 'e é reportada à parte');
+  const c = d.per_slot['Q02-1'];
+  assert.deepEqual([c.outcome, c.attempted, c.not_submitted_proven], ['complete', true, false], 'houve submitted depois do known_not_submitted ⇒ tentado');
+  assert.equal(c.history.filter((k) => k === 'known_not_submitted').length, 1);
+  const c2 = d.per_slot['Q03-1'];
+  assert.deepEqual([c2.outcome, c2.attempted, c2.not_submitted_proven], ['not_started', false, true], 'sem submitted/submission_uncertain posterior ⇒ attempted=false');
+  assert.equal(d.counts.attempted, 2);
+  assert.equal(d.counts.identity_ok, true);
+
+  // (b) failed é terminal na máquina: o diário recusa qualquer transição de saída…
+  clk.advance(2 * MIN);
+  driveSlot(ctx, manifest, 'N04-1', { to: 'failed', literal: '401 Unauthorized', exec });
+  for (const k of ['prepared', 'queued', 'known_not_submitted', 'submitted', 'captured', 'scored']) {
+    assert.throws(() => J.appendEvent(ctx, { slot_id: 'N04-1', kind: k }), (e) => e.code === 'bad_transition', `failed → ${k}`);
+  }
+  assert.deepEqual(J.SLOT_TRANSITIONS.failed, [], 'sem transição de saída');
+  assert.deepEqual([...TERMINAL_FAILURE_KINDS], ['failed'], 'derivado de SLOT_TRANSITIONS, não escrito à mão');
+  assert.deepEqual([...HISTORICAL_FAILURE_KINDS], ['preflight_failed']);
+  // …e a redução, pura, dá failed mesmo se um histórico (inválido) tiver eventos depois.
+  const ev = (kind, payload = {}) => ({ kind, payload });
+  const full = { capture_completeness: 'full', condition_divergent: false, answer_sha256: 'a'.repeat(64) };
+  const forced = reduceSlotHistory([ev('prepared'), ev('preflight_ok'), ev('intent_committed'), ev('submitted'), ev('failed', { class: 'auth_failed' }), ev('prepared'), ev('preflight_ok'), ev('intent_committed'), ev('submitted'), ev('captured', full), ev('scored')]);
+  assert.deepEqual([forced.outcome, forced.rule, forced.attempted], ['failed', 'R1_failed_terminal', true]);
+  const d2 = deriveOutcomes(J.readEvents(ctx));
+  assert.equal(d2.per_slot['N04-1'].outcome, 'failed');
+  assert.equal(d2.per_slot['N04-1'].rule, 'R1_failed_terminal');
+  assert.deepEqual(d2.per_slot['N04-1'].prior_failures, { preflight_failed: 0 });
+  assert.equal(d2.counts.identity_ok, true);
 });
