@@ -19,18 +19,19 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 import { readEvents, waveState, slotState, JournalError } from './journal.mjs';
+import { loadContract } from './contract.mjs';
 
 export const SCORES_SCHEMA = 'prisma-experiment-scores/0.3-proposed';
 export const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 
-/** contrato 0.3 scientific_observations.fields (+ competitor_included, per-brand, descritivo). */
-export const SCIENCE_FIELDS = Object.freeze([
-  'crawl_access', 'retrieved_target_url', 'page_or_domain_cited', 'new_fact_used',
-  'recommended_appropriately', 'target_mentioned', 'search_available', 'search_used',
-  'competitor_included',
-]);
-export const VALUE_DOMAIN = Object.freeze([true, false, null]);
-export const REQUIRED_PROVENANCE = Object.freeze(['source', 'timestamp', 'evidence_reference', 'reviewer']);
+// AMENDMENT-001 (correcção mecânica): campos, domínio de valores e proveniência lidos
+// do contrato congelado. `competitor_included` é a chave própria do contrato
+// (scientific_observations.competitor_included: «Per-brand observations, descriptive
+// comparisons only») — entra como campo por marca, fora dos 8 de `fields`.
+const CONTRACT = loadContract();
+export const SCIENCE_FIELDS = Object.freeze([...CONTRACT.science_fields, 'competitor_included']);
+export const VALUE_DOMAIN = CONTRACT.science_value_domain;
+export const REQUIRED_PROVENANCE = CONTRACT.science_provenance;
 
 export class ScoreError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ScoreError'; this.code = code; this.details = details; }

@@ -1,6 +1,7 @@
 // closeout.mjs — o fecho de uma onda: DERIVADO do diário, nunca descrito;
-// contagens com denominadores completos; integridade recalculada; os 20 campos
-// do contrato 0.3 preenchidos ou marcados; assinado por hash.
+// contagens com denominadores completos; integridade recalculada; os campos de
+// closeout_required do contrato 0.3 (lidos do ficheiro congelado — 21) preenchidos
+// ou marcados; assinado por hash.
 //
 // PORQUÊ ISTO EXISTE (2026-09-16 · cc-plan-20260916-v1, passo 4 de P1.0)
 // Regra do dono (commit f72aee42, 2026-08-17): «estado_persistente passa a ser
@@ -30,6 +31,7 @@ import { appendEvent, readEvents, waveState, slotStates, verifyChain, JournalErr
 import { aggregateUsage } from './import.mjs';
 import { readScores, countObservations, SCIENCE_FIELDS } from './scores.mjs';
 import { verifyPins } from './pins.mjs';
+import { loadContract } from './contract.mjs';
 
 const require = createRequire(import.meta.url);
 const { provHash } = require('../router/ledger-prov.js');
@@ -39,16 +41,18 @@ export const CONCLUSION_SCHEMA = 'prisma-experiment-conclusion/0.3-proposed';
 export const TODO = '<<TODO>>';
 export const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 
-/** contrato 0.3 storage.closeout_required — os 20, na ordem do contrato. */
-export const CLOSEOUT_REQUIRED = Object.freeze([
-  'hypothesis_id', 'expected_result', 'planned', 'attempted', 'complete', 'valid', 'partial', 'failed', 'unknown', 'not_started',
-  'negative_control_outcomes', 'counterevidence', 'confounders', 'decision', 'reviewer', 'next_hypothesis_id',
-  'artifacts_and_hashes', 'per_intent_outcomes', 'eligible_evaluable_denominator', 'observability_limits', 'block_partition',
-]);
-/** Os que só um humano escreve. Os outros 14 são derivados. */
+// AMENDMENT-001 (correcção mecânica): o vocabulário normativo vem do contrato
+// congelado e pinado, não de constantes. A constante do passo 4 tinha 21 entradas
+// e o comentário dizia «20»: é isso que uma cópia à mão faz.
+const CONTRACT = loadContract();
+/** contrato 0.3 storage.closeout_required — lido do ficheiro congelado (21 entradas em 0.3-proposed). */
+export const CLOSEOUT_REQUIRED = CONTRACT.closeout_required;
+/** Os que só um humano escreve. Os restantes são derivados. */
 export const HUMAN_FIELDS = Object.freeze(['hypothesis_id', 'expected_result', 'counterevidence', 'confounders', 'decision', 'reviewer', 'next_hypothesis_id']);
-export const WAVE_DECISIONS = Object.freeze(['qualified_for_next_design', 'inconclusive', 'stop']);
-export const OUTCOMES = Object.freeze(['complete', 'partial', 'failed', 'unknown', 'not_started']);
+export const DERIVED_FIELDS = Object.freeze(CLOSEOUT_REQUIRED.filter((k) => !HUMAN_FIELDS.includes(k)));
+export const WAVE_DECISIONS = CONTRACT.wave_decisions;
+export const OUTCOMES = CONTRACT.slot_outcomes;
+export const CONTRACT_SHA256 = CONTRACT.sha256;
 
 export class CloseoutError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'CloseoutError'; this.code = code; this.details = details; }
@@ -254,6 +258,7 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
   const conclusion = {
     schema: CONCLUSION_SCHEMA,
     semantics_version: SEMANTICS_VERSION,
+    contract: { version: CONTRACT.version, sha256: CONTRACT.sha256, closeout_required_count: CLOSEOUT_REQUIRED.length },
     external_review: 'pending',
     amendments: [],
     amendment_rule: 'Qualquer alteração à semântica (outcomes, denominadores, regras de derivação) é uma AMENDMENT datada, com testes, referenciada aqui — nunca edição silenciosa deste ficheiro.',
@@ -343,7 +348,7 @@ function closingReason(w, now_ms, reason) {
 /**
  * Fecha a onda.
  *  - draft:true  → escreve conclusion.draft.json (pode ter <<TODO>>), NÃO fecha a onda.
- *  - draft:false → exige 20/20 sem TODO, decisão válida, regra do piloto; escreve
+ *  - draft:false → exige closeout_required completo (os 21 do contrato) sem TODO, decisão válida, regra do piloto; escreve
  *                  conclusion.json assinado e regista wave.closing (se ainda aberta)
  *                  + wave.closed. Uma vez. Depois disso: already_closed.
  */

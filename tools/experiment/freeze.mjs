@@ -26,6 +26,7 @@ import { createRequire } from 'node:module';
 
 import { appendEvent, readEvents, waveState, JournalError, SCHEMA as JOURNAL_SCHEMA } from './journal.mjs';
 import { verifyPins } from './pins.mjs';
+import { loadContract } from './contract.mjs';
 
 const require = createRequire(import.meta.url);
 const { canonicalize, provHash } = require('../router/ledger-prov.js');
@@ -33,12 +34,8 @@ const { canonicalize, provHash } = require('../router/ledger-prov.js');
 export const MANIFEST_SCHEMA = 'prisma-experiment-manifest/0.3-proposed';
 export const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 
-/** As 14 chaves de condition_record.required_record (contrato 0.3). Todas presentes; algumas só se preenchem por observação. */
-export const CONDITION_KEYS = Object.freeze([
-  'surface', 'observed_plan', 'selected_model_label', 'observed_model_label', 'reasoning_control',
-  'auto_switch', 'personalization', 'search_available', 'search_used', 'prompt_language',
-  'timestamp', 'prompt_hash', 'capture_method', 'operator_id',
-]);
+/** condition_record.required_record — lido do contrato congelado (AMENDMENT-001; 14 em 0.3-proposed). Todas presentes; algumas só se preenchem por observação. */
+export const CONDITION_KEYS = loadContract().condition_required;
 /** Preenchidas só por observação (por slot, no preflight/importação): no manifesto têm de ser null. */
 export const OBSERVED_ONLY_KEYS = Object.freeze(['observed_plan', 'observed_model_label', 'search_used', 'timestamp', 'prompt_hash']);
 export const PARTITIONS = Object.freeze(['synthetic-qualification', 'primary', 'informed-diagnostic', 'independent-reserved']);
