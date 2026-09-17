@@ -21,7 +21,10 @@
 // AMENDMENT-001 (2026-09-17, revisão científica do GPT; ficheiro
 // AMENDMENT-001-20260916.txt; contrato 0.3 sha256 61acea27…, PROTOCOLO 0.2
 // sha256 4564ab1d…): A4 vocabulário lido do contrato congelado (21 campos);
-// A1 redução determinística do histórico do slot (reduceSlotHistory, abaixo).
+// A1 redução determinística do histórico do slot (reduceSlotHistory, abaixo);
+// A3 denominadores por POSIÇÃO (planned_eligible / negative_planned /
+// coverage_per_wave) e avaliabilidade por outcome operacional E por campo
+// científico (EVALUABILITY_BY_OUTCOME, FIELD_EVIDENCE, abaixo).
 //
 // O closeout NUNCA reescreve evidência: um manifesto ou uma captura
 // adulterados aparecem em `integrity.violations` (caso 10). Interpretações
@@ -158,6 +161,73 @@ export function reduceSlotHistory(events) {
 /** Compatibilidade: outcome de um slot a partir da sua lista de eventos. */
 export function outcomeOf(slotEvents) { return reduceSlotHistory(slotEvents).outcome; }
 
+// ── AMENDMENT-001 · A3 (2026-09-17) · denominadores e avaliabilidade ─────────
+//
+// Revisão científica do GPT (AMENDMENT-001-20260916.txt, A3): «8 planeados = 6
+// elegíveis planeados (planned_eligible) + 2 negativos (negative_planned). Os 6
+// NÃO são automaticamente avaliáveis.» E: «avaliabilidade reportada POR OUTCOME
+// científico quando a evidência variar (um slot pode ser avaliável para
+// target_mentioned e não para new_fact_used).»
+//
+// Duas camadas, ambas derivadas do diário:
+//  1. avaliabilidade OPERACIONAL por outcome (há resposta para observar?):
+//     complete e partial sim; failed, unknown, not_started não.
+//  2. avaliabilidade por CAMPO científico: o que cada campo exige além da resposta.
+//     new_fact_used exige a referência ao facto revisto (fact_ref, o diff da
+//     página) declarada no manifesto para o prompt — sem diff não há «uso do
+//     facto novo» que se possa julgar (contrato 0.3: «Require page diff and
+//     answer excerpt»). recommended_appropriately exige rubric_ref na onda e o
+//     prompt declarado como pedido de recomendação (asks_recommendation) — a
+//     elegibilidade para este campo vem daqui, NUNCA de search_used (A3 §19).
+//     crawl_access é observação do servidor: não precisa de resposta.
+//  Não declarado ⇒ não avaliável, e o closeout diz porquê (eligible_not_evaluable_why).
+
+/** Avaliabilidade operacional por outcome (A3). */
+export const EVALUABILITY_BY_OUTCOME = Object.freeze({ complete: true, partial: true, failed: false, unknown: false, not_started: false });
+
+/** O que cada campo científico exige para um slot ser avaliável, além do outcome. */
+export const FIELD_EVIDENCE = Object.freeze({
+  crawl_access:              Object.freeze({ needs_response: false, needs: Object.freeze([]) }),
+  retrieved_target_url:      Object.freeze({ needs_response: true,  needs: Object.freeze([]) }),
+  page_or_domain_cited:      Object.freeze({ needs_response: true,  needs: Object.freeze([]) }),
+  new_fact_used:             Object.freeze({ needs_response: true,  needs: Object.freeze(['fact_ref']) }),
+  recommended_appropriately: Object.freeze({ needs_response: true,  needs: Object.freeze(['rubric_ref', 'asks_recommendation']) }),
+  target_mentioned:          Object.freeze({ needs_response: true,  needs: Object.freeze([]) }),
+  search_available:          Object.freeze({ needs_response: true,  needs: Object.freeze([]) }),
+  search_used:               Object.freeze({ needs_response: true,  needs: Object.freeze([]) }),
+  competitor_included:       Object.freeze({ needs_response: true,  needs: Object.freeze([]) }),
+});
+
+for (const f of SCIENCE_FIELDS) if (!FIELD_EVIDENCE[f]) throw new CloseoutError('field_without_evidence_rule', `o campo científico ${f} (contrato) não tem regra de avaliabilidade em FIELD_EVIDENCE — outro contrato é outra AMENDMENT`);
+
+function evidenceOf(frozen, prompt_id) {
+  const ev = frozen.evidence && frozen.evidence[prompt_id];
+  return ev && typeof ev === 'object' ? ev : { declared: false, fact_ref: null, asks_recommendation: false };
+}
+
+/** Razões pelas quais um slot NÃO é avaliável para um campo (vazio = avaliável). Determinístico. */
+export function notEvaluableReasons(slot, field, frozen) {
+  const req = FIELD_EVIDENCE[field];
+  if (!req) return [`campo_desconhecido:${field}`];
+  const why = [];
+  if (req.needs_response && EVALUABILITY_BY_OUTCOME[slot.outcome] !== true) why.push(`outcome:${slot.outcome}`);
+  const ev = evidenceOf(frozen, slot.prompt_id);
+  for (const n of req.needs) {
+    if (n === 'fact_ref' && !(typeof ev.fact_ref === 'string' && ev.fact_ref.length > 0)) why.push(ev.declared ? 'fact_ref:null' : 'evidence:not_declared');
+    if (n === 'rubric_ref' && !(typeof frozen.rubric_ref === 'string' && frozen.rubric_ref.length > 0)) why.push('rubric_ref:null');
+    if (n === 'asks_recommendation' && ev.asks_recommendation !== true) why.push(ev.declared ? 'asks_recommendation:false' : 'evidence:not_declared');
+  }
+  return why;
+}
+
+export function evaluableFor(slot, field, frozen) { return notEvaluableReasons(slot, field, frozen).length === 0; }
+
+function whyNotEvaluable(slots, field, frozen) {
+  const tally = {};
+  for (const x of slots) for (const w of notEvaluableReasons(x, field, frozen)) tally[w] = (tally[w] || 0) + 1;
+  return tally;
+}
+
 /** Deriva tudo o que é mecânico. Não escreve. Lança se a identidade planned = Σ outcomes falhar. */
 export function deriveOutcomes(events) {
   const frozen = frozenPayload(events);
@@ -201,19 +271,44 @@ export function deriveOutcomes(events) {
   // contagens científicas são dimensões separadas — nunca parcelas desta soma.
   counts.identity_ok = counts.planned === counts.complete + counts.partial + counts.failed + counts.unknown + counts.not_started;
   if (!counts.identity_ok) throw new CloseoutError('outcome_identity_broken', `planned ${counts.planned} ≠ complete ${counts.complete} + partial ${counts.partial} + failed ${counts.failed} + unknown ${counts.unknown} + not_started ${counts.not_started}`);
+  // ── AMENDMENT-001 · A3 · denominadores por posição e avaliabilidade por campo ──
+  for (const x of slots) x.evaluable_for = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, evaluableFor(x, f, frozen)]));
   const eligible = slots.filter((x) => x.role === 'eligible');
   const negative = slots.filter((x) => x.role === 'negative');
-  const evaluable = (xs) => xs.filter((x) => x.outcome === 'complete' || x.outcome === 'partial');
+  const other = slots.filter((x) => x.role !== 'eligible' && x.role !== 'negative');
+  const byOutcome = (xs) => Object.fromEntries(OUTCOMES.map((o) => [o, xs.filter((x) => x.outcome === o).length]));
+  const evaluable = (xs) => xs.filter((x) => EVALUABILITY_BY_OUTCOME[x.outcome] === true);
+  const caps = frozen.caps ?? null;
   const denominators = {
+    basis: 'positions',
+    note: '«8/8 planned» é cobertura de POSIÇÕES planeadas, nunca de respostas; os elegíveis planeados NÃO são automaticamente avaliáveis (A3).',
     coverage_per_wave: slots.length,
     planned_eligible: eligible.length,
-    negative: negative.length,
+    negative_planned: negative.length,
+    other_planned: other.length,
+    positions_identity_ok: eligible.length + negative.length + other.length === slots.length,
+    contract_declared: { ...CONTRACT.denominators },
+    contract_match: frozen.partition === 'primary'
+      ? eligible.length === CONTRACT.denominators.planned_eligible_per_wave && negative.length === CONTRACT.denominators.negative_per_wave && slots.length === CONTRACT.denominators.coverage_per_wave
+      : null,
+    // caps do manifesto congelado (freeze.mjs chama `negative` ao que aqui é negative_planned — mesma grandeza, nome do passo 2).
+    caps_declared: caps ? { coverage_per_wave: caps.coverage_per_wave ?? null, planned_eligible: caps.planned_eligible ?? null, negative_planned: caps.negative ?? null } : null,
+    evaluability_by_outcome: { ...EVALUABILITY_BY_OUTCOME },
+    eligible_by_outcome: byOutcome(eligible),
+    negative_by_outcome: byOutcome(negative),
     eligible_evaluable: evaluable(eligible).length,
     eligible_complete: eligible.filter((x) => x.outcome === 'complete').length,
     negative_evaluable: evaluable(negative).length,
-    caps_declared: frozen.caps ?? null,
+    by_field: Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, {
+      needs_response: FIELD_EVIDENCE[f].needs_response,
+      needs: [...FIELD_EVIDENCE[f].needs],
+      eligible_evaluable: eligible.filter((x) => x.evaluable_for[f]).length,
+      negative_evaluable: negative.filter((x) => x.evaluable_for[f]).length,
+      eligible_not_evaluable_why: whyNotEvaluable(eligible, f, frozen),
+    }])),
   };
-  const negative_control_outcomes = Object.fromEntries(OUTCOMES.map((o) => [o, negative.filter((x) => x.outcome === o).length]));
+  if (!denominators.positions_identity_ok) throw new CloseoutError('positions_identity_broken', `planned_eligible ${eligible.length} + negative_planned ${negative.length} + other ${other.length} ≠ coverage ${slots.length}`);
+  const negative_control_outcomes = byOutcome(negative);
   const search_used_counts = { true: count((x) => x.search_used === true), false: count((x) => x.search_used === false), null: count((x) => x.answer_sha256 && x.search_used === null), no_capture: count((x) => !x.answer_sha256) };
   const usage = aggregateUsage(slots.map((x) => x.usage).filter(Boolean));
   return { frozen, per_slot, counts, denominators, negative_control_outcomes, search_used_counts, usage };
@@ -305,13 +400,24 @@ function journalSnapshot(ctx, events) {
 
 function observabilityLimits({ per_intent, denominators, per_slot }) {
   const limits = [];
-  const evaluableSlots = Object.values(per_slot).filter((x) => x.outcome === 'complete' || x.outcome === 'partial');
+  const evaluableSlots = Object.values(per_slot).filter((x) => EVALUABILITY_BY_OUTCOME[x.outcome] === true);
   for (const field of SCIENCE_FIELDS) {
     let n_null = 0, n_total = 0;
     for (const intent of Object.keys(per_intent)) { n_null += per_intent[intent][field].null; n_total += per_intent[intent][field].n_slots; }
     if (n_total && n_null === n_total) limits.push(`${field}: null em ${n_total}/${n_total} slots (não observado — não é «ausente»)`);
   }
-  if (denominators.eligible_evaluable < denominators.planned_eligible) limits.push(`eligible_evaluable ${denominators.eligible_evaluable} < planned_eligible ${denominators.planned_eligible}: cobertura decisiva incompleta`);
+  const d = denominators;
+  if (d.eligible_evaluable < d.planned_eligible) limits.push(`eligible_evaluable ${d.eligible_evaluable} < planned_eligible ${d.planned_eligible}: cobertura decisiva incompleta`);
+  if (d.negative_evaluable < d.negative_planned) limits.push(`negative_evaluable ${d.negative_evaluable} < negative_planned ${d.negative_planned}: controlo negativo incompleto`);
+  if (d.contract_match === false) limits.push(`posições ≠ contrato (planned_eligible ${d.planned_eligible}/${d.contract_declared.planned_eligible_per_wave}, negative_planned ${d.negative_planned}/${d.contract_declared.negative_per_wave}, coverage ${d.coverage_per_wave}/${d.contract_declared.coverage_per_wave})`);
+  // A3: avaliabilidade por campo — onde a evidência falta, diz-se por campo e porquê.
+  for (const field of SCIENCE_FIELDS) {
+    const bf = d.by_field[field];
+    if (bf.needs.length && bf.eligible_evaluable < d.eligible_evaluable) {
+      const why = Object.entries(bf.eligible_not_evaluable_why).filter(([k]) => !k.startsWith('outcome:')).map(([k, v]) => `${k}×${v}`).join(', ');
+      limits.push(`${field}: avaliável em ${bf.eligible_evaluable}/${d.eligible_evaluable} slots elegíveis com resposta (exige ${bf.needs.join('+')}; falta: ${why || 'n/d'})`);
+    }
+  }
   const usageUnknown = evaluableSlots.filter((x) => !x.usage || x.usage.tokens_out?.basis === 'unknown').length;
   if (evaluableSlots.length && usageUnknown) limits.push(`consumo: tokens_out unknown em ${usageUnknown}/${evaluableSlots.length} slots avaliáveis`);
   return limits;
@@ -327,7 +433,7 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
   const w = waveState(ctx, events);
   const d = deriveOutcomes(events);
   const scores = readScores(ctx);
-  const per_intent = countObservations({ scores, slot_ids: d.frozen.slot_ids, prompt_of: d.frozen.prompt_of || {} });
+  const per_intent = countObservations({ scores, slot_ids: d.frozen.slot_ids, prompt_of: d.frozen.prompt_of || {}, evaluable_of: Object.fromEntries(Object.values(d.per_slot).map((x) => [x.slot_id, x.evaluable_for])) });
   const integrity = integrityReport(ctx);
   const artifacts = artifactsAndHashes(ctx);
   for (const inv of invalidated) {
@@ -394,9 +500,10 @@ export function checkConclusion(c) {
   // Regra do piloto (G6): cobertura decisiva incompleta força inconclusive.
   const den = c.eligible_evaluable_denominator || {};
   const primaryLike = c.partition && c.partition !== 'synthetic-qualification';
-  if (primaryLike && c.decision === 'qualified_for_next_design' && (den.eligible_evaluable < den.planned_eligible || den.negative_evaluable < den.negative)) {
-    problems.push(`inconclusive_forced: eligible_evaluable ${den.eligible_evaluable}/${den.planned_eligible}, negative_evaluable ${den.negative_evaluable}/${den.negative} — cobertura decisiva incompleta não qualifica`);
+  if (primaryLike && c.decision === 'qualified_for_next_design' && (den.eligible_evaluable < den.planned_eligible || den.negative_evaluable < den.negative_planned)) {
+    problems.push(`inconclusive_forced: eligible_evaluable ${den.eligible_evaluable}/${den.planned_eligible}, negative_evaluable ${den.negative_evaluable}/${den.negative_planned} — cobertura decisiva incompleta não qualifica`);
   }
+  if (den.positions_identity_ok === false) problems.push('planned_eligible + negative_planned + other ≠ coverage_per_wave');
   if (c.semantics_version !== SEMANTICS_VERSION) problems.push(`semantics_version ${c.semantics_version} ≠ ${SEMANTICS_VERSION}`);
   if (c.external_review !== 'pending' && c.external_review !== 'done') problems.push('external_review ∈ pending|done');
   return { ok: todos.length === 0 && problems.length === 0, todos, problems };

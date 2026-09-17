@@ -96,6 +96,18 @@ export function validateManifestInput(m, { waveId } = {}) {
     if (p.prompt_hash != null && isStr(p.text) && p.prompt_hash !== sha256(Buffer.from(p.text, 'utf8'))) push('prompt_hash_mismatch', `${p.id}: prompt_hash declarado ≠ sha256(bytes de text)`);
     if (m.partition === 'primary' && p.role === 'synthetic') push('bad_prompt', `${p.id}: role synthetic num braço primário`);
     if (m.partition === 'synthetic-qualification' && p.role !== 'synthetic') push('bad_prompt', `${p.id}: em W0 todos os prompts são synthetic (fora da avaliação)`);
+    // AMENDMENT-001 A3: evidência declarada por prompt — o que torna um slot avaliável para
+    // new_fact_used (fact_ref: o diff da página que o reviewer vai confrontar) e para
+    // recommended_appropriately (asks_recommendation: o prompt pede uma recomendação). Opcional;
+    // ausente = não declarado = não avaliável para esses campos (o closeout diz-o, não o esconde).
+    if ('evidence' in p && p.evidence !== undefined) {
+      const ev = p.evidence;
+      if (!ev || typeof ev !== 'object' || Array.isArray(ev)) push('bad_prompt', `${p.id}: evidence tem de ser objecto { fact_ref: string|null, asks_recommendation: boolean }`);
+      else {
+        if (!('fact_ref' in ev) || !(ev.fact_ref === null || isStr(ev.fact_ref))) push('bad_prompt', `${p.id}: evidence.fact_ref ∈ string|null`);
+        if (!('asks_recommendation' in ev) || typeof ev.asks_recommendation !== 'boolean') push('bad_prompt', `${p.id}: evidence.asks_recommendation ∈ true|false`);
+      }
+    }
   });
 
   // ordem → slots
@@ -209,6 +221,13 @@ function appendFrozenEvent(ctx, frozen, fileSha) {
       caps: frozen.caps,
       partition: frozen.partition,
       engine_pins: frozen.engine_pins,
+      // AMENDMENT-001 A3: a evidência declarada por prompt e a rubrica vão para o diário —
+      // a avaliabilidade por campo científico deriva DAQUI, não de um manifest.json que
+      // pode ser adulterado depois. declared=false ⇒ o closeout reporta «não declarado».
+      rubric_ref: frozen.rubric_ref ?? null,
+      evidence: Object.fromEntries(frozen.prompts.map((x) => [x.id, x.evidence && typeof x.evidence === 'object'
+        ? { declared: true, fact_ref: x.evidence.fact_ref ?? null, asks_recommendation: x.evidence.asks_recommendation === true }
+        : { declared: false, fact_ref: null, asks_recommendation: false }])),
     },
   });
 }

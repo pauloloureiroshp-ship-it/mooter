@@ -119,14 +119,17 @@ export function readScores(ctx) {
  * false, null — contando registos, nunca inferindo. Um slot sem registo para um
  * campo conta como null («não observado»). Nada é promovido de campo para campo.
  */
-export function countObservations({ scores, slot_ids, prompt_of }) {
+export function countObservations({ scores, slot_ids, prompt_of, evaluable_of = null }) {
   const byIntent = {};
   const intents = [...new Set(slot_ids.map((s) => prompt_of[s]))];
   for (const intent of intents) {
     byIntent[intent] = {};
     const slotsOf = slot_ids.filter((s) => prompt_of[s] === intent);
     for (const field of SCIENCE_FIELDS) {
-      const c = { true: 0, false: 0, null: 0, n_slots: slotsOf.length, n_records: 0 };
+      // AMENDMENT-001 A3: o denominador por campo (n_evaluable) vem do closeout (evaluable_of),
+      // nunca daqui; e um valor observado num slot NÃO avaliável fica contado à parte
+      // (observed_outside_denominator) — não se apaga, não se promove.
+      const c = { true: 0, false: 0, null: 0, n_slots: slotsOf.length, n_records: 0, n_evaluable: evaluable_of ? 0 : null, observed_outside_denominator: evaluable_of ? 0 : null };
       for (const slot of slotsOf) {
         // Última observação desse campo para esse slot vence (revisões posteriores supersedem, e ficam no ficheiro).
         const recs = scores.filter((r) => r.slot_id === slot && r.field === field);
@@ -134,6 +137,11 @@ export function countObservations({ scores, slot_ids, prompt_of }) {
         const last = recs.length ? recs[recs.length - 1] : null;
         const v = last ? last.value : null;
         c[String(v)]++;
+        if (evaluable_of) {
+          const ev = evaluable_of[slot] && evaluable_of[slot][field] === true;
+          if (ev) c.n_evaluable++;
+          else if (v !== null) c.observed_outside_denominator++;
+        }
       }
       byIntent[intent][field] = c;
     }

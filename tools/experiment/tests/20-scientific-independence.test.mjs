@@ -42,10 +42,14 @@ test('20a · citação observada num slot (page_or_domain_cited=true) NÃO promo
   clk.t = Date.parse(J.waveState(ctx).closeout_at) + 1;
   const c = buildConclusion(ctx, { human: HUMAN_OK });
   const q01 = c.per_intent_outcomes['Q01'];
-  assert.deepEqual(q01.page_or_domain_cited, { true: 1, false: 0, null: 1, n_slots: 2, n_records: 1 });
-  assert.deepEqual(q01.new_fact_used, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0 }, 'citação não vira uso');
-  assert.deepEqual(q01.crawl_access, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0 });
-  assert.deepEqual(q01.retrieved_target_url, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0 }, 'e citação não vira recuperação');
+  // AMENDMENT-001 A3: n_evaluable é o denominador por campo (vem do closeout); o manifesto desta fixture
+  // não declara evidence ⇒ new_fact_used e recommended_appropriately têm denominador 0 — e a observação
+  // de Q02-1 fica contada à parte (observed_outside_denominator), não apagada nem promovida.
+  assert.deepEqual(q01.page_or_domain_cited, { true: 1, false: 0, null: 1, n_slots: 2, n_records: 1, n_evaluable: 2, observed_outside_denominator: 0 });
+  assert.deepEqual(q01.new_fact_used, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_evaluable: 0, observed_outside_denominator: 0 }, 'citação não vira uso');
+  assert.deepEqual(q01.crawl_access, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_evaluable: 2, observed_outside_denominator: 0 });
+  assert.deepEqual(q01.retrieved_target_url, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_evaluable: 2, observed_outside_denominator: 0 }, 'e citação não vira recuperação');
+  assert.deepEqual(c.per_intent_outcomes['Q02'].recommended_appropriately, { true: 0, false: 1, null: 1, n_slots: 2, n_records: 1, n_evaluable: 0, observed_outside_denominator: 1 }, 'observado num slot não declarado como pedido de recomendação: fica, à parte');
   assert.ok(c.observability_limits.some((l) => /^crawl_access: null em 8\/8/.test(l)), JSON.stringify(c.observability_limits));
   assert.ok(c.observability_limits.some((l) => /^new_fact_used: null em 8\/8/.test(l)));
   const r = closeoutWave(ctx, { human: HUMAN_OK });
@@ -95,7 +99,16 @@ test('20d · MORDIDA · a última observação de um campo vence (revisões supe
   const scores = readScores(ctx);
   assert.equal(scores.filter((s) => s.slot_id === 'Q01-1' && s.field === 'recommended_appropriately').length, 2, 'as duas ficam');
   const counts = countObservations({ scores, slot_ids: ['Q01-1', 'Q01-2'], prompt_of: { 'Q01-1': 'Q01', 'Q01-2': 'Q01' } });
-  assert.deepEqual(counts.Q01.recommended_appropriately, { true: 0, false: 1, null: 1, n_slots: 2, n_records: 2 });
+  assert.deepEqual(counts.Q01.recommended_appropriately, { true: 0, false: 1, null: 1, n_slots: 2, n_records: 2, n_evaluable: null, observed_outside_denominator: null }, 'sem evaluable_of, o denominador por campo é null — não é 0 nem n_slots');
+  // A2 (AMENDMENT-001, conforme — reforço de fixture): recommended_appropriately=true com
+  // page_or_domain_cited=false no MESMO slot — os campos são independentes, nenhum implica o outro.
+  appendScore(ctx, { slot_id: 'Q01-2', field: 'recommended_appropriately', value: true, ...prov(clk) });
+  appendScore(ctx, { slot_id: 'Q01-2', field: 'page_or_domain_cited', value: false, ...prov(clk) });
+  const c2s = countObservations({ scores: readScores(ctx), slot_ids: ['Q01-1', 'Q01-2'], prompt_of: { 'Q01-1': 'Q01', 'Q01-2': 'Q01' } });
+  assert.equal(c2s.Q01.recommended_appropriately.true, 1);
+  assert.equal(c2s.Q01.page_or_domain_cited.false, 1);
+  assert.equal(c2s.Q01.page_or_domain_cited.null, 1, 'Q01-1 não tem citação observada: null, não herda nada da recomendação');
+  assert.equal(c2s.Q01.new_fact_used.null, 2, 'nem recomendação nem citação promovem new_fact_used');
   assert.equal(counts.Q01.recommended_appropriately.null, 1, 'Q01-2 sem registo é null — não é false');
   // Um W2 sem cobertura de crawler não é bloqueado à abertura: o manifesto não tem gate de crawl.
   const root = tmpRoot();
