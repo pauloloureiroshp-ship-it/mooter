@@ -14,7 +14,7 @@
 // elegíveis planeados (planned_eligible) + 2 negativos (negative_planned). Os 6
 // NÃO são automaticamente avaliáveis.» Campos distintos, avaliabilidade por
 // outcome operacional E por campo científico (11e). Mordida: somar negativos ao
-// denominador elegível ⇒ 11a/11e vermelhos (morde-amend001-a3.mjs).
+// denominador elegível ⇒ 11a/11e vermelhos (tools/experiment/mordida/morde-amend001-a3.mjs).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,6 +25,7 @@ import { closeoutWave, buildConclusion, checkConclusion, CloseoutError } from '.
 import { validateManifestInput } from '../freeze.mjs';
 import { frozenOpenWave, primaryManifest, observedFor, bytesOf, capabilityEligible, fakeExecutor, driveSlot, HUMAN_OK, MIN } from './_harness.mjs';
 import { appendScore } from '../scores.mjs';
+import { importCapture } from '../import.mjs';
 
 /** 8 slots com um mix realista: 5 complete (2 negativos), 1 partial, 1 failed, 1 not_started. */
 function mixedWave(waveId) {
@@ -235,7 +236,7 @@ test('11g · A3 · a regra do piloto também morde pelo controlo negativo: 6/6 e
 // ── AMENDMENT-001b · B2 (2026-09-17) · aplicabilidade pré-registada ≠ avaliabilidade efectiva ─
 // AMENDMENT-001b-20260917.txt §B2: applicable_by_field = o manifesto declara a evidência;
 // evaluable_by_field = applicable E captura suficiente E adjudicação ≠ null em scores.jsonl.
-// Nunca igualar as duas. Mordida: contar null como avaliável ⇒ (c) vermelho (morde-amend001b.mjs B2).
+// Nunca igualar as duas. Mordida: contar null como avaliável ⇒ (c) vermelho (tools/experiment/mordida/morde-amend001b.mjs B2).
 
 test('11h · B2 · (a) refs válidas + captura ausente (unknown) ou insuficiente (partial sem o trecho, adjudicado null) ⇒ applicable=1, evaluable=0, slot na cobertura 8/8; (b) resposta completa + search_used=false + adjudicado ⇒ evaluable=1; (c) mesmo slot: new_fact_used=false adjudicado, recommended_appropriately=null ⇒ evaluable 1 / 0', () => {
   const m = primaryManifest('W-11h');
@@ -296,4 +297,40 @@ test('11h · B2 · (a) refs válidas + captura ausente (unknown) ou insuficiente
   assert.deepEqual([c.per_intent_outcomes.Q01.page_or_domain_cited.true, c.per_intent_outcomes.Q01.page_or_domain_cited.n_capture_sufficient, c.per_intent_outcomes.Q01.page_or_domain_cited.n_evaluable, c.per_intent_outcomes.Q01.page_or_domain_cited.observed_outside_denominator], [1, 1, 0, 1], 'Q01-1 (captura unknown) tem valor observado: fica fora do denominador, não é apagado nem promovido');
   assert.equal(c.per_slot['Q01-1'].evaluable_for.page_or_domain_cited, false);
   assert.ok(c.observability_limits.some((l) => /^recommended_appropriately: adjudicado \(≠ null\) em 0\/3/.test(l)), JSON.stringify(c.observability_limits));
+});
+
+// Gate final 2026-09-17 (nota do final-reviewer, aplicada): a adjudicação tem de referir a resposta ACTUAL.
+test('11i · B2 · uma observação sobre uma resposta já substituída (captured → policy_review → nova captura) é obsoleta: não conta como avaliável, fica dita (stale_records); adjudicar de novo sobre a nova resposta conta', () => {
+  const w = frozenOpenWave({ waveId: 'W-11i', manifest: primaryManifest('W-11i') });
+  const exec = fakeExecutor();
+  w.clk.advance(2 * MIN);
+  const first = driveSlot(w.ctx, w.manifest, 'Q01-1', { to: 'captured', exec, answer: 'primeira resposta' });
+  const prov = () => ({ source: 'reviewer-syn', timestamp: new Date(w.clk.t).toISOString(), evidence_reference: { excerpt: '…' }, reviewer: 'rev-syn' });
+  appendScore(w.ctx, { slot_id: 'Q01-1', field: 'target_mentioned', value: true, ...prov() });
+  // O operador manda o slot para revisão e importa OUTRA captura (a anterior fica em answer.partial-01.txt, supersedes).
+  J.appendEvent(w.ctx, { slot_id: 'Q01-1', kind: 'policy_review', payload: { reason: 'operator_flag', note: 'a captura anterior estava truncada' } });
+  const second = importCapture(w.ctx, { slot_id: 'Q01-1', answer_bytes: Buffer.from('segunda resposta, completa', 'utf8'), capture_completeness: 'full', capture_method: 'manual-paste', observed: observedFor(w.manifest, { search_used: null }) });
+  assert.notEqual(second.answer_sha256, first.answer_sha256);
+  assert.equal(second.supersedes.sha256, first.answer_sha256, 'a anterior não é apagada — fica como supersedes');
+  assert.equal(second.supersedes.file, 'raw/Q01-1/answer.partial-01.txt');
+  w.clk.t = Date.parse(J.waveState(w.ctx).closeout_at) + 1;
+  const c = buildConclusion(w.ctx, { human: HUMAN_OK });
+  assert.equal(c.per_slot['Q01-1'].answer_sha256, second.answer_sha256);
+  assert.equal(c.per_slot['Q01-1'].capture_sufficient_for.target_mentioned, true);
+  assert.equal(c.per_slot['Q01-1'].evaluable_for.target_mentioned, false, 'a observação refere o hash antigo: obsoleta');
+  assert.deepEqual(c.eligible_evaluable_denominator.evaluable_by_field.target_mentioned, { eligible: 0, negative: 0 });
+  assert.equal(c.per_intent_outcomes.Q01.target_mentioned.stale_records, 1);
+  assert.equal(c.per_intent_outcomes.Q01.target_mentioned.n_evaluable, 0);
+  assert.equal(c.per_intent_outcomes.Q01.target_mentioned.true, 1, 'o valor continua contado descritivamente — não se apaga');
+  // Adjudicar de novo sobre a resposta actual: conta.
+  appendScore(w.ctx, { slot_id: 'Q01-1', field: 'target_mentioned', value: false, ...prov() });
+  const c2 = buildConclusion(w.ctx, { human: HUMAN_OK });
+  assert.equal(c2.per_slot['Q01-1'].evaluable_for.target_mentioned, true);
+  assert.equal(c2.per_intent_outcomes.Q01.target_mentioned.n_evaluable, 1);
+  assert.equal(c2.per_intent_outcomes.Q01.target_mentioned.stale_records, 0, 'a última observação vence e refere a resposta actual');
+  // crawl_access não precisa de resposta: uma observação sem hash conta.
+  appendScore(w.ctx, { slot_id: 'Q02-1', field: 'crawl_access', value: true, ...prov() });
+  const c3 = buildConclusion(w.ctx, { human: HUMAN_OK });
+  assert.equal(c3.per_slot['Q02-1'].evaluable_for.crawl_access, true);
+  assert.equal(c3.eligible_evaluable_denominator.eligible_capture_sufficient, c3.eligible_evaluable_denominator.eligible_evaluable, 'alias explícito da camada operacional');
 });

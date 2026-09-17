@@ -1,5 +1,5 @@
 {
-  "_note": "TEMPLATE — preenchido por OBSERVAÇÃO em W0 (synthetic-qualification), nunca por catálogo. Cada campo essencial: true|false|null + evidence_reference (captura/ecrã/nota datada). null num campo essencial ⇒ eligible_primary=false (o trabalho offline continua). Passa-se a preflight() como `capability`; o preflight recusa (capability_missing / search_unavailable / identity_missing) o que aqui não estiver observado.",
+  "_note": "TEMPLATE — preenchido por OBSERVAÇÃO em W0 (synthetic-qualification), nunca por catálogo. Cada campo essencial: true|false|null + evidence_reference (captura/ecrã/nota datada). null num campo essencial ⇒ eligible_primary=false (o trabalho offline continua). Passa-se a preflight() como `capability`; o preflight recusa (ineligible_surface / search_unavailable / identity_missing) o que aqui não estiver observado.",
   "schema": "prisma-capability-record/0.1-proposed",
   "surface": "chatgpt-web",
   "observed_at": null,

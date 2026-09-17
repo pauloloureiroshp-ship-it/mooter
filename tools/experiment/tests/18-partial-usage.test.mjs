@@ -18,7 +18,7 @@
 // e `components_known`; tokens × lista = estimated (imputed se os tokens o forem),
 // NUNCA observed; aggregateUsage recusa basis fora do enum (18e). Mordida: aceitar
 // 'partial' ⇒ 18e vermelho; custo calculado como observed ⇒ 18c vermelho
-// (morde-amend001-a5.mjs).
+// (tools/experiment/mordida/morde-amend001-a5.mjs).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

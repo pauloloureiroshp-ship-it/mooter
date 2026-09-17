@@ -382,7 +382,10 @@ export function deriveOutcomes(events) {
     evaluability_by_outcome: { ...EVALUABILITY_BY_OUTCOME },
     eligible_by_outcome: byOutcome(eligible),
     negative_by_outcome: byOutcome(negative),
+    // «eligible_evaluable» é a camada OPERACIONAL — posições elegíveis com resposta, o que a regra do piloto mede (G6);
+    // a avaliabilidade científica, por campo e adjudicada, está em evaluable_by_field (B2). O alias diz isso pelo nome.
     eligible_evaluable: evaluable(eligible).length,
+    eligible_capture_sufficient: evaluable(eligible).length,
     eligible_complete: eligible.filter((x) => x.outcome === 'complete').length,
     negative_evaluable: evaluable(negative).length,
     // B2: por campo, três contagens que nunca se igualam — applicable (pré-registado no
@@ -530,8 +533,18 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
   const w = waveState(ctx, events);
   const d = deriveOutcomes(events);
   const scores = readScores(ctx);
-  // B2: evaluable = capture_sufficient E adjudicação ≠ null em scores.jsonl (a última observação do campo para o slot vence).
-  const adjudicated = (slot_id, field) => { const recs = scores.filter((r) => r.slot_id === slot_id && r.field === field); return recs.length ? recs[recs.length - 1].value !== null : false; };
+  // B2: evaluable = capture_sufficient E adjudicação ≠ null em scores.jsonl (a última observação do campo para o slot vence)
+  // E a observação refere a resposta ACTUAL do slot (answer_sha256 igual; contrato 0.3 two_ledgers: «linked by identifiers
+  // and hashes»). Uma observação sobre uma resposta já substituída (policy_review → nova captura) é obsoleta: não conta.
+  const current_sha = Object.fromEntries(Object.values(d.per_slot).map((x) => [x.slot_id, x.answer_sha256]));
+  const adjudicated = (slot_id, field) => {
+    const recs = scores.filter((r) => r.slot_id === slot_id && r.field === field);
+    if (!recs.length) return false;
+    const last = recs[recs.length - 1];
+    if (last.value === null) return false;
+    if (FIELD_EVIDENCE[field].needs_response && last.answer_sha256 !== current_sha[slot_id]) return false; // obsoleta
+    return true;
+  };
   for (const x of Object.values(d.per_slot)) {
     x.evaluable_for = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, x.capture_sufficient_for[f] && adjudicated(x.slot_id, f)]));
   }
@@ -548,6 +561,7 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
     scores, slot_ids: d.frozen.slot_ids, prompt_of: d.frozen.prompt_of || {},
     applicable_of: Object.fromEntries(Object.values(d.per_slot).map((x) => [x.slot_id, x.applicable_for])),
     capture_sufficient_of: Object.fromEntries(Object.values(d.per_slot).map((x) => [x.slot_id, x.capture_sufficient_for])),
+    answer_sha_of: current_sha,
   });
   const integrity = integrityReport(ctx);
   const artifacts = artifactsAndHashes(ctx);
@@ -580,7 +594,7 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
     decision: h('decision'),
     reviewer: h('reviewer'),
     next_hypothesis_id: h('next_hypothesis_id'),
-    // ── derivado (13) ──
+    // ── derivado (14 = 21 − 7) ──
     planned: d.counts.planned,
     attempted: d.counts.attempted,
     complete: d.counts.complete,

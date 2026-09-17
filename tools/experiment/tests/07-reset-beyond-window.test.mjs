@@ -204,7 +204,7 @@ test('07f · A1 · reduceSlotHistory é pura e exaustiva: precedência R1 > R2 >
 // ── AMENDMENT-001b · B1 (2026-09-17) · falha terminal VIGENTE, não histórica ─
 // AMENDMENT-001b-20260917.txt §B1: a falha que decide R1 é a que não tem saída em
 // SLOT_TRANSITIONS (`failed`); preflight_failed tem saída (→ prepared) e é histórica.
-// Mordida: tratar «qualquer failed histórico» como R1 ⇒ (a) vermelho (morde-amend001b.mjs).
+// Mordida: tratar «qualquer failed histórico» como R1 ⇒ (a) vermelho (tools/experiment/mordida/morde-amend001b.mjs B1).
 
 test('07g · B1 · (a) preflight_failed → prepared → preflight_ok → queued → intent → submitted → captured{full} → scored ⇒ complete, com a falha anterior no history[]; (b) failed terminal prevalece mesmo sobre eventos posteriores não permitidos; (c) known_not_submitted seguido de submitted ⇒ attempted=true', () => {
   const { ctx, manifest, clk } = frozenOpenWave({ waveId: 'W-07g', manifest: primaryManifest('W-07g') });

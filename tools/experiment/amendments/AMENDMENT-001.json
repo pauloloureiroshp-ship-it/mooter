@@ -42,7 +42,8 @@
         "tests/contract.test.mjs (novo: contract-a, contract-b)",
         "tests/pins.test.mjs (3 pins)"
       ],
-      "completeness_rule": "Completude = campos com julgamento concluído / len(lista). <<TODO>> e «n/d» sem justificação escrita contam como em falta (checkConclusion.todos; conclusion.completeness)."
+      "completeness_rule": "Completude = campos com julgamento concluído / len(lista). <<TODO>> e «n/d» sem justificação escrita contam como em falta (checkConclusion.todos; conclusion.completeness).",
+      "mutation": "mecânica: 3/3 à mão na sessão (constante de 20 → contract-a; sha ignorado → contract-b; pin removido → contract.test.mjs falha ao carregar) · registo/completude: 6/6 (tools/experiment/mordida/morde-amend001-registo.mjs)"
     },
     {
       "id": "A1",
@@ -55,7 +56,8 @@
       ],
       "tests": [
         "tests/07-reset-beyond-window.test.mjs (07d actualizado; 07e casos (a)–(e) + failed prevalece + captured→policy_review; 07f históricos sintéticos, precedência, exaustividade, conflito R1 vs R4)"
-      ]
+      ],
+      "mutation": "8/8 (tools/experiment/mordida/morde-amend001-a1.mjs; M5/M8 re-ancorados depois de B1)"
     },
     {
       "id": "A2",
@@ -82,7 +84,8 @@
       "tests": [
         "tests/11-denominators.test.mjs (11a actualizado; 11e evidência explícita; 11f validação; 11g regra do piloto pelo negativo)",
         "tests/20-scientific-independence.test.mjs (20a/20d)"
-      ]
+      ],
+      "mutation": "9/9 (tools/experiment/mordida/morde-amend001-a3.mjs; M5 re-ancorado depois de B2)"
     },
     {
       "id": "A5",
@@ -96,7 +99,8 @@
       "tests": [
         "tests/18-partial-usage.test.mjs (18a/18c/18d actualizados; 18e rejeição)",
         "tests/09-usage-null.test.mjs (09b/09c)"
-      ]
+      ],
+      "mutation": "7/7 (tools/experiment/mordida/morde-amend001-a5.mjs)"
     }
   ],
   "explicitly_out": [
@@ -130,7 +134,7 @@
         "tests": [
           "tests/07-reset-beyond-window.test.mjs: 07g (a)(b)(c)(c′); 07f ajustado"
         ],
-        "mutation": "4/4 (morde-amend001b.mjs B1)"
+        "mutation": "4/4 (tools/experiment/mordida/morde-amend001b.mjs B1)"
       },
       {
         "id": "B2",
@@ -147,7 +151,7 @@
           "tests/19-search-fields.test.mjs: 19e",
           "tests/20-scientific-independence.test.mjs: 20a/20d ajustados"
         ],
-        "mutation": "5/5 (morde-amend001b.mjs B2)"
+        "mutation": "6/6 (tools/experiment/mordida/morde-amend001b.mjs B2; M6 = nota do gate final: adjudicação obsoleta)"
       },
       {
         "id": "B3",
@@ -162,7 +166,7 @@
         "tests": [
           "tests/12-holdout.test.mjs: 12e"
         ],
-        "mutation": "4/4 (morde-amend001b.mjs B3)"
+        "mutation": "4/4 (tools/experiment/mordida/morde-amend001b.mjs B3)"
       },
       {
         "id": "B4",
@@ -179,12 +183,32 @@
           "tests/effort.test.mjs: effort-i/ii/iii/iv",
           "tests/10-integrity.test.mjs: 10d ajustado"
         ],
-        "mutation": "5/5 (morde-amend001b.mjs B4)"
+        "mutation": "5/5 (tools/experiment/mordida/morde-amend001b.mjs B4)"
       }
     ],
     "explicitly_out": [
       "B4 · replays reais do ensaio de esforço: não corridos — o módulo só aplica a regra a pares já medidos; os 3 replays (ordem A,B / B,A / A,B) ficam para depois do kit ser aceite.",
       "B3 · vocabulário de custódia (custody.sealed / custody.released) e holdout.mjs: só com custodiante nomeado + AMENDMENT própria."
+    ]
+  },
+  "mutation_scripts": {
+    "dir": "tools/experiment/mordida/",
+    "note": "Baterias vivas contra HEAD; cada uma restaura o ficheiro mutado e verifica bytes idênticos. Relatório JSON em $MORDIDA_OUT ou <tmpdir>/prisma-mordida/. A parte mecânica de A4 foi mutada à mão (registada acima). As baterias dos passos 1–4 estão em annex/mordida/ do ZIP cc-p1-20260917-v1 (históricas)."
+  },
+  "gate_final_2026_09_17": {
+    "reviewer": "final-reviewer (Opus), gate de pré-entrega, sem push",
+    "verdict": "SHIP-COM-NOTAS",
+    "required_action_applied": "proveniência da mordida: os scripts morde-*.mjs entram no repo (tools/experiment/mordida/), re-ancorados ao HEAD; registo e comentários dos testes passam a citá-los pelo caminho",
+    "notes_applied": [
+      "B2 · adjudicated exige answer_sha256 == resposta actual do slot (contrato 0.3 two_ledgers «linked by identifiers and hashes»); observação obsoleta não conta e fica dita (stale_records) — teste 11i, mordida B2-M6",
+      "B4 · effort.mjs exige exactamente 3 replays (pré-registo); N>3 ⇒ replay_count_not_preregistered, sem veredicto — teste effort-iv",
+      "B3 · RESERVED_ID case-insensitive (r01 também é reservado) — teste 12e (1b)",
+      "A3 · alias eligible_capture_sufficient = eligible_evaluable (camada operacional, a que a regra do piloto mede) para não confundir com evaluable_by_field (adjudicada)",
+      "docs · README define manifest_hash no snippet; template cita ineligible_surface (o código real); comentário «derivado (14)»"
+    ],
+    "notes_open_for_gpt": [
+      "A1/B1 · .intent órfão: pela máquina, prepared → preflight_ok → submission_uncertain (órfão) fica unknown com attempted=false (não há intent_committed no diário); a API não deixa importar (no_intent_for_slot). Conservador por desenho; sem fixture própria de fecho — se a semântica desejada for outra, é 001c.",
+      "A3/B2 · «evaluable» tem duas acepções no conclusion.json: eligible_evaluable (operacional, regra do piloto) e evaluable_by_field (adjudicada). Alias acrescentado; renomear o campo pedido pela A3 seria outra emenda."
     ]
   }
 }

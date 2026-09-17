@@ -119,7 +119,7 @@ export function readScores(ctx) {
  * false, null — contando registos, nunca inferindo. Um slot sem registo para um
  * campo conta como null («não observado»). Nada é promovido de campo para campo.
  */
-export function countObservations({ scores, slot_ids, prompt_of, applicable_of = null, capture_sufficient_of = null }) {
+export function countObservations({ scores, slot_ids, prompt_of, applicable_of = null, capture_sufficient_of = null, answer_sha_of = null }) {
   const byIntent = {};
   const intents = [...new Set(slot_ids.map((s) => prompt_of[s]))];
   const layered = !!(applicable_of && capture_sufficient_of);
@@ -132,7 +132,7 @@ export function countObservations({ scores, slot_ids, prompt_of, applicable_of =
       // resposta) e n_evaluable (capture_sufficient E adjudicado ≠ null). Um valor observado
       // num slot sem captura suficiente fica contado à parte (observed_outside_denominator) —
       // não se apaga, não se promove. null nunca conta como avaliável.
-      const c = { true: 0, false: 0, null: 0, n_slots: slotsOf.length, n_records: 0, n_applicable: layered ? 0 : null, n_capture_sufficient: layered ? 0 : null, n_evaluable: layered ? 0 : null, observed_outside_denominator: layered ? 0 : null };
+      const c = { true: 0, false: 0, null: 0, n_slots: slotsOf.length, n_records: 0, n_applicable: layered ? 0 : null, n_capture_sufficient: layered ? 0 : null, n_evaluable: layered ? 0 : null, observed_outside_denominator: layered ? 0 : null, stale_records: layered ? 0 : null };
       for (const slot of slotsOf) {
         // Última observação desse campo para esse slot vence (revisões posteriores supersedem, e ficam no ficheiro).
         const recs = scores.filter((r) => r.slot_id === slot && r.field === field);
@@ -145,7 +145,10 @@ export function countObservations({ scores, slot_ids, prompt_of, applicable_of =
           const cs = capture_sufficient_of[slot] && capture_sufficient_of[slot][field] === true;
           if (ap) c.n_applicable++;
           if (cs) c.n_capture_sufficient++;
-          if (cs && v !== null) c.n_evaluable++;
+          // Observação sobre uma resposta já substituída (answer_sha256 ≠ actual): obsoleta — conta-se à parte, nunca como avaliável.
+          const stale = !!(answer_sha_of && last && last.answer_sha256 != null && answer_sha_of[slot] != null && last.answer_sha256 !== answer_sha_of[slot]);
+          if (stale) c.stale_records++;
+          if (cs && v !== null && !stale) c.n_evaluable++;
           if (!cs && v !== null) c.observed_outside_denominator++;
         }
       }

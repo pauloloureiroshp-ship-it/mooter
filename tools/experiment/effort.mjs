@@ -66,11 +66,14 @@ export function utilityThreshold(replays) {
   const ties = evaluated.filter((e) => e.outcome === 'tie').length;
   const losses = evaluated.filter((e) => e.outcome === 'loss').length;
   const satisfied_replays = wins + ties;
-  const enough_replays = evaluated.length >= REQUIRED_REPLAYS;
+  // O pré-registo fixa 3 replays (ordem A,B / B,A / A,B). Menos: sem veredicto. Mais: não é a regra
+  // pré-registada — «≥ 2 de 3» não é «≥ 2 de N» (gate final 2026-09-17, nota do final-reviewer).
+  const enough_replays = evaluated.length === REQUIRED_REPLAYS;
   const rule_satisfied = enough_replays && satisfied_replays >= REQUIRED_SATISFIED;
   // Apresentação: empate integral é EMPATE, não poupança. Só há «kit ajudou» com ≥ 1 vitória estrita entre os que contam.
   let verdict;
-  if (!enough_replays) verdict = 'insufficient_replays';
+  if (evaluated.length < REQUIRED_REPLAYS) verdict = 'insufficient_replays';
+  else if (evaluated.length > REQUIRED_REPLAYS) verdict = 'replay_count_not_preregistered';
   else if (!rule_satisfied) verdict = 'not_satisfied';
   else if (wins === 0) verdict = 'tie';
   else verdict = 'satisfied';
@@ -80,7 +83,7 @@ export function utilityThreshold(replays) {
     rule: `B ≤ A em human_minutes E record_completeness_B ≥ record_completeness_A E failures_and_rework_B ≤ failures_and_rework_A, em ≥ ${REQUIRED_SATISFIED} de ${REQUIRED_REPLAYS} replays; condições avaliadas DENTRO de cada replay, nunca combinadas entre replays`,
     n_replays: evaluated.length, wins, ties, losses, satisfied_replays,
     rule_satisfied, verdict,
-    presentation: verdict === 'tie' ? 'EMPATE — a regra é satisfeita por igualdade; não é poupança' : verdict === 'satisfied' ? 'o kit ajudou nesta tarefa (em ≥ 2 de 3 replays, por par)' : verdict === 'not_satisfied' ? 'o kit não ajudou nesta tarefa — resultado válido, com a mesma visibilidade' : `faltam replays (${evaluated.length}/${REQUIRED_REPLAYS})`,
+    presentation: verdict === 'tie' ? 'EMPATE — a regra é satisfeita por igualdade; não é poupança' : verdict === 'satisfied' ? 'o kit ajudou nesta tarefa (em ≥ 2 de 3 replays, por par)' : verdict === 'not_satisfied' ? 'o kit não ajudou nesta tarefa — resultado válido, com a mesma visibilidade' : verdict === 'replay_count_not_preregistered' ? `${evaluated.length} replays não é a regra pré-registada (${REQUIRED_REPLAYS}): sem veredicto — outra regra é outra emenda` : `faltam replays (${evaluated.length}/${REQUIRED_REPLAYS})`,
     replays: evaluated,
     no_percentages: true,
   };

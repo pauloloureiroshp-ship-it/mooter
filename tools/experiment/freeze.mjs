@@ -43,7 +43,7 @@ export const PROMPT_ROLES = Object.freeze(['eligible', 'negative', 'synthetic'])
 // AMENDMENT-001b · B3: a partição reservada (R01/R02, PROTOCOLO 0.2 §3-4, ≤4 conversas)
 // é REJEITADA operacionalmente pelo kit até existir custodiante nomeado + AMENDMENT própria.
 // Não é código de custódia — é exclusão verificável: o freeze recusa, nada se escreve.
-export const RESERVED_ID = /^R\d{2}$/;
+export const RESERVED_ID = /^R\d{2}$/i;
 export const RESERVED_REASON = 'reserved_partition_unsupported';
 
 export class FreezeError extends Error {

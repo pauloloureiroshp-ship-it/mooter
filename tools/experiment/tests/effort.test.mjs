@@ -7,7 +7,7 @@
 //         nunca combinar condições de replays diferentes.
 // Publicam-se os 3 pares e as diferenças absolutas; sem percentagens.
 // Mordida: combinar condições entre replays, contar um replay com uma condição falhada, ou
-// apresentar o empate como vitória ⇒ vermelho (morde-amend001b.mjs B4).
+// apresentar o empate como vitória ⇒ vermelho (tools/experiment/mordida/morde-amend001b.mjs B4).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -75,6 +75,11 @@ test('effort-iv · fronteiras: com 2 replays não há veredicto (insufficient_re
   assert.equal(dois.rule_satisfied, false);
   assert.throws(() => utilityThreshold([R('r1', [40, 0.9, 2], [30, undefined, 2]), R('r2', [1, 1, 1], [1, 1, 1]), R('r3', [1, 1, 1], [1, 1, 1])]), (e) => e instanceof EffortError && e.code === 'bad_measure');
   assert.throws(() => utilityThreshold([{ id: 'x', A: { human_minutes: 1, record_completeness: 1, failures_and_rework: 1 } }]), (e) => e.code === 'bad_replay');
+  // Mais de 3 replays não é a regra pré-registada («≥ 2 de 3», não «≥ 2 de N»): sem veredicto, sem inflacionar.
+  const quatro = utilityThreshold([R('r1', [40, 0.9, 2], [30, 0.9, 2]), R('r2', [40, 0.9, 2], [30, 0.9, 2]), R('r3', [40, 0.9, 2], [50, 0.9, 2]), R('r4', [40, 0.9, 2], [50, 0.9, 2])]);
+  assert.equal(quatro.verdict, 'replay_count_not_preregistered');
+  assert.equal(quatro.rule_satisfied, false);
+  assert.match(quatro.presentation, /não é a regra pré-registada/);
   const misto = utilityThreshold([R('r1', [40, 0.9, 2], [40, 0.9, 2]), R('r2', [40, 0.9, 2], [35, 0.9, 2]), R('r3', [40, 0.9, 2], [45, 0.9, 2])]);
   assert.deepEqual(misto.replays.map((x) => x.outcome), ['tie', 'win', 'loss']);
   assert.equal(misto.rule_satisfied, true);

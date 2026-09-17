@@ -68,6 +68,7 @@ openFromManifest(ctx);   // wave.opened com deadline_at/closeout_at derivados do
 const bytes = fs.readFileSync('to-paste/Q01.txt');      // EXACTAMENTE o que vai ser colado
 const capability = JSON.parse(fs.readFileSync(`${ROOT}/meta/capability-chatgpt-web.json`, 'utf8'));
 const observed = { surface: 'chatgpt-web', observed_plan: 'Plus', selected_model_label: 'GPT-5', observed_model_label: 'GPT-5', reasoning_control: 'default', auto_switch: null, personalization: 'off', search_available: true, prompt_language: 'pt-PT', capture_method: 'manual-paste', operator_id: 'op-…' };
+const manifest_hash = J.waveState(ctx).manifest_hash;   // o hash gravado em wave.frozen
 const pf = preflight(ctx, { slot_id: 'Q01-1', bytes, observed, capability });
 if (!pf.ok) { console.log(pf.reasons); /* NÃO enviar; corrigir ou esperar next_action_at */ }
 ```

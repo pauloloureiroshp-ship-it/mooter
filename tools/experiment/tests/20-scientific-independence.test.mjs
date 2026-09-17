@@ -46,11 +46,11 @@ test('20a · citação observada num slot (page_or_domain_cited=true) NÃO promo
   // não declara evidence ⇒ new_fact_used e recommended_appropriately têm denominador 0 — e a observação
   // de Q02-1 fica contada à parte (observed_outside_denominator), não apagada nem promovida.
   // B2: n_applicable (manifesto) ≥ n_capture_sufficient (com resposta) ≥ n_evaluable (adjudicado ≠ null); null nunca conta.
-  assert.deepEqual(q01.page_or_domain_cited, { true: 1, false: 0, null: 1, n_slots: 2, n_records: 1, n_applicable: 2, n_capture_sufficient: 2, n_evaluable: 1, observed_outside_denominator: 0 });
-  assert.deepEqual(q01.new_fact_used, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_applicable: 0, n_capture_sufficient: 0, n_evaluable: 0, observed_outside_denominator: 0 }, 'citação não vira uso');
-  assert.deepEqual(q01.crawl_access, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_applicable: 2, n_capture_sufficient: 2, n_evaluable: 0, observed_outside_denominator: 0 });
-  assert.deepEqual(q01.retrieved_target_url, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_applicable: 2, n_capture_sufficient: 2, n_evaluable: 0, observed_outside_denominator: 0 }, 'e citação não vira recuperação');
-  assert.deepEqual(c.per_intent_outcomes['Q02'].recommended_appropriately, { true: 0, false: 1, null: 1, n_slots: 2, n_records: 1, n_applicable: 0, n_capture_sufficient: 0, n_evaluable: 0, observed_outside_denominator: 1 }, 'observado num slot não declarado como pedido de recomendação: fica, à parte');
+  assert.deepEqual(q01.page_or_domain_cited, { true: 1, false: 0, null: 1, n_slots: 2, n_records: 1, n_applicable: 2, n_capture_sufficient: 2, n_evaluable: 1, observed_outside_denominator: 0, stale_records: 0 });
+  assert.deepEqual(q01.new_fact_used, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_applicable: 0, n_capture_sufficient: 0, n_evaluable: 0, observed_outside_denominator: 0, stale_records: 0 }, 'citação não vira uso');
+  assert.deepEqual(q01.crawl_access, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_applicable: 2, n_capture_sufficient: 2, n_evaluable: 0, observed_outside_denominator: 0, stale_records: 0 });
+  assert.deepEqual(q01.retrieved_target_url, { true: 0, false: 0, null: 2, n_slots: 2, n_records: 0, n_applicable: 2, n_capture_sufficient: 2, n_evaluable: 0, observed_outside_denominator: 0, stale_records: 0 }, 'e citação não vira recuperação');
+  assert.deepEqual(c.per_intent_outcomes['Q02'].recommended_appropriately, { true: 0, false: 1, null: 1, n_slots: 2, n_records: 1, n_applicable: 0, n_capture_sufficient: 0, n_evaluable: 0, observed_outside_denominator: 1, stale_records: 0 }, 'observado num slot não declarado como pedido de recomendação: fica, à parte');
   assert.ok(c.observability_limits.some((l) => /^crawl_access: null em 8\/8/.test(l)), JSON.stringify(c.observability_limits));
   assert.ok(c.observability_limits.some((l) => /^new_fact_used: null em 8\/8/.test(l)));
   const r = closeoutWave(ctx, { human: HUMAN_OK });
@@ -100,7 +100,7 @@ test('20d · MORDIDA · a última observação de um campo vence (revisões supe
   const scores = readScores(ctx);
   assert.equal(scores.filter((s) => s.slot_id === 'Q01-1' && s.field === 'recommended_appropriately').length, 2, 'as duas ficam');
   const counts = countObservations({ scores, slot_ids: ['Q01-1', 'Q01-2'], prompt_of: { 'Q01-1': 'Q01', 'Q01-2': 'Q01' } });
-  assert.deepEqual(counts.Q01.recommended_appropriately, { true: 0, false: 1, null: 1, n_slots: 2, n_records: 2, n_applicable: null, n_capture_sufficient: null, n_evaluable: null, observed_outside_denominator: null }, 'sem os mapas do closeout, os denominadores por campo são null — não 0 nem n_slots');
+  assert.deepEqual(counts.Q01.recommended_appropriately, { true: 0, false: 1, null: 1, n_slots: 2, n_records: 2, n_applicable: null, n_capture_sufficient: null, n_evaluable: null, observed_outside_denominator: null, stale_records: null }, 'sem os mapas do closeout, os denominadores por campo são null — não 0 nem n_slots');
   // A2 (AMENDMENT-001, conforme — reforço de fixture): recommended_appropriately=true com
   // page_or_domain_cited=false no MESMO slot — os campos são independentes, nenhum implica o outro.
   appendScore(ctx, { slot_id: 'Q01-2', field: 'recommended_appropriately', value: true, ...prov(clk) });

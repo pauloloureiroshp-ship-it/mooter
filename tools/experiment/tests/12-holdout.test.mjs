@@ -95,7 +95,7 @@ test('12d · MORDIDA · o closeout não «aprende»: fechar duas ondas iguais d�
 // ── AMENDMENT-001b · B3 (2026-09-17) · o kit REJEITA a partição reservada ────
 // AMENDMENT-001b-20260917.txt §B3: sem custodiante, o freeze recusa R01/R02 (nada
 // congelado, nada escrito) e o ledger científico recusa observações sobre R01.
-// Mordida: aceitar R01 no freeze ⇒ 12e vermelho (morde-amend001b.mjs B3).
+// Mordida: aceitar R01 no freeze ⇒ 12e vermelho (tools/experiment/mordida/morde-amend001b.mjs B3).
 
 test('12e · B3 · freeze recusa manifesto com R01/R02 (id, role reserved, order, partition independent-reserved) com reserved_partition_unsupported — nada congelado, nada escrito; scores recusa R01-1 (slot_unknown); o README declara a rejeição', () => {
   const root = tmpRoot();
@@ -110,6 +110,10 @@ test('12e · B3 · freeze recusa manifesto com R01/R02 (id, role reserved, order
   assert.throws(() => freezeWave(c1, { manifest: comR01 }), (e) => e instanceof FreezeError && e.code === 'manifest_invalid' && e.details.failures.some((f) => f.code === 'reserved_partition_unsupported'));
   assert.equal(fs.existsSync(path.join(c1.dir, 'manifest.json')), false, 'nada congelado');
   assert.equal(J.readEvents(c1).length, 0, 'nada escrito no diário');
+  // (1b) id reservado em minúsculas também (a guarda é por nome; não envelhece com a caixa)
+  const comMin = primaryManifest('W-12e-1b');
+  comMin.prompts.push({ id: 'r02', text: 'x', role: 'eligible', prompt_hash: null });
+  assert.ok(reasons(comMin, 'W-12e-1b').length >= 1, 'r02 também é reservado');
   // (2) role reserved
   const comRole = primaryManifest('W-12e-2');
   comRole.prompts[0] = { ...comRole.prompts[0], role: 'reserved' };
