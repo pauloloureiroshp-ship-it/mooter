@@ -198,4 +198,5 @@ export function driveSlot(ctx, manifest, slotId, { to = 'captured', exec = null,
   return _importCapture(ctx, { slot_id: slotId, answer_bytes: Buffer.from(answer, 'utf8'), capture_completeness: completeness, capture_method: 'manual-paste', observed: observedFor(manifest, { search_used: null, ...observed }), usage, refusal });
 }
 
-export const HUMAN_OK = Object.freeze({ hypothesis_id: 'H-syn-01', expected_result: 'n/d (sintético)', counterevidence: 'n/d', confounders: 'n/d', decision: 'inconclusive', reviewer: 'rev-syn', next_hypothesis_id: 'n/d' });
+// AMENDMENT-001 A4: «n/d» só com justificação escrita — um «n/d» nu não é julgamento concluído.
+export const HUMAN_OK = Object.freeze({ hypothesis_id: 'H-syn-01', expected_result: 'n/d (onda sintética: sem resultado esperado)', counterevidence: 'n/d — onda sintética, sem contra-evidência a registar', confounders: 'n/d — onda sintética, sem confounders observados', decision: 'inconclusive', reviewer: 'rev-syn', next_hypothesis_id: 'n/d — decide-se no fecho da W1' });

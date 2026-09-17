@@ -16,8 +16,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import * as J from '../journal.mjs';
-import { closeoutWave, auditClosed, integrityReport, artifactsAndHashes, CloseoutError, SEMANTICS_VERSION } from '../closeout.mjs';
-import { frozenOpenWave, driveSlot, HUMAN_OK, MIN } from './_harness.mjs';
+import { closeoutWave, auditClosed, integrityReport, artifactsAndHashes, buildConclusion, checkConclusion, loadAmendments, externalReviewState, isBareNd, CloseoutError, SEMANTICS_VERSION, EXTERNAL_REVIEW_STATES, CLOSEOUT_REQUIRED } from '../closeout.mjs';
+import { frozenOpenWave, driveSlot, HUMAN_OK, MIN, tmpRoot } from './_harness.mjs';
 
 function closedWave(waveId) {
   const w = frozenOpenWave({ waveId });
@@ -91,14 +91,58 @@ test('10c · integrityReport numa onda ABERTA também vê: parcial renomeado tem
   for (const a of arts) assert.match(a.sha256, /^[0-9a-f]{64}$/);
 });
 
-test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed e external_review pending; e amendments começa vazio — mudar a semântica é uma AMENDMENT datada, não uma edição', () => {
+test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed; external_review DERIVA do registo de emendas (AMENDMENT-001 ⇒ corrections_applied_pending_confirmation); amendments lista o ficheiro com sha256 — mudar a semântica é uma AMENDMENT datada, não uma edição', () => {
   const { closed } = closedWave('W-10d');
   assert.equal(SEMANTICS_VERSION, '0.3-proposed');
   assert.equal(closed.conclusion.semantics_version, '0.3-proposed');
-  assert.equal(closed.conclusion.external_review, 'pending');
-  assert.deepEqual(closed.conclusion.amendments, []);
+  assert.equal(closed.conclusion.external_review, 'corrections_applied_pending_confirmation');
+  const am = closed.conclusion.amendments;
+  assert.equal(am.length, 1);
+  assert.equal(am[0].id, 'AMENDMENT-001'); assert.equal(am[0].date, '2026-09-17'); assert.equal(am[0].file, 'amendments/AMENDMENT-001.json');
+  assert.match(am[0].sha256, /^[0-9a-f]{64}$/);
+  assert.equal(am[0].source_sha256, '794045bee008c303c0422c49cc4040afda4eac38df4fb6963c3f707cf19c416f', 'o sha do AMENDMENT-001-20260916.txt que a originou');
+  assert.deepEqual(am[0].items.map((i) => i.id), ['A4', 'A1', 'A2', 'A3', 'A5']);
+  assert.deepEqual(am[0].items.filter((i) => i.status === 'applied').map((i) => i.commit), ['2f671ea8', 'd4bf406c', '84420bef', '3fb3ac75']);
+  assert.equal(am[0].external_review_after, 'corrections_applied_pending_confirmation');
+  // Sem registo ⇒ pending; e o estado escrito à mão em desacordo com o registo é problema.
+  assert.equal(externalReviewState([]), 'pending');
+  assert.deepEqual(loadAmendments({ dir: tmpRoot() }), [], 'directório sem emendas: lista vazia, não erro');
+  assert.deepEqual([...EXTERNAL_REVIEW_STATES], ['pending', 'corrections_applied_pending_confirmation', 'done']);
+  const manual = { ...closed.conclusion, external_review: 'done' };
+  assert.ok(checkConclusion(manual).problems.some((p) => /não corresponde ao registo/.test(p)));
+  assert.ok(checkConclusion({ ...closed.conclusion, external_review: 'aprovado' }).problems.some((p) => /external_review ∈/.test(p)));
+  // Um ficheiro de emenda inválido não passa em silêncio.
+  const dir = tmpRoot();
+  fs.writeFileSync(path.join(dir, 'AMENDMENT-002.json'), JSON.stringify({ id: 'AMENDMENT-002', date: '2026-09-18', items: [], semantics_version: '0.4-proposed', external_review_after: 'pending' }));
+  assert.throws(() => loadAmendments({ dir }), (e) => e instanceof CloseoutError && e.code === 'amendment_invalid' && /semantics_version/.test(e.message));
+  fs.writeFileSync(path.join(dir, 'AMENDMENT-002.json'), JSON.stringify({ id: 'AMENDMENT-002', date: '2026-09-18', items: [], semantics_version: '0.3-proposed', external_review_after: 'aprovado' }));
+  assert.throws(() => loadAmendments({ dir }), (e) => e.code === 'amendment_invalid' && /external_review_after/.test(e.message));
   assert.match(closed.conclusion.amendment_rule, /AMENDMENT datada/);
   assert.equal(closed.conclusion.inference_note.includes('Sem IC agregado, sem +2, sem efeito causal'), true);
   const onDisk = JSON.parse(fs.readFileSync(closed.file, 'utf8'));
   assert.equal(onDisk.integrity_sha256, closed.conclusion.integrity_sha256);
+});
+
+test('10e · A4 · completude: <<TODO>> e «n/d» nu contam como em falta; «n/d — justificação» é julgamento concluído; conclusion.completeness = concluídos / 21', () => {
+  const { ctx, clk } = frozenOpenWave({ waveId: 'W-10e' });
+  clk.t = Date.parse(J.waveState(ctx).closeout_at) + 1;
+  assert.equal(isBareNd('n/d'), true); assert.equal(isBareNd('N/D'), true); assert.equal(isBareNd('n/d — '), true); assert.equal(isBareNd('n/d (ok)'), true, 'justificação com < 8 caracteres não conta');
+  assert.equal(isBareNd('n/d — onda sintética, sem contra-evidência a registar'), false); assert.equal(isBareNd('n/d (onda sintética)'), false); assert.equal(isBareNd('há contra-evidência: …'), false); assert.equal(isBareNd(3), false);
+  const nu = buildConclusion(ctx, { human: { ...HUMAN_OK, counterevidence: 'n/d', confounders: 'n/d' } });
+  assert.equal(nu.completeness.required, 21);
+  assert.equal(nu.completeness.required, CLOSEOUT_REQUIRED.length);
+  assert.deepEqual(nu.completeness.missing, ['counterevidence', 'confounders']);
+  assert.equal(nu.completeness.concluded, 19);
+  const chk = checkConclusion(nu);
+  assert.equal(chk.ok, false);
+  assert.deepEqual(chk.todos, ['counterevidence', 'confounders']);
+  assert.ok(chk.problems.some((p) => p.startsWith('counterevidence: «n/d» só com justificação')), JSON.stringify(chk.problems));
+  assert.throws(() => closeoutWave(ctx, { human: { ...HUMAN_OK, confounders: 'n/d' } }), (e) => e instanceof CloseoutError && e.code === 'conclusion_incomplete');
+  assert.equal(J.waveState(ctx).state, 'open', 'a recusa não fecha nada');
+  const semTodo = buildConclusion(ctx, { human: { ...HUMAN_OK, reviewer: undefined } });
+  assert.deepEqual(semTodo.completeness.missing, ['reviewer']);
+  assert.equal(semTodo.reviewer, '<<TODO>>');
+  const ok = buildConclusion(ctx, { human: HUMAN_OK });
+  assert.deepEqual(ok.completeness, { required: 21, concluded: 21, missing: [], rule: ok.completeness.rule });
+  assert.equal(checkConclusion(ok).ok, true);
 });

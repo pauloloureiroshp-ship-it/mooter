@@ -33,7 +33,9 @@
 
 import path from 'node:path';
 import crypto from 'node:crypto';
+import nodeFs from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 import { appendEvent, readEvents, waveState, slotStates, verifyChain, JournalError, SLOT_KINDS } from './journal.mjs';
 import { aggregateUsage } from './import.mjs';
@@ -48,6 +50,35 @@ export const SEMANTICS_VERSION = '0.3-proposed';
 export const CONCLUSION_SCHEMA = 'prisma-experiment-conclusion/0.3-proposed';
 export const TODO = '<<TODO>>';
 export const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+export const EXTERNAL_REVIEW_STATES = Object.freeze(['pending', 'corrections_applied_pending_confirmation', 'done']);
+
+// ── registo de emendas ───────────────────────────────────────────────────────
+// Cada AMENDMENT é um ficheiro datado em amendments/AMENDMENT-NNN.json (o que a
+// revisão pediu, o que se aplicou, em que commits, com que testes, e o que ficou
+// de fora). A conclusão lista-as com o sha256 de cada ficheiro, e o estado de
+// external_review deriva da mais recente — nunca se escreve à mão.
+const AMENDMENTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'amendments');
+export function loadAmendments({ fs = nodeFs, dir = AMENDMENTS_DIR } = {}) {
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((n) => /^AMENDMENT-\d{3}\.json$/.test(n)).sort(); } catch { names = []; }
+  return names.map((n) => {
+    const bytes = fs.readFileSync(path.join(dir, n));
+    let a;
+    try { a = JSON.parse(bytes.toString('utf8')); } catch { throw new CloseoutError('amendment_corrupt', `${n} não é JSON`); }
+    for (const k of ['id', 'date', 'items', 'semantics_version', 'external_review_after']) if (!(k in a)) throw new CloseoutError('amendment_invalid', `${n}: falta ${k}`);
+    if (a.id !== n.replace(/\.json$/, '')) throw new CloseoutError('amendment_invalid', `${n}: id ${a.id} ≠ nome do ficheiro`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(a.date)) throw new CloseoutError('amendment_invalid', `${n}: date tem de ser YYYY-MM-DD`);
+    if (!EXTERNAL_REVIEW_STATES.includes(a.external_review_after)) throw new CloseoutError('amendment_invalid', `${n}: external_review_after ∈ ${EXTERNAL_REVIEW_STATES.join('|')}`);
+    if (a.semantics_version !== SEMANTICS_VERSION) throw new CloseoutError('amendment_invalid', `${n}: semantics_version ${a.semantics_version} ≠ ${SEMANTICS_VERSION} — outra versão da semântica é outro kit`);
+    if (!Array.isArray(a.items) || !a.items.every((it) => it && typeof it.id === 'string' && typeof it.status === 'string')) throw new CloseoutError('amendment_invalid', `${n}: items[] com id e status`);
+    return { id: a.id, date: a.date, file: `amendments/${n}`, sha256: sha256(bytes), source_sha256: a.source?.sha256 ?? null, items: a.items.map((it) => ({ id: it.id, kind: it.kind ?? null, status: it.status, commit: it.commit ?? null })), external_review_after: a.external_review_after };
+  });
+}
+/** Estado de revisão externa DERIVADO do registo: sem emendas ⇒ pending; com emendas ⇒ o da mais recente. */
+export function externalReviewState(amendments) {
+  if (!amendments.length) return 'pending';
+  return [...amendments].sort((a, b) => (a.date + a.id).localeCompare(b.date + b.id)).at(-1).external_review_after;
+}
 
 // AMENDMENT-001 (correcção mecânica): o vocabulário normativo vem do contrato
 // congelado e pinado, não de constantes. A constante do passo 4 tinha 21 entradas
@@ -442,12 +473,13 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
     if (typeof inv.reason !== 'string' || inv.reason.trim().length < 8) throw new CloseoutError('bad_invalidation', `invalidated: ${inv.slot_id} sem razão (≥ 8 caracteres)`);
   }
   const h = (k) => (k in human && human[k] !== undefined && human[k] !== null && human[k] !== '' ? human[k] : TODO);
+  const amendments = loadAmendments();
   const conclusion = {
     schema: CONCLUSION_SCHEMA,
     semantics_version: SEMANTICS_VERSION,
     contract: { version: CONTRACT.version, sha256: CONTRACT.sha256, closeout_required_count: CLOSEOUT_REQUIRED.length },
-    external_review: 'pending',
-    amendments: [],
+    external_review: externalReviewState(amendments),
+    amendments,
     amendment_rule: 'Qualquer alteração à semântica (outcomes, denominadores, regras de derivação) é uma AMENDMENT datada, com testes, referenciada aqui — nunca edição silenciosa deste ficheiro.',
     wave_id: ctx.waveId,
     manifest_hash: w.manifest_hash,
@@ -488,13 +520,36 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
     engine_pins: (() => { const p = verifyPins(); return { ok: p.ok, pinned_at_sha: p.pinned_at_sha, checked: p.checked }; })(),
     inference_note: 'Contagens e diferenças são descritivas. Sem IC agregado, sem +2, sem efeito causal (PROTOCOLO 0.2 §7).',
   };
+  // A4: completude = campos com julgamento concluído / len(closeout_required). <<TODO>> e
+  // «n/d» sem justificação escrita contam como em falta.
+  const missing = missingFields(conclusion);
+  conclusion.completeness = { required: CLOSEOUT_REQUIRED.length, concluded: CLOSEOUT_REQUIRED.length - missing.length, missing: missing.map((m) => m.field), rule: 'concluded / required; <<TODO>> e «n/d» sem justificação (≥ 8 caracteres) contam como em falta' };
   return conclusion;
+}
+
+/** «n/d» só com justificação escrita (A4): `n/d — <porquê>` com ≥ 8 caracteres úteis depois do n/d. */
+export function isBareNd(v) {
+  if (typeof v !== 'string') return false;
+  const m = v.trim().match(/^n\/d\b(.*)$/i);
+  if (!m) return false;
+  const just = m[1].replace(/^[\s—–\-:(),.]+/, '').replace(/[\s).]+$/, '');
+  return just.length < 8;
+}
+function missingFields(c) {
+  const out = [];
+  for (const k of CLOSEOUT_REQUIRED) {
+    if (c[k] === TODO || c[k] === undefined) out.push({ field: k, why: c[k] === undefined ? 'undefined' : TODO });
+    else if (isBareNd(c[k])) out.push({ field: k, why: 'n/d sem justificação escrita' });
+  }
+  return out;
 }
 
 /** Lista os campos obrigatórios ainda por preencher. */
 export function checkConclusion(c) {
-  const todos = CLOSEOUT_REQUIRED.filter((k) => c[k] === TODO || c[k] === undefined);
+  const missing = missingFields(c);
+  const todos = missing.map((m) => m.field);
   const problems = [];
+  for (const m of missing) if (m.why === 'n/d sem justificação escrita') problems.push(`${m.field}: «n/d» só com justificação escrita (A4) — n/d não é julgamento concluído`);
   if (c.decision !== TODO && !WAVE_DECISIONS.includes(c.decision)) problems.push(`decision ∈ ${WAVE_DECISIONS.join('|')} (recebido ${JSON.stringify(c.decision)})`);
   if (!c.identity?.planned_equals_sum) problems.push('planned ≠ soma dos outcomes');
   // Regra do piloto (G6): cobertura decisiva incompleta força inconclusive.
@@ -505,7 +560,8 @@ export function checkConclusion(c) {
   }
   if (den.positions_identity_ok === false) problems.push('planned_eligible + negative_planned + other ≠ coverage_per_wave');
   if (c.semantics_version !== SEMANTICS_VERSION) problems.push(`semantics_version ${c.semantics_version} ≠ ${SEMANTICS_VERSION}`);
-  if (c.external_review !== 'pending' && c.external_review !== 'done') problems.push('external_review ∈ pending|done');
+  if (!EXTERNAL_REVIEW_STATES.includes(c.external_review)) problems.push(`external_review ∈ ${EXTERNAL_REVIEW_STATES.join('|')}`);
+  if (Array.isArray(c.amendments) && c.external_review !== externalReviewState(c.amendments)) problems.push(`external_review ${c.external_review} não corresponde ao registo de emendas (${externalReviewState(c.amendments)}) — não se escreve à mão`);
   return { ok: todos.length === 0 && problems.length === 0, todos, problems };
 }
 
