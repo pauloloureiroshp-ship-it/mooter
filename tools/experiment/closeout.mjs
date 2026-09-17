@@ -18,6 +18,11 @@
 // alteração posterior à SEMÂNTICA é uma AMENDMENT datada com testes, nunca
 // edição silenciosa (SEMANTICS_VERSION abaixo é o que os testes fixam).
 //
+// AMENDMENT-001 (2026-09-17, revisão científica do GPT; ficheiro
+// AMENDMENT-001-20260916.txt; contrato 0.3 sha256 61acea27…, PROTOCOLO 0.2
+// sha256 4564ab1d…): A4 vocabulário lido do contrato congelado (21 campos);
+// A1 redução determinística do histórico do slot (reduceSlotHistory, abaixo).
+//
 // O closeout NUNCA reescreve evidência: um manifesto ou uma captura
 // adulterados aparecem em `integrity.violations` (caso 10). Interpretações
 // novas vão para scores.jsonl ou para uma AMENDMENT; o conclusion.json final
@@ -27,7 +32,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 
-import { appendEvent, readEvents, waveState, slotStates, verifyChain, JournalError } from './journal.mjs';
+import { appendEvent, readEvents, waveState, slotStates, verifyChain, JournalError, SLOT_KINDS } from './journal.mjs';
 import { aggregateUsage } from './import.mjs';
 import { readScores, countObservations, SCIENCE_FIELDS } from './scores.mjs';
 import { verifyPins } from './pins.mjs';
@@ -68,43 +73,114 @@ function frozenPayload(events) {
   return p;
 }
 
-/** Outcome de UM slot a partir do seu histórico. Puro. */
-export function outcomeOf(slot) {
-  const attempted = slot.history.includes('intent_committed');
-  if (!attempted) return 'not_started';
-  switch (slot.state) {
-    case 'captured': case 'scored': case 'closed': {
-      const cap = slot.captured;
-      if (cap && cap.capture_completeness === 'full' && !cap.condition_divergent) return 'complete';
-      return 'partial';
-    }
-    case 'failed': return 'failed';
-    case 'known_not_submitted': return 'not_started'; // houve intenção, mas prova positiva de não-envio
-    default: return 'unknown'; // intent_committed | submitted | submission_uncertain | capture_uncertain | policy_review
+// ── AMENDMENT-001 · A1 (2026-09-17) · redução determinística do histórico ────
+//
+// Revisão científica do GPT (AMENDMENT-001-20260916.txt, A1): «"último evento"
+// não é exclusivo nem exaustivo». O outcomeOf do passo 4 lia `slot.state` num
+// switch — casos sem classe única: preflight_failed sem intenção, submitted sem
+// captura ao fechar, known_not_submitted sem nova tentativa, captured com
+// completeness=unknown, eventos de scoring/fecho a mascarar o outcome.
+//
+// Correcção: reduceSlotHistory(events) é uma função PURA que recebe o histórico
+// do slot (por ordem de diário) e devolve exactamente UMA classe ∈
+// contract.state_machine.slot_outcomes, pela precedência abaixo (a primeira
+// regra que casa vence; a lista é exaustiva sobre SLOT_KINDS):
+//
+//   R1  `failed` em qualquer ponto do histórico ⇒ failed
+//       (falha terminal explícita prevalece sobre not_started — A1 §1)
+//   R2  o último evento OPERACIONAL é `captured` ⇒ pela captura (A1 §3, §5):
+//       completeness unknown ⇒ unknown · partial OU condição divergente ⇒ partial
+//       · full E condição == pedida ⇒ complete. «Último captured» = a recuperação
+//       (--recover) supersede a interpretação anterior sem apagar evidência.
+//   R3  o último evento operacional é intent_committed | submitted |
+//       submission_uncertain | capture_uncertain | policy_review ⇒ unknown
+//       (envio confirmado ou incerto SEM captura suficiente ao fechar — A1 §2;
+//       captured seguido de policy_review por resolver cai aqui: a captura
+//       existe, mas não é «suficiente» enquanto está sob revisão)
+//   R4  o último evento operacional é known_not_submitted | prepared |
+//       preflight_ok | preflight_failed | queued, ou não há evento ⇒ not_started
+//       (A1 §4: known_not_submitted sem tentativa posterior; preflight_failed
+//       sem intenção não é `failed` — é um slot que nunca saiu)
+//   R0  histórico só com eventos não-operacionais ⇒ unknown, rule
+//       inconsistent_history (o diário não deixa isto acontecer; a função é
+//       exaustiva na mesma)
+//
+// `scored` e `closed` são ignorados na redução (A1 §6). `attempted` é uma
+// DIMENSÃO separada: há intent_committed E a classe não é not_started — o
+// known_not_submitted fica no diário e conta à parte como attempted=false (A1 §4).
+
+/** Kinds que não alteram a classe operacional (A1 §6). */
+export const NON_OPERATIONAL_KINDS = Object.freeze(['scored', 'closed']);
+const OPERATIONAL_KINDS = Object.freeze(SLOT_KINDS.filter((k) => !NON_OPERATIONAL_KINDS.includes(k)));
+const R3_KINDS = Object.freeze(['intent_committed', 'submitted', 'submission_uncertain', 'capture_uncertain', 'policy_review']);
+const R4_KINDS = Object.freeze(['known_not_submitted', 'prepared', 'preflight_ok', 'preflight_failed', 'queued']);
+
+/**
+ * Reduz o histórico de UM slot a exactamente uma classe, com a regra que a
+ * produziu. Puro. `events` = eventos desse slot, por ordem de diário (kinds fora
+ * de SLOT_KINDS são ignorados).
+ */
+export function reduceSlotHistory(events) {
+  const ops = events.filter((e) => OPERATIONAL_KINDS.includes(e.kind));
+  const intent_recorded = ops.some((e) => e.kind === 'intent_committed');
+  const known_not_submitted_recorded = ops.some((e) => e.kind === 'known_not_submitted');
+  const last = ops.length ? ops[ops.length - 1] : null;
+  const failedEv = ops.find((e) => e.kind === 'failed') || null;
+  const capturedEv = last && last.kind === 'captured' ? last : null;
+  const lastCapturedAny = [...ops].reverse().find((e) => e.kind === 'captured') || null;
+  let outcome, rule;
+  if (failedEv) { outcome = 'failed'; rule = 'R1_failed_terminal'; }
+  else if (capturedEv) {
+    const cap = capturedEv.payload || {};
+    if (cap.capture_completeness === 'unknown') { outcome = 'unknown'; rule = 'R2_captured_completeness_unknown'; }
+    else if (cap.capture_completeness === 'partial') { outcome = 'partial'; rule = 'R2_captured_partial'; }
+    else if (cap.condition_divergent) { outcome = 'partial'; rule = 'R2_captured_condition_divergent'; }
+    else if (cap.capture_completeness === 'full') { outcome = 'complete'; rule = 'R2_captured_full_condition_ok'; }
+    else { outcome = 'unknown'; rule = 'R2_captured_completeness_missing'; }
   }
+  else if (last && R3_KINDS.includes(last.kind)) { outcome = 'unknown'; rule = `R3_${last.kind}_without_sufficient_capture`; }
+  else if (last && R4_KINDS.includes(last.kind)) { outcome = 'not_started'; rule = `R4_${last.kind}`; }
+  else if (!last && !events.some((e) => SLOT_KINDS.includes(e.kind))) { outcome = 'not_started'; rule = 'R4_no_event'; }
+  else { outcome = 'unknown'; rule = 'R0_inconsistent_history'; } // só scored/closed sem evento operacional, ou kind fora da lista
+  if (!OUTCOMES.includes(outcome)) throw new CloseoutError('outcome_out_of_contract', `redução devolveu ${outcome}, fora de slot_outcomes do contrato`);
+  return {
+    outcome, rule,
+    attempted: intent_recorded && outcome !== 'not_started',
+    intent_recorded,
+    not_submitted_proven: known_not_submitted_recorded && outcome === 'not_started',
+    last_operational_kind: last ? last.kind : null,
+    captured: capturedEv ? capturedEv.payload : null,          // a captura que decidiu a classe (só em R2)
+    last_capture_any: lastCapturedAny ? lastCapturedAny.payload : null, // para hashes/consumo mesmo quando a classe não é R2
+    failed: failedEv ? failedEv.payload : null,
+  };
 }
 
-/** Deriva tudo o que é mecânico. Não escreve. */
+/** Compatibilidade: outcome de um slot a partir da sua lista de eventos. */
+export function outcomeOf(slotEvents) { return reduceSlotHistory(slotEvents).outcome; }
+
+/** Deriva tudo o que é mecânico. Não escreve. Lança se a identidade planned = Σ outcomes falhar. */
 export function deriveOutcomes(events) {
   const frozen = frozenPayload(events);
   const states = slotStates(null, events);
   const per_slot = {};
   for (const slot_id of frozen.slot_ids) {
     const s = states.get(slot_id) || { slot_id, state: null, history: [], attempt_token: null };
-    const capturedEv = [...events].reverse().find((e) => e.slot_id === slot_id && e.kind === 'captured');
-    const failedEv = [...events].reverse().find((e) => e.slot_id === slot_id && e.kind === 'failed');
-    const enriched = { ...s, captured: capturedEv ? capturedEv.payload : null };
+    const mine = events.filter((e) => e.slot_id === slot_id && SLOT_KINDS.includes(e.kind));
+    const r = reduceSlotHistory(mine);
+    const cap = r.last_capture_any;
     per_slot[slot_id] = {
       slot_id, prompt_id: frozen.prompt_of?.[slot_id] ?? null, role: frozen.roles?.[slot_id] ?? null,
-      state: s.state, attempted: s.history.includes('intent_committed'), attempt_token: s.attempt_token,
-      outcome: outcomeOf(enriched),
-      capture_completeness: capturedEv ? capturedEv.payload.capture_completeness : null,
-      condition_divergent: capturedEv ? !!capturedEv.payload.condition_divergent : null,
-      refusal: capturedEv ? !!capturedEv.payload.refusal : null,
-      search_used: capturedEv ? (capturedEv.payload.observed?.search_used ?? null) : null,
-      answer_sha256: capturedEv ? capturedEv.payload.answer_sha256 : null,
-      failure_class: failedEv ? failedEv.payload.class : null,
-      usage: capturedEv ? capturedEv.payload.usage : null,
+      state: s.state, attempt_token: s.attempt_token,
+      outcome: r.outcome, rule: r.rule,
+      attempted: r.attempted, intent_recorded: r.intent_recorded, not_submitted_proven: r.not_submitted_proven,
+      last_operational_kind: r.last_operational_kind,
+      capture_completeness: cap ? cap.capture_completeness : null,
+      condition_divergent: cap ? !!cap.condition_divergent : null,
+      refusal: cap ? !!cap.refusal : null,
+      search_used: cap ? (cap.observed?.search_used ?? null) : null,
+      answer_sha256: cap ? cap.answer_sha256 : null,
+      failure_class: r.failed ? r.failed.class : null,
+      usage: cap ? cap.usage : null,
     };
   }
   const slots = Object.values(per_slot);
@@ -112,6 +188,8 @@ export function deriveOutcomes(events) {
   const counts = {
     planned: slots.length,
     attempted: count((x) => x.attempted),
+    intent_recorded: count((x) => x.intent_recorded),
+    not_submitted_proven: count((x) => x.not_submitted_proven),
     complete: count((x) => x.outcome === 'complete'),
     partial: count((x) => x.outcome === 'partial'),
     failed: count((x) => x.outcome === 'failed'),
@@ -119,7 +197,10 @@ export function deriveOutcomes(events) {
     not_started: count((x) => x.outcome === 'not_started'),
     refusals: count((x) => x.refusal === true),
   };
+  // A1: identidade afirmada no closeout, não só reportada. attempted, valid e as
+  // contagens científicas são dimensões separadas — nunca parcelas desta soma.
   counts.identity_ok = counts.planned === counts.complete + counts.partial + counts.failed + counts.unknown + counts.not_started;
+  if (!counts.identity_ok) throw new CloseoutError('outcome_identity_broken', `planned ${counts.planned} ≠ complete ${counts.complete} + partial ${counts.partial} + failed ${counts.failed} + unknown ${counts.unknown} + not_started ${counts.not_started}`);
   const eligible = slots.filter((x) => x.role === 'eligible');
   const negative = slots.filter((x) => x.role === 'negative');
   const evaluable = (xs) => xs.filter((x) => x.outcome === 'complete' || x.outcome === 'partial');
