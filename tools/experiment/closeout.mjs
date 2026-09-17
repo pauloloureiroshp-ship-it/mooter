@@ -250,12 +250,22 @@ function evidenceOf(frozen, prompt_id) {
   return ev && typeof ev === 'object' ? ev : { declared: false, fact_ref: null, asks_recommendation: false };
 }
 
-/** Razões pelas quais um slot NÃO é avaliável para um campo (vazio = avaliável). Determinístico. */
-export function notEvaluableReasons(slot, field, frozen) {
+// AMENDMENT-001b · B2: três camadas, NUNCA igualadas.
+//   applicable        — o manifesto congelado declara a evidência que o campo exige
+//                       (fact_ref / rubric_ref / asks_recommendation). Pré-registada;
+//                       independente do que aconteceu ao slot.
+//   capture_sufficient — applicable E há resposta para observar (outcome complete|partial,
+//                       ou campo que não precisa de resposta).
+//   evaluable         — capture_sufficient E adjudicação ≠ null em scores.jsonl (o reviewer
+//                       olhou e decidiu; null é «não observado», e não conta).
+// As duas primeiras derivam do diário (deriveOutcomes); a terceira precisa do ledger
+// científico e é preenchida em buildConclusion.
+
+/** Razões pelas quais um slot NÃO é aplicável para um campo (vazio = aplicável). Só manifesto. */
+export function notApplicableReasons(slot, field, frozen) {
   const req = FIELD_EVIDENCE[field];
   if (!req) return [`campo_desconhecido:${field}`];
   const why = [];
-  if (req.needs_response && EVALUABILITY_BY_OUTCOME[slot.outcome] !== true) why.push(`outcome:${slot.outcome}`);
   const ev = evidenceOf(frozen, slot.prompt_id);
   for (const n of req.needs) {
     if (n === 'fact_ref' && !(typeof ev.fact_ref === 'string' && ev.fact_ref.length > 0)) why.push(ev.declared ? 'fact_ref:null' : 'evidence:not_declared');
@@ -265,12 +275,22 @@ export function notEvaluableReasons(slot, field, frozen) {
   return why;
 }
 
-export function evaluableFor(slot, field, frozen) { return notEvaluableReasons(slot, field, frozen).length === 0; }
+/** Razões pelas quais um slot aplicável NÃO tem captura suficiente para um campo (vazio = suficiente). */
+export function notEvaluableReasons(slot, field, frozen) {
+  const req = FIELD_EVIDENCE[field];
+  if (!req) return [`campo_desconhecido:${field}`];
+  const why = [];
+  if (req.needs_response && EVALUABILITY_BY_OUTCOME[slot.outcome] !== true) why.push(`outcome:${slot.outcome}`);
+  return [...why, ...notApplicableReasons(slot, field, frozen)];
+}
 
-function whyNotEvaluable(slots, field, frozen) {
-  const tally = {};
-  for (const x of slots) for (const w of notEvaluableReasons(x, field, frozen)) tally[w] = (tally[w] || 0) + 1;
-  return tally;
+export function applicableFor(slot, field, frozen) { return notApplicableReasons(slot, field, frozen).length === 0; }
+export function captureSufficientFor(slot, field, frozen) { return notEvaluableReasons(slot, field, frozen).length === 0; }
+
+function tally(slots, field, frozen, fn) {
+  const t = {};
+  for (const x of slots) for (const w of fn(x, field, frozen)) t[w] = (t[w] || 0) + 1;
+  return t;
 }
 
 /** Deriva tudo o que é mecânico. Não escreve. Lança se a identidade planned = Σ outcomes falhar. */
@@ -318,7 +338,11 @@ export function deriveOutcomes(events) {
   counts.identity_ok = counts.planned === counts.complete + counts.partial + counts.failed + counts.unknown + counts.not_started;
   if (!counts.identity_ok) throw new CloseoutError('outcome_identity_broken', `planned ${counts.planned} ≠ complete ${counts.complete} + partial ${counts.partial} + failed ${counts.failed} + unknown ${counts.unknown} + not_started ${counts.not_started}`);
   // ── AMENDMENT-001 · A3 · denominadores por posição e avaliabilidade por campo ──
-  for (const x of slots) x.evaluable_for = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, evaluableFor(x, f, frozen)]));
+  for (const x of slots) {
+    x.applicable_for = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, applicableFor(x, f, frozen)]));
+    x.capture_sufficient_for = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, captureSufficientFor(x, f, frozen)]));
+    x.evaluable_for = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, null])); // B2: precisa de scores.jsonl — buildConclusion preenche
+  }
   const eligible = slots.filter((x) => x.role === 'eligible');
   const negative = slots.filter((x) => x.role === 'negative');
   const other = slots.filter((x) => x.role !== 'eligible' && x.role !== 'negative');
@@ -345,14 +369,21 @@ export function deriveOutcomes(events) {
     eligible_evaluable: evaluable(eligible).length,
     eligible_complete: eligible.filter((x) => x.outcome === 'complete').length,
     negative_evaluable: evaluable(negative).length,
+    // B2: por campo, três contagens que nunca se igualam — applicable (pré-registado no
+    // manifesto), capture_sufficient (aplicável e com resposta), evaluable (adjudicado ≠ null;
+    // preenchido em buildConclusion, porque precisa de scores.jsonl).
     by_field: Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, {
       needs_response: FIELD_EVIDENCE[f].needs_response,
       needs: [...FIELD_EVIDENCE[f].needs],
-      eligible_evaluable: eligible.filter((x) => x.evaluable_for[f]).length,
-      negative_evaluable: negative.filter((x) => x.evaluable_for[f]).length,
-      eligible_not_evaluable_why: whyNotEvaluable(eligible, f, frozen),
+      applicable: { eligible: eligible.filter((x) => x.applicable_for[f]).length, negative: negative.filter((x) => x.applicable_for[f]).length },
+      capture_sufficient: { eligible: eligible.filter((x) => x.capture_sufficient_for[f]).length, negative: negative.filter((x) => x.capture_sufficient_for[f]).length },
+      evaluable: { eligible: null, negative: null },
+      eligible_not_applicable_why: tally(eligible, f, frozen, notApplicableReasons),
+      eligible_not_evaluable_why: tally(eligible, f, frozen, notEvaluableReasons),
     }])),
   };
+  denominators.applicable_by_field = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, { ...denominators.by_field[f].applicable }]));
+  denominators.evaluable_by_field = null; // B2: preenchido em buildConclusion a partir de scores.jsonl
   if (!denominators.positions_identity_ok) throw new CloseoutError('positions_identity_broken', `planned_eligible ${eligible.length} + negative_planned ${negative.length} + other ${other.length} ≠ coverage ${slots.length}`);
   const negative_control_outcomes = byOutcome(negative);
   const search_used_counts = { true: count((x) => x.search_used === true), false: count((x) => x.search_used === false), null: count((x) => x.answer_sha256 && x.search_used === null), no_capture: count((x) => !x.answer_sha256) };
@@ -459,9 +490,13 @@ function observabilityLimits({ per_intent, denominators, per_slot }) {
   // A3: avaliabilidade por campo — onde a evidência falta, diz-se por campo e porquê.
   for (const field of SCIENCE_FIELDS) {
     const bf = d.by_field[field];
-    if (bf.needs.length && bf.eligible_evaluable < d.eligible_evaluable) {
-      const why = Object.entries(bf.eligible_not_evaluable_why).filter(([k]) => !k.startsWith('outcome:')).map(([k, v]) => `${k}×${v}`).join(', ');
-      limits.push(`${field}: avaliável em ${bf.eligible_evaluable}/${d.eligible_evaluable} slots elegíveis com resposta (exige ${bf.needs.join('+')}; falta: ${why || 'n/d'})`);
+    if (bf.needs.length && bf.capture_sufficient.eligible < d.eligible_evaluable) {
+      const why = Object.entries(bf.eligible_not_applicable_why).map(([k, v]) => `${k}×${v}`).join(', ');
+      limits.push(`${field}: aplicável com captura suficiente em ${bf.capture_sufficient.eligible}/${d.eligible_evaluable} slots elegíveis com resposta (exige ${bf.needs.join('+')}; falta: ${why || 'n/d'})`);
+    }
+    // B2: aplicável ≠ avaliável — o que ficou por adjudicar (null) diz-se, por campo.
+    if (bf.evaluable && bf.evaluable.eligible !== null && bf.evaluable.eligible < bf.capture_sufficient.eligible) {
+      limits.push(`${field}: adjudicado (≠ null) em ${bf.evaluable.eligible}/${bf.capture_sufficient.eligible} slots elegíveis aplicáveis com captura suficiente`);
     }
   }
   const usageUnknown = evaluableSlots.filter((x) => !x.usage || x.usage.tokens_out?.basis === 'unknown').length;
@@ -479,7 +514,25 @@ export function buildConclusion(ctx, { human = {}, invalidated = [], closing_rea
   const w = waveState(ctx, events);
   const d = deriveOutcomes(events);
   const scores = readScores(ctx);
-  const per_intent = countObservations({ scores, slot_ids: d.frozen.slot_ids, prompt_of: d.frozen.prompt_of || {}, evaluable_of: Object.fromEntries(Object.values(d.per_slot).map((x) => [x.slot_id, x.evaluable_for])) });
+  // B2: evaluable = capture_sufficient E adjudicação ≠ null em scores.jsonl (a última observação do campo para o slot vence).
+  const adjudicated = (slot_id, field) => { const recs = scores.filter((r) => r.slot_id === slot_id && r.field === field); return recs.length ? recs[recs.length - 1].value !== null : false; };
+  for (const x of Object.values(d.per_slot)) {
+    x.evaluable_for = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, x.capture_sufficient_for[f] && adjudicated(x.slot_id, f)]));
+  }
+  for (const f of SCIENCE_FIELDS) {
+    const bf = d.denominators.by_field[f];
+    bf.evaluable = {
+      eligible: Object.values(d.per_slot).filter((x) => x.role === 'eligible' && x.evaluable_for[f]).length,
+      negative: Object.values(d.per_slot).filter((x) => x.role === 'negative' && x.evaluable_for[f]).length,
+    };
+    if (bf.evaluable.eligible > bf.capture_sufficient.eligible || bf.capture_sufficient.eligible > bf.applicable.eligible) throw new CloseoutError('field_layers_broken', `${f}: evaluable ≤ capture_sufficient ≤ applicable violado`);
+  }
+  d.denominators.evaluable_by_field = Object.fromEntries(SCIENCE_FIELDS.map((f) => [f, { ...d.denominators.by_field[f].evaluable }]));
+  const per_intent = countObservations({
+    scores, slot_ids: d.frozen.slot_ids, prompt_of: d.frozen.prompt_of || {},
+    applicable_of: Object.fromEntries(Object.values(d.per_slot).map((x) => [x.slot_id, x.applicable_for])),
+    capture_sufficient_of: Object.fromEntries(Object.values(d.per_slot).map((x) => [x.slot_id, x.capture_sufficient_for])),
+  });
   const integrity = integrityReport(ctx);
   const artifacts = artifactsAndHashes(ctx);
   for (const inv of invalidated) {

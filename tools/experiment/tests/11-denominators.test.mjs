@@ -24,6 +24,7 @@ import { preflight } from '../preflight.mjs';
 import { closeoutWave, buildConclusion, checkConclusion, CloseoutError } from '../closeout.mjs';
 import { validateManifestInput } from '../freeze.mjs';
 import { frozenOpenWave, primaryManifest, observedFor, bytesOf, capabilityEligible, fakeExecutor, driveSlot, HUMAN_OK, MIN } from './_harness.mjs';
+import { appendScore } from '../scores.mjs';
 
 /** 8 slots com um mix realista: 5 complete (2 negativos), 1 partial, 1 failed, 1 not_started. */
 function mixedWave(waveId) {
@@ -70,12 +71,16 @@ test('11a · planned 8 = 5 complete + 1 partial + 1 failed + 0 unknown + 1 not_s
   assert.equal(d.eligible_complete, 3);
   assert.equal(d.negative_evaluable, 2);
   // Por campo: sem evidence declarada, new_fact_used e recommended_appropriately têm denominador 0 — dito, não escondido.
-  assert.equal(d.by_field.target_mentioned.eligible_evaluable, 4);
-  assert.equal(d.by_field.crawl_access.eligible_evaluable, 6, 'observação do servidor: não precisa de resposta');
-  assert.equal(d.by_field.new_fact_used.eligible_evaluable, 0);
-  assert.equal(d.by_field.recommended_appropriately.eligible_evaluable, 0);
+  // B2: três camadas por campo — applicable (manifesto) ≥ capture_sufficient (com resposta) ≥ evaluable (adjudicado ≠ null).
+  assert.deepEqual([d.by_field.target_mentioned.applicable.eligible, d.by_field.target_mentioned.capture_sufficient.eligible, d.by_field.target_mentioned.evaluable.eligible], [6, 4, 0], 'sem scores.jsonl nada está adjudicado');
+  assert.deepEqual([d.by_field.crawl_access.applicable.eligible, d.by_field.crawl_access.capture_sufficient.eligible], [6, 6], 'observação do servidor: não precisa de resposta');
+  assert.deepEqual([d.by_field.new_fact_used.applicable.eligible, d.by_field.new_fact_used.capture_sufficient.eligible, d.by_field.new_fact_used.evaluable.eligible], [0, 0, 0]);
+  assert.deepEqual([d.by_field.recommended_appropriately.applicable.eligible, d.by_field.recommended_appropriately.capture_sufficient.eligible], [0, 0]);
+  assert.deepEqual(d.by_field.new_fact_used.eligible_not_applicable_why, { 'evidence:not_declared': 6 });
   assert.deepEqual(d.by_field.new_fact_used.eligible_not_evaluable_why, { 'outcome:failed': 1, 'outcome:not_started': 1, 'evidence:not_declared': 6 });
-  assert.ok(c.observability_limits.some((l) => /^new_fact_used: avaliável em 0\/4 .*evidence:not_declared×6/.test(l)), JSON.stringify(c.observability_limits));
+  assert.deepEqual(d.applicable_by_field.new_fact_used, { eligible: 0, negative: 0 });
+  assert.deepEqual(d.evaluable_by_field.target_mentioned, { eligible: 0, negative: 0 });
+  assert.ok(c.observability_limits.some((l) => /^new_fact_used: aplicável com captura suficiente em 0\/4 .*evidence:not_declared×6/.test(l)), JSON.stringify(c.observability_limits));
   assert.deepEqual(c.negative_control_outcomes, { complete: 2, partial: 0, failed: 0, unknown: 0, not_started: 0 });
   assert.equal(c.per_slot['Q03-1'].outcome, 'failed');
   assert.equal(c.per_slot['Q03-1'].failure_class, 'auth_failed');
@@ -157,30 +162,36 @@ test('11e · A3 · avaliabilidade POR CAMPO com evidência explícita: new_fact_
   const d = c.eligible_evaluable_denominator;
   assert.equal(d.planned_eligible, 6); assert.equal(d.negative_planned, 2); assert.equal(d.eligible_evaluable, 4); assert.equal(d.negative_evaluable, 2);
   const bf = d.by_field;
-  assert.deepEqual([bf.target_mentioned.eligible_evaluable, bf.target_mentioned.negative_evaluable], [4, 2]);
-  assert.deepEqual([bf.crawl_access.eligible_evaluable, bf.crawl_access.negative_evaluable], [6, 2]);
-  assert.deepEqual([bf.new_fact_used.eligible_evaluable, bf.new_fact_used.negative_evaluable], [1, 2], 'só Q01-1 tem resposta E fact_ref; N04-1/N04-2 têm fact_ref (descritivo, controlo)');
+  assert.deepEqual(bf.target_mentioned.capture_sufficient, { eligible: 4, negative: 2 });
+  assert.deepEqual(bf.crawl_access.capture_sufficient, { eligible: 6, negative: 2 });
+  assert.deepEqual(bf.new_fact_used.applicable, { eligible: 2, negative: 2 }, 'aplicável = manifesto declara fact_ref: Q01-1, Q01-2 (Q02 null, Q03 não declarado); N04 sim');
+  assert.deepEqual(bf.new_fact_used.capture_sufficient, { eligible: 1, negative: 2 }, 'só Q01-1 tem resposta E fact_ref; N04-1/N04-2 têm fact_ref (descritivo, controlo)');
+  assert.deepEqual(bf.new_fact_used.evaluable, { eligible: 0, negative: 0 }, 'B2: sem adjudicação em scores.jsonl, avaliável = 0 — nunca igual a aplicável');
   assert.deepEqual(bf.new_fact_used.eligible_not_evaluable_why, { 'outcome:failed': 1, 'outcome:not_started': 1, 'fact_ref:null': 2, 'evidence:not_declared': 2 });
-  assert.deepEqual([bf.recommended_appropriately.eligible_evaluable, bf.recommended_appropriately.negative_evaluable], [3, 0], 'Q01-1, Q02-1, Q02-2 pedem recomendação; Q03-2 não declarado; N04 declara false');
+  assert.deepEqual(bf.recommended_appropriately.applicable, { eligible: 4, negative: 0 });
+  assert.deepEqual(bf.recommended_appropriately.capture_sufficient, { eligible: 3, negative: 0 }, 'Q01-1, Q02-1, Q02-2 pedem recomendação; Q03-2 não declarado; N04 declara false');
   assert.deepEqual(bf.recommended_appropriately.needs, ['rubric_ref', 'asks_recommendation']);
   const ps = c.per_slot;
-  assert.deepEqual([ps['Q02-1'].evaluable_for.new_fact_used, ps['Q02-1'].evaluable_for.recommended_appropriately, ps['Q02-1'].evaluable_for.target_mentioned], [false, true, true]);
-  assert.deepEqual([ps['Q03-2'].evaluable_for.new_fact_used, ps['Q03-2'].evaluable_for.recommended_appropriately, ps['Q03-2'].evaluable_for.target_mentioned], [false, false, true], 'parcial: tem resposta, não tem evidência declarada');
-  assert.equal(ps['Q03-1'].evaluable_for.crawl_access, true, 'failed: sem resposta, mas o servidor observa-se na mesma');
-  assert.equal(ps['Q01-2'].evaluable_for.target_mentioned, false);
+  assert.deepEqual([ps['Q02-1'].capture_sufficient_for.new_fact_used, ps['Q02-1'].capture_sufficient_for.recommended_appropriately, ps['Q02-1'].capture_sufficient_for.target_mentioned], [false, true, true]);
+  assert.deepEqual([ps['Q03-2'].capture_sufficient_for.new_fact_used, ps['Q03-2'].capture_sufficient_for.recommended_appropriately, ps['Q03-2'].capture_sufficient_for.target_mentioned], [false, false, true], 'parcial: tem resposta, não tem evidência declarada');
+  assert.equal(ps['Q03-1'].capture_sufficient_for.crawl_access, true, 'failed: sem resposta, mas o servidor observa-se na mesma');
+  assert.equal(ps['Q01-2'].capture_sufficient_for.target_mentioned, false);
+  assert.equal(ps['Q01-2'].applicable_for.new_fact_used, true, 'aplicável pelo manifesto mesmo sem ter começado');
+  assert.equal(ps['Q02-1'].evaluable_for.target_mentioned, false, 'sem adjudicação, nada é avaliável');
   // Critério 19 (A3 §19): search_used=false/null NÃO exclui — Q01-1 (false) e Q02-2 (null) ficam avaliáveis; a
   // elegibilidade para recommended_appropriately vem da declaração, não de search_used.
-  assert.equal(ps['Q01-1'].search_used, false); assert.equal(ps['Q01-1'].evaluable_for.recommended_appropriately, true);
-  assert.equal(ps['Q02-2'].search_used, null); assert.equal(ps['Q02-2'].evaluable_for.recommended_appropriately, true);
-  assert.equal(ps['Q02-1'].search_used, true); assert.equal(ps['Q02-1'].evaluable_for.new_fact_used, false, 'search_used=true não torna nada avaliável');
+  assert.equal(ps['Q01-1'].search_used, false); assert.equal(ps['Q01-1'].capture_sufficient_for.recommended_appropriately, true);
+  assert.equal(ps['Q02-2'].search_used, null); assert.equal(ps['Q02-2'].capture_sufficient_for.recommended_appropriately, true);
+  assert.equal(ps['Q02-1'].search_used, true); assert.equal(ps['Q02-1'].capture_sufficient_for.new_fact_used, false, 'search_used=true não torna nada avaliável');
   assert.equal(d.coverage_per_wave, 8);
-  assert.ok(c.observability_limits.some((l) => /^new_fact_used: avaliável em 1\/4/.test(l)), JSON.stringify(c.observability_limits));
-  assert.ok(c.observability_limits.some((l) => /^recommended_appropriately: avaliável em 3\/4/.test(l)));
-  // per_intent_outcomes leva o denominador por campo (n_evaluable) — sem registos, tudo null, mas o denominador está lá.
-  assert.equal(c.per_intent_outcomes.Q01.new_fact_used.n_evaluable, 1);
-  assert.equal(c.per_intent_outcomes.Q02.new_fact_used.n_evaluable, 0);
-  assert.equal(c.per_intent_outcomes.Q02.recommended_appropriately.n_evaluable, 2);
-  assert.equal(c.per_intent_outcomes.N04.recommended_appropriately.n_evaluable, 0);
+  assert.ok(c.observability_limits.some((l) => /^new_fact_used: aplicável com captura suficiente em 1\/4/.test(l)), JSON.stringify(c.observability_limits));
+  assert.ok(c.observability_limits.some((l) => /^recommended_appropriately: aplicável com captura suficiente em 3\/4/.test(l)));
+  assert.ok(c.observability_limits.some((l) => /^new_fact_used: adjudicado \(≠ null\) em 0\/1/.test(l)), 'B2: o que ficou por adjudicar diz-se');
+  // per_intent_outcomes leva os denominadores por campo — sem registos, n_evaluable é 0, mas n_applicable/n_capture_sufficient estão lá.
+  assert.deepEqual([c.per_intent_outcomes.Q01.new_fact_used.n_applicable, c.per_intent_outcomes.Q01.new_fact_used.n_capture_sufficient, c.per_intent_outcomes.Q01.new_fact_used.n_evaluable], [2, 1, 0]);
+  assert.deepEqual([c.per_intent_outcomes.Q02.new_fact_used.n_applicable, c.per_intent_outcomes.Q02.new_fact_used.n_capture_sufficient], [0, 0]);
+  assert.equal(c.per_intent_outcomes.Q02.recommended_appropriately.n_capture_sufficient, 2);
+  assert.equal(c.per_intent_outcomes.N04.recommended_appropriately.n_applicable, 0);
 });
 
 test('11f · A3 · evidence mal formada no manifesto é recusada no freeze (não entra em silêncio como «não avaliável»); o que se declara vai para o diário', () => {
@@ -219,4 +230,70 @@ test('11g · A3 · a regra do piloto também morde pelo controlo negativo: 6/6 e
   for (const s of ['Q01-1', 'Q02-1', 'Q03-1', 'N04-1', 'N04-2', 'Q03-2', 'Q02-2', 'Q01-2']) { w2.clk.advance(2 * MIN); driveSlot(w2.ctx, w2.manifest, s, { exec: exec2, to: 'captured' }); }
   w2.clk.t = Date.parse(J.waveState(w2.ctx).closeout_at) + 1;
   assert.equal(checkConclusion(buildConclusion(w2.ctx, { human: { ...HUMAN_OK, decision: 'qualified_for_next_design' } })).ok, true);
+});
+
+// ── AMENDMENT-001b · B2 (2026-09-17) · aplicabilidade pré-registada ≠ avaliabilidade efectiva ─
+// AMENDMENT-001b-20260917.txt §B2: applicable_by_field = o manifesto declara a evidência;
+// evaluable_by_field = applicable E captura suficiente E adjudicação ≠ null em scores.jsonl.
+// Nunca igualar as duas. Mordida: contar null como avaliável ⇒ (c) vermelho (morde-amend001b.mjs B2).
+
+test('11h · B2 · (a) refs válidas + captura ausente (unknown) ou insuficiente (partial sem o trecho, adjudicado null) ⇒ applicable=1, evaluable=0, slot na cobertura 8/8; (b) resposta completa + search_used=false + adjudicado ⇒ evaluable=1; (c) mesmo slot: new_fact_used=false adjudicado, recommended_appropriately=null ⇒ evaluable 1 / 0', () => {
+  const m = primaryManifest('W-11h');
+  m.prompts = m.prompts.map((p) => {
+    if (p.id === 'Q01') return { ...p, evidence: { fact_ref: 'diff:page-q01@2026-09-17', asks_recommendation: true } };
+    if (p.id === 'Q02') return { ...p, evidence: { fact_ref: 'diff:page-q02@2026-09-17', asks_recommendation: true } };
+    if (p.id === 'N04') return { ...p, evidence: { fact_ref: null, asks_recommendation: false } };
+    return p; // Q03: não declarado
+  });
+  const w = frozenOpenWave({ waveId: 'W-11h', manifest: m });
+  const exec = fakeExecutor();
+  const step = (slot, opts) => { w.clk.advance(2 * MIN); return driveSlot(w.ctx, w.manifest, slot, { exec, ...opts }); };
+  step('Q01-1', { to: 'captured', completeness: 'unknown' });                       // (a) captura ausente
+  step('Q02-1', { to: 'captured', observed: { search_used: false } });              // (b)/(c)
+  // Q03-1 nunca começa
+  step('N04-1', { to: 'captured' });
+  step('N04-2', { to: 'captured' });
+  step('Q03-2', { to: 'captured' });
+  step('Q02-2', { to: 'captured' });
+  step('Q01-2', { to: 'captured', completeness: 'partial' });                       // (a) captura insuficiente
+  const prov = () => ({ source: 'reviewer-syn', timestamp: new Date(w.clk.t).toISOString(), evidence_reference: { note: 'sintético' }, reviewer: 'rev-syn' });
+  appendScore(w.ctx, { slot_id: 'Q01-2', field: 'new_fact_used', value: null, ...prov() });                // (a) sem o trecho relevante: null
+  appendScore(w.ctx, { slot_id: 'Q02-1', field: 'target_mentioned', value: true, ...prov() });             // (b)
+  appendScore(w.ctx, { slot_id: 'Q02-1', field: 'new_fact_used', value: false, ...prov() });               // (c)
+  appendScore(w.ctx, { slot_id: 'Q02-1', field: 'recommended_appropriately', value: null, ...prov() });    // (c)
+  appendScore(w.ctx, { slot_id: 'Q01-1', field: 'page_or_domain_cited', value: true, ...prov() });         // observado num slot SEM captura suficiente: fica à parte
+  w.clk.t = Date.parse(J.waveState(w.ctx).closeout_at) + 1;
+  const c = buildConclusion(w.ctx, { human: HUMAN_OK });
+  const d = c.eligible_evaluable_denominator;
+  assert.equal(d.coverage_per_wave, 8, '8/8 posições — ninguém sai da cobertura');
+  assert.deepEqual(c.per_slot['Q01-1'].outcome, 'unknown'); assert.deepEqual(c.per_slot['Q01-2'].outcome, 'partial');
+  // (a) Q01-1 e Q01-2: aplicáveis a new_fact_used (fact_ref), avaliáveis 0.
+  assert.deepEqual([c.per_slot['Q01-1'].applicable_for.new_fact_used, c.per_slot['Q01-1'].capture_sufficient_for.new_fact_used, c.per_slot['Q01-1'].evaluable_for.new_fact_used], [true, false, false], 'captura ausente');
+  assert.deepEqual([c.per_slot['Q01-2'].applicable_for.new_fact_used, c.per_slot['Q01-2'].capture_sufficient_for.new_fact_used, c.per_slot['Q01-2'].evaluable_for.new_fact_used], [true, true, false], 'captura insuficiente: adjudicado null');
+  // (b) Q02-1: completa, search_used=false, adjudicada ⇒ avaliável.
+  assert.equal(c.per_slot['Q02-1'].search_used, false);
+  assert.deepEqual([c.per_slot['Q02-1'].applicable_for.target_mentioned, c.per_slot['Q02-1'].capture_sufficient_for.target_mentioned, c.per_slot['Q02-1'].evaluable_for.target_mentioned], [true, true, true], 'search_used nunca exclui');
+  // (c) mesmo slot: new_fact_used=false adjudicado ⇒ avaliável; recommended_appropriately=null ⇒ não.
+  assert.deepEqual([c.per_slot['Q02-1'].evaluable_for.new_fact_used, c.per_slot['Q02-1'].evaluable_for.recommended_appropriately], [true, false]);
+  // Contagens exactas por campo (elegíveis): Q01-1, Q01-2, Q02-1, Q02-2 declaram fact_ref e pedem recomendação; Q03 não declara.
+  const bf = d.by_field;
+  assert.deepEqual(bf.new_fact_used.applicable, { eligible: 4, negative: 0 });
+  assert.deepEqual(bf.new_fact_used.capture_sufficient, { eligible: 3, negative: 0 }, 'Q01-2 (partial), Q02-1, Q02-2 — Q01-1 unknown fica fora');
+  assert.deepEqual(bf.new_fact_used.evaluable, { eligible: 1, negative: 0 }, 'só Q02-1 (false adjudicado); Q01-2 null e Q02-2 sem registo não contam');
+  assert.deepEqual(bf.recommended_appropriately.applicable, { eligible: 4, negative: 0 });
+  assert.deepEqual(bf.recommended_appropriately.capture_sufficient, { eligible: 3, negative: 0 });
+  assert.deepEqual(bf.recommended_appropriately.evaluable, { eligible: 0, negative: 0 }, '(c): null não é avaliável');
+  assert.deepEqual(bf.target_mentioned.applicable, { eligible: 6, negative: 2 });
+  assert.deepEqual(bf.target_mentioned.capture_sufficient, { eligible: 4, negative: 2 });
+  assert.deepEqual(bf.target_mentioned.evaluable, { eligible: 1, negative: 0 });
+  assert.deepEqual(d.applicable_by_field.new_fact_used, { eligible: 4, negative: 0 });
+  assert.deepEqual(d.evaluable_by_field.new_fact_used, { eligible: 1, negative: 0 });
+  assert.notDeepEqual(d.applicable_by_field, d.evaluable_by_field, 'nunca iguais');
+  // per_intent: Q02 new_fact_used n_applicable 2, n_capture_sufficient 2, n_evaluable 1; Q01 2/1/0.
+  assert.deepEqual([c.per_intent_outcomes.Q02.new_fact_used.n_applicable, c.per_intent_outcomes.Q02.new_fact_used.n_capture_sufficient, c.per_intent_outcomes.Q02.new_fact_used.n_evaluable], [2, 2, 1]);
+  assert.deepEqual([c.per_intent_outcomes.Q01.new_fact_used.n_applicable, c.per_intent_outcomes.Q01.new_fact_used.n_capture_sufficient, c.per_intent_outcomes.Q01.new_fact_used.n_evaluable, c.per_intent_outcomes.Q01.new_fact_used.null], [2, 1, 0, 2]);
+  assert.equal(c.per_intent_outcomes.Q02.recommended_appropriately.n_evaluable, 0);
+  assert.deepEqual([c.per_intent_outcomes.Q01.page_or_domain_cited.true, c.per_intent_outcomes.Q01.page_or_domain_cited.n_capture_sufficient, c.per_intent_outcomes.Q01.page_or_domain_cited.n_evaluable, c.per_intent_outcomes.Q01.page_or_domain_cited.observed_outside_denominator], [1, 1, 0, 1], 'Q01-1 (captura unknown) tem valor observado: fica fora do denominador, não é apagado nem promovido');
+  assert.equal(c.per_slot['Q01-1'].evaluable_for.page_or_domain_cited, false);
+  assert.ok(c.observability_limits.some((l) => /^recommended_appropriately: adjudicado \(≠ null\) em 0\/3/.test(l)), JSON.stringify(c.observability_limits));
 });

@@ -119,17 +119,20 @@ export function readScores(ctx) {
  * false, null — contando registos, nunca inferindo. Um slot sem registo para um
  * campo conta como null («não observado»). Nada é promovido de campo para campo.
  */
-export function countObservations({ scores, slot_ids, prompt_of, evaluable_of = null }) {
+export function countObservations({ scores, slot_ids, prompt_of, applicable_of = null, capture_sufficient_of = null }) {
   const byIntent = {};
   const intents = [...new Set(slot_ids.map((s) => prompt_of[s]))];
+  const layered = !!(applicable_of && capture_sufficient_of);
   for (const intent of intents) {
     byIntent[intent] = {};
     const slotsOf = slot_ids.filter((s) => prompt_of[s] === intent);
     for (const field of SCIENCE_FIELDS) {
-      // AMENDMENT-001 A3: o denominador por campo (n_evaluable) vem do closeout (evaluable_of),
-      // nunca daqui; e um valor observado num slot NÃO avaliável fica contado à parte
-      // (observed_outside_denominator) — não se apaga, não se promove.
-      const c = { true: 0, false: 0, null: 0, n_slots: slotsOf.length, n_records: 0, n_evaluable: evaluable_of ? 0 : null, observed_outside_denominator: evaluable_of ? 0 : null };
+      // AMENDMENT-001 A3 / 001b B2: os denominadores por campo vêm do closeout, nunca daqui —
+      // n_applicable (manifesto declara a evidência), n_capture_sufficient (aplicável e com
+      // resposta) e n_evaluable (capture_sufficient E adjudicado ≠ null). Um valor observado
+      // num slot sem captura suficiente fica contado à parte (observed_outside_denominator) —
+      // não se apaga, não se promove. null nunca conta como avaliável.
+      const c = { true: 0, false: 0, null: 0, n_slots: slotsOf.length, n_records: 0, n_applicable: layered ? 0 : null, n_capture_sufficient: layered ? 0 : null, n_evaluable: layered ? 0 : null, observed_outside_denominator: layered ? 0 : null };
       for (const slot of slotsOf) {
         // Última observação desse campo para esse slot vence (revisões posteriores supersedem, e ficam no ficheiro).
         const recs = scores.filter((r) => r.slot_id === slot && r.field === field);
@@ -137,10 +140,13 @@ export function countObservations({ scores, slot_ids, prompt_of, evaluable_of = 
         const last = recs.length ? recs[recs.length - 1] : null;
         const v = last ? last.value : null;
         c[String(v)]++;
-        if (evaluable_of) {
-          const ev = evaluable_of[slot] && evaluable_of[slot][field] === true;
-          if (ev) c.n_evaluable++;
-          else if (v !== null) c.observed_outside_denominator++;
+        if (layered) {
+          const ap = applicable_of[slot] && applicable_of[slot][field] === true;
+          const cs = capture_sufficient_of[slot] && capture_sufficient_of[slot][field] === true;
+          if (ap) c.n_applicable++;
+          if (cs) c.n_capture_sufficient++;
+          if (cs && v !== null) c.n_evaluable++;
+          if (!cs && v !== null) c.observed_outside_denominator++;
         }
       }
       byIntent[intent][field] = c;
