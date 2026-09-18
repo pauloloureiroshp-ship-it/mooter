@@ -973,6 +973,20 @@
     ]
   },
   "history": [
-    "limpeza documental 2026-09-18: open_for_gpt → resolvido; external_review confirmado pelo GPT Prisma"
+    "limpeza documental 2026-09-18: open_for_gpt → resolvido; external_review confirmado pelo GPT Prisma",
+    "ratchet 2026-09-18: caminhos de máquina retirados do annex (28c3a693)",
+    "ci 2026-09-18: passo «Kit do experimento Prisma» em test.yml (caso 15, registado aqui)"
+  ],
+  "shared_component_changes": [
+    {
+      "case": 15,
+      "file": ".github/workflows/test.yml",
+      "job": "unit + integration tests",
+      "change": "um passo novo, «Kit do experimento Prisma» / `npm run test:experiment`, a seguir a «Cockpit runner + smoke E2E»; nenhuma outra linha do workflow muda",
+      "why": "a guarda «teste fora do CI» (tools/cockpit/runner/teste-fora-do-ci.mjs) recusa 21 ficheiros de teste novos que nenhum job invocava — um teste que ninguém corre não protege ninguém; a alternativa (regravá-los como fora do CI) seria mentir",
+      "authorized_by": "dono (Paulo), 2026-09-18: «✓ (1) e (2) no mesmo ramo, em commits separados»",
+      "reviewed_by": "final-reviewer (Opus) — parecer específico sobre este commit antes do push (ver PR #519)",
+      "scope_note": "fora de tools/experiment/**; é o único ficheiro tocado fora do kit além da linha test:experiment do package.json (passo 1)"
+    }
   ]
 }
