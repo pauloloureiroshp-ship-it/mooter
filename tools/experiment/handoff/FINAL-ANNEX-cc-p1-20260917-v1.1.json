@@ -975,7 +975,8 @@
   "history": [
     "limpeza documental 2026-09-18: open_for_gpt → resolvido; external_review confirmado pelo GPT Prisma",
     "ratchet 2026-09-18: caminhos de máquina retirados do annex (28c3a693)",
-    "ci 2026-09-18: passo «Kit do experimento Prisma» em test.yml (caso 15, registado aqui)"
+    "ci 2026-09-18: passo «Kit do experimento Prisma» em test.yml (caso 15, registado aqui)",
+    "gitattributes 2026-09-18: contrato pinado guardado byte a byte (-text após o catch-all); achado do bloco -text morto registado para o Mooter"
   ],
   "shared_component_changes": [
     {
@@ -987,6 +988,25 @@
       "authorized_by": "dono (Paulo), 2026-09-18: «✓ (1) e (2) no mesmo ramo, em commits separados»",
       "reviewed_by": "final-reviewer (Opus) — parecer específico sobre este commit antes do push (ver PR #519)",
       "scope_note": "fora de tools/experiment/**; é o único ficheiro tocado fora do kit além da linha test:experiment do package.json (passo 1)"
+    },
+    {
+      "case": 15,
+      "occurrence": 2,
+      "file": ".gitattributes",
+      "change": "uma linha `tools/experiment/contract/engine-contract-0.3-proposed.json -text` + um comentário de uma linha, imediatamente APÓS `* text=auto eol=lf` (linha 75); `git add --renormalize` desse ficheiro (o objecto passa a guardar os bytes CRLF de origem). Nenhuma outra linha muda.",
+      "why": "parecer do final-reviewer (18/09, BLOQUEIO): o pin 61acea27… em pins.json foi medido sobre os bytes CRLF do worktree — e o original do pacote consensus-gpt-v0.2 É CRLF (11 700 bytes, 341 CR, sha 61acea27…), logo o pin é a proveniência correcta; mas o índice guardava LF (`* text=auto eol=lf`) e qualquer checkout fresco (Linux ou Windows) materializava LF (sha ab855602…) ⇒ pins_mismatch em openJournal ⇒ 21 falhas em 26 numa extracção limpa (git archive). Com -text o objecto guarda os bytes de origem e o sha citado no registo, pins, testes, README e annex não muda.",
+      "why_after_catchall": "em .gitattributes a última regra que casa vence; a linha no bloco «sha256 É a promessa» (linhas 29–51) não tinha efeito — medido com git check-attr (text: auto) e git ls-files --eol (i/lf).",
+      "verification": "git check-attr → text: unset; git ls-files --eol → i/crlf w/crlf attr/-text; git show :<path> | sha256sum → 61acea27…",
+      "authorized_by": "dono (Paulo), 2026-09-18: «✓ opção 1 … imediatamente após * text=auto eol=lf»"
+    }
+  ],
+  "findings_for_mooter": [
+    {
+      "id": "gitattributes-dead-block",
+      "found": "2026-09-18, ao aplicar o -text do contrato",
+      "what": "o bloco -text de .gitattributes (linhas ~18–74: tools/router/classify.js, classify.js.sha256, packages/cli/skills-templates/mooter/SKILL.md, _handoff/ab-audit/ambito-S*.txt) está INOPERANTE porque o catch-all `* text=auto eol=lf` da linha 75 vem depois e sobrepõe-no (última regra que casa vence). git check-attr tools/router/classify.js → text: auto, eol: lf — não -text.",
+      "impact": "hoje sem estrago visível (esses ficheiros já são LF no índice e no worktree), mas a garantia escrita nas linhas 18–20 e 72–74 («nunca converter, em circunstância nenhuma») não é a que o git aplica; um clone com core.autocrlf=true NÃO está protegido pelo -text, só pelo eol=lf do catch-all.",
+      "fix": "mover as linhas -text para depois do catch-all (ou mover o catch-all para o topo). Fora deste PR — é componente partilhado e toca 5 linhas existentes; decisão do dono."
     }
   ]
 }

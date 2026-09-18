@@ -73,6 +73,8 @@ _handoff/ab-audit/ambito-S*.txt         -text
 # normalizar: diz "nunca converter, em circunstancia nenhuma". Para ficheiros
 # cujo sha256 E a promessa, a redundancia e barata e a ambiguidade nao.
 * text=auto eol=lf
+# Depois do catch-all de proposito: em .gitattributes a ULTIMA regra que casa vence, e o contrato pinado por sha256 (CRLF de origem) tem de ficar byte a byte.
+tools/experiment/contract/engine-contract-0.3-proposed.json -text
 
 # Binarios, para o `text=auto` nao ter de adivinhar.
 *.png binary
