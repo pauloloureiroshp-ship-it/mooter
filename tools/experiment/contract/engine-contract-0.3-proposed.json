@@ -1,0 +1,341 @@
+{
+  "version": "prisma-engine-draft-0.3-proposed",
+  "status": "proposed-documentation-only-not-authorized-to-execute",
+  "objective": "Qualify the experimental process and document citation, factual use and suitable recommendations; no causal efficacy inference in this cycle.",
+  "preparation": {
+    "buyer_fields": [
+      "economic_buyer",
+      "user",
+      "job",
+      "purchase_trigger",
+      "budget",
+      "constraints",
+      "current_alternative",
+      "objections",
+      "poor_fit"
+    ],
+    "offer_fields": [
+      "product",
+      "target_url",
+      "verified_capabilities",
+      "unsupported_claims",
+      "limitations",
+      "availability",
+      "price_basis",
+      "evidence_urls",
+      "evidence_dates"
+    ],
+    "comparison": [
+      "Mooter",
+      "Conductor — https://www.conductor.build/ (meeting date unknown)",
+      "Adapta"
+    ],
+    "gate": "Demonstrated overlap between buyer need and product capability; unresolved essential claims block eligibility.",
+    "prompt_rule": "Buyer-realistic questions, no target brand, competitor list, page, rubric or desired answer in discovery payload. Updated question sets get a new baseline."
+  },
+  "roles": {
+    "coordinator": "Informed researcher; Mooter is a possible coordinator, not a qualified blind executor yet.",
+    "respondent": "Independent supported surface, isolated operationally; receive frozen question only.",
+    "reviewer": "Score frozen answers against registered rubric; record evidence and disagreements.",
+    "custodian": "Prepare and hold reserved questions independently of optimizer."
+  },
+  "waves": {
+    "W0": {
+      "cap": 4,
+      "partition": "synthetic-qualification"
+    },
+    "W1a": {
+      "cap": 8,
+      "eligible": 6,
+      "negative": 2,
+      "timing": "before intervention"
+    },
+    "W1b": {
+      "cap": 8,
+      "eligible": 6,
+      "negative": 2,
+      "timing": "different pre-intervention day"
+    },
+    "intervention": "One approved truthful page change with before/after hashes and publication timestamp.",
+    "probes": {
+      "cap": 3,
+      "days": [
+        7,
+        14,
+        28
+      ],
+      "partition": "informed-diagnostic",
+      "last_probe": "after W2"
+    },
+    "W2": {
+      "cap": 8,
+      "eligible": 6,
+      "negative": 2,
+      "proposed_day": 28,
+      "window": "freeze before intervention",
+      "crawl_required": false,
+      "rule": "Run at fixed checkpoint if operationally eligible. Missing logs limits interpretation, not sampling."
+    },
+    "reserved": {
+      "cap": 4,
+      "custody_required": true,
+      "partition": "independent-reserved",
+      "timing": "after W2 without further changes"
+    },
+    "caps": {
+      "development": 24,
+      "evaluation_including_reserved": 28,
+      "qualification": 4,
+      "informed_probes": 3,
+      "all_conversations": 35
+    },
+    "language": {
+      "count": 1,
+      "selected": null,
+      "status": "pending buyer mapping and decision"
+    },
+    "loop": "Close all evidence including negatives before a separately registered next cycle. No sampling until a win."
+  },
+  "queue_policy": {
+    "max_concurrency_total": 1,
+    "max_concurrency_per_account": 1,
+    "primary_send_attempts_per_slot": 1,
+    "primary_automatic_resends": 0,
+    "sdk_retries_in_primary": "disabled where controllable; undisclosed adapter retries make eligibility unresolved",
+    "pilot_interval_proposal_seconds": 60,
+    "positive_jitter_range_seconds": [
+      0,
+      15
+    ],
+    "interval_status": "proposed lab guardrail, not a provider guarantee; confirm per surface in W0",
+    "next_action_at": "No earlier than max(last_terminal_time + preregistered interval+jitter, provider retry_after/reset, operator pause_until); only if remaining wave budget permits.",
+    "wave_wallclock_minutes": 45,
+    "closeout_reserve_minutes": 5,
+    "clock_includes_waits": true,
+    "soft_observation_deadline_seconds": null,
+    "deadline_rule": "Calibrate W0 without primary questions, register per surface. Observation timeout does not imply provider timeout. Hard wave deadline still applies.",
+    "known_not_submitted": "Slot can remain queued within original cap; log pre-submit failure.",
+    "submitted_or_uncertain": "Never resubmit automatically; recover existing response by run identifier or manual inspection. Failed submitted slot remains failed/partial/unknown.",
+    "pause_exceeds_budget": "Close incomplete; mark remaining slots not_started. Do not silently extend wave or replace failed slots."
+  },
+  "failure_policy": {
+    "temporary_rate_limit": "Persist literal message/header; pause, honor reset, no account/model rotation.",
+    "spend_or_subscription_cap": "Stop until legitimate reset/authorized access change; no blind backoff loop.",
+    "capture_failure": "Recover same response; keep raw partial evidence and unknown latency.",
+    "authentication_or_permission": "Stop; inspect supported access; do not bypass controls.",
+    "safety_refusal": "Preserve as refusal, separately from recommendation; do not paraphrase to defeat guardrails. Reviewer adjudicates coverage.",
+    "condition_drift": "Close condition, version a new manifest; no silent fallback or pooling.",
+    "content_mismatch_before_submit": "Block and correct capture/input; never send a known altered prompt."
+  },
+  "state_machine": {
+    "normal": [
+      "prepared",
+      "preflight_ok",
+      "queued",
+      "intent_committed",
+      "submitted",
+      "captured",
+      "scored",
+      "closed"
+    ],
+    "pauses": [
+      "throttled",
+      "reset_wait",
+      "capture_uncertain",
+      "policy_review",
+      "submission_uncertain"
+    ],
+    "slot_outcomes": [
+      "complete",
+      "partial",
+      "failed",
+      "unknown",
+      "not_started"
+    ],
+    "wave_decisions": [
+      "qualified_for_next_design",
+      "inconclusive",
+      "stop"
+    ]
+  },
+  "storage": {
+    "proposal_root": "prisma-data/",
+    "files": [
+      "briefs/{brief_id}.json",
+      "waves/{wave_id}/manifest.json",
+      "waves/{wave_id}/events.jsonl",
+      "waves/{wave_id}/raw/{slot_id}/answer.txt",
+      "waves/{wave_id}/citations.jsonl",
+      "waves/{wave_id}/scores.jsonl",
+      "waves/{wave_id}/conclusion.json",
+      "hypotheses.jsonl",
+      "patterns.jsonl"
+    ],
+    "integrity": "Append new evidence/events, hash original captures, supersede interpretations with provenance. Hashes detect changes; they do not guarantee immutable storage.",
+    "closeout_required": [
+      "hypothesis_id",
+      "expected_result",
+      "planned",
+      "attempted",
+      "complete",
+      "valid",
+      "partial",
+      "failed",
+      "unknown",
+      "not_started",
+      "negative_control_outcomes",
+      "counterevidence",
+      "confounders",
+      "decision",
+      "reviewer",
+      "next_hypothesis_id",
+      "artifacts_and_hashes",
+      "per_intent_outcomes",
+      "eligible_evaluable_denominator",
+      "observability_limits",
+      "block_partition"
+    ]
+  },
+  "learning": {
+    "automatic_learning_in_cycle": false,
+    "human_closeout": "Required after every wave with counterevidence and next hypothesis.",
+    "outcomes": "Counts per intent and wave for citations, factual use and appropriate recommendations. Joint recommendation+citation remains a separate descriptive measure.",
+    "denominators": {
+      "planned_eligible_per_wave": 6,
+      "negative_per_wave": 2,
+      "coverage_per_wave": 8
+    },
+    "missingness": "Display evaluable counts plus all failures/partial/unknown slots. Retain no-search and no-citation answers.",
+    "inference": "No +2 efficacy rule, pooled population CI, universal sample minimum, causal attribution or sales claim.",
+    "two_ledgers": "Scientific observations independent from operational telemetry, linked by identifiers and hashes.",
+    "holdout": "Custody independent of optimizer; learning access forbidden."
+  },
+  "automation": {
+    "implemented_here": "Offline manifest validation only",
+    "proposed_later": [
+      "permitted capture adapter",
+      "persisted serial queue",
+      "reset-aware scheduler",
+      "capture-integrity checks",
+      "wave closeout validation",
+      "version-drift detection"
+    ],
+    "not_enabled": [
+      "live model calls",
+      "scheduled battery",
+      "automatic publication",
+      "new paid API",
+      "skill installation"
+    ]
+  },
+  "revision_provenance": {
+    "parent_version": "prisma-engine-draft-0.2-proposed",
+    "parent_sha256": "253743d6b38ef3125d170cd778d1f6afb0b89aeb57a9473f6b26a8312b677850",
+    "inputs": [
+      "GPT contradictory review of passage E",
+      "Cowork passage F including D"
+    ],
+    "protocol": "PROTOCOLO-PILOTO-0.2-proposed.txt",
+    "canonical_applied": false
+  },
+  "scientific_observations": {
+    "not_an_operational_state_machine": true,
+    "fields": [
+      "crawl_access",
+      "retrieved_target_url",
+      "page_or_domain_cited",
+      "new_fact_used",
+      "recommended_appropriately",
+      "target_mentioned",
+      "search_available",
+      "search_used"
+    ],
+    "value_domain": [
+      true,
+      false,
+      null
+    ],
+    "required_provenance": [
+      "source",
+      "timestamp",
+      "evidence_reference",
+      "reviewer"
+    ],
+    "new_fact_used": "Require page diff and answer excerpt. A cited URL alone does not prove use of the revised fact.",
+    "missingness": "No automatic promotion from access to retrieval/citation/use. Null is unknown, not absence.",
+    "competitor_included": "Per-brand observations, descriptive comparisons only; not a causal control group."
+  },
+  "condition_record": {
+    "required_record": [
+      "surface",
+      "observed_plan",
+      "selected_model_label",
+      "observed_model_label",
+      "reasoning_control",
+      "auto_switch",
+      "personalization",
+      "search_available",
+      "search_used",
+      "prompt_language",
+      "timestamp",
+      "prompt_hash",
+      "capture_method",
+      "operator_id"
+    ],
+    "desirable": [
+      "country_region",
+      "locale",
+      "ui_version",
+      "citation_count"
+    ],
+    "unknown_when_hidden": [
+      "backend_model_version",
+      "search_index_provider"
+    ],
+    "eligibility": "Verified essential isolation/access controls and search_available=true required in the primary arm. search_used may be false/null and remains in results. Hidden backend identity may remain unknown; never claim it is frozen.",
+    "privacy": "No exact IP, credentials, cookies or unrelated memory."
+  },
+  "acceptance_criteria": {
+    "status": "proposed-not-executed",
+    "base_cases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+    ],
+    "deferred_integration": [
+      3
+    ],
+    "partial_deferrals": {
+      "6": "SDK part deferred; observable UI drift recorded separately",
+      "12": "Learning integration deferred; no-learning/holdout protection applies now",
+      "15": "Shared-component regression mandatory if implementation touches Mooter"
+    },
+    "new_cases": {
+      "19": "Search available/used separated; no outcome exclusion",
+      "20": "Independent stage evidence; missing crawl does not cancel fixed W2"
+    },
+    "manual_adaptations": [
+      2,
+      4,
+      5,
+      14,
+      16,
+      17
+    ]
+  }
+}

@@ -54,6 +54,7 @@
     "test:gauntlet": "node --test \"tools/gauntlet/*.test.mjs\"",
     "test:ab": "node --test \"tools/ab/*.test.mjs\"",
     "test:ab-morde": "node tools/ab/morde.mjs",
+    "test:experiment": "node --test \"tools/experiment/tests/*.test.mjs\"",
     "ledger:capturar": "node tools/cockpit/runner/capturar-ledger.mjs",
     "nd:check": "node tools/cockpit/runner/nd-check.mjs",
     "receipts:check": "node tools/cockpit/runner/receipts-check.mjs",

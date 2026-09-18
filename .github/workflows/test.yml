@@ -158,6 +158,9 @@ jobs:
       - name: Cockpit runner + smoke E2E
         run: npm run test:cockpit-runner
 
+      - name: Kit do experimento Prisma
+        run: npm run test:experiment
+
       # O portao do gauntlet (estagio 2). O MEO_GAUNTLET.md declara tres estagios
       # e diz que estava no primeiro — «contrato de prompt ... NAO e automatico,
       # depende de obediencia». Medido a 2026-09-01: zero ficheiros verificavam a

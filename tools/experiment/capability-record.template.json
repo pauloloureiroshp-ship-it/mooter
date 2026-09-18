@@ -1,0 +1,21 @@
+{
+  "_note": "TEMPLATE — preenchido por OBSERVAÇÃO em W0 (synthetic-qualification), nunca por catálogo. Cada campo essencial: true|false|null + evidence_reference (captura/ecrã/nota datada). null num campo essencial ⇒ eligible_primary=false (o trabalho offline continua). Passa-se a preflight() como `capability`; o preflight recusa (ineligible_surface / search_unavailable / identity_missing) o que aqui não estiver observado.",
+  "schema": "prisma-capability-record/0.1-proposed",
+  "surface": "chatgpt-web",
+  "observed_at": null,
+  "observed_by": null,
+  "wave_id_w0": null,
+  "essential": {
+    "isolation_method_observed": { "value": null, "evidence_reference": null, "note": "ex.: 'Temporary chat' visível + memória desligada; 'declarado pela plataforma' ≠ 'verificado'" },
+    "personalization_off_observed": { "value": null, "evidence_reference": null },
+    "search_available": { "value": null, "evidence_reference": null, "note": "obrigatório true no braço primário (contrato 0.3 condition_record.eligibility; critério 19)" },
+    "model_label_selectable": { "value": null, "evidence_reference": null },
+    "model_label_observable_in_answer_ui": { "value": null, "evidence_reference": null },
+    "retries_controllable": { "value": null, "evidence_reference": null, "note": "UI de consumidor: quase sempre null ⇒ registar como limite, não inventar" },
+    "capture_method_fidelity": { "value": null, "evidence_reference": null, "note": "bytes colados == bytes visíveis? citações capturáveis?" }
+  },
+  "desirable": { "country_region": null, "locale": null, "ui_version": null, "citation_count_capturable": null },
+  "unknown_when_hidden": { "backend_model_version": "unknown", "search_index_provider": "unknown" },
+  "eligible_primary": null,
+  "eligibility_rule": "todos os essenciais com value=true (retries_controllable pode ser null com limite registado) E search_available=true"
+}
