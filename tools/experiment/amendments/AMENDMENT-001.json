@@ -206,9 +206,16 @@
       "A3 · alias eligible_capture_sufficient = eligible_evaluable (camada operacional, a que a regra do piloto mede) para não confundir com evaluable_by_field (adjudicada)",
       "docs · README define manifest_hash no snippet; template cita ineligible_surface (o código real); comentário «derivado (14)»"
     ],
-    "notes_open_for_gpt": [
-      "A1/B1 · .intent órfão: pela máquina, prepared → preflight_ok → submission_uncertain (órfão) fica unknown com attempted=false (não há intent_committed no diário); a API não deixa importar (no_intent_for_slot). Conservador por desenho; sem fixture própria de fecho — se a semântica desejada for outra, é 001c.",
-      "A3/B2 · «evaluable» tem duas acepções no conclusion.json: eligible_evaluable (operacional, regra do piloto) e evaluable_by_field (adjudicada). Alias acrescentado; renomear o campo pedido pela A3 seria outra emenda."
+    "notes_open_for_gpt": [],
+    "notes_resolved_2026_09_18": [
+      {
+        "note": "A1/B1 · .intent órfão: pela máquina, prepared → preflight_ok → submission_uncertain (órfão) fica unknown com attempted=false (não há intent_committed no diário); a API não deixa importar (no_intent_for_slot). Conservador por desenho; sem fixture própria de fecho — se a semântica desejada for outra, é 001c.",
+        "resolution": "resolvido: fixture de fecho do .intent órfão — AMENDMENT-001c C1 (7bc52dd4, teste 04f); confirmado pelo GPT Prisma em 2026-09-18"
+      },
+      {
+        "note": "A3/B2 · «evaluable» tem duas acepções no conclusion.json: eligible_evaluable (operacional, regra do piloto) e evaluable_by_field (adjudicada). Alias acrescentado; renomear o campo pedido pela A3 seria outra emenda.",
+        "resolution": "resolvido: nota 2 aceite como está (sem renomeação; eligible_capture_sufficient operacional, evaluable_by_field científica, eligible_evaluable legado documentado) — AMENDMENT-001c; confirmado pelo GPT Prisma em 2026-09-18"
+      }
     ]
   },
   "supplement_001c": {
@@ -220,7 +227,7 @@
       "sha256": "97e36afb2a8a6ae00fdcfc0bb7d09abffda550a5b482e4cca9c0f33c63e65cd7",
       "origin": "Cowork Prisma → Claude Code, a partir da confirmação do GPT Prisma (17/09) sobre cc-p1-20260917-v1: A2–A5 e reservadas confirmados; A1 pendente só desta fixture"
     },
-    "external_review_after": "corrections_applied_pending_confirmation",
+    "external_review_after": "done",
     "note_2_evaluable": "aceite como está — sem renomeação: eligible_capture_sufficient para a camada operacional, evaluable_by_field para a científica, eligible_evaluable como legado documentado; relatórios científicos usam o denominador adjudicado por campo",
     "attempted_false_semantics": "ausência de tentativa contabilizada pelo diário — NÃO prova de não-envio",
     "attempted_false_semantics_long": "attempted=false num slot com .intent órfão significa que o diário não tem intent_committed para o contabilizar como tentativa — não significa que nada foi enviado. A prova de não-envio é known_not_submitted (com proof), que aqui não existe; por isso a classe é unknown (submission_uncertain), o slot fica visível no histórico, não liberta orçamento e não volta a queued.",
@@ -256,6 +263,24 @@
     ],
     "explicitly_out": [
       "Nenhum comportamento mudou: a fixture passou contra o código de e32ae663 sem tocar em journal.mjs, import.mjs ou closeout.mjs."
-    ]
+    ],
+    "confirmation": {
+      "by": "GPT Prisma",
+      "date": "2026-09-18",
+      "scope": "001+001b+001c",
+      "statement": "confirmed (001+001b+001c, GPT Prisma 18/09)",
+      "covers": "A1–A5, reservadas, notas 1 e 2 — revisão científica de P1.0 confirmada",
+      "fixture_ref": "AMENDMENT-001c C1 (7bc52dd4)"
+    }
+  },
+  "external_review_confirmation": {
+    "by": "GPT Prisma",
+    "date": "2026-09-18",
+    "scope": "001+001b+001c",
+    "statement": "confirmed (001+001b+001c, GPT Prisma 18/09)",
+    "covers": "A1–A5, reservadas, notas 1 e 2 — revisão científica de P1.0 confirmada",
+    "fixture_ref": "AMENDMENT-001c C1 (7bc52dd4)",
+    "kit_enum_state": "done",
+    "note": "o enum do kit (pending | corrections_applied_pending_confirmation | done) não muda: «done» ⇔ confirmado; a frase literal da confirmação fica aqui e no annex"
   }
 }

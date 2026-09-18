@@ -95,7 +95,7 @@ test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed; extern
   const { closed } = closedWave('W-10d');
   assert.equal(SEMANTICS_VERSION, '0.3-proposed');
   assert.equal(closed.conclusion.semantics_version, '0.3-proposed');
-  assert.equal(closed.conclusion.external_review, 'corrections_applied_pending_confirmation');
+  assert.equal(closed.conclusion.external_review, 'done', 'confirmado pelo GPT Prisma em 2026-09-18 (registo: supplement_001c.external_review_after = done)');
   const am = closed.conclusion.amendments;
   assert.equal(am.length, 1);
   assert.equal(am[0].id, 'AMENDMENT-001'); assert.equal(am[0].date, '2026-09-17'); assert.equal(am[0].file, 'amendments/AMENDMENT-001.json');
@@ -112,13 +112,14 @@ test('10d · MORDIDA · a conclusão fixa semantics_version 0.3-proposed; extern
   assert.equal(am[0].supplements.length, 2);
   assert.equal(am[0].supplements[1].id, 'AMENDMENT-001c'); assert.equal(am[0].supplements[1].source_sha256, '97e36afb2a8a6ae00fdcfc0bb7d09abffda550a5b482e4cca9c0f33c63e65cd7');
   assert.deepEqual(am[0].supplements[1].items.map((i) => i.id), ['C1', 'C2']);
-  assert.equal(closed.conclusion.external_review_detail, 'corrections_applied_pending_confirmation (001+001b+001c)');
+  assert.equal(closed.conclusion.external_review_detail, 'done (001+001b+001c)');
+  assert.equal(am[0].supplements[1].external_review_after, 'done');
   assert.equal(externalReviewDetail([]), 'pending');
   // Sem registo ⇒ pending; e o estado escrito à mão em desacordo com o registo é problema.
   assert.equal(externalReviewState([]), 'pending');
   assert.deepEqual(loadAmendments({ dir: tmpRoot() }), [], 'directório sem emendas: lista vazia, não erro');
   assert.deepEqual([...EXTERNAL_REVIEW_STATES], ['pending', 'corrections_applied_pending_confirmation', 'done']);
-  const manual = { ...closed.conclusion, external_review: 'done' };
+  const manual = { ...closed.conclusion, external_review: 'pending' };
   assert.ok(checkConclusion(manual).problems.some((p) => /não corresponde ao registo/.test(p)));
   assert.ok(checkConclusion({ ...closed.conclusion, external_review: 'aprovado' }).problems.some((p) => /external_review ∈/.test(p)));
   // Um ficheiro de emenda inválido não passa em silêncio.

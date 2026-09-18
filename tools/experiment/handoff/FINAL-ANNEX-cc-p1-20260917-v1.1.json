@@ -1,0 +1,977 @@
+{
+  "schema": "prisma-cc-annex/final/0.1",
+  "handoff_id": "cc-p1-20260917-v1.1",
+  "parent": "cc-p1-20260917-v1",
+  "parent_sha256": "f1b8d173f662003dcb0a9199668e31ddc3c893db2e1a3f6f83347be46fab6c10",
+  "delta_from_parent": "AMENDMENT-001c (C1 fixture 04f do .intent órfão + C2 registo): sem alteração funcional — só teste, registo, README e a bateria morde-amend001c.mjs",
+  "generated_at": "2026-09-17T20:39:50.107Z",
+  "generated_by": "Claude Code (Opus 5), worktree frugal-prisma-kit, ramo prisma/experiment-layer-p1",
+  "git": {
+    "base": "8dfdb8b899f75d9ebdcca29d6337831c8d2c9ce5",
+    "head": "622838926c1c9c1ecd97418c27d506c483a02ec2",
+    "head_short": "62283892",
+    "branch": "prisma/experiment-layer-p1",
+    "porcelain_empty": true,
+    "pushed": false,
+    "pr": false,
+    "merged": false,
+    "commits": [
+      {
+        "short": "ce9ebb84",
+        "sha": "ce9ebb840b73ae768a2d1f8b6d4d713d21496d11",
+        "date": "2026-09-16T17:33:59-03:00",
+        "subject": "experiment(P1.0 passo 1): o diário da onda — append-only, fsync, cadeia de hashes, um token por slot, deadline que não se renova"
+      },
+      {
+        "short": "ea7885cf",
+        "sha": "ea7885cf963f53f4847ce107154fbab783d225de",
+        "date": "2026-09-16T18:00:07-03:00",
+        "subject": "experiment(P1.0 passo 2): freeze content-addressed, open do manifesto, preflight de bytes — nada sai sem bater no hash"
+      },
+      {
+        "short": "9a12e5a1",
+        "sha": "9a12e5a124c3757c243d3e7ff7a2d2bb38eb1c05",
+        "date": "2026-09-16T18:13:16-03:00",
+        "subject": "experiment(P1.0 passo 3): o importador — a resposta liga-se ao slot que a pediu, o consumo diz de onde vem, a falha guarda o literal"
+      },
+      {
+        "short": "7aa427ea",
+        "sha": "7aa427ea09e33cf72a38c2d36b0ce3871b05f3b8",
+        "date": "2026-09-17T11:07:26-03:00",
+        "subject": "experiment(P1.0 passo 4): o fecho deriva-se do diário, assina-se por hash, e os dois ledgers não se tocam"
+      },
+      {
+        "short": "2f671ea8",
+        "sha": "2f671ea8b3936f00d5f50815d3e5447a97dbfe0a",
+        "date": "2026-09-17T11:15:10-03:00",
+        "subject": "AMENDMENT-001: correcção mecânica — closeout_required tem 21 (não 20) e é lido do contrato congelado, nunca de uma constante"
+      },
+      {
+        "short": "d4bf406c",
+        "sha": "d4bf406c82c6ebb28bdada7a1beb799e26d57b5b",
+        "date": "2026-09-17T11:29:12-03:00",
+        "subject": "AMENDMENT-001: A1 — o outcome de um slot é uma redução determinística do histórico, com precedência explícita"
+      },
+      {
+        "short": "84420bef",
+        "sha": "84420befee815cc23e8e662597098e48c3265b21",
+        "date": "2026-09-17T11:48:29-03:00",
+        "subject": "AMENDMENT-001: A3 — denominadores por posição (planned_eligible / negative_planned) e avaliabilidade por outcome E por campo científico"
+      },
+      {
+        "short": "3fb3ac75",
+        "sha": "3fb3ac75776930ebe7780ac0bbcf44be0b3fb360",
+        "date": "2026-09-17T11:57:43-03:00",
+        "subject": "AMENDMENT-001: A5 — custo: basis fica no enum do contrato; parcialidade é `coverage`; tokens × lista é estimated, nunca observed"
+      },
+      {
+        "short": "01a17509",
+        "sha": "01a1750932bca9f2c972ceae3c43c2f4a3cd10e2",
+        "date": "2026-09-17T12:07:15-03:00",
+        "subject": "AMENDMENT-001: registo da emenda — external_review deriva do registo (corrections_applied_pending_confirmation); completude A4 («n/d» só com justificação)"
+      },
+      {
+        "short": "1d9d7b37",
+        "sha": "1d9d7b3730135491ab89e8041aad41f253f573f6",
+        "date": "2026-09-17T12:26:29-03:00",
+        "subject": "AMENDMENT-001b: B1 — a falha que decide R1 é a TERMINAL (sem saída em SLOT_TRANSITIONS), não a histórica; attempted conta o envio posterior ao known_not_submitted"
+      },
+      {
+        "short": "179bddb8",
+        "sha": "179bddb88bfe734b1fe74e92062d14d1ec3ef0b6",
+        "date": "2026-09-17T12:32:15-03:00",
+        "subject": "AMENDMENT-001b: B2 — aplicabilidade pré-registada ≠ avaliabilidade efectiva: três camadas por campo (applicable ≥ capture_sufficient ≥ evaluable), nunca igualadas"
+      },
+      {
+        "short": "011cd546",
+        "sha": "011cd546b4b80d2af598a7cd074918ab1bc8c123",
+        "date": "2026-09-17T12:34:45-03:00",
+        "subject": "AMENDMENT-001b: B3 — o kit REJEITA a partição reservada (R01/R02) até existir custodiante: freeze recusa, scores recusa, README declara"
+      },
+      {
+        "short": "ada344a9",
+        "sha": "ada344a92cc1a834eae47278a167d1f7caf80708",
+        "date": "2026-09-17T12:38:48-03:00",
+        "subject": "AMENDMENT-001b: B4 — limiar de utilidade E-6 por par (effort.mjs, três provas como fixtures); secção supplement_001b no registo; external_review_detail «corrections_applied_pending_confirmation (001+001b)»"
+      },
+      {
+        "short": "85e0db73",
+        "sha": "85e0db7335c5cf305b0e90ca227f086a406e285c",
+        "date": "2026-09-17T12:43:40-03:00",
+        "subject": "passo 5 (P1.0): README do kit — procedimento manual para uma superfície — e capability-record.template.json; registo fecha o commit de B4"
+      },
+      {
+        "short": "e32ae663",
+        "sha": "e32ae6639eabc350c867dab2c5007664c47039c0",
+        "date": "2026-09-17T17:14:55-03:00",
+        "subject": "passo 5 (P1.0): gate final — as baterias de mordida entram no repo (mordida/), e as notas do final-reviewer aplicadas"
+      },
+      {
+        "short": "7bc52dd4",
+        "sha": "7bc52dd46a0d0e8ab7831e19e919a1ad2d442024",
+        "date": "2026-09-17T17:38:44-03:00",
+        "subject": "AMENDMENT-001c: C1 fixture .intent órfão — fecho provado sem alteração funcional"
+      },
+      {
+        "short": "62283892",
+        "sha": "622838926c1c9c1ecd97418c27d506c483a02ec2",
+        "date": "2026-09-17T17:38:45-03:00",
+        "subject": "AMENDMENT-001c: C2 registo — commit da fixture citado no supplement_001c"
+      }
+    ],
+    "files_changed": 48,
+    "files_outside_tools_experiment": [
+      "package.json"
+    ],
+    "note_package_json": "package.json: só a linha \"test:experiment\" (passo 1, aceite no ✓ do passo 1)"
+  },
+  "gate_final": {
+    "kit_suite": {
+      "command": "npm run test:experiment",
+      "tests": 96,
+      "pass": 96,
+      "fail": 0,
+      "history": {
+        "step1": "testes 16/17/04 + 03",
+        "step4": 77,
+        "after_001": 86,
+        "after_001b": 94,
+        "gate_final_v1": 95,
+        "after_001c": 96
+      }
+    },
+    "tools_router": {
+      "command": "cd tools/router && npm test",
+      "tests": 1384,
+      "pass": 1374,
+      "fail": 9,
+      "failing_set": [
+        "✖ device lookup is read-only and never triggers legacy credential migration",
+        "✖ requireEnv: rejects malformed sentry_dsn",
+        "✖ requireEnv: throws on malformed hub URL",
+        "✖ requireEnv: throws on non-integer tracker port",
+        "✖ requireEnv: throws on out-of-range tracker port (ephemeral)",
+        "✖ requireEnv: throws on out-of-range tracker port (privileged)",
+        "✖ requireEnv: throws on unknown log level",
+        "✖ tryEnv: returns ok:false + defaults when env invalid (soft fail)",
+        "✖ vault receipts are immutable, idempotent and aggregatable by device"
+      ],
+      "identical_to_step1_and_step4": true,
+      "new_failures": [],
+      "explanation": "2 pré-existentes (agent-sync-ledger «device lookup…», «vault receipts…») + 7 env.test.js (requireEnv/tryEnv) porque `zod` não resolve no worktree irmão frugal-prisma-kit; nenhuma causada por tools/experiment. Critério aceite no ✓ do passo 1: «conjunto idêntico, nenhuma falha nova»."
+    },
+    "final_reviewer": {
+      "agent": "final-reviewer (Opus)",
+      "verdict": "SHIP-COM-NOTAS",
+      "required_action": "proveniência das baterias de mordida — scripts fora do diff",
+      "applied_in": "e32ae663",
+      "notes_applied": [
+        "B2 · adjudicated exige answer_sha256 == resposta actual do slot (contrato 0.3 two_ledgers «linked by identifiers and hashes»); observação obsoleta não conta e fica dita (stale_records) — teste 11i, mordida B2-M6",
+        "B4 · effort.mjs exige exactamente 3 replays (pré-registo); N>3 ⇒ replay_count_not_preregistered, sem veredicto — teste effort-iv",
+        "B3 · RESERVED_ID case-insensitive (r01 também é reservado) — teste 12e (1b)",
+        "A3 · alias eligible_capture_sufficient = eligible_evaluable (camada operacional, a que a regra do piloto mede) para não confundir com evaluable_by_field (adjudicada)",
+        "docs · README define manifest_hash no snippet; template cita ineligible_surface (o código real); comentário «derivado (14)»"
+      ],
+      "notes_open_for_gpt": [],
+      "refuted_attempts": [
+        "15 históricos de fronteira em reduceSlotHistory: sempre uma classe única no enum",
+        "negativos no denominador elegível: só por role; PROMPT_ROLES + contagem por order no primário fecham",
+        "null avaliável: adjudicated exige ≠ null; validateScore recusa undefined/0/''",
+        "8 mutações reproduzidas numa cópia: todas morderam",
+        "basis fora do enum: nenhum caminho"
+      ],
+      "notes_resolved_2026_09_18": [
+        {
+          "note": "A1/B1 · .intent órfão: pela máquina, prepared → preflight_ok → submission_uncertain (órfão) fica unknown com attempted=false (não há intent_committed no diário); a API não deixa importar (no_intent_for_slot). Conservador por desenho; sem fixture própria de fecho — se a semântica desejada for outra, é 001c.",
+          "resolution": "confirmado pelo GPT Prisma em 2026-09-18; fixture AMENDMENT-001c C1 (7bc52dd4)"
+        },
+        {
+          "note": "A3/B2 · «evaluable» tem duas acepções no conclusion.json: eligible_evaluable (operacional, regra do piloto) e evaluable_by_field (adjudicada). Alias acrescentado; renomear o campo pedido pela A3 seria outra emenda.",
+          "resolution": "confirmado pelo GPT Prisma em 2026-09-18; fixture AMENDMENT-001c C1 (7bc52dd4)"
+        }
+      ]
+    },
+    "mutation_batteries": [
+      {
+        "script": "morde-amend001-a1.mjs",
+        "bit": "8/8",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "A1-M1 · troca da precedência 1↔4: known_not_submitted/preflight no fim vence sobre failed (a mordida pedida pela emenda)",
+            "red": [
+              "07f"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A1-M2 · regra 6 ignorada: scored/closed contam como operacionais (mascaram a classe)",
+            "red": [
+              "07e",
+              "07f",
+              "07g"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A1-M3 · regra 5 ignorada: R2 lê o PRIMEIRO captured, não o último (a recuperação não supersede)",
+            "red": [
+              "07f"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A1-M4 · completeness=unknown tratado como partial (comportamento do passo 4)",
+            "red": [
+              "07e",
+              "07f"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A1-M5 · attempted volta a ser «houve intent_committed» (known_not_submitted contado como tentado)",
+            "red": [
+              "07d",
+              "07e",
+              "07f",
+              "07g"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A1-M6 · regra 2 ignorada: submitted sem captura sai partial em vez de unknown",
+            "red": [
+              "07c",
+              "07d",
+              "07e",
+              "07f"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A1-M7 · a asserção de identidade deixa de contar unknown (planned ≠ soma tem de LANÇAR, não só reportar)",
+            "red": [
+              "07c",
+              "07d",
+              "07e",
+              "11h"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A1-M8 · preflight_failed sem intenção deixa de ser not_started (sai da R4 e cai em R0/unknown) — o caso (a) da emenda",
+            "red": [
+              "07a",
+              "07e",
+              "07f"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001-a3.mjs",
+        "bit": "9/9",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "A3-M1 · negativos somados ao denominador elegível (a mordida pedida pela emenda)",
+            "red": [
+              "07a",
+              "07e",
+              "07g",
+              "11a",
+              "11b",
+              "11c",
+              "11d",
+              "11e",
+              "11g",
+              "11h",
+              "11i",
+              "19e",
+              "20a"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M2 · failed contado como avaliável (avaliabilidade por outcome errada)",
+            "red": [
+              "07a",
+              "11a",
+              "11e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M3 · new_fact_used avaliável sem fact_ref (sem diff da página)",
+            "red": [
+              "11a",
+              "11e",
+              "11h",
+              "20a"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M4 · search_used=false/null EXCLUI de recommended_appropriately (o erro que o §19 proíbe)",
+            "red": [
+              "11e",
+              "11h"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M5 · countObservations ignora applicable_of: n_applicable = n_slots (denominador inflacionado)",
+            "red": [
+              "11e",
+              "20a"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M6 · crawl_access passa a exigir resposta (observação do servidor tratada como observação da resposta)",
+            "red": [
+              "11a",
+              "11e",
+              "11i"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M7 · o freeze não leva a evidence para o diário (só para o manifest.json)",
+            "red": [
+              "11e",
+              "11f",
+              "11h"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M8 · o freeze aceita evidence mal formada (entra em silêncio como «não avaliável»)",
+            "red": [
+              "11f"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A3-M9 · regra do piloto compara com o nome antigo (den.negative, undefined ⇒ nunca força)",
+            "red": [
+              "11g"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001-a5.mjs",
+        "bit": "7/7",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "A5-M1 · aggregateUsage aceita basis «partial» (a mordida pedida pela emenda)",
+            "red": [
+              "18e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A5-M2 · costEnvelope volta a devolver basis «partial» com um lado desconhecido",
+            "red": [
+              "18a",
+              "18d",
+              "18e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A5-M3 · tokens observados × lista sai «observed» (custo calculado apresentado como cobrança real)",
+            "red": [
+              "09b",
+              "09c",
+              "18a",
+              "18c",
+              "18e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A5-M4 · a parcela em falta é preenchida com 0 (soma «total» com meio envelope)",
+            "red": [
+              "18a",
+              "18d",
+              "18e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A5-M5 · coverage calculado ao contrário (partial quando ambos conhecidos)",
+            "red": [
+              "09b",
+              "09c",
+              "18a",
+              "18b",
+              "18c",
+              "18d",
+              "18e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A5-M6 · aggregateUsage soma os componentes conhecidos como se fossem o total",
+            "red": [
+              "18e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "A5-M7 · metric() aceita «partial» como basis de tokens",
+            "red": [
+              "18e"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001-registo.mjs",
+        "bit": "6/6",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "R-M1 · external_review escrito à mão («pending») em vez de derivado do registo",
+            "red": [
+              "07a",
+              "07b",
+              "07c",
+              "07e",
+              "10a",
+              "10b",
+              "10d",
+              "10e",
+              "11b",
+              "11g"
+            ],
+            "bit": true
+          },
+          {
+            "id": "R-M2 · loadAmendments ignora o directório (lista sempre vazia)",
+            "red": [
+              "10d"
+            ],
+            "bit": true
+          },
+          {
+            "id": "R-M3 · checkConclusion aceita qualquer external_review e não confronta com o registo",
+            "red": [
+              "10d"
+            ],
+            "bit": true
+          },
+          {
+            "id": "R-M4 · «n/d» nu aceite como julgamento concluído",
+            "red": [
+              "10e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "R-M5 · <<TODO>> conta como concluído na completude",
+            "red": [
+              "10e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "R-M6 · loadAmendments não confronta semantics_version nem external_review_after",
+            "red": [
+              "10d"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001b-B1.mjs",
+        "bit": "4/4",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "B1-M1 · «qualquer failed histórico» decide R1 (preflight_failed tratado como terminal) — a mordida pedida",
+            "red": [
+              "07a",
+              "07e",
+              "07f",
+              "07g"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B1-M2 · qualquer known_not_submitted ⇒ attempted=false, mesmo com submitted posterior",
+            "red": [
+              "07f",
+              "07g"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B1-M3 · history[] não reportado (a falha anterior desaparece do relatório)",
+            "red": [
+              "07g"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B1-M4 · prior_failures não distingue: conta a terminal como histórica",
+            "red": [
+              "07g"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001b-B2.mjs",
+        "bit": "6/6",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "B2-M1 · null adjudicado conta como avaliável — a mordida pedida ((c) vermelho)",
+            "red": [
+              "11h"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B2-M2 · evaluable igualado a applicable (as duas contagens colapsam)",
+            "red": [
+              "07a",
+              "07e",
+              "11a",
+              "11b",
+              "11c",
+              "11d",
+              "11e",
+              "11h",
+              "11i",
+              "19e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B2-M3 · capture_sufficient ignora o outcome (unknown conta como captura suficiente)",
+            "red": [
+              "11a",
+              "11e",
+              "11h"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B2-M4 · search_used=false exclui da avaliabilidade (§19)",
+            "red": [
+              "11e",
+              "11h",
+              "19e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B2-M6 · adjudicated ignora o hash da resposta (observação obsoleta conta como avaliável) — nota do gate final",
+            "red": [
+              "11i"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B2-M5 · countObservations conta n_evaluable sem exigir capture_sufficient",
+            "red": [
+              "11h",
+              "20a"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001b-B3.mjs",
+        "bit": "4/4",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "B3-M1 · o freeze aceita R01/R02 no manifesto — a mordida pedida",
+            "red": [
+              "12e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B3-M2 · o freeze aceita partition independent-reserved sem custodiante",
+            "red": [
+              "12e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B3-M3 · o freeze aceita role reserved",
+            "red": [
+              "12e"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B3-M4 · order com id reservado passa",
+            "red": [
+              "12e"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001b-B4.mjs",
+        "bit": "5/5",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "B4-M1 · condições combinadas ENTRE replays (cada condição basta verificar-se em algum replay)",
+            "red": [
+              "effort-iii"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B4-M2 · um replay com uma condição falhada conta na mesma",
+            "red": [
+              "effort-ii",
+              "effort-iii"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B4-M3 · empate integral apresentado como vitória",
+            "red": [
+              "effort-i"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B4-M4 · percentagem de poupança na apresentação",
+            "red": [
+              "effort-i"
+            ],
+            "bit": true
+          },
+          {
+            "id": "B4-M5 · medida em falta vira 0 (o vício do motor: null ⇒ 0)",
+            "red": [
+              "effort-iv"
+            ],
+            "bit": true
+          }
+        ]
+      },
+      {
+        "script": "morde-amend001c.mjs",
+        "bit": "3/3",
+        "restored_identical": true,
+        "mutations": [
+          {
+            "id": "C1-M(a) · resume() ignora o .intent órfão (não marca submission_uncertain) ⇒ passo 1",
+            "red": [
+              "04b",
+              "04c",
+              "04f"
+            ],
+            "bit": true
+          },
+          {
+            "id": "C1-M(b) · closeout classifica submission_uncertain como not_started ⇒ passo 4",
+            "red": [
+              "04f",
+              "07f"
+            ],
+            "bit": true
+          },
+          {
+            "id": "C1-M(c) · commitIntent aceita o slot com token no disco (sem existsSync e sem O_EXCL) ⇒ passo 3",
+            "red": [
+              "03a",
+              "04a",
+              "04b",
+              "04f"
+            ],
+            "bit": true
+          }
+        ]
+      }
+    ]
+  },
+  "deviations_accepted": {
+    "step1": [
+      {
+        "id": "(a)",
+        "what": "o teste 03 (claim multi-processo, O_EXCL) entrou já no passo 1: a primitiva está no journal e sem ele a mutação M5 (wx→w) não mordia — só o existsSync apanhava",
+        "accepted": "✓ passo 1 (turn 3)"
+      },
+      {
+        "id": "(b)",
+        "what": "knownNotSubmitted e reconcile entraram no passo 1 por serem semântica do diário, não do importador",
+        "accepted": "✓ passo 1 (turn 3)"
+      },
+      {
+        "id": "(c)",
+        "what": "C3 verificado em openJournal além do preflight — mais forte do que pedido, e barato",
+        "accepted": "✓ passo 1 (turn 3)"
+      }
+    ],
+    "notes_turn3": [
+      {
+        "what": "cabeçalho de journal.mjs só mencionava ledger-prov.js",
+        "status": "alinhado: journal.mjs:40-41 cita os dois pinados"
+      },
+      {
+        "what": "resume(): .intent órfão num slot já known_not_submitted cai em reported_only",
+        "status": "documentado: journal.mjs:484-517 (orphans[].action = reported_only; não inventa transições); o gate final acrescenta a nota sobre attempted do órfão para o GPT"
+      }
+    ],
+    "search_used": {
+      "rule": "search_used é observação pós-resposta; o preflight não o escreve — o que o operador reportar antes da captura fica em observed.search_used_reported_pre_capture { value, ignored: true, why } (nada se apaga, tudo tem proveniência)",
+      "where": "preflight.mjs:82; teste 19c",
+      "accepted": "✓ passo 2 (turn 4)"
+    },
+    "pricing_js": {
+      "decision": "NÃO pinar pricing.js; a proveniência é sha256 + «Last reviewed» no envelope de custo (price_basis)",
+      "where": "import.mjs pricingProvenance(); teste 18d",
+      "accepted": "✓ passo 3 (turn 5)",
+      "a5_note": "depois da A5, USD de tabela é sempre estimated (kind api_charges_at_list_price); só uma cobrança real seria observed"
+    },
+    "events_jsonl_outside_hashed_artifacts": {
+      "why": "o próprio fecho acrescenta wave.closing/wave.closed, logo o hash muda por construção; o diário é guardado pela cadeia de hashes + fotografia (linhas antes do fecho, sha da última) na conclusão",
+      "where": "closeout.mjs SKIP + journalSnapshot; testes 10a/10b/10c"
+    },
+    "test12_false_positives": {
+      "what": "a parte estática do teste 12 dava falsos positivos: backtest.js tem o seu próprio --holdout (fatia do decisions.log), cabeçalhos citam o motor de propósito, e a mensagem de erro de scores.mjs diz «o holdout não passa por aqui»",
+      "fix": "regexes por CAMINHO de dados (prisma-data|prisma/waves|scores.jsonl|holdout/|R0[12].json) nos módulos de aprendizagem; nos módulos do kit, remoção de comentários e proibição de LER (fs/path com holdout) ou de caminho literal",
+      "where": "tests/12-holdout.test.mjs 12a/12b"
+    },
+    "caps_negative_vs_negative_planned": {
+      "mapping": "manifest.caps.negative (freeze.mjs, passo 2, nome do esquema do manifesto) ≡ conclusion.eligible_evaluable_denominator.negative_planned (closeout, A3). Mesma grandeza: nº de POSIÇÕES de controlo negativo planeadas por onda (2 no primário). O closeout reporta caps_declared.negative_planned = caps.negative. Renomear a chave do manifesto muda manifest_hash de manifestos futuros e fica fora (registado na AMENDMENT-001 explicitly_out e na 001b B4).",
+      "where": "closeout.mjs caps_declared; teste 11a"
+    }
+  },
+  "amendments": {
+    "AMENDMENT-001": {
+      "source_sha256": "794045bee008c303c0422c49cc4040afda4eac38df4fb6963c3f707cf19c416f",
+      "items": [
+        {
+          "id": "A4",
+          "kind": "mechanical",
+          "status": "applied",
+          "commit": "2f671ea8",
+          "mutation": "mecânica: 3/3 à mão na sessão (constante de 20 → contract-a; sha ignorado → contract-b; pin removido → contract.test.mjs falha ao carregar) · registo/completude: 6/6 (tools/experiment/mordida/morde-amend001-registo.mjs)"
+        },
+        {
+          "id": "A1",
+          "kind": "semantic",
+          "status": "applied",
+          "commit": "d4bf406c",
+          "mutation": "8/8 (tools/experiment/mordida/morde-amend001-a1.mjs; M5/M8 re-ancorados depois de B1)"
+        },
+        {
+          "id": "A2",
+          "kind": "conformant",
+          "status": "fixture_reinforced",
+          "commit": "84420bef"
+        },
+        {
+          "id": "A3",
+          "kind": "semantic",
+          "status": "applied",
+          "commit": "84420bef",
+          "mutation": "9/9 (tools/experiment/mordida/morde-amend001-a3.mjs; M5 re-ancorado depois de B2)"
+        },
+        {
+          "id": "A5",
+          "kind": "semantic",
+          "status": "applied",
+          "commit": "3fb3ac75",
+          "mutation": "7/7 (tools/experiment/mordida/morde-amend001-a5.mjs)"
+        }
+      ],
+      "explicitly_out": [
+        "Renomear caps.negative → caps.negative_planned no esquema do manifesto (freeze.mjs, passo 2): o closeout reporta-o como negative_planned; mudar o esquema muda manifest_hash de manifestos futuros e é outra decisão.",
+        "Importação de cobrança real (basis observed para custo): inalcançável em P1.0 por desenho — escopo manual, sem API.",
+        "Imputar preço a um modelo sem linha em pricing.js: fica unknown{no_price_row}; um preço imputado seria decisão do operador com source, noutra emenda.",
+        "A4 · limiar de utilidade (effort-measures-prereg: pares A vs B, empate apresentado como EMPATE) e a referência de aprovação E-6: vivem no annex do plano (cc-plan-20260916-v1), não em tools/experiment/**; ficam para o passo 5.",
+        "A3 · R01/R02 (partição independent-reserved sob custódia) continuam fora dos 8 e fora do kit (C4: holdout/ é README + directório)."
+      ],
+      "applied_json": "annex/AMENDMENT-001-applied.json"
+    },
+    "AMENDMENT-001b": {
+      "source_sha256": "07ca1e65275d3b561af2cb1bde83f7f84575ca17be3e2ca771a3d4a15ae1dcd4",
+      "items": [
+        {
+          "id": "B1",
+          "kind": "proof",
+          "status": "applied",
+          "commit": "1d9d7b37",
+          "mutation": "4/4 (tools/experiment/mordida/morde-amend001b.mjs B1)"
+        },
+        {
+          "id": "B2",
+          "kind": "proof",
+          "status": "applied",
+          "commit": "179bddb8",
+          "mutation": "6/6 (tools/experiment/mordida/morde-amend001b.mjs B2; M6 = nota do gate final: adjudicação obsoleta)"
+        },
+        {
+          "id": "B3",
+          "kind": "exclusion",
+          "status": "applied",
+          "commit": "011cd546",
+          "mutation": "4/4 (tools/experiment/mordida/morde-amend001b.mjs B3)"
+        },
+        {
+          "id": "B4",
+          "kind": "annex",
+          "status": "applied",
+          "commit": "ada344a9",
+          "mutation": "5/5 (tools/experiment/mordida/morde-amend001b.mjs B4)"
+        }
+      ],
+      "explicitly_out": [
+        "B4 · replays reais do ensaio de esforço: não corridos — o módulo só aplica a regra a pares já medidos; os 3 replays (ordem A,B / B,A / A,B) ficam para depois do kit ser aceite.",
+        "B3 · vocabulário de custódia (custody.sealed / custody.released) e holdout.mjs: só com custodiante nomeado + AMENDMENT própria."
+      ]
+    },
+    "AMENDMENT-001c": {
+      "source_sha256": "97e36afb2a8a6ae00fdcfc0bb7d09abffda550a5b482e4cca9c0f33c63e65cd7",
+      "functional_change": false,
+      "attempted_false_semantics": "ausência de tentativa contabilizada pelo diário — NÃO prova de não-envio",
+      "note_2_evaluable": "aceite como está — sem renomeação: eligible_capture_sufficient para a camada operacional, evaluable_by_field para a científica, eligible_evaluable como legado documentado; relatórios científicos usam o denominador adjudicado por campo",
+      "items": [
+        {
+          "id": "C1",
+          "kind": "proof",
+          "status": "applied",
+          "commit": "7bc52dd4",
+          "mutation": "3/3 (tools/experiment/mordida/morde-amend001c.mjs)"
+        },
+        {
+          "id": "C2",
+          "kind": "registry",
+          "status": "applied",
+          "commit": null,
+          "mutation": null
+        }
+      ],
+      "explicitly_out": [
+        "Nenhum comportamento mudou: a fixture passou contra o código de e32ae663 sem tocar em journal.mjs, import.mjs ou closeout.mjs."
+      ]
+    },
+    "external_review": "confirmed (001+001b+001c, GPT Prisma 18/09)",
+    "external_review_detail": "done (001+001b+001c)",
+    "derived_from": "tools/experiment/amendments/AMENDMENT-001.json (sha256 8f8779a049b59f1f7accb49946d70d7b144873df6f47b514ed617912cff436f2)",
+    "external_review_kit_enum": "done",
+    "confirmation": {
+      "by": "GPT Prisma",
+      "date": "2026-09-18",
+      "scope": "001+001b+001c",
+      "statement": "confirmed (001+001b+001c, GPT Prisma 18/09)",
+      "covers": "A1–A5, reservadas, notas 1 e 2 — revisão científica de P1.0 confirmada",
+      "fixture_ref": "AMENDMENT-001c C1 (7bc52dd4)"
+    }
+  },
+  "E6_utility_threshold": {
+    "approval_reference": "E-6 · RECONCILIACAO-CC-PLAN-v1-20260916 (Cowork Prisma, 2026-09-16): «limiar aprovado tal como está»",
+    "rule_source": "cc-plan-20260916-v1/annex/effort-measures-prereg.json → prereg_threshold_proposal",
+    "rule": "B ≤ A em human_minutes E record_completeness_B ≥ record_completeness_A E failures_and_rework_B ≤ failures_and_rework_A, em ≥ 2 de 3 replays independentes; por par, no mesmo replay; nunca combinar condições de replays diferentes; empate ou derrota com a mesma visibilidade; sem percentagens — pares e diferenças absolutas",
+    "module": "tools/experiment/effort.mjs (puro; não mede)",
+    "proofs": [
+      "effort-i empate integral ⇒ satisfeita, EMPATE",
+      "effort-ii duas vitórias conjuntas em 2 de 3 ⇒ satisfeita",
+      "effort-iii condição falhada num replay ⇒ esse replay não conta; combinação cruzada provada por contraste",
+      "effort-iv 2 replays sem veredicto; N>3 não é a regra pré-registada; medida em falta é erro"
+    ],
+    "effort_cost_semantics": [
+      "USD de tabela = estimated, nunca custo observado",
+      "«Ollama = 0 USD» = encargos adicionais de API zero, nunca custo total zero",
+      "tokens observados reportados à parte dos USD calculados (tokens_basis por componente; aggregateUsage separa tokens_in/tokens_out de cost_usd)"
+    ],
+    "real_replays": "NÃO corridos — ficam para depois da aceitação do kit (ordem A,B / B,A / A,B; artefactos prisma-data/meta/effort-{replay}.json)"
+  },
+  "step5_deliverables": {
+    "readme": "tools/experiment/README.md",
+    "capability_template": "tools/experiment/capability-record.template.json",
+    "holdout_readme": "tools/experiment/holdout/README.md (rejeição operacional B3)",
+    "mutation_dir": "tools/experiment/mordida/"
+  },
+  "files_at_head": {
+    "package.json": "a36ef1e73d6201e281dd372cef9bac2a74d5066c72df238b6b1c537202f9a64f",
+    "tools/experiment/README.md": "fe8d2b49e81cc8f17a1989a1bc5a1335fb921494f67cd513568b595a34d439d6",
+    "tools/experiment/amendments/AMENDMENT-001.json": "8f8779a049b59f1f7accb49946d70d7b144873df6f47b514ed617912cff436f2",
+    "tools/experiment/capability-record.template.json": "d677508c3927632cdee162a74359721d638f7902aa5e906ea54d350134259e2f",
+    "tools/experiment/closeout.mjs": "a36d1f3ba83ec0ed37d543ca71ec4d296e7e944598396fa903ed33b56f93a407",
+    "tools/experiment/contract.mjs": "a3e413ff33ec4c53068a7a764794c2528b83ffdfe0fc5e65aa2066c8a3036bcb",
+    "tools/experiment/contract/engine-contract-0.3-proposed.json": "61acea27efd7f9d2fcc7c047fc309d37bd6df17843a7303140a2be11fb3f5c20",
+    "tools/experiment/effort.mjs": "cbba644dc051a559c33776ad15f0fe406904f8e75f2cab03332d5f7b98929726",
+    "tools/experiment/freeze.mjs": "55395f75f696c37717d94a96a5778625c7b30fa704c2c0f9b433b1d83a0958d4",
+    "tools/experiment/holdout/README.md": "cb2ca8e17e94e637f89ad11e83cccfe7879076a686aa486b2792ec6ee1dcbc43",
+    "tools/experiment/import.mjs": "e93c5e757a28c2862c91a02049671387ad0f74b60ba4106f7dce80341d86aa7b",
+    "tools/experiment/journal.mjs": "399be6ff706de0252770d85a982c8be2d342f78011de84c5c87b41443dc57b45",
+    "tools/experiment/mordida/README.md": "26220bd7cd5bf48d0a423339b21cd9d52020c6341fedc517ffca464b710edfd4",
+    "tools/experiment/mordida/morde-amend001-a1.mjs": "f31d74e51d238c873f26ea363ef1efb8dd05131f50493bd9cbd289f473515e82",
+    "tools/experiment/mordida/morde-amend001-a3.mjs": "7a3b30bc73c6101c76194b5061e943b40676cf79b46eb4642048c8f094829ac6",
+    "tools/experiment/mordida/morde-amend001-a5.mjs": "89a2a9c0effaeae8537027f650a40d35aa6ded2fa6a57a453b9d597f21913a0d",
+    "tools/experiment/mordida/morde-amend001-registo.mjs": "f0a3d58aba12d77819565a9df3d4cc42c66032c05f342452358968a10b672c52",
+    "tools/experiment/mordida/morde-amend001b.mjs": "8c1e59aac5426cc6fdcd3a6a25e2d79581bd9632403894c16e9d2f5203c92c22",
+    "tools/experiment/mordida/morde-amend001c.mjs": "cb1d98b9eecbbd8ec3dc0078fd21e4d571b54658bb595810a87119b4a52074ea",
+    "tools/experiment/open.mjs": "0347bfc972dfc6c57f37c26f4e500cb2952f90a9b8ff569a9f43a5bdd9a357e3",
+    "tools/experiment/pins.json": "598b19a7415628c77075322d0b27e27f9677ad73d961c4c8ec894c082e3501bf",
+    "tools/experiment/pins.mjs": "44e21784221de3d6514230bf6b04f0536d99e9b19f738cda92e4368decd5bc85",
+    "tools/experiment/preflight.mjs": "425a20cece5486d7beeabf7cf5387b798c3e366131f60aa92fa96d506c58b78b",
+    "tools/experiment/schedule.mjs": "cff3c401d2b21b43416afb1e46a860c1cd38607b2461a893b12c1a4307166c46",
+    "tools/experiment/scores.mjs": "3cd3b5bc0f43c8aa32bde2267fef7347fd5b713d2745d20798e55f0843d935b2",
+    "tools/experiment/tests/01-freeze.test.mjs": "5af35470cd078a4e72a9aaed12485bbc198f5e06b516f563ffce36c87557f9c3",
+    "tools/experiment/tests/02-condition.test.mjs": "90878f6a45db08d25bc6aff900385242bb2f7e6170575bd0748c1633ed7f661b",
+    "tools/experiment/tests/03-claim.test.mjs": "bd348837839b0ec014d8e5baa8ec7040d04b3bd2a5e3268aeacf8912c906cfb8",
+    "tools/experiment/tests/04-crash-after-intent.test.mjs": "51fee6cecd45c0b637c8544ca51b31cb0bc67c4d7cb5c7700277124f87c09729",
+    "tools/experiment/tests/05-recover.test.mjs": "ffb65c5f18901f972c9bbbd773fd60f07d1363b46cdcde7cdcd9e174dfa9d13b",
+    "tools/experiment/tests/07-reset-beyond-window.test.mjs": "2fdf1892435c371b39c924424ea2de54e7f87b0d40b4e3673591a6b43257cd45",
+    "tools/experiment/tests/08-failure-classes.test.mjs": "df9894ac0806f5d03b9ae99b0e777671b42c7e75b5ec6bf858f97dca2da29a17",
+    "tools/experiment/tests/09-usage-null.test.mjs": "f92cb06e2e3a6c99629be5f0cf4d67f87a56530b6def528cc72de46ac09a15ac",
+    "tools/experiment/tests/10-integrity.test.mjs": "0a60d8a974c6e7d8ab608e67dd13bf5199b5cc698a0de8bc6ec2a676b6bf3e43",
+    "tools/experiment/tests/11-denominators.test.mjs": "68e91a491e7508af61719bfd8630261594e47d888875f7f44f188425662731e9",
+    "tools/experiment/tests/12-holdout.test.mjs": "f6d40a0a3fa13c276faeb9b4b8d177d5bd341b07e8fa83a714f011bce00c3d8f",
+    "tools/experiment/tests/13-dedup-by-slot.test.mjs": "f25a4286cd58e17e56cfb23c40462c38cc298b2b49935155bac6616d7050f93a",
+    "tools/experiment/tests/14-identity.test.mjs": "4e848b6df9685d6dcef774f6cfac8ca822b3eeb4d9275e0b5a0e25192935486f",
+    "tools/experiment/tests/16-journal-failure.test.mjs": "b605fac0fa781d373a9ba0e6d68eeb102e2b4bbb7417bf46132d216257f510f5",
+    "tools/experiment/tests/17-deadline-persists.test.mjs": "04935a675d3a6ed5dd32573656f2636ae7cfc23fbd407ee4abd868b70ca979e3",
+    "tools/experiment/tests/18-partial-usage.test.mjs": "8275525cd41e77a811047d46d6f39dea8dfc99d09522a956c4262a03b44d719e",
+    "tools/experiment/tests/19-search-fields.test.mjs": "604637a750525aa4f8019d412c0dbff0d55303b42d5186431aa71f143579f374",
+    "tools/experiment/tests/20-scientific-independence.test.mjs": "39ed0f313a8f47cd0b78a5aa1c0d6341efca1bd93643bebbd8c13c10f9f69121",
+    "tools/experiment/tests/_claim-child.mjs": "7a035af26251bef2f3a1086ae4e0d53421e55dec03a771b727e8ac522972eacd",
+    "tools/experiment/tests/_harness.mjs": "1c246f83d33d09f8d1aee2e547f281c13865103b6ca8862d75b15c9e91f44137",
+    "tools/experiment/tests/contract.test.mjs": "e657056df1489f98e7c2aedb532d8d1901e5167753e050e3cf1b6b4fbeb6d41f",
+    "tools/experiment/tests/effort.test.mjs": "e4be6437bdc064201fa23bb5b0ea26841607ec33783f4b0a1880d032ce2c37da",
+    "tools/experiment/tests/pins.test.mjs": "04f9b0cc76b23624a0bedd2b07b555f9451f2af83e19a33ac0151895d395bda1"
+  },
+  "next": {
+    "merge": "só pelo Paulo, via PR com os 5 checks obrigatórios + final-reviewer (consulta ao Cowork Mooter respondida)",
+    "gpt": "CONFIRMADO em 2026-09-18 (A1–A5, reservadas, notas 1 e 2)",
+    "W0": "só após P1.0 aceite (E-4); ChatGPT web condicionada a W0 (E-5)",
+    "resolved_2026_09_18": [
+      {
+        "note": "A1/B1 · .intent órfão: pela máquina, prepared → preflight_ok → submission_uncertain (órfão) fica unknown com attempted=false (não há intent_committed no diário); a API não deixa importar (no_intent_for_slot). Conservador por desenho; sem fixture própria de fecho — se a semântica desejada for outra, é 001c.",
+        "resolution": "confirmado pelo GPT Prisma em 2026-09-18; fixture AMENDMENT-001c C1 (7bc52dd4)"
+      },
+      {
+        "note": "A3/B2 · «evaluable» tem duas acepções no conclusion.json: eligible_evaluable (operacional, regra do piloto) e evaluable_by_field (adjudicada). Alias acrescentado; renomear o campo pedido pela A3 seria outra emenda.",
+        "resolution": "confirmado pelo GPT Prisma em 2026-09-18; fixture AMENDMENT-001c C1 (7bc52dd4)"
+      }
+    ]
+  },
+  "history": [
+    "limpeza documental 2026-09-18: open_for_gpt → resolvido; external_review confirmado pelo GPT Prisma"
+  ]
+}
