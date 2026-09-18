@@ -33,10 +33,20 @@ const DEFAULT_TIMEOUT_MS = 90_000;
  */
 const { normalizeHost } = require('../ollama-host.js');
 
+// MATRIZ 12 (2026-09-10, D10): a linha 3 dizia «nunca mais de 3 frases para
+// perguntas simples» — e ia em TODA a chamada local do executor, fosse a pergunta
+// de software ou uma cláusula LGPD, um plano trimestral, uma reconciliação
+// bancária. Medido: para um email de 120 palavras o local devolveu 55; para
+// «onde coloco a minha chave da api», 23 tokens. Nos 10 prompts em T0 o local
+// deu 23–280 tokens onde o Haiku deu 364–1923, e recebeu 36,5/104 dos juízes
+// contra 65,5. Quanto disso é esta linha e quanto é o modelo mede-se no M12-b
+// (`_handoff/matriz-12-2026-09-10/`); a linha em si é errada em qualquer caso —
+// um pedido de documento não cabe em 3 frases. Só esta linha muda; a
+// «assistente de software engineering» fica, por ser outra hipótese.
 const SYSTEM = [
   'És um assistente de software engineering conciso.',
   'Respondes em PT-PT (Portugal). Código e identificadores em inglês.',
-  'Respostas curtas e directas — nunca mais de 3 frases para perguntas simples.',
+  'Responde de forma directa, com o tamanho que o pedido exige: curto quando a pergunta é simples, completo quando pede um documento, um plano ou um passo a passo.',
   'Não uses preâmbulo. Não repitas o que o user perguntou.',
 ].join('\n');
 
