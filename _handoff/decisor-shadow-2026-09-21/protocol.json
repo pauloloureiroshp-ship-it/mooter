@@ -417,7 +417,7 @@
    "c_v0_guard_calibrated": "reporta-se, nao conta: tier = (tier_D == T0 e (aux_D.p_needs_repo >= 0,5 ou aux_D.p_high_stakes >= 0,5)) ? T2 : tier_D; confianca = iso_tier(probs_D[tier]) (quando o guard dispara, iso_T2(p_T2)). Limiar 0,5 fixado no MP3.",
    "b_prime_diagnostic": "NAO e candidato: argmax das 4 probabilidades calibradas e renormalizadas (pode mudar a decisao). Reporta-se so para dizer se a calibracao mudaria decisoes; nao entra em gate nenhum.",
    "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3).",
-   "_see_amendment": "mp4-1 (2026-09-21): (b) passa a TTA sem calibracao; ver _amendments"
+   "_see_amendment": "mp4-2 (2026-09-21): (b) := v0 cru; mp4-3: gate de F2 (argmax, sub-rota, HIGH_RISK, abstencao, p50, egress; ECE impressa, nao gate). mp4-1 superseded."
   },
   "calibration": {
    "method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
@@ -446,7 +446,8 @@
     "vs regra (tier_regra do proprio evento) e vs «T2 sempre»",
     "n de sessoes = n de itens",
     "disponibilidade: eventos ok / elegiveis"
-   ]
+   ],
+   "_superseded_by": "mp4-3 (2026-09-21) — ver _amendments"
   },
   "closing_verdicts": {
    "all_pass": "GATE VERDE (60d) → F2 PODE ABRIR (arbiter trocavel, default haiku) — decisao do dono",
@@ -516,6 +517,98 @@
     "consequence_for_60d": "A TTA precisa das 4 rotacoes EM TEMPO REAL; o shadow (arbiter.js#shadowDecisor) hoje faz 1 pergunta (v0) e as previsoes do evento sao v0. Logo: (1) o candidato (b) SO pode ser avaliado em eventos gravados DEPOIS de o shadow passar a produzir a TTA — since_utc_b = %cI do commit que a poe no shadow (outro MP, em tools/router/, com a sua propria entrada de allowlist); ate la, o (b) no 60d e n/d, e NAO se recorre o braco D sobre o texto recuperado para o fabricar (regra corpus_60d.source). (2) Os eventos v0 ja gravados continuam a servir para (a) v0, (c) v0-guard, o gate selectivo (mp6.C3 + mp6-1: X fixo 70 %) e a disponibilidade. (3) Nada mais do mp4 muda: n_target 60, 1/sessao, 3 rotuladores cegos, gates (acc > constante, ECE <= 0,10, p50 <= 250, egress 0), stop rule.",
     "honest_prediction_before_60d": "O vencedor da regra e PIOR que (a) v0 na exploracao (ECE media 0,191 vs 0,117) e no 60c (0,221 vs 0,146). Dito agora: o gate de ECE do mp4 com (b) = tta vai provavelmente CHUMBAR. Nenhum dos 4 candidatos do step7 bate o v0 sem calibracao; a isotonica ajustada em canonicos piora nos reais (0,110 -> 0,311 no 40), e a (b)-251 so parecia servir por ser in-sample no 40 e no 57.",
     "owner_decision_pending": "Retirar a calibracao do mp4 (fazer (b) = (a), i.e. avaliar o v0 cru como candidato que conta) NAO esta na regra do step7 e nao se decide aqui. Se o dono o quiser, e a emenda mp4-2, datada ANTES de rotular o 60d. Alternativa com pre-registo proprio: outra ideia de calibracao (mais rotulos humanos reais para ajustar; Platt/temperatura por classe com 1-2 parametros; outro modelo que responda com letra)."
+   },
+   {
+    "id": "mp4-2",
+    "at": "2026-09-21T14:25:20.038Z",
+    "before": "ANTES de qualquer rotulo do 60d (eventos decisor_shadow vivos: 3; rotulos: 0; n_target 60)",
+    "supersedes": "mp4-1",
+    "change": "candidates_fixed_now.b_v0_calibrated (o candidato que conta) := v0 CRU: tier = tier_D do evento (argmax de probs_D), confianca = p_max_D crua (impressa, NAO avaliada como gate — ver mp4-3). (a) e (b) passam a ser o mesmo candidato. A clausula «since_utc_b = deploy da TTA» da mp4-1 cai: contam TODOS os eventos desde since_utc 2026-09-21T12:00Z (o shadow ja produz v0). Os pesos-251 e as variantes calibradas (iso-154, tta, tta_iso) reportam-se so como diagnostico de ECE.",
+    "reason": "A TTA piora a ECE (0,110->0,187 · 0,124->0,196 na exploracao; 0,146->0,221 no 60c) e nao esta no shadow (1 pergunta). A rota usa o ARGMAX, nao a probabilidade: a decisao de tier nao depende da confianca estar calibrada. C1/C2/C3 (TTA, modelo maior, selectivo) pre-registados em defb9c26 e refutados em 813693b0 (round 6: 6e0c1e9a, nenhum veredicto mudou). Nenhum dos candidatos do step7 bate o v0 cru (ECE media 0,117 em 40+57).",
+    "authorized_by_owner": "sim — linha de colar de 2026-09-21: «AMENDMENT mp4-2 — candidato (b) := v0 cru (a TTA piora ECE e nao esta no shadow)»"
+   },
+   {
+    "id": "mp4-3",
+    "at": "2026-09-21T14:25:20.038Z",
+    "before": "ANTES de qualquer rotulo do 60d (eventos decisor_shadow vivos: 3; rotulos: 0)",
+    "change": "gate_on_60d passa a ser o GATE DE F2 abaixo; o gate anterior (acc > constante ∧ ECE <= 0,10 ∧ p50 ∧ egress) e substituido. A ECE deixa de ser gate.",
+    "reason": "A rota usa argmax, nao a probabilidade — o que pode fazer mal a um utilizador e uma sub-rota (T2/T3 -> T0) ou uma despromocao de HIGH_RISK, nao uma probabilidade mal calibrada que ninguem le. C1/C2/C3 refutados (defb9c26 -> 813693b0): nao ha calibracao sem aprender que baixe a ECE do 60c de 0,146, e a aprendida em canonicos piora nos reais (0,110 -> 0,311). Ate haver calibracao validada num corpus virgem (ECE <= 0,10), o recibo mostra «confianca: n/d».",
+    "routed_decision": {
+     "definition": "routed_D(i): t = abstained_D ? T2 : tier_D (abstained_D = p_max_D < 0,4, campo do evento); se HIGH_RISK(i) e rank(t) < rank(tier_regra) entao t = tier_regra. E isto que o F2 faria em producao: o decisor passa pelo mesmo guardrail que qualquer arbiter (inject_context.js: isDowngrade && isHighRiskPrompt -> high_risk_downgrade_refused, mantem o tier da regra).",
+     "high_risk_source": "o evento NAO transporta risk_level. HIGH_RISK(i) = classify.js (FROZEN, deterministico) corrido in-process sobre o texto recuperado do 60d -> A-60d.json (o mesmo instrumento que produziu A-60c.json), campo risk_level === \"high\"; sem chave, como o hook desta maquina. Reporta-se tambem HIGH_RISK_HINT do inject_context.js se for importavel; se os dois discordarem, conta o classify.js e diz-se. Recomendacao (outro MP, tools/router/): gravar risk_level no evento decisor_shadow.",
+     "rule_reference": "tier_regra do evento (o que a regra disse EM TEMPO REAL, com o estado de chave que o hook tinha) — nao se re-corre a regra para a acuracia; A-60d.json serve SO para risk_level."
+    },
+    "gate_F2_60d": {
+     "1_acc_gt_rule": "acc(routed_D) > acc(tier_regra), McNemar unilateral exacto (binomial) p < 0,05, emparelhado por item",
+     "2_acc_gt_best_constant": "acc(routed_D) > acc(«c sempre») para c = tier mais frequente nos rotulos do 60d, McNemar unilateral p < 0,05",
+     "3_under_routing": "taxa de sub-rota = #(expected in {T2,T3} e routed = T0) / #(expected in {T2,T3}); rate_D <= rate_regra (regra = tier_regra do evento)",
+     "4_high_risk_never_demoted": "em todos os itens HIGH_RISK, rank(routed_D) >= rank(tier_regra): 0 violacoes. Por construcao do guardrail — por isso IMPRIME-SE o que o guardrail teve de fazer: n_high_risk, n_raw_violations (tier_D < tier_regra), taxa. E um limite conhecido do decisor, nao um gate; se a taxa crua > 50 %, o relatorio diz que o decisor «nao sabe» HIGH_RISK e o F2 so abre com o guardrail (que ja existe).",
+     "5_abstention_to_T2": "faz parte de routed_D; reporta-se n_abstained e a acc dos abstidos se tivessem ficado no argmax",
+     "6_p50_ms_max": 250,
+     "6_p50_note": "ms_D dos eventos outcome ok; eventos timeout/failed nao entram na mediana e contam na disponibilidade (> 10 % nao-ok => chumba por disponibilidade, como antes)",
+     "7_egress_hosts_allowed": [
+      "127.0.0.1:11434"
+     ],
+     "all_must_hold": true
+    },
+    "ece_status": "MEDIDA E IMPRESSA (10 bins sobre p_max_D crua, e tambem sobre routed_D) como LIMITE CONHECIDO — nao e gate. O recibo/cockpit mostra «confianca: n/d» ate existir uma calibracao validada num corpus virgem com ECE <= 0,10 (pre-registo proprio).",
+    "also_reported": [
+     "(a) argmax cru sem abstencao->T2 (continuidade com o 60c: 0,622)",
+     "(c) v0-guard (needs_repo/high_stakes >= 0,5 -> T2) com o mesmo routed",
+     "grelha selectiva (mp6-1, X fixo 70 %) — informativa, deixa de ser 2.o caminho de gate",
+     "so itens unanimes entre os 3 rotuladores",
+     "sem os despachados por runner",
+     "ECE das variantes calibradas (b-251, iso-154) — diagnostico",
+     "disponibilidade: eventos ok / elegiveis; n de sessoes = n de itens"
+    ],
+    "closing_verdicts": {
+     "all_pass": "GATE F2 VERDE (60d) -> F2 PODE ABRIR com o decisor como arbiter trocavel, dentro do guardrail HIGH_RISK, com «confianca: n/d» no recibo — decisao do dono",
+     "any_fail": "o gate que falhou diz o que falta; NAO se repete o 60d (A22); um MP seguinte precisa de pre-registo proprio"
+    },
+    "preview_on_labelled_corpora_informative": {
+     "40": {
+      "acc_raw": 0.6,
+      "acc_routed": 0.65,
+      "abstained": 3,
+      "acc_rule": 0.325,
+      "best_constant": "T2 0.450",
+      "mcnemar_vs_rule_p": 0.0005,
+      "mcnemar_vs_const_p": 0.0758,
+      "under_routing_D_vs_rule": "7/26 vs 23/26",
+      "high_risk_raw_violations": "1/3",
+      "p50_ms": 165,
+      "ece_informative": 0.154
+     },
+     "57": {
+      "acc_raw": 0.614,
+      "acc_routed": 0.596,
+      "abstained": 4,
+      "acc_rule": 0.439,
+      "best_constant": "T3 0.404",
+      "mcnemar_vs_rule_p": 0.0245,
+      "mcnemar_vs_const_p": 0.0448,
+      "under_routing_D_vs_rule": "15/41 vs 29/41",
+      "high_risk_raw_violations": "6/11",
+      "p50_ms": 140,
+      "ece_informative": 0.124
+     },
+     "note": "o MESMO gate calculado nos corpora ja rotulados (D v0 do 14b, regra por item de A-nokey run 1 / A-60b / A-60c, risk_level da regra) — previsao escrita ANTES do 60d, nao decisao. Bruto em results/preview-gate-mp4-3.json.",
+     "60c": {
+      "acc_raw": 0.622,
+      "acc_routed": 0.595,
+      "abstained": 3,
+      "acc_rule": 0.324,
+      "best_constant": "T3 0.324",
+      "mcnemar_vs_rule_p": 0.001,
+      "mcnemar_vs_const_p": 0.032,
+      "under_routing_D_vs_rule": "3/21 vs 15/21",
+      "high_risk_raw_violations": "2/4",
+      "p50_ms": 162,
+      "ece_informative": 0.173
+     },
+     "reading": "Passa (1) nos tres (p 0,0005 / 0,025 / 0,001) e (3) nos tres (0,27 vs 0,88 · 0,37 vs 0,71 · 0,14 vs 0,71). (2) e o gate arriscado: p = 0,076 no 40 (chumba), 0,045 no 57, 0,032 no 60c — com n = 60 fica na fronteira. (4): o decisor CRU despromove HIGH_RISK em 1/3 · 6/11 · 2/4 — com o guardrail sao 0, e e por isso que o guardrail fica no caminho e a taxa crua se imprime. Abstencao->T2 desce a acc no 57 e no 60c (0,614->0,596; 0,622->0,595) e sobe no 40 (0,600->0,650). p50 165/140/162 <= 250. ECE informativa 0,154 / 0,124 / 0,173."
+    },
+    "authorized_by_owner": "sim — linha de colar de 2026-09-21: «AMENDMENT mp4-3 — gate de F2 no 60d passa a: acc > regra E > melhor constante (McNemar p<0,05) ∧ taxa de sub-rota (T2/T3->T0) <= a da regra ∧ HIGH_RISK nunca despromovido ∧ abstencao->T2 ∧ p50 <= 250 ms ∧ egress 0; ECE continua medida e impressa como limite conhecido (nao e gate) e o recibo mostra confianca: n/d ate haver calibracao»"
    }
   ]
  },

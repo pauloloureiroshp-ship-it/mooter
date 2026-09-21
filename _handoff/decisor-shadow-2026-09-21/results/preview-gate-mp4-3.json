@@ -1,0 +1,123 @@
+{
+ "at": "2026-09-21T14:22:37.880Z",
+ "note": "pré-visualização informativa do gate mp4-3 nos corpora já rotulados; NÃO é o 60d; ids listados são só os de violação HIGH_RISK (sem texto)",
+ "by_corpus": {
+  "40": {
+   "n": 40,
+   "acc_raw_argmax": 0.6,
+   "acc_routed_abstain_T2": 0.65,
+   "abstained": 3,
+   "acc_rule": 0.325,
+   "best_constant": {
+    "tier": "T2",
+    "acc": 0.45
+   },
+   "mcnemar_vs_rule": {
+    "b": 14,
+    "c": 1,
+    "p": 0.00048828125
+   },
+   "mcnemar_vs_const": {
+    "b": 16,
+    "c": 8,
+    "p": 0.07579481601715088
+   },
+   "under_routing": {
+    "n_T2T3": 26,
+    "D_to_T0": 7,
+    "rule_to_T0": 23,
+    "rate_D": 0.2692307692307692,
+    "rate_rule": 0.8846153846153846
+   },
+   "high_risk": {
+    "n": 3,
+    "D_below_rule": 1,
+    "ids": [
+     "n33:T3->T2"
+    ]
+   },
+   "p50_ms": 164.66649999999998,
+   "ece_routed_informative": 0.15399573119748458
+  },
+  "57": {
+   "n": 57,
+   "acc_raw_argmax": 0.6140350877192983,
+   "acc_routed_abstain_T2": 0.5964912280701754,
+   "abstained": 4,
+   "acc_rule": 0.43859649122807015,
+   "best_constant": {
+    "tier": "T3",
+    "acc": 0.40350877192982454
+   },
+   "mcnemar_vs_rule": {
+    "b": 13,
+    "c": 4,
+    "p": 0.0245208740234375
+   },
+   "mcnemar_vs_const": {
+    "b": 23,
+    "c": 12,
+    "p": 0.04476553946733475
+   },
+   "under_routing": {
+    "n_T2T3": 41,
+    "D_to_T0": 15,
+    "rule_to_T0": 29,
+    "rate_D": 0.36585365853658536,
+    "rate_rule": 0.7073170731707317
+   },
+   "high_risk": {
+    "n": 11,
+    "D_below_rule": 6,
+    "ids": [
+     "b15:T3->T0",
+     "b23:T3->T0",
+     "b25:T3->T0",
+     "b29:T3->T2",
+     "b39:T3->T0",
+     "b57:T3->T2"
+    ]
+   },
+   "p50_ms": 139.9906,
+   "ece_routed_informative": 0.12357916929076072
+  },
+  "60c": {
+   "n": 37,
+   "acc_raw_argmax": 0.6216216216216216,
+   "acc_routed_abstain_T2": 0.5945945945945946,
+   "abstained": 3,
+   "acc_rule": 0.32432432432432434,
+   "best_constant": {
+    "tier": "T3",
+    "acc": 0.32432432432432434
+   },
+   "mcnemar_vs_rule": {
+    "b": 10,
+    "c": 0,
+    "p": 0.0009765625
+   },
+   "mcnemar_vs_const": {
+    "b": 17,
+    "c": 7,
+    "p": 0.03195732831954956
+   },
+   "under_routing": {
+    "n_T2T3": 21,
+    "D_to_T0": 3,
+    "rule_to_T0": 15,
+    "rate_D": 0.14285714285714285,
+    "rate_rule": 0.7142857142857143
+   },
+   "high_risk": {
+    "n": 4,
+    "D_below_rule": 2,
+    "ids": [
+     "c18:T3->T1",
+     "c35:T3->T2"
+    ]
+   },
+   "p50_ms": 161.9301,
+   "ece_routed_informative": 0.17329150388339726
+  }
+ }
+}
