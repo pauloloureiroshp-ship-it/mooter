@@ -234,6 +234,28 @@
         "why": "o pool da janela 2026-08-01..09-09 (fora dos sha do P1 e do 60b) tem 410 prompts elegiveis em 37 sessoes; com 1 prompt/sessao ESTRITO (nao se sobe o tecto) o maximo e 37. 7 dos 37 sao prompts despachados por runner (elegiveis pelas regras registadas; marcados _dispatched; sensibilidade sem eles reporta-se).",
         "outcome_known": false,
         "note": "rotulos ainda nao pedidos; nenhuma predicao existe sobre o 60c"
+      },
+      {
+        "id": "mp3-2",
+        "when": "2026-09-21T10:55:49.050Z",
+        "what": "Frente B: DECISOR_TIMEOUT_MS 400 -> 800 ms",
+        "why": "o 400 foi fixado a partir dos 147-162 ms medidos EM PROCESSO (braco D). Pelo caminho do hook (spawnSync + 4 fetches num processo filho, como o callHaikuSync) mediu-se: ollamaLogit() p50 ~255 ms com o prefixo da rubrica em cache no Ollama e ~460 ms quando outra chamada ao Ollama o despeja (o proprio hook chama o Ollama nos prompts T0); em 10 prompts pelo hook, 7 sairam timeout com 400 ms e o shadow nao acumulava nada. 800 ms deixa o frio (~2,5 s) como timeout. Nao toca em nenhum gate nem numero da Frente A (ja fechada em 08-analysis-mp3.md antes desta emenda); o que muda e se o shadow REGISTA ou nao.",
+        "outcome_known": false,
+        "measured": {
+          "ollamaLogit_ms_warm_prefix": [
+            264,
+            255,
+            255,
+            258
+          ],
+          "ollamaLogit_ms_prefix_evicted": 466,
+          "hook_timeouts_at_400ms": "7/10",
+          "hook_ms_D_ok_at_400ms": [
+            284,
+            320,
+            426
+          ]
+        }
       }
     ],
     "amendment_rule": "Qualquer desvio a este bloco (n < 60, tecto por sessao, rotulador indisponivel, timeout do modelo) entra ANTES de rotulos/predicoes num commit proprio «chore(decisor-shadow): AMENDMENT mp3-<n> — <motivo>» com entrada em amendments[] {when, what, why, outcome_known:false}. Sem commit de emenda, o desvio nao existe — a corrida para.",
