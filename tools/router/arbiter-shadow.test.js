@@ -81,6 +81,32 @@ test('(3) HIGH_RISK continua a ser da regra: o shadow diz T0 num prompt de push 
   assert.strictEqual(JSON.stringify(decision), before);
 });
 
+test('(9) MP8: prompt HIGH_RISK -> high_risk_hint true e risk_level_regra da regra; a regex e byte-igual a do hook', () => {
+  const log = freshLog();
+  const decision = { tier: 'T3', confidence: 0.95, task_category: 'high_risk', escalation_rule: 'high_risk_floor', risk_level: 'high' };
+  const ev = withEnv({ MOOTER_DECISOR_SHADOW: '1', MOOTER_ARBITER_DISABLE: undefined }, () => shadowDecisor('faz deploy disto para producao e roda a migration', decision, { _logPath: log, _mockResponses: mockT0 }));
+  assert.strictEqual(ev.high_risk_hint, true);
+  assert.strictEqual(ev.risk_level_regra, 'high');
+  assert.strictEqual(typeof ev.high_risk_hint, 'boolean');
+  // paridade: a copia em arbiter.js tem de ser byte-igual a linha do hook — se uma mudar sem a outra, isto morde
+  const line = (f) => (fs.readFileSync(path.join(HERE, f), 'utf8').match(/^const HIGH_RISK_HINT = (\/.*\/i);\s*$/m) || [])[1];
+  assert.ok(line('inject_context.js'), 'regex no hook'); assert.strictEqual(line('arbiter.js'), line('inject_context.js'), 'HIGH_RISK_HINT igual nos dois ficheiros');
+  // e continua sem texto
+  const serial = JSON.stringify(ev); for (const w of ['deploy', 'producao', 'migration']) assert.ok(!serial.includes(w), `sem «${w}»`);
+  assert.strictEqual(readEvents(log)[0].high_risk_hint, true);
+});
+
+test('(10) MP8: prompt normal -> high_risk_hint false; risk_level invalido/ausente -> null', () => {
+  const log = freshLog();
+  const ev = withEnv({ MOOTER_DECISOR_SHADOW: '1', MOOTER_ARBITER_DISABLE: undefined }, () => shadowDecisor('muda a cor do botao de login para azul', { tier: 'T0', confidence: 0.8, task_category: 'trivial_local', escalation_rule: 'none', risk_level: 'minimal' }, { _logPath: log, _mockResponses: mockT0 }));
+  assert.strictEqual(ev.high_risk_hint, false);
+  assert.strictEqual(ev.risk_level_regra, 'minimal');
+  const ev2 = withEnv({ MOOTER_DECISOR_SHADOW: '1', MOOTER_ARBITER_DISABLE: undefined }, () => shadowDecisor('muda a cor do botao de login para azul', { tier: 'T0', confidence: 0.8, risk_level: 'nao-e-um-nivel' }, { _logPath: log, _mockResponses: mockT0 }));
+  assert.strictEqual(ev2.risk_level_regra, null);
+  const ev3 = withEnv({ MOOTER_DECISOR_SHADOW: '1', MOOTER_ARBITER_DISABLE: undefined }, () => shadowDecisor('muda a cor do botao de login para azul', { tier: 'T0', confidence: 0.8 }, { _logPath: log, _mockResponses: mockT0 }));
+  assert.strictEqual(ev3.risk_level_regra, null); assert.strictEqual(ev3.high_risk_hint, false);
+});
+
 test('(4) timeout: evento outcome:"timeout", tier_D null, rota inalterada', () => {
   const log = freshLog();
   const decision = { tier: 'T2', confidence: 0.7, task_category: 'reasoning' };

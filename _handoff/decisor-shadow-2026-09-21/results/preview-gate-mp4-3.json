@@ -1,5 +1,5 @@
 {
- "at": "2026-09-21T14:39:38.684Z",
+ "at": "2026-09-21T15:04:36.006Z",
  "version": 2,
  "note": "round 7 A1: o preview corre a MESMA gateF2() do 60d (routed = abstenção + guardrail); v1 (scratch) não aplicava o guardrail. HIGH_RISK = HIGH_RISK_HINT de produção (inject_context.js, sha12 652823a99712) sobre o texto; classify risk_level reportado ao lado. Informativo; não é o 60d.",
  "high_risk_hint": {
@@ -87,6 +87,9 @@
     },
     "4_high_risk_invariant": {
      "n_high_risk_hint": 4,
+     "high_risk_source_counts": {
+      "text_fallback": 40
+     },
      "n_high_risk_classify": 3,
      "hint_vs_classify_disagree": 1,
      "raw_violations_tier_D_below_rule": 1,
@@ -264,6 +267,9 @@
     },
     "4_high_risk_invariant": {
      "n_high_risk_hint": 4,
+     "high_risk_source_counts": {
+      "text_fallback": 57
+     },
      "n_high_risk_classify": 11,
      "hint_vs_classify_disagree": 11,
      "raw_violations_tier_D_below_rule": 1,
@@ -440,6 +446,9 @@
     },
     "4_high_risk_invariant": {
      "n_high_risk_hint": 6,
+     "high_risk_source_counts": {
+      "text_fallback": 37
+     },
      "n_high_risk_classify": 4,
      "hint_vs_classify_disagree": 2,
      "raw_violations_tier_D_below_rule": 2,

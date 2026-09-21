@@ -108,7 +108,7 @@ export function eligible(rec, known) {
 const num = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : null); const tierOf = (v) => (/^T[0-3]$/.test(String(v)) ? String(v) : null);
 export function predictionOf(e, id) {
   const P = e.probs_D || {}, A = e.aux_D || {};
-  return { id, tier: tierOf(e.tier_D), p_max: num(e.p_max_D), probs: { T0: num(P.T0), T1: num(P.T1), T2: num(P.T2), T3: num(P.T3) }, aux: { p_needs_repo: num(A.p_needs_repo), p_high_stakes: num(A.p_high_stakes), e_complexity: num(A.e_complexity) }, ms: num(e.ms_D), abstain: e.abstained_D === true, tier_regra: tierOf(e.tier_regra), confidence_regra: num(e.confidence_regra), event_sha12: /^[0-9a-f]{12}$/.test(String(e.prompt_sha12)) ? e.prompt_sha12 : null };
+  return { id, tier: tierOf(e.tier_D), p_max: num(e.p_max_D), probs: { T0: num(P.T0), T1: num(P.T1), T2: num(P.T2), T3: num(P.T3) }, aux: { p_needs_repo: num(A.p_needs_repo), p_high_stakes: num(A.p_high_stakes), e_complexity: num(A.e_complexity) }, ms: num(e.ms_D), abstain: e.abstained_D === true, tier_regra: tierOf(e.tier_regra), confidence_regra: num(e.confidence_regra), high_risk_hint: typeof e.high_risk_hint === 'boolean' ? e.high_risk_hint : null, risk_level_regra: ['minimal', 'low', 'medium', 'high'].includes(e.risk_level_regra) ? e.risk_level_regra : null, event_sha12: /^[0-9a-f]{12}$/.test(String(e.prompt_sha12)) ? e.prompt_sha12 : null };
 }
 // A7 do round 5: um caminho de saída dentro do repo tem de estar gitignorado; fora do repo (tmp dos testes) é livre.
 export function assertSafeOut(p, root = ROOT) {

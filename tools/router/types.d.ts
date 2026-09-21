@@ -81,6 +81,10 @@ export interface DecisorShadowEvent {
   confidence_regra?: number | null;
   task_category?: string | null;
   escalation_rule_regra?: string | null;
+  /** MP8: HIGH_RISK_HINT (o predicado do hook) sobre o prompt cru; nunca o texto. */
+  high_risk_hint?: boolean;
+  /** MP8: risk_level da regra (classify.js): minimal | low | medium | high. */
+  risk_level_regra?: 'minimal' | 'low' | 'medium' | 'high' | null;
   tier_arbiter_haiku?: Tier | string | null;
   tier_D?: Tier | null;
   probs_D?: Record<Tier, number> | null;

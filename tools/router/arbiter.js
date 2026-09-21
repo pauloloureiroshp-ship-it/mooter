@@ -437,6 +437,10 @@ const DECISOR_QUESTIONS = {
 // o frio (~2,5 s) continua a ser timeout — e agora ninguem espera por ele.
 const DECISOR_TIMEOUT_MS = 800;
 const DECISOR_ABSTAIN_BELOW = 0.4;
+// MP8 (2026-09-21): o evento passa a dizer se o prompt bate no predicado HIGH_RISK que o hook usa para recusar
+// despromocoes (inject_context.js:HIGH_RISK_HINT). E uma COPIA — o arbiter.js nao pode requerer o hook (correria
+// o hook). A paridade byte-a-byte com a de inject_context.js e imposta por arbiter-shadow.test.js (9).
+const HIGH_RISK_HINT = /\b(?:push|deploy|release|migration|migrac|drop\s+table|rm\s+-rf|reset\s+--hard|\.env|secret|credential|api[_ ]?key|architect|arquitetur|refactor|refator|critical|cr[ií]tic|audit|review\s+final|merge|ci\s+pipeline|\.github\/workflow)/i;
 const DECISOR_PROMPT_MAX_CHARS = 4000;
 const DECISOR_KEEP_ALIVE = '30m';
 const DECISOR_WARM_LOCK_MS = 90 * 1000;
@@ -604,7 +608,7 @@ function ollamaLogit(prompt, options = {}) {
 /**
  * Os UNICOS campos da decisao que o shadow ve — copiados por valor, validados por tipo e tamanho (A6).
  * @param {Record<string, unknown> | null | undefined} decision
- * @returns {{ tier: string | null, confidence: number | null, task_category: string | null, escalation_rule: string | null, tier_arbiter_haiku: string | null }}
+ * @returns {{ tier: string | null, confidence: number | null, task_category: string | null, escalation_rule: string | null, tier_arbiter_haiku: string | null, risk_level: string | null }}
  */
 function decisionSnapshot(decision) {
   const d = /** @type {Record<string, any>} */ (decision && typeof decision === 'object' ? decision : {});
@@ -616,6 +620,8 @@ function decisionSnapshot(decision) {
     confidence: typeof d.confidence === 'number' && Number.isFinite(d.confidence) ? d.confidence : null,
     task_category: str(d.task_category),
     escalation_rule: str(d.escalation_rule),
+    // MP8: o risk_level da regra (classify.js) — so um dos 4 valores, senao null.
+    risk_level: ['minimal', 'low', 'medium', 'high'].includes(d.risk_level) ? String(d.risk_level) : null,
     // O arbiter Haiku corre DEPOIS deste ponto no hook (MP3 §B0); so chamadores directos o trazem.
     // O 09-shadow-report junta ao `classified` da mesma sessao para o tier final.
     tier_arbiter_haiku: arb ? (arb.honored ? tierOf(d.tier) : tierOf(arb.proposed_tier)) : null,
@@ -645,6 +651,9 @@ function shadowEvent(prompt, snap, r, meta) {
     confidence_regra: snap.confidence,
     task_category: snap.task_category,
     escalation_rule_regra: snap.escalation_rule,
+    // MP8: o que o gate de F2 (mp4-3) precisa sem recuperar texto — o predicado de producao sobre o prompt CRU, e o risk_level da regra.
+    high_risk_hint: HIGH_RISK_HINT.test(prompt),
+    risk_level_regra: snap.risk_level,
     tier_arbiter_haiku: snap.tier_arbiter_haiku,
     tier_D: result ? result.tier : null,
     probs_D: result ? result.probabilities : null,
