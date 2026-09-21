@@ -18,14 +18,22 @@ export const TIERS = ['T0', 'T1', 'T2', 'T3'];
 export const args = process.argv.slice(2);
 export const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 
-// --corpus <path|gold>   corpus {items:[{id,prompt}]} NAO redigido; 'gold' usa gold-labels.json (TREINO)
-// --labels <path>        {labels:[{id,tier}]}; com 'gold' os rotulos vem do proprio ficheiro
+// --corpus <path|gold|valset>   corpus {items:[{id,prompt}]} NAO redigido; 'gold' usa gold-labels.json (TREINO);
+//                               'valset' usa validation-set.json canonical/adversarial/historical (TREINO), id = <sec>-<nn>
+// --labels <path>        {labels:[{id,tier}]}; com 'gold'/'valset' os rotulos vem do proprio ficheiro
 export function loadCorpus() {
   const c = opt('--corpus', 'gold');
   if (c === 'gold') {
     const g = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'router', 'gold-labels.json'), 'utf8'));
     const items = Array.isArray(g) ? g : (g.labels || g.items || Object.values(g));
     return { name: 'gold-84 (TREINO da regra)', items: items.map((x) => ({ id: x.id, prompt: x.prompt })), labels: Object.fromEntries(items.map((x) => [x.id, x.expected_tier])) };
+  }
+  if (c === 'valset') {
+    // MP2 passo 1: so LE tools/router/validation-set.json. 70 prompts (20+25+25), rotulo expected_tier.
+    const v = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'router', 'validation-set.json'), 'utf8'));
+    const items = [];
+    for (const sec of ['canonical', 'adversarial', 'historical']) (v[sec] || []).forEach((x, i) => items.push({ id: `${sec}-${String(i + 1).padStart(2, '0')}`, prompt: x.prompt, expected_tier: x.expected_tier }));
+    return { name: 'valset (TREINO da regra)', items: items.map((x) => ({ id: x.id, prompt: x.prompt })), labels: Object.fromEntries(items.map((x) => [x.id, x.expected_tier])) };
   }
   const corpus = JSON.parse(fs.readFileSync(c, 'utf8'));
   const items = (corpus.items || corpus).filter((x) => x.prompt && !/^\[\[redigido/.test(x.prompt));
@@ -56,4 +64,9 @@ export function summarise(rows, labels) {
   const q = (x) => lat[Math.min(lat.length - 1, Math.floor(lat.length * x))] ?? null;
   const [lo, hi] = wilson(k, n);
   return { k, n, p: n ? k / n : null, ci95: [lo, hi], confusion: conf, latency_ms: { p50: q(.5), p95: q(.95), max: lat.at(-1) ?? null }, calibration: ece(scored), abstain: scored.filter((r) => r.abstain).length, rows: scored };
+}
+// McNemar unilateral exacto (binomial): braco > referencia. scored = [{id, expected, correct}], ref = {id -> tier}
+export function mcnemar(scored, ref) {
+  let b = 0, c = 0; for (const r of scored) { const t = ref[r.id]; if (t === undefined) continue; const refOK = t === r.expected; if (r.correct && !refOK) b++; if (!r.correct && refOK) c++; }
+  const n = b + c; if (!n) return { b, c, p: null }; let p = 0; for (let x = b; x <= n; x++) { let comb = 1; for (let i = 1; i <= x; i++) comb = comb * (n - x + i) / i; p += comb / 2 ** n; } return { b, c, p };
 }
