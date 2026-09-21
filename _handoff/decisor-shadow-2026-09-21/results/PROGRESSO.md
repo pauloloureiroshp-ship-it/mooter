@@ -834,3 +834,83 @@ acumular o 60d sem ninguém rotear por isto.
      Não roteia nada até um 60d pré-registado com n ≥ 60, e mesmo aí só com calibração ≤ 0,10.
 
 VEREDICTO: ENTRE → SHADOW ACUMULA; RE-TESTAR COM 60D (GATE 60C: 3 DE 4 — ECE 0,146 CHUMBA; V0 BATE T2, T3 E A REGRA EM 37 PROMPTS VIRGENS; F2-SHADOW COMMITADO OPT-IN, CORRIGIDO APÓS ROUND 3, SEM MERGE, SEM PUSH; NADA ROTEIA)
+
+---
+
+# MP4-a — Pacote de revisão + 2 bugs de produção antes de ligar o shadow
+
+## 1 — Pacote de revisão
+
+- **2026-09-21T11:34Z (08:34 BRT)** · `results/REVIEW-7-COMMITS.md`: os 7 commits do MP3 (`32e65ac6` … `8aa4d210`), cada um
+  com sha, título, 2 frases em português corrente, ficheiros (`git show --stat`), risco com razão, `git revert`, e o que
+  **não** muda. Só o commit 5 (`0017f8f0`) e o 6 (`04c78631`) tocam no router — revertem-se juntos. Tabela final: se
+  fizer push, **nada** acontece no Claude Code até `MOOTER_DECISOR_SHADOW=1`. Ordem de leitura 1 → 5 → 6 → 7.
+
+## 2 — Bug A: `hw-capability.json` + varrimento de modelos
+
+- **2.1 Quem escreve e porquê «Apple M4 Pro» — evidência, não hipótese:**
+  - Ficheiro vivo: `name: Apple M4 Pro`, `vram_mb: 16220`, `hw_tier: apple-silicon`, **`probed_at: 2026-09-17T20:39:03.157Z`**,
+    sem `available_ollama_models`. O probe desta máquina, corrido agora: `nvidia · RTX 4090 · 23028 MB`.
+  - O único escritor é `gpu-probe.js#buildHwCapability`, que **escrevia sempre** o ficheiro vivo. `gpu-probe.test.js`
+    chama `buildHwCapability(apple(16220))` (fixture «Apple M4 Pro», 16220) — o último teste a correr deixa o ficheiro
+    do developer com a fixture. O `decisions.log` real tem, **no mesmo segundo**, um burst de eventos `executed` sintéticos
+    («deploy this to production right now», «rename foo to bar in retry.ts», …) e um `arbiter_call ok` de mock
+    (20:39:04–09Z, sessão `4982059c…`) — foi uma corrida de testes. Hipóteses «copiado do Mac por sync» (o
+    `sync-runtime.js` exclui explicitamente `hw-capability.json`; a única outra cópia no disco é a do vault, RTX 4090)
+    e «`os.platform()` errado» (o probe acerta): **refutadas**.
+  - O hook (`initHwCapability`) só re-sonda quando o ficheiro **não existe** — a fixture ficou 4 dias.
+- **2.2 Quem pede loads de todos os modelos:** net-tap no hook real (HOME fiel, 5 prompts T0): os processos Node do hook
+  só ligam a `127.0.0.1:11434` via `ollama_call_node.js` (5×) e à porta 7821 do tracker. Sem hook a correr, o `server.log`
+  do Ollama só tem `GET /api/tags` a cada 30 s (`savings-tracker.js`, inofensivo). Durante o hook: «predicted 22.4 GiB,
+  evicting» — o pedido vem do próprio Option A, porque `user-override-guard.js:170` mete `bestOllamaT0()` em
+  `recommended_model`, e `bestOllamaT0()` (inject_context.js:558) caía para **`qwen3:30b`** sempre que
+  `available_ollama_models` estava vazio — e **ninguém o escrevia** (`hardware-matcher.js:62` já o dizia). Os aborts de
+  `qwen3.6:35b-a3b`/`gemma4:e4b`/`deepseek-r1:7b` no log de 07:56–08:01 BRT foram no harness **infiel** do MP3 (HOME sem
+  `hw-capability`); não se reproduziram com harness fiel. «Ficheiro:linha responsável»: `inject_context.js:558-565`
+  (`bestOllamaT0` fallback) + `gpu-probe.js:251` (escrita incondicional) + `gpu-probe.test.js:18/39` (fixture).
+- **2.3 Correcção da causa (commit `aee71157`, 3 ficheiros, +67/−14 com comentários):** `buildHwCapability(probe, {persist,
+  installed})` — testes passam `persist:false` (teste novo prova que o ficheiro do developer fica intacto); o gerador
+  escreve `available_ollama_models` via `ollama list` (= `GET /api/tags`, **não carrega nada**) e o `recommended_t0` tem
+  de estar instalado além de caber; o leitor `bestOllamaT0()` prefere `recommended_t0`, depois só instalados, e nunca um
+  modelo ausente de 18 GB. **Ficheiro vivo regenerado** (`node tools/router/gpu-probe.js`): `RTX 4090 · gpu-high · 23028 ·
+  recommended_t0 qwen2.5-coder:14b · 10 modelos`. Cópia do errado em `results/hw-capability.ANTES-2026-09-21.json`.
+- **2.4 Medição antes/depois (20 prompts T0 pelo hook, HOME fiel, 14b quente) — honesta:** ANTES (código HEAD + ficheiro
+  errado) `option_a` **13 hit / 7 miss**, hook p50 855 ms; DEPOIS (código novo + ficheiro regenerado) **13 hit / 7 miss**,
+  p50 792 ms; evicções 0 e 0. **O gate «tem de subir» não se mediu neste harness**: os 7 miss são o orçamento de 1 s do
+  Option A a expirar no próprio 14b (`POST /api/generate` 500/499 a 1,0 s), outra causa, fora deste MP. O que se prova é
+  que o caminho do `qwen3:30b` deixa de existir (8/8 testes) e que a fixture deixa de escrever o ficheiro vivo. O
+  «266 miss / 22 hit» do log real (últimas 3 000 linhas: **470 / 22**) tem mais do que uma causa.
+- Suite `tools/router`: **1 328 · 1 324 · 3 pré-existentes · 1 skipped — igual.**
+
+## 3 — Bug B: `callHaikuSync` argv
+
+- **3.1 Reproduzido:** `spawnSync(node, ['-e', script, 'BODY', 'KEY'])` → dentro do script `argv.slice(1) = ['BODY','KEY']`.
+  O script lia `argv[2]`/`argv[3]` → corpo = chave, chave = `undefined` → `https.request({headers:{'x-api-key':undefined}})`
+  lança **síncronamente `ERR_HTTP_INVALID_HEADER_VALUE`** (medido) → filho morre → `callHaikuSync` devolve `null` →
+  `arbiter_call failed`. **Nunca houve um `ok` real**: os 171 `ok` do log são mocks (170 com `duration_ms: 0`, 171 com
+  `reasoning: "debug investigation"`, do `backtest.test.js`).
+- **3.2 Corrigido (commit `423ca9c6`):** dois índices em `arbiter.js`, resto igual. `arbiter-argv.test.js` (3): reproduz o argv;
+  faz o `callHaikuSync` **real** chegar a um servidor local a fingir a Anthropic (preload por `NODE_OPTIONS` no filho desvia
+  `https.request`; o servidor corre **noutro processo** — `spawnSync` bloqueia o event loop de quem chama, e a 1.ª versão
+  do teste morria em timeout com o pedido já recebido, a mordida da memória «instrumento que devolve nada») e verifica
+  `x-api-key` + corpo + `system`; `_mockResponse` intacto. **Mordida verificada:** o teste 2 falha com os índices antigos.
+- **3.3 Declaração retroactiva:** `results/ERRATA-ARBITER-HAIKU.md` — P1 `A-key`/`A-hook` **não afectados** (corriam com
+  `MOOTER_ARBITER_DISABLE=1`); P5 «20/20 pedidos construídos, nada transmitido» fica **ainda mais verdade** (o pai montava o
+  corpo; o filho lançava antes de ligar); Matriz-12 **D15 «arbiter falha mudo sem saldo» era este bug** — com ou sem saldo;
+  o «+15 com chave» vem de `classify.js:901`, não do Haiku. 3 linhas na zona humana do `SYNC.md` (177 linhas ≤ 200).
+
+## 4 — Fecho
+
+- **Round 4 do adversário** (codex, sobre os dois diffs): 6 ataques — `results/adversary-codex-round4.md`. O de severidade
+  alta (A3: o leitor podia escolher um modelo instalado que **não cabe**) foi **corrigido** (`bestOllamaT0` filtra por
+  `can_run`); A4/A5 (robustez do teste do argv) corrigidos; A1/A2 são o desenho pré-existente da cache, declarados. Commit
+  `fix(router): bestOllamaT0 só escolhe modelos que cabem; teste do argv robusto (round 4 do adversário)`.
+- Suite `tools/router` **1 328 · 1 324 · 3 pré-existentes · 1 skipped — igual** em todos os passos; os 3 ficheiros de teste
+  novos/alterados (`arbiter-shadow`, `gpu-probe`, `arbiter-argv`): **19/19**. `sha256(classify.js)` =
+  `427d8c0b516315c6…` — FROZEN intacto. Em `tools/router/` só se tocou no allowlist: `arbiter.js` (bug B), `gpu-probe.js` +
+  `gpu-probe.test.js` (gerador), `inject_context.js#bestOllamaT0` (leitor), `arbiter-argv.test.js` (novo). Sem push.
+- **Não feito, declarado:** os 7 miss do Option A por orçamento de 1 s (outra causa); a invalidação por idade da cache
+  `hw-capability.json`; os testes novos **não** estão no `npm test` (`package.json` fora do allowlist) — correm com
+  `node --test tools/router/arbiter-shadow.test.js tools/router/gpu-probe.test.js tools/router/arbiter-argv.test.js`.
+
+MP4-a FECHADO — 4 commits (aee71157 · 423ca9c6 · 641281ed · fecho) + 11 do MP1–MP3, sem push. Para o dono: (1) `git push origin main` · (2) `RUN-DECISOR-SHADOW-ON.bat` (duplo clique na raiz do repo; grava `MOOTER_DECISOR_SHADOW=1` para o utilizador) · (3) `/mooter-update` no Claude Code e abrir um terminal NOVO do Claude Code · (4) daqui a 14 dias: `node _handoff/decisor-shadow-2026-09-21/09-shadow-report.mjs --since 2026-09-21`
