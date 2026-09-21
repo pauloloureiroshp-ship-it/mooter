@@ -369,5 +369,94 @@
       "Que o 7b generaliza: os 3 corpora sao do mesmo autor, mesma maquina, e o 40 e reuso.",
       "Nada sobre o 60d — nao existe e nao se toca."
     ]
+  },
+  "mp4": {
+    "_schema": "decisor-shadow/protocol-v1/mp4",
+    "_status": "PRE-REGISTO MP4 — congelado em commit ANTES de existir um unico evento decisor_shadow vivo (contados agora no decisions.log desta maquina: 0), ANTES de rotular o 60d e ANTES de ajustar a calibracao (os pesos entram num commit posterior a este, gerados por 05b-calibrate.mjs que este bloco define)",
+    "_registered_at": "2026-09-21T12:41:16.352Z",
+    "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+    "_live_decisor_shadow_events_at_registration": 0,
+    "_starting_point": "MP3 fechou ENTRE: v0 no 60c acc 0,622 vs «T2 sempre» 0,243 (p=0,002) e vs «T3 sempre» 0,324 (p=0,017), ECE 0,146 > 0,10 pela 3.a vez (40: 0,110; 60b: 0,124; 60c: 0,146). MP5 parte 1: o 7b nao serve (-15,0/-3,5/-13,5 pp). O shadow (F2) esta em main, opt-in, OFF nesta maquina ate o dono correr RUN-DECISOR-SHADOW-ON.bat + /mooter-update.",
+    "question": "Com a confianca calibrada por classe (ajustada em dados antigos, validada no 60c), o decisor v0 passa os 4 gates — acc > constante mais forte, ECE <= 0,10, p50 <= 250 ms, egress 0 — num corpus virgem de prompts reais recolhidos pelo shadow em producao (60d), 1 por sessao?",
+    "corpus_60d": {
+      "source": "eventos `decisor_shadow` do decisions.log vivo (~/.claude/tools/router/decisions.log). AS PREVISOES QUE CONTAM SAO AS DO EVENTO (tier_D, probs_D, p_max_D, aux_D, ms_D): o que o decisor disse em tempo real, no worker desligado, sobre o prompt real. O braco D NAO se re-corre sobre o texto recuperado; se se correr, e diagnostico e diz-se.",
+      "since_utc": "2026-09-21T12:00:00Z",
+      "since_note": "nenhum evento existe antes desta hora (o shadow nunca esteve ligado nesta maquina). Eventos do harness/testes escrevem noutros ficheiros (HOME temporario) — nao entram.",
+      "text_recovery": "o evento so tem prompt_sha12 (sha256 do texto CRU que o hook recebeu) + prompt_len. O texto recupera-se das transcricoes ~/.claude/projects/**/*.jsonl (so sessoes de topo; linhas type:user com texto humano) por sha256[0..12] do texto cru. Verificado hoje nesta sessao: o hook recebe o texto exactamente como esta na transcricao (3/3 prompt_len iguais). Ferramenta: 10-corpus-60d.mjs, testada em eventos do HARNESS (10-corpus-60d.test.mjs) — nunca nos vivos antes da hora.",
+      "join_keys": [
+        "prompt_sha12 (primario)",
+        "session_id + prompt_len + |hook_ts_ms - timestamp da transcricao| < 10 s (verificacao; ambiguidade residual declarada no MP3 A21)"
+      ],
+      "eligibility_on_recovered_text": [
+        "as MESMAS exclusoes do 60c: tool_result, tags <...> no inicio, isSidechain, isMeta, projectos em AppData/Local/Temp, < 20 chars, > 500 chars, colagens <pasted_content>, comandos /",
+        "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1 (n01-n40 E r01-r23 — o buraco do A7 do round 3, fechado aqui), corpus-40-unredacted, corpus-60b, corpus-60c",
+        "evento sem texto recuperavel: NAO entra; conta-se e reporta-se (_unrecovered). Se > 10 % dos eventos elegiveis nao se recuperarem, a recuperacao por sha e declarada insuficiente e o corpus nao se fecha sem AMENDMENT.",
+        "evento com outcome != ok (timeout/failed/parse_failed): NAO entra na acuracia (nao ha previsao). Conta-se em _events_not_ok e reporta-se como disponibilidade; se > 10 % dos elegiveis, o gate de p50/disponibilidade chumba por si."
+      ],
+      "cap_per_session": 1,
+      "cap_note": "ESTRITO, como no 60c.",
+      "n_target": 60,
+      "sessions_min": 30,
+      "sessions_note": "com 1/sessao, n >= 60 implica >= 60 sessoes; o minimo de 30 do MP5 fica escrito e e redundante.",
+      "sampling": "elegiveis em ordem estavel (hook_ts_ms, sessao), embaralhados com mulberry32(20260921); primeiro evento elegivel de cada sessao ainda nao usada, ate n_target.",
+      "seed": 20260921,
+      "stop_rule": "Se em 14 dias (ate 2026-10-05T12:00Z) nao houver 60 sessoes elegiveis: ESPERA-SE. Nao se baixa n, nao se sobe o tecto por sessao, nao se recua a janela para antes de 12:00Z, nao se juntam sessoes de outra maquina sem AMENDMENT antes de rotular. Uma corrida de analise; nada se repete.",
+      "labels": "3 rotuladores cegos — Codex (codex exec, sandbox read-only, cwd isolado, --output-schema), Sonnet (subagente model-reasoner) e Kimi k3 (Moonshot, json_object, temperatura 1 pela API) — rubrica sha256 f95958dd…, maioria simples; empate a 3 -> Codex (regra do 60c). Guarda de cegueira: os rotuladores recebem id + prompt e nada mais; o ficheiro de previsoes (D-shadow-corpus-60d.json) so pode ser escrito DEPOIS de labels-60d.json existir (10-corpus-60d.mjs --predictions recusa sem rotulos).",
+      "never_commit": [
+        "results/corpus-60d.json",
+        "results/labels-60d*.json",
+        "results/labels-60d-transcript/",
+        "results/D-shadow-corpus-60d.json",
+        "results/policy-60d.json",
+        "results/nettap-*60d*"
+      ]
+    },
+    "candidates_fixed_now": {
+      "a_v0": "referencia: tier = tier_D do evento (argmax de probs_D), confianca = p_max_D. E o v0 do MP3, sem parametros.",
+      "b_v0_calibrated": "**CANDIDATO QUE CONTA.** tier = tier_D (a DECISAO NAO MUDA — acuracia identica a v0 por construcao); confianca = iso_c(p_c) com c = tier_D e p_c = probs_D[c], onde iso_c e a calibracao isotonica da classe c (ver `calibration`). So a confianca muda; o gate de ECE e sobre ela.",
+      "c_v0_guard_calibrated": "reporta-se, nao conta: tier = (tier_D == T0 e (aux_D.p_needs_repo >= 0,5 ou aux_D.p_high_stakes >= 0,5)) ? T2 : tier_D; confianca = iso_tier(probs_D[tier]) (quando o guard dispara, iso_T2(p_T2)). Limiar 0,5 fixado no MP3.",
+      "b_prime_diagnostic": "NAO e candidato: argmax das 4 probabilidades calibradas e renormalizadas (pode mudar a decisao). Reporta-se so para dizer se a calibracao mudaria decisoes; nao entra em gate nenhum.",
+      "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3)."
+    },
+    "calibration": {
+      "method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
+      "fitted_on": "SO os 251 rotulados antigos: gold-84 (D-qwen2.5-coder_14b-gold-84.json) + valset-70 (D-qwen2.5-coder_14b-valset.json) + corpus-40 (D-qwen2.5-coder_14b-corpus-40-unredacted.json.json) + corpus-60b (D-qwen2.5-coder_14b-corpus-60b.json.json) — ficheiros do braco D ja existentes, mesmo modelo, mesmas 4 perguntas, mesma rubrica que o shadow usa (arbiter.js DECISOR_RUBRIC/DECISOR_QUESTIONS, verificado: mensagens identicas ao 02-arm-D-logit.mjs).",
+      "fitted_on_note": "gold-84 e valset-70 sao TREINO da regra (expected_tier canonico), nao rotulos humanos cegos — servem para calibrar confianca, nunca para medir acuracia. Os 154 canonicos + 40 + 57 = 251.",
+      "validation": "corpus-60c (37): ECE de v0 antes (0,146) e depois da calibracao, e o mesmo para (c). E VALIDACAO, NAO GATE: se a ECE do 60c calibrada nao ficar <= 0,10, diz-se ANTES do 60d que o MP4 vai provavelmente chumbar e que o plano precisa de outra ideia (mais rotulos, outro modelo) — e NAO se re-ajusta a calibracao depois de ver o 60c.",
+      "weights_file": "results/calibration-weights.json — commitado ANTES de existir um evento do 60d; o ficheiro guarda os nos por classe, o n por classe, os ficheiros de origem (nome + `at` + n) e o sha256 do proprio 05b-calibrate.mjs que os gerou.",
+      "transfer_assumption": "a calibracao ajustada em saidas do harness (02-arm-D-logit.mjs) aplica-se as saidas do shadow (arbiter.js) porque as mensagens, o modelo, a temperatura 0, max_tokens 1 e a leitura dos top_logprobs sao os mesmos. Se o modelo do shadow mudar, a calibracao caduca."
+    },
+    "gate_on_60d": {
+      "evaluated_on": "(b) v0 calibrado. (a) e (c) e b-prime reportam-se.",
+      "acc_gt_strongest_constant": "acc(b) > max sobre c de acc(«c sempre») nos rotulos do 60d, McNemar unilateral exacto (binomial), p < 0,05. A constante mais forte e a que os rotulos derem (no 60c foi T3 sempre, 0,324); a regra e fixa, a constante nao se escolhe a mao.",
+      "ece_max": 0.1,
+      "ece_method": "10 bins de largura igual sobre a confianca CALIBRADA de (b)",
+      "p50_ms_max": 250,
+      "p50_note": "ms_D do evento (4 perguntas no worker desligado, modelo quente); eventos timeout contam como falha de disponibilidade (ver eligibility), nao entram na mediana.",
+      "egress_hosts_allowed": [
+        "127.0.0.1:11434"
+      ],
+      "egress_method": "o worker so aceita loopback (decisorHost(); senao outcome refused_non_loopback, nada e chamado) e fetch(redirect:error). Atestacao: (1) nenhum evento do 60d com outcome refused_non_loopback; (2) net-tap no worker (--shadow-worker) sobre os eventos do harness na maquina; limite declarado: cobre o cliente Node, nao o daemon Ollama.",
+      "also_reported": [
+        "(a) v0 e (c) v0-guard calibrado com os mesmos gates",
+        "b-prime (diagnostico)",
+        "so itens unanimes entre os 3 rotuladores",
+        "sem os despachados por runner",
+        "vs regra (tier_regra do proprio evento) e vs «T2 sempre»",
+        "n de sessoes = n de itens",
+        "disponibilidade: eventos ok / elegiveis"
+      ]
+    },
+    "closing_verdicts": {
+      "all_pass": "GATE VERDE (60d) → F2 PODE ABRIR (arbiter trocavel, default haiku) — decisao do dono",
+      "below_constant": "❄️ ABAIXO DA CONSTANTE MAIS FORTE → parar o decisor local",
+      "between": "ENTRE → o MP4 acaba aqui. NAO se repete o 60d. Um MP seguinte precisa de outra ideia (mais rotulos para calibrar, outro modelo, outra pergunta) e de pre-registo proprio."
+    },
+    "does_not_prove": [
+      "Que o decisor serve noutra maquina ou noutro utilizador: sao prompts do mesmo autor, uma maquina.",
+      "Que a calibracao generaliza: e ajustada em 251 itens de 4 fontes, 154 deles rotulos canonicos, nao humanos cegos.",
+      "Egress do daemon Ollama (o tap cobre o cliente Node).",
+      "Independencia entre sessoes do mesmo autor/projecto/dia (A8 do round 3)."
+    ]
   }
 }

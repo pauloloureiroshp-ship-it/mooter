@@ -22,3 +22,10 @@ results/labels-60c-transcript/
 results/A-60c.json
 results/policy-60c.json
 results/nettap-D-60c.jsonl
+# MP4 — corpus 60d (eventos do shadow + texto recuperado das transcrições), rótulos, previsões do evento. Nunca commitar.
+results/corpus-60d.json
+results/labels-60d*.json
+results/labels-60d-transcript/
+results/D-shadow-corpus-60d.json
+results/policy-60d.json
+results/nettap-*60d*
