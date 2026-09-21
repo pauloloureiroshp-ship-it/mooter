@@ -12,16 +12,20 @@ const PROTO = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8
 const FIT_FILES = ['D-qwen2.5-coder_14b-gold-84.json', 'D-qwen2.5-coder_14b-valset.json', 'D-qwen2.5-coder_14b-corpus-40-unredacted.json.json', 'D-qwen2.5-coder_14b-corpus-60b.json.json'];
 const VAL_FILE = 'D-qwen2.5-coder_14b-corpus-60c.json.json';
 const J = (f) => JSON.parse(fs.readFileSync(path.join(RES, f), 'utf8'));
+const shaOf = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(RES, f))).digest('hex');
 // linhas: {id, expected, tier, probs:{T0..T3}, p_needs_repo, p_high_stakes, ms}
 const rowsOf = (D, tag) => D.rows.map((r) => ({ id: `${tag}:${r.id}`, expected: r.expected, tier: r.tier, probs: r.answers.tier.probs, p_needs_repo: r.answers.needs_repo.probs['true'] ?? 0, p_high_stakes: r.answers.high_stakes.probs['true'] ?? 0, ms: r.ms }));
 
 // ── PAV: pares (x, y∈{0,1}) → blocos monótonos [x_lo, x_hi, y_média]; x iguais partilham bloco ──
 export function pav(pairs) {
-  const s = pairs.slice().sort((a, b) => a.x - b.x);
+  // 1) agrupar por x ANTES de fundir (A6 do round 5: fundir enquanto ainda faltam pontos com o mesmo x dava
+  //    (0,0),(0,0),(0,1),(1,0),(1,1) -> um bloco a 0,4 em vez de 1/3 · 1/2); 2) PAV sobre os grupos.
+  const byX = new Map();
+  for (const p of pairs) { const g = byX.get(p.x) || { x: p.x, sum: 0, n: 0 }; g.sum += p.y; g.n += 1; byX.set(p.x, g); }
+  const groups = [...byX.values()].sort((a, b) => a.x - b.x);
   const blocks = [];
-  for (const p of s) {
-    const last = blocks[blocks.length - 1];
-    if (last && last.x_hi === p.x) { last.sum += p.y; last.n += 1; } else blocks.push({ x_lo: p.x, x_hi: p.x, sum: p.y, n: 1 });
+  for (const g of groups) {
+    blocks.push({ x_lo: g.x, x_hi: g.x, sum: g.sum, n: g.n });
     while (blocks.length >= 2) {
       const b = blocks[blocks.length - 1], a = blocks[blocks.length - 2];
       if (a.sum / a.n <= b.sum / b.n) break;
@@ -59,7 +63,10 @@ const fmt = (x) => (x == null ? 'n/d' : x.toFixed(3));
 const isMain = /05b-calibrate.mjs$/.test(process.argv[1] || '');
 if (isMain) {
   const fitRows = []; const sources = [];
-  for (const f of FIT_FILES) { const D = J(f); const rows = rowsOf(D, f.replace(/^D-qwen2\.5-coder_14b-/, '').replace(/\.json.*$/, '')); fitRows.push(...rows); sources.push({ file: f, n: rows.length, at: D.at, model: D.model }); }
+  for (const f of FIT_FILES) { const D = J(f); const rows = rowsOf(D, f.replace(/^D-qwen2\.5-coder_14b-/, '').replace(/\.json.*$/, '')); fitRows.push(...rows); sources.push({ file: f, n: rows.length, at: D.at, model: D.model, sha256: shaOf(f) }); }
+  // A5 do round 5: «sem re-fit» tem de ser imposto, não prometido — os pesos commitados não se sobrescrevem.
+  const WEIGHTS = path.join(RES, 'calibration-weights.json');
+  if (fs.existsSync(WEIGHTS) && !process.argv.includes('--refit-declared')) { console.error(`RECUSADO: ${WEIGHTS} já existe. Um re-ajuste é uma emenda: apaga o ficheiro à mão (fica no git diff) e corre com --refit-declared, e escreve a razão no PROGRESSO.`); process.exit(4); }
   if (fitRows.length !== 251) { console.error(`esperava 251 linhas de ajuste, tenho ${fitRows.length}`); process.exit(2); }
   const classes = fit(fitRows);
   const v0Fit = fitRows.map((r) => ({ ...r, p_max: r.probs[r.tier], correct: r.tier === r.expected }));
@@ -77,8 +84,8 @@ if (isMain) {
     b_prime_diagnostic: { acc: acc(bp), ece: ece(bp).ece, decisions_changed: bp.filter((r) => r.changed).length },
   };
   const scriptSha = crypto.createHash('sha256').update(fs.readFileSync(new URL(import.meta.url))).digest('hex');
-  const weights = { _schema: 'decisor-shadow/calibration-weights-v1', _fitted_at: new Date().toISOString(), _method: PROTO.method, _fitted_on: sources, _n: fitRows.length, _model: 'qwen2.5-coder:14b', _script: '05b-calibrate.mjs', _script_sha256: scriptSha, _in_sample_251: inSample, _validation_60c: { n: val.n, v0_ece_before: val.a_v0.ece, b_ece_after: val.b_v0_calibrated.ece }, classes };
-  fs.writeFileSync(path.join(RES, 'calibration-weights.json'), JSON.stringify(weights, null, 1));
+  const weights = { _schema: 'decisor-shadow/calibration-weights-v1', _fitted_at: new Date().toISOString(), _method: PROTO.method, _fitted_on: sources, _n: fitRows.length, _model: 'qwen2.5-coder:14b', _script: '05b-calibrate.mjs', _script_sha256: scriptSha, _validation_file: { file: VAL_FILE, sha256: shaOf(VAL_FILE), n: valRows.length }, _in_sample_251: inSample, _validation_60c: { n: val.n, v0_ece_before: val.a_v0.ece, b_ece_after: val.b_v0_calibrated.ece }, classes };
+  fs.writeFileSync(WEIGHTS, JSON.stringify(weights, null, 1));
   fs.writeFileSync(path.join(RES, 'calibration-validation-60c.json'), JSON.stringify({ at: weights._fitted_at, in_sample_251: inSample, validation_60c: val }, null, 1));
   console.log(`ajuste em ${fitRows.length} (${sources.map((s) => `${s.n}`).join('+')}): ECE v0 in-sample ${fmt(inSample.v0_ece)} → calibrado ${fmt(inSample.b_ece)}; nós por classe ${TIERS.map((t) => `${t}:${classes[t].nodes.length}`).join(' ')}`);
   console.log(`60c (n=${val.n}, validação): v0 acc ${fmt(val.a_v0.acc)} ECE ${fmt(val.a_v0.ece)} → (b) ECE ${fmt(val.b_v0_calibrated.ece)} ${val.b_v0_calibrated.ece_le_010 ? '≤ 0,10 ✅' : '> 0,10 ❌'} · (c) guard acc ${fmt(val.c_guard.acc)} ECE ${fmt(val.c_guard.ece_before)} → ${fmt(val.c_guard.ece)} (disparou ${val.c_guard.guard_fired}×) · b′ acc ${fmt(val.b_prime_diagnostic.acc)} ECE ${fmt(val.b_prime_diagnostic.ece)}, mudaria ${val.b_prime_diagnostic.decisions_changed} decisões`);

@@ -41,7 +41,10 @@ function harness() {
   fs.writeFileSync(path.join(tx, 'C--proj-a', 's1.jsonl'), line(P.s1a) + noise + line(P.s1b));
   fs.writeFileSync(path.join(tx, 'C--proj-a', 's2.jsonl'), line(P.s2a) + line('linha sidechain que não conta', { isSidechain: true }));
   fs.writeFileSync(path.join(tx, 'C--proj-a', 's3.jsonl'), line(P.s3a));
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 's4.jsonl'), line(P.s4a) + line(P.s4b) + line(P.curto) + line(P.colagem) + line(P.comando));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', 's4.jsonl'), line(P.s4a) + line(P.s4b));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', 's5.jsonl'), line(P.curto)); fs.writeFileSync(path.join(tx, 'C--proj-a', 's6.jsonl'), line(P.colagem)); fs.writeFileSync(path.join(tx, 'C--proj-a', 's7.jsonl'), line(P.comando));
+  // A10: o mesmo texto do s3a numa OUTRA sessão — o evento s3 tem de ir buscar a ocorrência da sessão s3, não a primeira
+  fs.writeFileSync(path.join(tx, 'C--proj-a', 's0.jsonl'), line(P.s3a));
   fs.writeFileSync(path.join(tx, 'C--Users-x-AppData-Local-Temp-y', 's8.jsonl'), line(P.temp));
   // um 11.º evento cujo texto NÃO está em transcrição nenhuma (sha órfão) e um 12.º com outcome != ok
   const orphan = ev('este prompt não aparece em nenhuma transcrição do harness', 's9');
@@ -99,18 +102,36 @@ test('(4) sha igual com comprimento diferente é rejeitado; elegibilidade de tag
   assert.equal(meta._dropped.len_diferente, 1);
 });
 
-test('(5) o adversário: as saídas do 60d estão gitignoradas (nunca chegam ao git) e o CLI recusa --predictions sem rótulos', () => {
+test('(5) o adversário (round 5, A7/A8/A11): saídas gitignoradas, --out fora do gitignore recusado, sem n_target não fecha, previsões só ligadas ao corpus congelado e a rótulos completos', () => {
   for (const f of ['results/corpus-60d.json', 'results/labels-60d.json', 'results/labels-60d-codex.json', 'results/D-shadow-corpus-60d.json', 'results/policy-60d.json', 'results/labels-60d-transcript/x.txt', 'results/nettap-worker-60d.jsonl']) {
     let ignored = false; try { execFileSync('git', ['check-ignore', '-q', path.join(HERE, f)], { cwd: HERE, stdio: 'ignore' }); ignored = true; } catch { ignored = false; }
     assert.ok(ignored, `${f} tem de estar no .gitignore do pacote`);
   }
   const { log, tx, dir } = harness();
+  const run = (extra) => { try { const out = execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', log, '--transcripts', tx, '--since', '2026-09-21T12:00:00Z', ...extra], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); return { code: 0, out }; } catch (e) { return { code: e.status, out: String(e.stdout || ''), err: String(e.stderr || '') }; } };
+  // A7: um --out dentro do repo que NÃO está gitignorado é recusado antes de ler seja o que for
+  const bad = path.join(HERE, 'results', 'corpus-60d-copia.json');
+  const r7 = run(['--out', bad]); assert.notEqual(r7.code, 0, 'recusa --out não ignorado'); assert.ok(!fs.existsSync(bad));
+  // A11: 4 itens < n_target → NÃO FECHADO (exit 5), nada escrito; --partial escreve marcado
   const out = path.join(dir, 'results', 'corpus-60d.json'); fs.mkdirSync(path.dirname(out));
-  let code = 0; try { execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', log, '--transcripts', tx, '--since', '2026-09-21T12:00:00Z', '--out', out, '--predictions'], { stdio: 'ignore' }); } catch (e) { code = e.status; }
-  assert.equal(code, 3, 'recusa escrever previsões sem labels-60d.json');
-  assert.ok(!fs.existsSync(path.join(dir, 'results', 'D-shadow-corpus-60d.json')));
-  execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', log, '--transcripts', tx, '--since', '2026-09-21T12:00:00Z', '--out', out], { stdio: 'ignore' });
+  const r11 = run(['--out', out]); assert.equal(r11.code, 5); assert.ok(!fs.existsSync(out), 'sem n_target não escreve');
+  assert.ok(/ESPERAR/.test(r11.err), 'diz que se espera, não se baixa n');
+  const rp = run(['--out', out, '--partial']); assert.equal(rp.code, 0);
   const written = JSON.parse(fs.readFileSync(out, 'utf8'));
-  assert.equal(written.items.length, 4); assert.ok(!JSON.stringify(written).includes('probs_D'));
-  const shaFile = crypto.createHash('sha256').update(fs.readFileSync(out)).digest('hex'); assert.equal(shaFile.length, 64);
+  assert.equal(written.items.length, 4); assert.equal(written._partial, true); assert.ok(!JSON.stringify(written).includes('probs_D'));
+  assert.ok(written._known_sources && Object.keys(written._known_sources).length === 4, 'as 4 fontes de exclusão contabilizadas');
+  // A8: --predictions recusa sem rótulos, recusa com rótulos incompletos, e só escreve ligado ao corpus congelado
+  assert.equal(run(['--out', out, '--predictions']).code, 3, 'sem labels-60d.json');
+  const labelsPath = path.join(dir, 'results', 'labels-60d.json');
+  fs.writeFileSync(labelsPath, JSON.stringify({ labels: written.items.slice(1).map((it) => ({ id: it.id, tier: 'T2' })) }));
+  assert.equal(run(['--out', out, '--predictions']).code, 3, 'rótulos incompletos (falta 1 id)');
+  fs.writeFileSync(labelsPath, JSON.stringify({ labels: written.items.map((it) => ({ id: it.id, tier: 'T2' })) }));
+  assert.equal(run(['--out', out, '--predictions']).code, 3, 'corpus parcial (n_target não atingido) também recusa');
+  fs.writeFileSync(out, JSON.stringify({ ...written, _target_reached: true, _partial: false })); // simula um corpus completo congelado
+  const ok = run(['--out', out, '--predictions']); assert.equal(ok.code, 0, ok.err);
+  const pred = JSON.parse(fs.readFileSync(path.join(dir, 'results', 'D-shadow-corpus-60d.json'), 'utf8'));
+  assert.equal(pred.rows.length, 4); assert.ok(pred.rows.every((r) => r.tier === 'T2' && typeof r.probs.T2 === 'number' && typeof r.aux.p_needs_repo === 'number'));
+  assert.ok(pred._corpus_sha256 && pred._labels_sha256, 'previsões ligadas por sha ao corpus e aos rótulos');
+  // A9: nada além de escalares — nenhum valor de string longa nas previsões
+  const strings = JSON.stringify(pred.rows).match(/"[^"]{25,}"/g) || []; assert.deepEqual(strings, [], 'sem strings longas nas previsões');
 });

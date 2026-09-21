@@ -1,0 +1,768 @@
+You are an adversarial reviewer of a pre-registered measurement package (routing decisor, local LLM, Node.js). Attack ONLY these three questions, plus anything dangerous you see in the code:
+(Q1) Part 1: was the 7b evaluated on the SAME corpora as the 14b reference, with NO tuning, and is the pre-registered rule (5 pp, on the point, 2-of-3) applied honestly? Is 'NAO SERVE' overclaimed given paired McNemar p = 0.070 / 0.804 / 0.267?
+(Q2) Part 3: could the isotonic calibration have SEEN the 60c (leakage), directly or indirectly (e.g. via the 60b/40 overlap, via the rule's training sets, via the temperature T=1.55 of MP2, via any file the script reads)? Is 'fitted on 251, validated on 60c, no re-fit' actually enforced by the code, or only promised?
+(Q3) Can 10-corpus-60d.mjs LEAK PROMPT TEXT INTO GIT (paths, .gitignore gaps, the --predictions file, test fixtures, the weights file, console output captured into committed logs)? Can it write outside results/? Is the blindness guard (--predictions refuses without labels) bypassable?
+OUTPUT (strict): numbered list 'A<n> | severity(critical|serious|minor) | claim | attack in <=3 sentences | what would refute it', then 'VERDICT: <one sentence per question>'. No preamble. Do not restate the inputs.
+
+=== protocol.json#mp5 (Part 1 pre-registration, committed 2c198377 before any run) ===
+{
+ "question": "O decisor tipado v0 corre num modelo que cabe num Mac M4 de 16 GB ao lado de outro? Operacionalizado: o qwen2.5-coder:7b fica dentro de 5 pontos percentuais do 14b em CADA um dos 3 corpora rotulados, avaliados separadamente?",
+ "candidates": {
+  "qwen2.5-coder:7b": "JA INSTALADO nesta maquina (ollama list: dae161e27b0e, 4,7 GB, ha 3 meses) — o MP dizia «a puxar»; nao houve pull. Corre-se nos 3 corpora, uma corrida cada.",
+  "qwen2.5:3b": "ja medido no corpus-40 (0,400, ECE 0,462, MP1) e no gold-84 (0,512). Corre-se no 60b e no 60c para completar a tabela modelo x corpus — uma corrida cada. O resultado do 40 NAO se re-corre."
+ },
+ "reference": "D v0 no qwen2.5-coder:14b, ficheiros D-qwen2.5-coder_14b-corpus-{40-unredacted,60b,60c}.json.json JA EXISTENTES (0,600 / 0,614 / 0,622). O 14b NAO se re-corre. Comparacao emparelhada item a item (mesmos ids).",
+ "corpora": [
+  {
+   "corpus": "results/corpus-40-unredacted.json",
+   "labels": "../provas-v1-2026-09-09/P1-decidir-custa-zero/labels-63.json",
+   "n": 40,
+   "note": "os 40 reais do P1 — reuso do MP1"
+  },
+  {
+   "corpus": "results/corpus-60b.json",
+   "labels": "results/labels-60b.json",
+   "n": 57,
+   "note": "MP2; ate 3/sessao"
+  },
+  {
+   "corpus": "results/corpus-60c.json",
+   "labels": "results/labels-60c.json",
+   "n": 37,
+   "note": "MP3; 1/sessao estrito; 3 rotuladores"
+  }
+ ],
+ "corpora_rule": "SEPARADOS. Nunca se soma o 40 aos outros sem o dizer; se se pooled, e exploratorio e diz-se.",
+ "harness": "02-arm-D-logit.mjs como esta (mesmas 4 perguntas, mesma rubrica sha256 f95958dd…, policy v0 argmax, limiar de abstencao 0,4), so muda --model. net-tap.cjs do P1 no cliente (NODE_OPTIONS --require) para atestar 0 hosts externos.",
+ "decision_rule": {
+  "serve": "acc_7b >= acc_14b - 0,05 em CADA um dos 3 corpora",
+  "nao_serve": "acc_7b < acc_14b - 0,05 em 2 ou 3 corpora",
+  "entre": "qualquer outro caso (falha em exactamente 1 corpus)",
+  "note": "5 pp e a margem pedida no MP5, fixada antes de ver um numero. Com n=37..57 o IC95 e largo (~±13-16 pp) — a regra e sobre o ponto, e diz-se que e sobre o ponto."
+ },
+ "also_reported": [
+  "Wilson IC95 por corpus",
+  "ECE 10 bins (secundaria)",
+  "p50 das 4 perguntas na RTX 4090, modelo quente",
+  "confusao expected->predicted",
+  "McNemar exacto bilateral 7b vs 14b, emparelhado por id (reportado, nao e gate)",
+  "latencia no Mac: n/d — nao ha medicao no Mac nesta sessao e nao se inventa; se o vault tiver o ESTUDO_LLMS_LOCAIS_MAC_MINI cita-se, senao n/d"
+ ],
+ "stop_rule": "Uma corrida por (modelo x corpus). Nada se re-corre. Zero rotulos novos. Se o Ollama falhar a meio, a corrida conta como falhada e declara-se; nao se repete a parte boa.",
+ "zero_new_labels": true
+}
+
+=== results/11-analysis-mp5.md (Part 1 table; corpora separate; 14b files pre-existing) ===
+# decisor-shadow — análise MP5 · Parte 1 (7b no lugar do 14b?) · 2026-09-21T12:25:14.977Z
+
+Pré-registo: `protocol.json#mp5` (`_registered_at` 2026-09-21T12:22:41.685Z; conta o %cI do commit que o introduz). Regra fixada antes de ver um número: **serve** se acc_7b ≥ acc_14b − 0,05 em CADA corpus; **não serve** se falha em ≥ 2; **entre** se falha em exactamente 1. Sobre o ponto, não sobre o IC (declarado no pré-registo). Corpora **separados** — nunca somados. Referência = D v0 no 14b, ficheiros já existentes, **não re-corridos**. Candidatos: 7b (uma corrida por corpus), 3b (o 40 é o do MP1; 60b e 60c corridos agora, uma vez cada). Mesmo harness (`02-arm-D-logit.mjs`, 4 perguntas, rubrica sha `f95958dd…`, v0 argmax), só muda `--model`. Egress: net-tap no cliente, todos os hosts `127.0.0.1:11434`.
+
+| Corpus | Modelo | acc (k/n) [IC95] | Δ vs 14b | McNemar 7b/3b vs 14b (b/c, p bilateral) | ECE | p50 ms (4 perg.) | abstém | confusão expected→pred |
+|---|---|---|---|---|---|---|---|---|
+| corpus-40 (P1, reuso) | **qwen2.5-coder:14b (referência, já medido)** | 0.600 (24/40) [0.45–0.74] | — | — | 0.110 | 165 | 3 | T0→T0 10, T0→T3 1, T1→T0 2, T1→T1 1, T2→T0 5, T2→T1 5, T2→T2 8, T3→T0 2, T3→T1 1, T3→T3 5 |
+| corpus-40 (P1, reuso) | qwen2.5-coder:7b (candidato) | 0.450 (18/40) [0.31–0.60] | -15.0 pp | 7/1, p=0.070 | 0.236 | 101 | 4 | T0→T0 10, T0→T3 1, T1→T0 2, T1→T1 1, T2→T0 11, T2→T1 4, T2→T2 1, T2→T3 2, T3→T0 1, T3→T2 1, T3→T3 6 |
+| corpus-40 (P1, reuso) | qwen2.5:3b (candidato, já medido no 40) | 0.400 (16/40) [0.26–0.55] | -20.0 pp | 13/5, p=0.096 | 0.462 | 97 | 0 | T0→T0 4, T0→T2 1, T0→T3 6, T1→T0 1, T1→T2 1, T1→T3 1, T2→T2 5, T2→T3 13, T3→T2 1, T3→T3 7 |
+| corpus-60b (MP2) | **qwen2.5-coder:14b (referência, já medido)** | 0.614 (35/57) [0.48–0.73] | — | — | 0.124 | 140 | 4 | T0→T0 16, T2→T0 8, T2→T1 1, T2→T2 8, T2→T3 1, T3→T0 8, T3→T1 1, T3→T2 3, T3→T3 11 |
+| corpus-60b (MP2) | qwen2.5-coder:7b (candidato) | 0.579 (33/57) [0.45–0.70] | -3.5 pp | 9/7, p=0.804 | 0.105 | 97 | 6 | T0→T0 16, T2→T0 11, T2→T1 2, T2→T2 2, T2→T3 3, T3→T0 8, T3→T3 15 |
+| corpus-60b (MP2) | qwen2.5:3b (candidato, já medido no 40) | 0.544 (31/57) [0.42–0.67] | -7.0 pp | 17/13, p=0.585 | 0.413 | 83 | 1 | T0→T0 6, T0→T3 10, T2→T2 3, T2→T3 15, T3→T0 1, T3→T3 22 |
+| corpus-60c (MP3, 1/sessão) | **qwen2.5-coder:14b (referência, já medido)** | 0.622 (23/37) [0.46–0.76] | — | — | 0.146 | 162 | 3 | T0→T0 10, T1→T0 4, T1→T1 2, T2→T0 2, T2→T1 2, T2→T2 5, T3→T0 1, T3→T1 2, T3→T2 3, T3→T3 6 |
+| corpus-60c (MP3, 1/sessão) | qwen2.5-coder:7b (candidato) | 0.486 (18/37) [0.33–0.64] | -13.5 pp | 9/4, p=0.267 | 0.156 | 107 | 6 | T0→T0 8, T0→T3 2, T1→T0 5, T1→T3 1, T2→T0 7, T2→T3 2, T3→T0 2, T3→T3 10 |
+| corpus-60c (MP3, 1/sessão) | qwen2.5:3b (candidato, já medido no 40) | 0.378 (14/37) [0.24–0.54] | -24.3 pp | 14/5, p=0.064 | 0.547 | 85 | 0 | T0→T0 3, T0→T3 7, T1→T0 1, T1→T3 5, T2→T0 1, T2→T3 8, T3→T2 1, T3→T3 11 |
+
+## Regra pré-registada
+
+- **qwen2.5-coder:7b: NÃO SERVE** — abaixo de 14b − 5 pp em 2 corpus/corpora (40, 60c).
+- qwen2.5:3b (informativo, não era a pergunta): **NÃO SERVE** — falha em 3 (40, 60b, 60c).
+
+## O que isto implica para o Mac (M4, 16 GB)
+
+- Latência no Mac: **n/d** — nada foi medido num Mac nesta sessão. Os p50 acima são da RTX 4090 com o modelo quente (o 7b responde às 4 perguntas em ~100 ms; o 3b em ~85 ms; o 14b em ~140–165 ms).
+- `ESTUDO_LLMS_LOCAIS_MAC_MINI`: **não existe no vault** (procurado por nome e por «mac mini / 16 GB» em `~/paulo-vault`; o que há é a decisão de 2026-08-15 a registar um job `gpt-oss:20b` no Mac mini, sem memória declarada). Se o 14b (9,1 GB em VRAM/RAM unificada, contexto 4096) cabe ao lado de outro modelo em 16 GB fica **n/d** aqui — não se inventa.
+- O que se pode dizer com o que se mediu: o candidato que caberia folgado (7b, 4,7 GB) **perde 13–15 pp** para o 14b em dois dos três corpora, e o 3b perde mais e chumba a ECE por larga margem (0,41 / 0,55). Se o Mac só puder correr o 7b, o decisor que lá corre **não é o que o MP3 mediu** — os números do 60c (0,622) não se transferem.
+
+⚠️ Nada aqui é decisão: o adversário (codex, round 5) pergunta se o 7b foi avaliado nos mesmos corpora sem ajuste.
+
+
+=== protocol.json#mp4 (Part 3 pre-registration, committed 009b509c; live decisor_shadow events at registration: 0) ===
+{
+ "_schema": "decisor-shadow/protocol-v1/mp4",
+ "_status": "PRE-REGISTO MP4 — congelado em commit ANTES de existir um unico evento decisor_shadow vivo (contados agora no decisions.log desta maquina: 0), ANTES de rotular o 60d e ANTES de ajustar a calibracao (os pesos entram num commit posterior a este, gerados por 05b-calibrate.mjs que este bloco define)",
+ "_registered_at": "2026-09-21T12:41:16.352Z",
+ "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+ "_live_decisor_shadow_events_at_registration": 0,
+ "_starting_point": "MP3 fechou ENTRE: v0 no 60c acc 0,622 vs «T2 sempre» 0,243 (p=0,002) e vs «T3 sempre» 0,324 (p=0,017), ECE 0,146 > 0,10 pela 3.a vez (40: 0,110; 60b: 0,124; 60c: 0,146). MP5 parte 1: o 7b nao serve (-15,0/-3,5/-13,5 pp). O shadow (F2) esta em main, opt-in, OFF nesta maquina ate o dono correr RUN-DECISOR-SHADOW-ON.bat + /mooter-update.",
+ "question": "Com a confianca calibrada por classe (ajustada em dados antigos, validada no 60c), o decisor v0 passa os 4 gates — acc > constante mais forte, ECE <= 0,10, p50 <= 250 ms, egress 0 — num corpus virgem de prompts reais recolhidos pelo shadow em producao (60d), 1 por sessao?",
+ "corpus_60d": {
+  "source": "eventos `decisor_shadow` do decisions.log vivo (~/.claude/tools/router/decisions.log). AS PREVISOES QUE CONTAM SAO AS DO EVENTO (tier_D, probs_D, p_max_D, aux_D, ms_D): o que o decisor disse em tempo real, no worker desligado, sobre o prompt real. O braco D NAO se re-corre sobre o texto recuperado; se se correr, e diagnostico e diz-se.",
+  "since_utc": "2026-09-21T12:00:00Z",
+  "since_note": "nenhum evento existe antes desta hora (o shadow nunca esteve ligado nesta maquina). Eventos do harness/testes escrevem noutros ficheiros (HOME temporario) — nao entram.",
+  "text_recovery": "o evento so tem prompt_sha12 (sha256 do texto CRU que o hook recebeu) + prompt_len. O texto recupera-se das transcricoes ~/.claude/projects/**/*.jsonl (so sessoes de topo; linhas type:user com texto humano) por sha256[0..12] do texto cru. Verificado hoje nesta sessao: o hook recebe o texto exactamente como esta na transcricao (3/3 prompt_len iguais). Ferramenta: 10-corpus-60d.mjs, testada em eventos do HARNESS (10-corpus-60d.test.mjs) — nunca nos vivos antes da hora.",
+  "join_keys": [
+   "prompt_sha12 (primario)",
+   "session_id + prompt_len + |hook_ts_ms - timestamp da transcricao| < 10 s (verificacao; ambiguidade residual declarada no MP3 A21)"
+  ],
+  "eligibility_on_recovered_text": [
+   "as MESMAS exclusoes do 60c: tool_result, tags <...> no inicio, isSidechain, isMeta, projectos em AppData/Local/Temp, < 20 chars, > 500 chars, colagens <pasted_content>, comandos /",
+   "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1 (n01-n40 E r01-r23 — o buraco do A7 do round 3, fechado aqui), corpus-40-unredacted, corpus-60b, corpus-60c",
+   "evento sem texto recuperavel: NAO entra; conta-se e reporta-se (_unrecovered). Se > 10 % dos eventos elegiveis nao se recuperarem, a recuperacao por sha e declarada insuficiente e o corpus nao se fecha sem AMENDMENT.",
+   "evento com outcome != ok (timeout/failed/parse_failed): NAO entra na acuracia (nao ha previsao). Conta-se em _events_not_ok e reporta-se como disponibilidade; se > 10 % dos elegiveis, o gate de p50/disponibilidade chumba por si."
+  ],
+  "cap_per_session": 1,
+  "cap_note": "ESTRITO, como no 60c.",
+  "n_target": 60,
+  "sessions_min": 30,
+  "sessions_note": "com 1/sessao, n >= 60 implica >= 60 sessoes; o minimo de 30 do MP5 fica escrito e e redundante.",
+  "sampling": "elegiveis em ordem estavel (hook_ts_ms, sessao), embaralhados com mulberry32(20260921); primeiro evento elegivel de cada sessao ainda nao usada, ate n_target.",
+  "seed": 20260921,
+  "stop_rule": "Se em 14 dias (ate 2026-10-05T12:00Z) nao houver 60 sessoes elegiveis: ESPERA-SE. Nao se baixa n, nao se sobe o tecto por sessao, nao se recua a janela para antes de 12:00Z, nao se juntam sessoes de outra maquina sem AMENDMENT antes de rotular. Uma corrida de analise; nada se repete.",
+  "labels": "3 rotuladores cegos — Codex (codex exec, sandbox read-only, cwd isolado, --output-schema), Sonnet (subagente model-reasoner) e Kimi k3 (Moonshot, json_object, temperatura 1 pela API) — rubrica sha256 f95958dd…, maioria simples; empate a 3 -> Codex (regra do 60c). Guarda de cegueira: os rotuladores recebem id + prompt e nada mais; o ficheiro de previsoes (D-shadow-corpus-60d.json) so pode ser escrito DEPOIS de labels-60d.json existir (10-corpus-60d.mjs --predictions recusa sem rotulos).",
+  "never_commit": [
+   "results/corpus-60d.json",
+   "results/labels-60d*.json",
+   "results/labels-60d-transcript/",
+   "results/D-shadow-corpus-60d.json",
+   "results/policy-60d.json",
+   "results/nettap-*60d*"
+  ]
+ },
+ "candidates_fixed_now": {
+  "a_v0": "referencia: tier = tier_D do evento (argmax de probs_D), confianca = p_max_D. E o v0 do MP3, sem parametros.",
+  "b_v0_calibrated": "**CANDIDATO QUE CONTA.** tier = tier_D (a DECISAO NAO MUDA — acuracia identica a v0 por construcao); confianca = iso_c(p_c) com c = tier_D e p_c = probs_D[c], onde iso_c e a calibracao isotonica da classe c (ver `calibration`). So a confianca muda; o gate de ECE e sobre ela.",
+  "c_v0_guard_calibrated": "reporta-se, nao conta: tier = (tier_D == T0 e (aux_D.p_needs_repo >= 0,5 ou aux_D.p_high_stakes >= 0,5)) ? T2 : tier_D; confianca = iso_tier(probs_D[tier]) (quando o guard dispara, iso_T2(p_T2)). Limiar 0,5 fixado no MP3.",
+  "b_prime_diagnostic": "NAO e candidato: argmax das 4 probabilidades calibradas e renormalizadas (pode mudar a decisao). Reporta-se so para dizer se a calibracao mudaria decisoes; nao entra em gate nenhum.",
+  "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3)."
+ },
+ "calibration": {
+  "method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
+  "fitted_on": "SO os 251 rotulados antigos: gold-84 (D-qwen2.5-coder_14b-gold-84.json) + valset-70 (D-qwen2.5-coder_14b-valset.json) + corpus-40 (D-qwen2.5-coder_14b-corpus-40-unredacted.json.json) + corpus-60b (D-qwen2.5-coder_14b-corpus-60b.json.json) — ficheiros do braco D ja existentes, mesmo modelo, mesmas 4 perguntas, mesma rubrica que o shadow usa (arbiter.js DECISOR_RUBRIC/DECISOR_QUESTIONS, verificado: mensagens identicas ao 02-arm-D-logit.mjs).",
+  "fitted_on_note": "gold-84 e valset-70 sao TREINO da regra (expected_tier canonico), nao rotulos humanos cegos — servem para calibrar confianca, nunca para medir acuracia. Os 154 canonicos + 40 + 57 = 251.",
+  "validation": "corpus-60c (37): ECE de v0 antes (0,146) e depois da calibracao, e o mesmo para (c). E VALIDACAO, NAO GATE: se a ECE do 60c calibrada nao ficar <= 0,10, diz-se ANTES do 60d que o MP4 vai provavelmente chumbar e que o plano precisa de outra ideia (mais rotulos, outro modelo) — e NAO se re-ajusta a calibracao depois de ver o 60c.",
+  "weights_file": "results/calibration-weights.json — commitado ANTES de existir um evento do 60d; o ficheiro guarda os nos por classe, o n por classe, os ficheiros de origem (nome + `at` + n) e o sha256 do proprio 05b-calibrate.mjs que os gerou.",
+  "transfer_assumption": "a calibracao ajustada em saidas do harness (02-arm-D-logit.mjs) aplica-se as saidas do shadow (arbiter.js) porque as mensagens, o modelo, a temperatura 0, max_tokens 1 e a leitura dos top_logprobs sao os mesmos. Se o modelo do shadow mudar, a calibracao caduca."
+ },
+ "gate_on_60d": {
+  "evaluated_on": "(b) v0 calibrado. (a) e (c) e b-prime reportam-se.",
+  "acc_gt_strongest_constant": "acc(b) > max sobre c de acc(«c sempre») nos rotulos do 60d, McNemar unilateral exacto (binomial), p < 0,05. A constante mais forte e a que os rotulos derem (no 60c foi T3 sempre, 0,324); a regra e fixa, a constante nao se escolhe a mao.",
+  "ece_max": 0.1,
+  "ece_method": "10 bins de largura igual sobre a confianca CALIBRADA de (b)",
+  "p50_ms_max": 250,
+  "p50_note": "ms_D do evento (4 perguntas no worker desligado, modelo quente); eventos timeout contam como falha de disponibilidade (ver eligibility), nao entram na mediana.",
+  "egress_hosts_allowed": [
+   "127.0.0.1:11434"
+  ],
+  "egress_method": "o worker so aceita loopback (decisorHost(); senao outcome refused_non_loopback, nada e chamado) e fetch(redirect:error). Atestacao: (1) nenhum evento do 60d com outcome refused_non_loopback; (2) net-tap no worker (--shadow-worker) sobre os eventos do harness na maquina; limite declarado: cobre o cliente Node, nao o daemon Ollama.",
+  "also_reported": [
+   "(a) v0 e (c) v0-guard calibrado com os mesmos gates",
+   "b-prime (diagnostico)",
+   "so itens unanimes entre os 3 rotuladores",
+   "sem os despachados por runner",
+   "vs regra (tier_regra do proprio evento) e vs «T2 sempre»",
+   "n de sessoes = n de itens",
+   "disponibilidade: eventos ok / elegiveis"
+  ]
+ },
+ "closing_verdicts": {
+  "all_pass": "GATE VERDE (60d) → F2 PODE ABRIR (arbiter trocavel, default haiku) — decisao do dono",
+  "below_constant": "❄️ ABAIXO DA CONSTANTE MAIS FORTE → parar o decisor local",
+  "between": "ENTRE → o MP4 acaba aqui. NAO se repete o 60d. Um MP seguinte precisa de outra ideia (mais rotulos para calibrar, outro modelo, outra pergunta) e de pre-registo proprio."
+ },
+ "does_not_prove": [
+  "Que o decisor serve noutra maquina ou noutro utilizador: sao prompts do mesmo autor, uma maquina.",
+  "Que a calibracao generaliza: e ajustada em 251 itens de 4 fontes, 154 deles rotulos canonicos, nao humanos cegos.",
+  "Egress do daemon Ollama (o tap cobre o cliente Node).",
+  "Independencia entre sessoes do mesmo autor/projecto/dia (A8 do round 3)."
+ ]
+}
+
+=== results/calibration-weights.json (metadata + per-class node summary; full nodes omitted for length) ===
+{
+ "_schema": "decisor-shadow/calibration-weights-v1",
+ "_fitted_at": "2026-09-21T12:43:44.707Z",
+ "_method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
+ "_fitted_on": [
+  {
+   "file": "D-qwen2.5-coder_14b-gold-84.json",
+   "n": 84,
+   "at": "2026-09-21T09:37:54.019Z",
+   "model": "qwen2.5-coder:14b"
+  },
+  {
+   "file": "D-qwen2.5-coder_14b-valset.json",
+   "n": 70,
+   "at": "2026-09-21T10:02:02.187Z",
+   "model": "qwen2.5-coder:14b"
+  },
+  {
+   "file": "D-qwen2.5-coder_14b-corpus-40-unredacted.json.json",
+   "n": 40,
+   "at": "2026-09-21T09:38:04.096Z",
+   "model": "qwen2.5-coder:14b"
+  },
+  {
+   "file": "D-qwen2.5-coder_14b-corpus-60b.json.json",
+   "n": 57,
+   "at": "2026-09-21T10:14:09.876Z",
+   "model": "qwen2.5-coder:14b"
+  }
+ ],
+ "_n": 251,
+ "_model": "qwen2.5-coder:14b",
+ "_script": "05b-calibrate.mjs",
+ "_script_sha256": "9997e3dbf9780bf92a4b7fa6edda8702a742eecb7f5c0961500b0077db38ff43",
+ "_in_sample_251": {
+  "v0_ece": 0.09804467747269319,
+  "b_ece": 0.015266706348237012,
+  "acc": 0.6733067729083665
+ },
+ "_validation_60c": {
+  "n": 37,
+  "v0_ece_before": 0.14626447685637023,
+  "b_ece_after": 0.12646831639353545
+ },
+ "classes": {
+  "T0": {
+   "n_pos": 96,
+   "n_nodes": 49,
+   "first": {
+    "x_lo": 0.003224,
+    "x_hi": 0.003224,
+    "y": 0,
+    "n": 1
+   },
+   "last": {
+    "x_lo": 0.995224,
+    "x_hi": 0.995224,
+    "y": 1,
+    "n": 1
+   },
+   "singleton_nodes": 35
+  },
+  "T1": {
+   "n_pos": 17,
+   "n_nodes": 45,
+   "first": {
+    "x_lo": 0,
+    "x_hi": 0,
+    "y": 0,
+    "n": 17
+   },
+   "last": {
+    "x_lo": 0.891582,
+    "x_hi": 0.955105,
+    "y": 0.615385,
+    "n": 13
+   },
+   "singleton_nodes": 38
+  },
+  "T2": {
+   "n_pos": 69,
+   "n_nodes": 51,
+   "first": {
+    "x_lo": 0.001802,
+    "x_hi": 0.001802,
+    "y": 0,
+    "n": 1
+   },
+   "last": {
+    "x_lo": 0.933356,
+    "x_hi": 0.933356,
+    "y": 1,
+    "n": 1
+   },
+   "singleton_nodes": 45
+  },
+  "T3": {
+   "n_pos": 69,
+   "n_nodes": 61,
+   "first": {
+    "x_lo": 0,
+    "x_hi": 0,
+    "y": 0,
+    "n": 28
+   },
+   "last": {
+    "x_lo": 0.990959,
+    "x_hi": 0.990959,
+    "y": 1,
+    "n": 1
+   },
+   "singleton_nodes": 50
+  }
+ }
+}
+
+=== results/calibration-validation-60c.json ===
+{
+ "at": "2026-09-21T12:43:44.707Z",
+ "in_sample_251": {
+  "v0_ece": 0.09804467747269319,
+  "b_ece": 0.015266706348237012,
+  "acc": 0.6733067729083665
+ },
+ "validation_60c": {
+  "n": 37,
+  "a_v0": {
+   "acc": 0.6216216216216216,
+   "ece": 0.14626447685637023,
+   "bins": [
+    {
+     "bin": "0.3",
+     "n": 3,
+     "acc": 0.3333333333333333,
+     "conf": 0.3566154236585664
+    },
+    {
+     "bin": "0.4",
+     "n": 10,
+     "acc": 0.5,
+     "conf": 0.44029072987933704
+    },
+    {
+     "bin": "0.5",
+     "n": 6,
+     "acc": 0.6666666666666666,
+     "conf": 0.534393562551326
+    },
+    {
+     "bin": "0.6",
+     "n": 3,
+     "acc": 0.3333333333333333,
+     "conf": 0.6436212327257319
+    },
+    {
+     "bin": "0.8",
+     "n": 3,
+     "acc": 1,
+     "conf": 0.8406969539807562
+    },
+    {
+     "bin": "0.9",
+     "n": 12,
+     "acc": 0.75,
+     "conf": 0.9618696008813665
+    }
+   ]
+  },
+  "b_v0_calibrated": {
+   "acc": 0.6216216216216216,
+   "ece": 0.12646831639353545,
+   "bins": [
+    {
+     "bin": "0.0",
+     "n": 4,
+     "acc": 0.25,
+     "conf": 0.047619
+    },
+    {
+     "bin": "0.1",
+     "n": 2,
+     "acc": 0.5,
+     "conf": 0.166667
+    },
+    {
+     "bin": "0.4",
+     "n": 4,
+     "acc": 0.5,
+     "conf": 0.4
+    },
+    {
+     "bin": "0.5",
+     "n": 4,
+     "acc": 0.5,
+     "conf": 0.53035725
+    },
+    {
+     "bin": "0.6",
+     "n": 3,
+     "acc": 0.6666666666666666,
+     "conf": 0.6563678952736237
+    },
+    {
+     "bin": "0.7",
+     "n": 7,
+     "acc": 0.7142857142857143,
+     "conf": 0.7586209999999999
+    },
+    {
+     "bin": "0.8",
+     "n": 1,
+     "acc": 1,
+     "conf": 0.857143
+    },
+    {
+     "bin": "0.9",
+     "n": 12,
+     "acc": 0.75,
+     "conf": 0.9331340326984736
+    }
+   ],
+   "ece_le_010": false
+  },
+  "c_guard": {
+   "acc_before": 0.6216216216216216,
+   "ece_before": 0.14626447685637023,
+   "acc": 0.6216216216216216,
+   "ece": 0.12646831639353545,
+   "guard_fired": 0
+  },
+  "b_prime_diagnostic": {
+   "acc": 0.6216216216216216,
+   "ece": 0.1359054851907385,
+   "decisions_changed": 7
+  }
+ }
+}
+
+=== 05b-calibrate.mjs (full source) ===
+#!/usr/bin/env node
+// 05b-calibrate.mjs — MP4 (pré-registado em protocol.json#mp4.calibration): calibração isotónica POR CLASSE
+// (one-vs-rest, pool-adjacent-violators) sobre p(tier=c) do braço D no 14b. Ajusta SÓ nos 251 rotulados antigos
+// (gold-84 + valset-70 + corpus-40 + corpus-60b), valida no 60c (ECE antes/depois — validação, NÃO gate), grava
+// results/calibration-weights.json. Node puro, sem modelo. NUNCA corre no 60d: não há flag para isso.
+//   node 05b-calibrate.mjs
+import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto';
+import { HERE, TIERS, ece } from './lib-common.mjs';
+const RES = path.join(HERE, 'results');
+if (process.argv.slice(2).some((a) => /60d/i.test(a))) { console.error('RECUSADO: este script não corre sobre o 60d (pré-registo mp4).'); process.exit(3); }
+const PROTO = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8')).mp4.calibration;
+const FIT_FILES = ['D-qwen2.5-coder_14b-gold-84.json', 'D-qwen2.5-coder_14b-valset.json', 'D-qwen2.5-coder_14b-corpus-40-unredacted.json.json', 'D-qwen2.5-coder_14b-corpus-60b.json.json'];
+const VAL_FILE = 'D-qwen2.5-coder_14b-corpus-60c.json.json';
+const J = (f) => JSON.parse(fs.readFileSync(path.join(RES, f), 'utf8'));
+// linhas: {id, expected, tier, probs:{T0..T3}, p_needs_repo, p_high_stakes, ms}
+const rowsOf = (D, tag) => D.rows.map((r) => ({ id: `${tag}:${r.id}`, expected: r.expected, tier: r.tier, probs: r.answers.tier.probs, p_needs_repo: r.answers.needs_repo.probs['true'] ?? 0, p_high_stakes: r.answers.high_stakes.probs['true'] ?? 0, ms: r.ms }));
+
+// ── PAV: pares (x, y∈{0,1}) → blocos monótonos [x_lo, x_hi, y_média]; x iguais partilham bloco ──
+export function pav(pairs) {
+  const s = pairs.slice().sort((a, b) => a.x - b.x);
+  const blocks = [];
+  for (const p of s) {
+    const last = blocks[blocks.length - 1];
+    if (last && last.x_hi === p.x) { last.sum += p.y; last.n += 1; } else blocks.push({ x_lo: p.x, x_hi: p.x, sum: p.y, n: 1 });
+    while (blocks.length >= 2) {
+      const b = blocks[blocks.length - 1], a = blocks[blocks.length - 2];
+      if (a.sum / a.n <= b.sum / b.n) break;
+      blocks.splice(blocks.length - 2, 2, { x_lo: a.x_lo, x_hi: b.x_hi, sum: a.sum + b.sum, n: a.n + b.n });
+    }
+  }
+  return blocks.map((b) => ({ x_lo: +b.x_lo.toFixed(6), x_hi: +b.x_hi.toFixed(6), y: +(b.sum / b.n).toFixed(6), n: b.n }));
+}
+// ── aplicar: dentro de um bloco → y; entre blocos → interpolação linear; fora → clamp ──
+export function applyIso(nodes, p) {
+  if (!nodes.length || !Number.isFinite(p)) return p;
+  if (p <= nodes[0].x_lo) return nodes[0].y;
+  if (p >= nodes[nodes.length - 1].x_hi) return nodes[nodes.length - 1].y;
+  for (let i = 0; i < nodes.length; i++) {
+    const b = nodes[i]; if (p >= b.x_lo && p <= b.x_hi) return b.y;
+    const nx = nodes[i + 1]; if (nx && p > b.x_hi && p < nx.x_lo) { const t = (p - b.x_hi) / (nx.x_lo - b.x_hi); return b.y + t * (nx.y - b.y); }
+  }
+  return p;
+}
+export function fit(rows) {
+  const classes = {};
+  for (const c of TIERS) classes[c] = { n_pos: rows.filter((r) => r.expected === c).length, nodes: pav(rows.map((r) => ({ x: r.probs[c] ?? 0, y: r.expected === c ? 1 : 0 }))) };
+  return classes;
+}
+// candidatos (b) e (c) e o diagnóstico b′ — como o pré-registo os define
+export function candidates(rows, classes) {
+  const b = rows.map((r) => ({ ...r, p_max: applyIso(classes[r.tier].nodes, r.probs[r.tier] ?? 0), correct: r.tier === r.expected }));
+  const c = rows.map((r) => { const fired = r.tier === 'T0' && (r.p_needs_repo >= 0.5 || r.p_high_stakes >= 0.5); const tier = fired ? 'T2' : r.tier; return { ...r, tier, guard_fired: fired, p_max: applyIso(classes[tier].nodes, r.probs[tier] ?? 0), correct: tier === r.expected }; });
+  const bp = rows.map((r) => { const q = {}; let s = 0; for (const t of TIERS) { q[t] = applyIso(classes[t].nodes, r.probs[t] ?? 0); s += q[t]; } for (const t of TIERS) q[t] = s > 0 ? q[t] / s : 0.25; const tier = TIERS.reduce((a, t) => (q[t] > q[a] ? t : a), 'T0'); return { ...r, tier, p_max: q[tier], correct: tier === r.expected, changed: tier !== r.tier }; });
+  return { b, c, bp };
+}
+const acc = (rows) => rows.filter((r) => r.correct).length / rows.length;
+const fmt = (x) => (x == null ? 'n/d' : x.toFixed(3));
+
+const isMain = /05b-calibrate.mjs$/.test(process.argv[1] || '');
+if (isMain) {
+  const fitRows = []; const sources = [];
+  for (const f of FIT_FILES) { const D = J(f); const rows = rowsOf(D, f.replace(/^D-qwen2\.5-coder_14b-/, '').replace(/\.json.*$/, '')); fitRows.push(...rows); sources.push({ file: f, n: rows.length, at: D.at, model: D.model }); }
+  if (fitRows.length !== 251) { console.error(`esperava 251 linhas de ajuste, tenho ${fitRows.length}`); process.exit(2); }
+  const classes = fit(fitRows);
+  const v0Fit = fitRows.map((r) => ({ ...r, p_max: r.probs[r.tier], correct: r.tier === r.expected }));
+  const inSample = { v0_ece: ece(v0Fit).ece, b_ece: ece(candidates(fitRows, classes).b).ece, acc: acc(v0Fit) };
+  // validação no 60c
+  const V = J(VAL_FILE); const valRows = rowsOf(V, '60c');
+  const v0 = valRows.map((r) => ({ ...r, p_max: r.probs[r.tier], correct: r.tier === r.expected }));
+  const guard0 = valRows.map((r) => { const fired = r.tier === 'T0' && (r.p_needs_repo >= 0.5 || r.p_high_stakes >= 0.5); const tier = fired ? 'T2' : r.tier; return { ...r, tier, p_max: r.probs[tier], correct: tier === r.expected }; });
+  const { b, c, bp } = candidates(valRows, classes);
+  const val = {
+    n: valRows.length,
+    a_v0: { acc: acc(v0), ece: ece(v0).ece, bins: ece(v0).bins },
+    b_v0_calibrated: { acc: acc(b), ece: ece(b).ece, bins: ece(b).bins, ece_le_010: ece(b).ece <= 0.10 },
+    c_guard: { acc_before: acc(guard0), ece_before: ece(guard0).ece, acc: acc(c), ece: ece(c).ece, guard_fired: c.filter((r) => r.guard_fired).length },
+    b_prime_diagnostic: { acc: acc(bp), ece: ece(bp).ece, decisions_changed: bp.filter((r) => r.changed).length },
+  };
+  const scriptSha = crypto.createHash('sha256').update(fs.readFileSync(new URL(import.meta.url))).digest('hex');
+  const weights = { _schema: 'decisor-shadow/calibration-weights-v1', _fitted_at: new Date().toISOString(), _method: PROTO.method, _fitted_on: sources, _n: fitRows.length, _model: 'qwen2.5-coder:14b', _script: '05b-calibrate.mjs', _script_sha256: scriptSha, _in_sample_251: inSample, _validation_60c: { n: val.n, v0_ece_before: val.a_v0.ece, b_ece_after: val.b_v0_calibrated.ece }, classes };
+  fs.writeFileSync(path.join(RES, 'calibration-weights.json'), JSON.stringify(weights, null, 1));
+  fs.writeFileSync(path.join(RES, 'calibration-validation-60c.json'), JSON.stringify({ at: weights._fitted_at, in_sample_251: inSample, validation_60c: val }, null, 1));
+  console.log(`ajuste em ${fitRows.length} (${sources.map((s) => `${s.n}`).join('+')}): ECE v0 in-sample ${fmt(inSample.v0_ece)} → calibrado ${fmt(inSample.b_ece)}; nós por classe ${TIERS.map((t) => `${t}:${classes[t].nodes.length}`).join(' ')}`);
+  console.log(`60c (n=${val.n}, validação): v0 acc ${fmt(val.a_v0.acc)} ECE ${fmt(val.a_v0.ece)} → (b) ECE ${fmt(val.b_v0_calibrated.ece)} ${val.b_v0_calibrated.ece_le_010 ? '≤ 0,10 ✅' : '> 0,10 ❌'} · (c) guard acc ${fmt(val.c_guard.acc)} ECE ${fmt(val.c_guard.ece_before)} → ${fmt(val.c_guard.ece)} (disparou ${val.c_guard.guard_fired}×) · b′ acc ${fmt(val.b_prime_diagnostic.acc)} ECE ${fmt(val.b_prime_diagnostic.ece)}, mudaria ${val.b_prime_diagnostic.decisions_changed} decisões`);
+  console.log(`→ results/calibration-weights.json (sha do script ${scriptSha.slice(0, 12)})`);
+}
+
+
+=== 10-corpus-60d.mjs (full source) ===
+#!/usr/bin/env node
+// 10-corpus-60d.mjs — MP4 (pré-registado em protocol.json#mp4.corpus_60d): o corpus 60d nasce dos eventos
+// `decisor_shadow` do decisions.log (só prompt_sha12 + prompt_len) e recupera o TEXTO das transcrições do
+// Claude Code por sha256[0..12] do texto cru. Mesmas exclusões do 60c, 1/sessão ESTRITO, seed do pré-registo.
+//   node 10-corpus-60d.mjs [--log <decisions.log>] [--transcripts <~/.claude/projects>] [--since <iso>]
+//                          [--out <results/corpus-60d.json>] [--dry] [--predictions]
+// --predictions escreve results/D-shadow-corpus-60d.json (as previsões DO EVENTO, que são as que contam) e
+// RECUSA se results/labels-60d.json não existir — a cegueira dos rotuladores vem primeiro.
+// Saídas NUNCA commitadas (.gitignore do pacote). Nada aqui corre modelo nenhum.
+import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os'; import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { HERE, P1, opt, args } from './lib-common.mjs';
+
+const PROTO = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8')).mp4;
+const C = PROTO.corpus_60d;
+const LOG = opt('--log', path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log'));
+const TX = opt('--transcripts', path.join(os.homedir(), '.claude', 'projects'));
+const SINCE = Date.parse(opt('--since', C.since_utc));
+const OUT = opt('--out', path.join(HERE, 'results', 'corpus-60d.json'));
+const N = C.n_target, SEED = C.seed, CAP = C.cap_per_session;
+const HOME = os.homedir(); const OWNER = path.basename(HOME);
+export const sha12 = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex').slice(0, 12);
+
+// ── exclusão por sha: P1 corpus-63 (marcadores + os r01-r23 em claro), 40, 60b, 60c ──
+export function knownShas(resDir = path.join(HERE, 'results')) {
+  const known = new Set();
+  try {
+    const raw = fs.readFileSync(path.join(P1, 'corpus-63.json'), 'utf8');
+    for (const m of raw.matchAll(/sha256:([0-9a-f]{12})/g)) known.add(m[1]);
+    // r01-r23: não redigidos no P1 (buraco A7 do round 3) — entram pelo texto
+    try { for (const it of (JSON.parse(raw).items || [])) if (it.prompt && !/^\[\[redigido/.test(it.prompt)) known.add(sha12(it.prompt)); } catch { /* corpus-63 sem items */ }
+  } catch { /* P1 ausente nesta máquina: a exclusão fica parcial e é declarada no meta */ }
+  for (const f of ['corpus-40-unredacted.json', 'corpus-60b.json', 'corpus-60c.json']) {
+    try { for (const it of JSON.parse(fs.readFileSync(path.join(resDir, f), 'utf8')).items) { known.add(sha12(it.prompt)); if (it._sha256_12) known.add(it._sha256_12); } } catch { /* ausente */ }
+  }
+  return known;
+}
+
+// ── anonimização como o 60b/60c ──
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const homeForms = [HOME, HOME.replace(/\\/g, '/'), HOME.replace(/\\/g, '\\\\'), '/c/Users/' + OWNER, 'C:\\Users\\PAULOL~1', 'C:/Users/PAULOL~1'];
+const ownerForms = [OWNER, OWNER.split(' ')[0], OWNER.split(' ').at(-1)].filter(Boolean);
+export function anonymise(t) {
+  let s = t;
+  for (const h of homeForms) s = s.replace(new RegExp(esc(h), 'gi'), '~');
+  s = s.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email>');
+  for (const o of ownerForms) s = s.replace(new RegExp(`\\b${esc(o)}\\b`, 'gi'), '<owner>');
+  return s;
+}
+const clean = (s) => s.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').replace(/^Shell cwd was reset to .*$/gm, '').trim();
+
+// ── 1. eventos do shadow ──
+export function readShadowEvents(logPath, sinceMs) {
+  const out = [];
+  if (!fs.existsSync(logPath)) return out;
+  for (const l of fs.readFileSync(logPath, 'utf8').split('\n')) {
+    if (!l.startsWith('{') || !l.includes('"decisor_shadow"')) continue;
+    let e; try { e = JSON.parse(l); } catch { continue; }
+    if (e.event !== 'decisor_shadow') continue;
+    const t = Number.isFinite(e.hook_ts_ms) ? e.hook_ts_ms : Date.parse(e.ts || '');
+    if (!(t >= sinceMs)) continue;
+    out.push(e);
+  }
+  return out;
+}
+
+// ── 2. índice das transcrições: sha12(texto cru) -> {texto, projecto, sessão, timestamp, flags} ──
+export function indexTranscripts(root) {
+  const idx = new Map(); let lines = 0;
+  if (!fs.existsSync(root)) return { idx, lines };
+  for (const proj of fs.readdirSync(root)) {
+    const d = path.join(root, proj); if (!fs.statSync(d).isDirectory()) continue;
+    for (const f of fs.readdirSync(d)) {
+      if (!f.endsWith('.jsonl')) continue; // só sessões de topo; subagentes vivem em subpastas
+      for (const l of fs.readFileSync(path.join(d, f), 'utf8').split('\n')) {
+        if (!l.startsWith('{')) continue; let j; try { j = JSON.parse(l); } catch { continue; }
+        if (j.type !== 'user') continue;
+        const c = j.message?.content; let text = null; let toolResult = false;
+        if (typeof c === 'string') text = c; else if (Array.isArray(c)) { toolResult = c.some((b) => b.type === 'tool_result'); text = c.filter((b) => b.type === 'text').map((b) => b.text).join('\n'); }
+        if (!text) continue;
+        lines++;
+        const key = sha12(text);
+        if (!idx.has(key)) idx.set(key, { text, proj, sess: f.replace(/\.jsonl$/, ''), ts: j.timestamp || null, toolResult, sidechain: !!j.isSidechain, meta: !!j.isMeta });
+      }
+    }
+  }
+  return { idx, lines };
+}
+
+// ── 3. elegibilidade sobre o texto recuperado (as mesmas do 60c) ──
+export function eligible(rec, known) {
+  if (rec.toolResult) return 'tool_result';
+  if (/AppData-Local-Temp/i.test(rec.proj)) return 'scratchpad_Temp';
+  if (rec.sidechain) return 'isSidechain'; if (rec.meta) return 'isMeta';
+  const t = clean(rec.text);
+  const tag = t.match(/^<([a-z-]+)/); if (tag) return 'tag_' + tag[1];
+  if (/<pasted_content/.test(t)) return 'colagem';
+  if (/^\//.test(t)) return 'comando_/';
+  if (t.length < 20) return 'lt20'; if (t.length > 500) return 'gt500';
+  const a = anonymise(t);
+  if (known.has(sha12(t)) || known.has(sha12(a)) || known.has(sha12(rec.text))) return 'sha_conhecido';
+  return null;
+}
+
+function mulberry32(x) { return function () { x |= 0; x = x + 0x6D2B79F5 | 0; let t = Math.imul(x ^ x >>> 15, 1 | x); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+export function buildCorpus({ events, idx, known, n = N, cap = CAP, seed = SEED }) {
+  const why = {}; const drop = (k) => { why[k] = (why[k] || 0) + 1; };
+  const elig = [];
+  let notOk = 0, unrecovered = 0;
+  for (const e of events) {
+    if (e.outcome !== 'ok') { notOk++; drop('evento_' + e.outcome); continue; }
+    const rec = idx.get(e.prompt_sha12);
+    if (!rec) { unrecovered++; drop('sem_texto_na_transcricao'); continue; }
+    if (rec.text.length !== e.prompt_len) { drop('len_diferente'); continue; } // sha igual e comprimento diferente: não deve acontecer; se acontecer, fora
+    const r = eligible(rec, known); if (r) { drop(r); continue; }
+    const sess = e.session_id || rec.sess;
+    elig.push({ e, rec, sess, t: Number.isFinite(e.hook_ts_ms) ? e.hook_ts_ms : Date.parse(e.ts), prompt: anonymise(clean(rec.text)) });
+  }
+  const rnd = mulberry32(seed);
+  elig.sort((a, b) => a.t - b.t || String(a.sess).localeCompare(String(b.sess)));
+  for (let i = elig.length - 1; i > 0; i--) { const k = Math.floor(rnd() * (i + 1)); [elig[i], elig[k]] = [elig[k], elig[i]]; }
+  const perSess = {}; const picked = [];
+  for (const x of elig) { if (picked.length >= n) break; if ((perSess[x.sess] || 0) >= cap) continue; perSess[x.sess] = (perSess[x.sess] || 0) + 1; picked.push(x); }
+  picked.sort((a, b) => a.t - b.t);
+  const sha8 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 8);
+  const items = picked.map((x, i) => ({ id: `d${String(i + 1).padStart(2, '0')}`, source: 'decisor_shadow-events+cc-transcripts', prompt: x.prompt, _sha256_12: sha12(x.prompt), _event_sha12: x.e.prompt_sha12, _chars: x.prompt.length, _session_sha8: sha8(x.sess), _project_sha8: sha8(x.rec.proj), _day: (x.e.ts || '').slice(0, 10), _dispatched: /^\[[^\]]+·\s*S\d/.test(x.rec.text) }));
+  // previsões DO EVENTO — ficheiro separado, só com --predictions e só depois dos rótulos
+  const predictions = picked.map((x, i) => ({ id: `d${String(i + 1).padStart(2, '0')}`, tier: x.e.tier_D, p_max: x.e.p_max_D, probs: x.e.probs_D, aux: x.e.aux_D, ms: x.e.ms_D, abstain: x.e.abstained_D, tier_regra: x.e.tier_regra, confidence_regra: x.e.confidence_regra, ts: x.e.ts }));
+  const meta = { _schema: 'decisor-shadow/corpus-60d', _block: 'mp4', _built_at: new Date().toISOString(), _since_utc: new Date(SINCE).toISOString(), _seed: seed, _cap_per_session: cap, _n_target: n, _events: events.length, _events_not_ok: notOk, _unrecovered: unrecovered, _eligible: elig.length, _eligible_sessions: new Set(elig.map((x) => x.sess)).size, _dropped: why, _excluded_known_sha_count: known.size, _picked: items.length, _picked_sessions: Object.keys(perSess).length, _picked_dispatched: items.filter((i) => i._dispatched).length, _anonymised: 'caminhos do home -> ~, dono -> <owner>, emails -> <email>', _target_reached: items.length >= n };
+  return { meta, items, predictions };
+}
+
+const isMain = path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url);
+if (isMain) {
+  const events = readShadowEvents(LOG, SINCE);
+  const { idx, lines } = indexTranscripts(TX);
+  const known = knownShas();
+  const { meta, items, predictions } = buildCorpus({ events, idx, known });
+  console.log(JSON.stringify({ ...meta, _transcript_user_lines: lines }, null, 1));
+  if (args.includes('--dry')) process.exit(0);
+  if (args.includes('--predictions')) {
+    const labels = path.join(path.dirname(OUT), 'labels-60d.json');
+    if (!fs.existsSync(labels)) { console.error('RECUSADO: --predictions só depois de results/labels-60d.json existir (cegueira dos rotuladores).'); process.exit(3); }
+    const pf = path.join(path.dirname(OUT), 'D-shadow-corpus-60d.json');
+    fs.writeFileSync(pf, JSON.stringify({ arm: 'D-shadow (eventos vivos)', _from: path.basename(LOG), at: new Date().toISOString(), rows: predictions }, null, 1));
+    console.log(`→ ${pf} (${predictions.length} previsões do evento)`);
+  } else {
+    if (!meta._target_reached) console.error(`AVISO: ${items.length}/${N} — o pré-registo manda ESPERAR, não baixar n. Ficheiro escrito na mesma para inspecção.`);
+    fs.writeFileSync(OUT, JSON.stringify({ ...meta, items }, null, 1));
+    console.log(`→ ${OUT} (${items.length} itens, sem previsões)`);
+  }
+}
+
+
+=== .gitignore of the package ===
+# Corpora e rótulos BRUTOS — contêm prompts reais do ledger. Nunca commitar.
+# (MP1 §F1c: «NÃO commitar; adiciona ao .gitignore local do pacote»)
+results/corpus-40-unredacted.json
+results/corpus-40b.json
+results/labels-40b.json
+results/A-40b.json
+results/C-*.json
+results/D-*.json
+.venv-laya/
+# MP2 — corpus 60b e rotulos brutos (prompts reais / paráfrases). Nunca commitar.
+results/corpus-60b.json
+results/labels-60b*.json
+results/A-60b.json
+results/policy-v1-40.json
+results/policy-v1-60b.json
+results/nettap-D-60b.jsonl
+results/labels-60b-transcript/
+# MP3 — corpus 60c e rotulos brutos. Nunca commitar.
+results/corpus-60c.json
+results/labels-60c*.json
+results/labels-60c-transcript/
+results/A-60c.json
+results/policy-60c.json
+results/nettap-D-60c.jsonl
+# MP4 — corpus 60d (eventos do shadow + texto recuperado das transcrições), rótulos, previsões do evento. Nunca commitar.
+results/corpus-60d.json
+results/labels-60d*.json
+results/labels-60d-transcript/
+results/D-shadow-corpus-60d.json
+results/policy-60d.json
+results/nettap-*60d*
+
+
+=== lib-common.mjs (loadCorpus / ece / mcnemar, first 75 lines) ===
+// lib-common.mjs — corpus, labels, metricas partilhadas pelos bracos.
+import fs from 'node:fs'; import path from 'node:path';
+import { fileURLToPath } from 'node:url'; import { createRequire } from 'node:module';
+export const HERE = path.dirname(fileURLToPath(import.meta.url));
+export const ROOT = path.resolve(HERE, '..', '..');
+
+// OLLAMA_HOST nesta maquina e `127.0.0.1:11434` — SEM esquema, que e o formato
+// canonico do Ollama. `fetch('127.0.0.1:11434/api/version')` atira
+// `Failed to parse URL`, o catch engole, e o probe declarava «SEM logprobs» com
+// o Ollama 0.34.2 vivo a responder — falso negativo que mandava o braco D para
+// amostragem e reprovava o gate de ECE por nada. Importamos (so leitura) o
+// normalizador canonico do motor em vez de inventar a 8a verdade sobre isto.
+const _require = createRequire(import.meta.url);
+const { ollamaHostFromEnv } = _require(path.join(ROOT, 'tools', 'router', 'ollama-host.js'));
+export const OLLAMA_HOST = ollamaHostFromEnv();
+export const P1 = path.join(ROOT, '_handoff', 'provas-v1-2026-09-09', 'P1-decidir-custa-zero');
+export const TIERS = ['T0', 'T1', 'T2', 'T3'];
+export const args = process.argv.slice(2);
+export const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
+
+// --corpus <path|gold|valset>   corpus {items:[{id,prompt}]} NAO redigido; 'gold' usa gold-labels.json (TREINO);
+//                               'valset' usa validation-set.json canonical/adversarial/historical (TREINO), id = <sec>-<nn>
+// --labels <path>        {labels:[{id,tier}]}; com 'gold'/'valset' os rotulos vem do proprio ficheiro
+export function loadCorpus() {
+  const c = opt('--corpus', 'gold');
+  if (c === 'gold') {
+    const g = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'router', 'gold-labels.json'), 'utf8'));
+    const items = Array.isArray(g) ? g : (g.labels || g.items || Object.values(g));
+    return { name: 'gold-84 (TREINO da regra)', items: items.map((x) => ({ id: x.id, prompt: x.prompt })), labels: Object.fromEntries(items.map((x) => [x.id, x.expected_tier])) };
+  }
+  if (c === 'valset') {
+    // MP2 passo 1: so LE tools/router/validation-set.json. 70 prompts (20+25+25), rotulo expected_tier.
+    const v = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'router', 'validation-set.json'), 'utf8'));
+    const items = [];
+    for (const sec of ['canonical', 'adversarial', 'historical']) (v[sec] || []).forEach((x, i) => items.push({ id: `${sec}-${String(i + 1).padStart(2, '0')}`, prompt: x.prompt, expected_tier: x.expected_tier }));
+    return { name: 'valset (TREINO da regra)', items: items.map((x) => ({ id: x.id, prompt: x.prompt })), labels: Object.fromEntries(items.map((x) => [x.id, x.expected_tier])) };
+  }
+  const corpus = JSON.parse(fs.readFileSync(c, 'utf8'));
+  const items = (corpus.items || corpus).filter((x) => x.prompt && !/^\[\[redigido/.test(x.prompt));
+  if (items.length === 0) throw new Error(`corpus ${c} so tem prompts redigidos — precisa do corpus NAO redigido (ver README §corpus)`);
+  const lp = opt('--labels', path.join(P1, 'labels-63.json'));
+  const L = JSON.parse(fs.readFileSync(lp, 'utf8'));
+  const labels = Object.fromEntries((L.labels || L).map((l) => [l.id, l.tier]));
+  return { name: path.basename(c), items, labels, labels_path: lp };
+}
+
+export function wilson(k, n, z = 1.96) {
+  if (!n) return [0, 0]; const p = k / n; const d = 1 + z * z / n; const c = p + z * z / (2 * n); const s = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n));
+  return [(c - s) / d, (c + s) / d];
+}
+// ECE em 10 bins sobre a prob da classe escolhida
+export function ece(rows) {
+  const bins = Array.from({ length: 10 }, (_, i) => ({ lo: i / 10, hi: (i + 1) / 10 + (i === 9 ? 1e-9 : 0), n: 0, ok: 0, sumP: 0 }));
+  let total = 0;
+  for (const r of rows) { const p = r.p_max; if (!Number.isFinite(p)) continue; const b = bins.find((b) => p >= b.lo && p < b.hi); if (!b) continue; b.n++; b.sumP += p; total++; if (r.correct) b.ok++; }
+  let e = 0; for (const b of bins) if (b.n) e += (b.n / total) * Math.abs(b.ok / b.n - b.sumP / b.n);
+  return { ece: total ? e : null, n: total, bins: bins.filter((b) => b.n).map((b) => ({ bin: b.lo.toFixed(1), n: b.n, acc: b.ok / b.n, conf: b.sumP / b.n })) };
+}
+export function summarise(rows, labels) {
+  const scored = rows.map((r) => ({ ...r, expected: labels[r.id], correct: r.tier === labels[r.id] }));
+  const n = scored.filter((r) => r.expected).length; const k = scored.filter((r) => r.correct).length;
+  const conf = {}; for (const r of scored) if (r.expected) { const c = `${r.expected}->${r.tier}`; conf[c] = (conf[c] || 0) + 1; }
+  const lat = scored.map((r) => r.ms).filter(Number.isFinite).sort((a, b) => a - b);
+  const q = (x) => lat[Math.min(lat.length - 1, Math.floor(lat.length * x))] ?? null;
+  const [lo, hi] = wilson(k, n);
+  return { k, n, p: n ? k / n : null, ci95: [lo, hi], confusion: conf, latency_ms: { p50: q(.5), p95: q(.95), max: lat.at(-1) ?? null }, calibration: ece(scored), abstain: scored.filter((r) => r.abstain).length, rows: scored };
+}
+// McNemar unilateral exacto (binomial): braco > referencia. scored = [{id, expected, correct}], ref = {id -> tier}
+export function mcnemar(scored, ref) {
+  let b = 0, c = 0; for (const r of scored) { const t = ref[r.id]; if (t === undefined) continue; const refOK = t === r.expected; if (r.correct && !refOK) b++; if (!r.correct && refOK) c++; }
+  const n = b + c; if (!n) return { b, c, p: null }; let p = 0; for (let x = b; x <= n; x++) { let comb = 1; for (let i = 1; i <= x; i++) comb = comb * (n - x + i) / i; p += comb / 2 ** n; } return { b, c, p };
+}
+

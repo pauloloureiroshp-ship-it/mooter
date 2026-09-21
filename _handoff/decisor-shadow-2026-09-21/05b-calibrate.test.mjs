@@ -12,6 +12,14 @@ test('(1) PAV num exemplo à mão: [0,1,0,1] em x crescente funde o par que viol
   assert.equal(applyIso(nodes, 0.05), 0); assert.equal(applyIso(nodes, 0.95), 1, 'fora → clamp');
 });
 
+test('(1b) contra-exemplo do adversário (round 5, A6): empates em x agrupam-se ANTES de fundir', () => {
+  const nodes = pav([{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 1, y: 1 }]);
+  assert.deepEqual(nodes.map((n) => [n.x_lo, n.x_hi, +n.y.toFixed(6), n.n]), [[0, 0, +(1 / 3).toFixed(6), 3], [1, 1, 0.5, 2]], 'x=0 → 1/3, x=1 → 1/2, sem fusão');
+  // invariância à permutação (a versão anterior dependia da ordem dos empates)
+  const perm = pav([{ x: 1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]);
+  assert.deepEqual(perm, nodes);
+});
+
 test('(2) monotonia: para qualquer par de x, applyIso não desce; x iguais partilham bloco', () => {
   const rnd = (() => { let s = 7; return () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; }; })();
   const pairs = Array.from({ length: 300 }, () => { const x = +rnd().toFixed(2); return { x, y: rnd() < x ? 1 : 0 }; });

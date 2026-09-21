@@ -1,37 +1,46 @@
 {
  "_schema": "decisor-shadow/calibration-weights-v1",
- "_fitted_at": "2026-09-21T12:43:44.707Z",
+ "_fitted_at": "2026-09-21T12:51:50.109Z",
  "_method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
  "_fitted_on": [
   {
    "file": "D-qwen2.5-coder_14b-gold-84.json",
    "n": 84,
    "at": "2026-09-21T09:37:54.019Z",
-   "model": "qwen2.5-coder:14b"
+   "model": "qwen2.5-coder:14b",
+   "sha256": "1ae7c617e03f3ccc09e57492e43128e0b44aa97ea96581fac8944ca4662d03ba"
   },
   {
    "file": "D-qwen2.5-coder_14b-valset.json",
    "n": 70,
    "at": "2026-09-21T10:02:02.187Z",
-   "model": "qwen2.5-coder:14b"
+   "model": "qwen2.5-coder:14b",
+   "sha256": "fe2980f7cc8532086fa95bb5e73e2f74d29e4487ea231d982f3a6c067081c78a"
   },
   {
    "file": "D-qwen2.5-coder_14b-corpus-40-unredacted.json.json",
    "n": 40,
    "at": "2026-09-21T09:38:04.096Z",
-   "model": "qwen2.5-coder:14b"
+   "model": "qwen2.5-coder:14b",
+   "sha256": "34de38f1cc1392d79ad2c817248fae09e849861bac0ab1d34f71a49b22abcf5f"
   },
   {
    "file": "D-qwen2.5-coder_14b-corpus-60b.json.json",
    "n": 57,
    "at": "2026-09-21T10:14:09.876Z",
-   "model": "qwen2.5-coder:14b"
+   "model": "qwen2.5-coder:14b",
+   "sha256": "a94ae9fb96f6be189f0489a971b62ea2c9aa02515d69c2ecca665daedb9e4a63"
   }
  ],
  "_n": 251,
  "_model": "qwen2.5-coder:14b",
  "_script": "05b-calibrate.mjs",
- "_script_sha256": "9997e3dbf9780bf92a4b7fa6edda8702a742eecb7f5c0961500b0077db38ff43",
+ "_script_sha256": "132b7fb6f3836fcbbf6a32d60222c281a2b57b347f5f1c7252739026593b99f6",
+ "_validation_file": {
+  "file": "D-qwen2.5-coder_14b-corpus-60c.json.json",
+  "sha256": "255362063650c57f46c18faa62aed48d5ca6460de8478f25da053dfbf2e8c2e6",
+  "n": 37
+ },
  "_in_sample_251": {
   "v0_ece": 0.09804467747269319,
   "b_ece": 0.015266706348237012,
