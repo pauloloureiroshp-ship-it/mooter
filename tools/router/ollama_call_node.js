@@ -50,7 +50,7 @@ const https = require('https');
  * escrever a saida. Sem margem, o pai mata o filho a meio da resposta e o
  * resultado e o mesmo silencio de antes — so que noutro sitio.
  */
-const MARGEM_MS = 1500;
+const MARGEM_MS = 300; // medido 2026-09-21 (MP5 §2.1, results/BUG-C-PROPOSTA.md): startup 28 ms, overhead 39–53 ms, outlier 225 — 1500 era ~30× e prendia o filho no piso de 1 s
 /** Sem orcamento declarado, o valor historico. Nunca mais do que o pai aguenta. */
 const PRAZO_OMISSAO_MS = 3500;
 
