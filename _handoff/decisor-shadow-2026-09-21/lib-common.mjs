@@ -1,8 +1,18 @@
 // lib-common.mjs — corpus, labels, metricas partilhadas pelos bracos.
 import fs from 'node:fs'; import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url'; import { createRequire } from 'node:module';
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, '..', '..');
+
+// OLLAMA_HOST nesta maquina e `127.0.0.1:11434` — SEM esquema, que e o formato
+// canonico do Ollama. `fetch('127.0.0.1:11434/api/version')` atira
+// `Failed to parse URL`, o catch engole, e o probe declarava «SEM logprobs» com
+// o Ollama 0.34.2 vivo a responder — falso negativo que mandava o braco D para
+// amostragem e reprovava o gate de ECE por nada. Importamos (so leitura) o
+// normalizador canonico do motor em vez de inventar a 8a verdade sobre isto.
+const _require = createRequire(import.meta.url);
+const { ollamaHostFromEnv } = _require(path.join(ROOT, 'tools', 'router', 'ollama-host.js'));
+export const OLLAMA_HOST = ollamaHostFromEnv();
 export const P1 = path.join(ROOT, '_handoff', 'provas-v1-2026-09-09', 'P1-decidir-custa-zero');
 export const TIERS = ['T0', 'T1', 'T2', 'T3'];
 export const args = process.argv.slice(2);

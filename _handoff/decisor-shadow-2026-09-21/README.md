@@ -3,6 +3,11 @@
 Estudo: Project `claude/ESTUDO_JEV_LAYA_X_MOOTER_2026-09-21.md` · Plano: `claude/PLANO_DECISOR_CALIBRADO_ROADMAP_2026-09-21.md`.
 **Só lê. Nada aqui roteia. `classify.js` (FROZEN) não é tocado.**
 
+Pré-registo ancorado: `1416884dfd15224daebd8e96ad2b8550e0bf80b4` (2026-09-21T06:31:12-03:00 · 09:31:12Z).
+Esse commit congela `protocol.json` + harness **antes** de qualquer braço correr. Os
+`RUN-DECISOR-*.bat` da raiz ficaram de fora: a regra `RUN-*.bat` do `.gitignore`
+(linha 196) já os exclui deliberadamente — lançadores de duplo-clique são locais.
+
 ## Ordem (circuito ficheiro + duplo-clique, na raiz do repo)
 | Passo | .bat | O que faz | Sai em |
 |---|---|---|---|

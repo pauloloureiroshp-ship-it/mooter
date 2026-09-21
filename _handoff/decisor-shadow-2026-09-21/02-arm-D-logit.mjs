@@ -3,8 +3,8 @@
 // 4 perguntas tipadas, resposta = 1 letra, probabilidade lida dos top_logprobs da 1a letra. $0, zero egress.
 //   node 02-arm-D-logit.mjs --model qwen2.5:14b [--corpus <path>|gold] [--labels <path>] [--fallback-n 5]
 import fs from 'node:fs'; import path from 'node:path';
-import { HERE, TIERS, opt, loadCorpus, summarise } from './lib-common.mjs';
-const HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
+import { HERE, TIERS, opt, loadCorpus, summarise, OLLAMA_HOST } from './lib-common.mjs';
+const HOST = OLLAMA_HOST;
 const MODEL = opt('--model', 'qwen2.5:3b');
 const FALLBACK_N = Number(opt('--fallback-n', 5));
 const RUBRIC = fs.readFileSync(path.join(HERE, '..', 'provas-v1-2026-09-09', 'P1-decidir-custa-zero', 'label-rubric.txt'), 'utf8');

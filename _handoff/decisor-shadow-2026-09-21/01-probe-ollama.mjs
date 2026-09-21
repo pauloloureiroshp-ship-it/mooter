@@ -2,8 +2,8 @@
 // 01-probe-ollama.mjs — o braco D depende de logprobs no /v1/chat/completions do Ollama.
 // A doc oficial marca "[ ] Logprobs" mas a issue #16117 mostra a funcionar. Medir, nao assumir.
 import fs from 'node:fs'; import path from 'node:path';
-import { HERE, opt } from './lib-common.mjs';
-const HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
+import { HERE, opt, OLLAMA_HOST } from './lib-common.mjs';
+const HOST = OLLAMA_HOST;
 const MODEL = opt('--model', 'qwen2.5:3b');
 const out = { at: new Date().toISOString(), host: HOST, model: MODEL };
 try { const r = await fetch(`${HOST}/api/version`); out.version = (await r.json()).version; } catch (e) { out.version_error = String(e.message); }

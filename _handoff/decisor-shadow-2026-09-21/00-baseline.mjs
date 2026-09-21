@@ -48,13 +48,17 @@ try {
   const lines = fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean);
   const bins = [[0, .2], [.2, .4], [.4, .6], [.6, .8], [.8, 1.001]].map(([lo, hi]) => ({ lo, hi, mid: (lo + Math.min(hi, 1)) / 2, n: 0, ok: 0 }));
   let total = 0, executed = 0, byTier = {};
+  let null_lines = 0;
   for (const l of lines) { let e; try { e = JSON.parse(l); } catch { continue; }
+    // o decisions.log vivo tem linhas literais "null" (JSON.parse passa, devolve null).
+    // Sem esta guarda o e.tier atira e a ECE proxy INTEIRA cai por causa de 14 linhas em 4467.
+    if (e === null || typeof e !== 'object') { null_lines++; continue; }
     if (e.tier) byTier[e.tier] = (byTier[e.tier] || 0) + 1;
     if (e.event !== 'executed') continue; executed++;
     const c = Number(e.confidence); if (!Number.isFinite(c)) continue;
     const b = bins.find((b) => c >= b.lo && c < b.hi); if (!b) continue; b.n++; total++; if (e.outcome === 'ok') b.ok++; }
   let ece = 0; for (const b of bins) if (b.n) ece += (b.n / total) * Math.abs(b.ok / b.n - b.mid);
-  out.decisions_log = { path: LOG, lines: lines.length, executed, in_bins: total, ece: total ? ece : null,
+  out.decisions_log = { path: LOG, lines: lines.length, null_lines, executed, in_bins: total, ece: total ? ece : null,
     bins: bins.map((b) => ({ bin: `${b.lo}-${Math.min(b.hi, 1)}`, n: b.n, acc: b.n ? b.ok / b.n : null })), tiers_all_events: byTier,
     _nota: 'outcome=ok NAO e verdade-terreno (e ausencia de escalacao/override); ECE aqui e proxy — a ECE que conta e a dos bracos contra labels-63' };
 } catch (e) { out.decisions_log = { error: String(e.message), path: LOG }; }
