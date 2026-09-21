@@ -565,7 +565,9 @@ function bestOllamaT0() {
     const hw = _hwCapability || {};
     const names = (hw.available_ollama_models || []).map(/** @param {any} m */ (m) => String(m.name || m).toLowerCase());
     if (hw.recommended_t0 && (names.length === 0 || names.includes(String(hw.recommended_t0).toLowerCase()))) return String(hw.recommended_t0);
-    return preferred.find(p => names.includes(p.toLowerCase())) || hw.option_a_model || 'qwen2.5:3b';
+    // Round 4 (A3): so entre os que o probe diz que CABEM (can_run) e estao instalados — nunca um que nao cabe.
+    const fits = new Set((hw.t0_models_available || []).filter(/** @param {any} m */ (m) => m && m.can_run).map(/** @param {any} m */ (m) => String(m.model).toLowerCase()));
+    return preferred.find(p => names.includes(p.toLowerCase()) && (fits.size === 0 || fits.has(p.toLowerCase()))) || hw.option_a_model || 'qwen2.5:3b';
   } catch { return 'qwen2.5:3b'; }
 }
 

@@ -33,13 +33,18 @@ const srv = http.createServer((req, res) => { let d = ''; req.on('data', (x) => 
 srv.listen(0, '127.0.0.1', () => process.stdout.write(String(srv.address().port) + '\\n'));
 setTimeout(() => process.exit(0), 20000);`);
   const child = spawn(process.execPath, [serverJs], { stdio: ['ignore', 'pipe', 'ignore'] });
-  const port = await new Promise((resolve) => { let s = ''; child.stdout.on('data', (d) => { s += d; if (s.includes('\n')) resolve(Number(s.trim())); }); });
+  const port = await new Promise((resolve, reject) => {
+    let s = ''; const timer = setTimeout(() => { child.kill(); reject(new Error('servidor falso nao arrancou em 5 s')); }, 5000);
+    child.stdout.on('data', (d) => { s += d; if (s.includes('\n')) { clearTimeout(timer); resolve(Number(s.trim())); } });
+    child.on('error', (e) => { clearTimeout(timer); reject(e); }); child.on('exit', (c) => { clearTimeout(timer); reject(new Error('servidor falso saiu cedo: ' + c)); });
+  });
   // preload para o FILHO do arbiter (herda NODE_OPTIONS): https.request -> http.request no servidor local
   const preload = path.join(dir, 'preload.cjs');
   fs.writeFileSync(preload, `const https = require('https'); const http = require('http');
 https.request = (opts, cb) => http.request({ ...opts, hostname: '127.0.0.1', port: ${port}, protocol: 'http:' }, cb);`);
   const saved = { NODE_OPTIONS: process.env.NODE_OPTIONS, MOOTER_ARBITER_DISABLE: process.env.MOOTER_ARBITER_DISABLE, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY };
-  process.env.NODE_OPTIONS = `--require ${preload.split('\\').join('/')}`; // caminho 8.3 do tmpdir, sem espacos
+  const pre = preload.split('\\').join('/'); // NODE_OPTIONS aceita aspas duplas a volta de caminhos com espacos
+  process.env.NODE_OPTIONS = /\s/.test(pre) ? `--require "${pre}"` : `--require ${pre}`;
   delete process.env.MOOTER_ARBITER_DISABLE;
   process.env.ANTHROPIC_API_KEY = 'chave-de-teste-local';
   try {
