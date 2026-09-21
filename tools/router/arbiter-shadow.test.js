@@ -13,7 +13,7 @@ const { shadowDecisor, ollamaLogit } = require('./arbiter.js');
 const HERE = __dirname;
 
 // Resposta crua do /v1/chat/completions com top_logprobs na 1.a posicao (forma real do Ollama 0.34).
-const chat = (top) => ({ choices: [{ message: { content: top[0].token }, logprobs: { content: [{ token: top[0].token, top_logprobs: top.map(([token, p]) => ({ token, logprob: Math.log(p) })) }] } }] });
+const chat = (top) => ({ choices: [{ message: { content: top[0][0] }, logprobs: { content: [{ token: top[0][0], top_logprobs: top.map(([token, p]) => ({ token, logprob: Math.log(p) })) }] } }] });
 const lp = (pairs) => chat(pairs.map(([t, p]) => [t, p]));
 // 4 respostas: tier (A=T0 B=T1 C=T2 D=T3), complexity (A/B/C), high_stakes (A=yes B=no), needs_repo (A=yes B=no)
 const mockT2 = [lp([['C', 0.62], ['A', 0.20], ['B', 0.10], ['D', 0.05]]), lp([['B', 0.5], ['A', 0.3], ['C', 0.2]]), lp([['B', 0.8], ['A', 0.2]]), lp([['A', 0.7], ['B', 0.3]])];
@@ -57,9 +57,11 @@ test('(2) com env + mock de logprobs: evento com o schema pre-registado e ROTA I
   assert.ok(Math.abs(ev.aux_D.p_needs_repo - 0.7) < 1e-9);
   assert.ok(Math.abs(ev.aux_D.p_high_stakes - 0.2) < 1e-9);
   assert.strictEqual(typeof ev.prompt_sha12, 'string'); assert.strictEqual(ev.prompt_sha12.length, 12);
-  assert.ok(ev.prompt_preview.length <= 80, 'preview <= 80 chars');
-  for (const k of ['ts', 'ts_ms', 'prompt_len', 'ms_D', 'model', 'tier_arbiter_haiku']) assert.ok(k in ev, `campo ${k}`);
-  assert.ok(!('prompt' in ev) && !('text' in ev), 'sem texto do prompt');
+  for (const k of ['ts', 'ts_ms', 'hook_ts_ms', 'prompt_len', 'ms_D', 'model', 'tier_arbiter_haiku']) assert.ok(k in ev, `campo ${k}`);
+  // sem texto do prompt: nem `prompt`, nem `prompt_preview` (round 3, A1) — o evento serializado nao contem nenhuma palavra do prompt
+  const serial = JSON.stringify(ev);
+  for (const word of ['investiga', 'websocket', 'reconnect']) assert.ok(!serial.includes(word), `o evento nao pode conter «${word}»`);
+  assert.ok(!('prompt' in ev) && !('prompt_preview' in ev) && !('text' in ev), 'sem texto do prompt');
   // a rota nao mexe: nem tier, nem backend, nem modelo, nem campo novo
   assert.strictEqual(JSON.stringify(decision), before, 'decision byte-identica antes e depois');
   const events = readEvents(log);
@@ -127,4 +129,34 @@ test('(7) inject_context.js: sem a env, o hook nao emite decisor_shadow; e o cla
   assert.strictEqual(r.status, 0, `hook exit 0 (stderr: ${(r.stderr || '').slice(0, 200)})`);
   assert.ok(!/decisor_shadow/.test(r.stdout || ''), 'nada de shadow no output do hook');
   assert.strictEqual(readEvents(log).filter((e) => e.event === 'decisor_shadow').length, 0);
+});
+
+test('(8) hook real COM env: rota (router-hint) identica a sem env, o hook nao espera pelo worker, e o evento chega depois (sem texto)', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'shadow-hook-on-'));
+  fs.mkdirSync(path.join(home, '.claude', 'tools', 'router'), { recursive: true });
+  const log = path.join(home, '.claude', 'tools', 'router', 'decisions.log');
+  const base = { ...process.env, HOME: home, USERPROFILE: home, MOOTER_DECISIONS_LOG: log };
+  delete base.ANTHROPIC_API_KEY; delete base.MOOTER_ARBITER_DISABLE;
+  const prompt = 'compara as duas abordagens para o cache e recomenda uma';
+  const run = (env) => spawnSync(process.execPath, [path.join(HERE, 'inject_context.js')], { input: JSON.stringify({ session_id: 'shadow-hook-on', prompt }), encoding: 'utf8', env, timeout: 20000 });
+  run({ ...base, MOOTER_DECISOR_SHADOW: undefined }); // 1.a chamada num HOME virgem emite <retomar-camada1>; descarta-se para comparar em igualdade de estado
+  const off = run({ ...base, MOOTER_DECISOR_SHADOW: undefined });
+  const t0 = Date.now(); const on = run({ ...base, MOOTER_DECISOR_SHADOW: '1' }); const onMs = Date.now() - t0;
+  assert.strictEqual(on.status, 0);
+  // o hook nao e byte-deterministico entre chamadas (o bloco <optimized-task> depende de cache); compara-se a ROTA: os campos do <router-hint>
+  const route = (s) => (s.match(/^(tier|task_category|risk_level|recommended_backend|recommended_model|suggested_subagent|confidence|max_tier|escalation): .*$/gm) || []).join('\n');
+  assert.ok(route(off.stdout).includes('tier: '), 'o hook emitiu um router-hint');
+  assert.strictEqual(route(on.stdout), route(off.stdout), 'a rota (router-hint) e identica com e sem shadow');
+  // o worker e desligado: o evento pode ainda nao existir quando o hook sai; espera ate 6 s
+  let ev = null; for (let i = 0; i < 60 && !ev; i++) { ev = readEvents(log).find((e) => e.event === 'decisor_shadow'); if (!ev) await new Promise((r) => setTimeout(r, 100)); }
+  assert.ok(ev, 'o worker desligado escreveu o evento');
+  assert.strictEqual(ev.session_id, 'shadow-hook-on');
+  assert.strictEqual(ev.prompt_len, prompt.length);
+  assert.ok(['ok', 'timeout', 'failed', 'parse_failed'].includes(ev.outcome), 'outcome valido: ' + ev.outcome);
+  assert.ok(!JSON.stringify(ev).includes('abordagens'), 'sem texto do prompt no evento');
+  assert.ok(ev.tier_regra && /^T[0-3]$/.test(ev.tier_regra), 'tier da regra registado');
+  // o hook nao esperou: o tempo do hook ON nao inclui os ~250-800 ms do decisor (folga generosa: +150 ms sobre o OFF, medido)
+  const t1 = Date.now(); const off2 = run({ ...base, MOOTER_DECISOR_SHADOW: undefined }); const offMs = Date.now() - t1;
+  assert.ok(off2.status === 0);
+  assert.ok(onMs < offMs + 400, `hook ON (${onMs} ms) nao pode esperar pelo decisor (OFF ${offMs} ms)`);
 });

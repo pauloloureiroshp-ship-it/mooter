@@ -36,7 +36,7 @@ O `.bat` corre `qwen2.5:3b` (o T0 actual) e `qwen2.5:14b`; se o probe disser «s
 Primeira alteração em `tools/router/` desta série: `arbiter.js` ganha `ollamaLogit(prompt)` (porta directa do
 `02-arm-D-logit.mjs`: 4 perguntas tipadas, 1 letra, `top_logprobs`, só `127.0.0.1:11434`) e
 `shadowDecisor(prompt, decision)`; `inject_context.js` ganha **uma linha** que o chama antes do arbiter Haiku;
-`types.d.ts` ganha campos opcionais; `arbiter-shadow.test.js` (7 testes) prova que **a rota não muda**.
+`types.d.ts` ganha campos opcionais; `arbiter-shadow.test.js` (8 testes, um deles o hook real com o shadow ligado) prova que **a rota não muda** e que **o hook não espera**.
 `classify.js` intocado.
 
 **Opt-in do dono.** Nada disto corre sem `MOOTER_DECISOR_SHADOW=1`. Na raiz do repo:
@@ -46,14 +46,17 @@ Só chega à máquina do dono depois de fundir este branch e correr `/mooter-upd
 `~/.claude/tools/router/inject_context.js`).
 
 **O que fica no log** (`~/.claude/tools/router/decisions.log`, um evento `decisor_shadow` por prompt): `ts`,
-`session_id`, `prompt_sha12`, `prompt_len`, `prompt_preview` (≤ 80 chars, como o resto do log — **nunca o texto**),
+`hook_ts_ms`, `session_id`, `prompt_sha12`, `prompt_len` (**zero texto do prompt** — nem preview: o `classified` da mesma
+sessão já tem os 80 chars; round 3, A1),
 `tier_regra`/`confidence_regra`/`task_category` (o que o hook decidiu), `tier_D`/`probs_D`/`p_max_D`/`abstained_D`/
 `ms_D`/`aux_D` (o que o decisor **diria**), `agree_regra`, `outcome` (`ok`·`timeout`·`failed`·`parse_failed`).
 `tier_arbiter_haiku` fica `null` no hook (o Haiku corre depois); o relatório junta ao `classified` da mesma sessão.
 
-**Custo medido** (`results/shadow-latency-hook.json`): +**~240 ms** por prompt com o modelo quente (ms_D p50 245);
-tecto 800 ms (AMENDMENT mp3-2). Em modelo frio o primeiro prompt sai `timeout` e dispara um aquecimento
-desligado (o Ollama 0.34 **aborta o carregamento** quando o cliente desliga — sem isto o modelo nunca aquecia).
+**Custo medido** (`results/shadow-latency-hook.json`, `final_detached_worker`): o hook lança um **worker desligado**
+(`node arbiter.js --shadow-worker`, payload por stdin) e não espera — **Δ mediano do hook +4 ms** (pares ON/OFF alternados,
+10 prompts, −22…+19 ms fora um −418 de variância do Option A); o worker gasta 200 ms medianos (188–763) por conta própria.
+Tecto 800 ms (AMENDMENT mp3-2 + erratum). Em modelo frio o worker sai `timeout` e aquece o modelo ele próprio, com lock
+de 90 s (o Ollama 0.34 **aborta o carregamento** quando o cliente desliga — sem isto o modelo nunca aquecia).
 Achado colateral desta medição: nesta máquina algo ligado ao hook (n/d o quê; `hw-capability.json` diz
 `apple-silicon`/`available_ollama_models: []`) pede e aborta carregamentos de **todos** os modelos instalados
 (qwen3:30b 22 GiB inclusive), o que despeja o 14b e faz o shadow sair `timeout` no prompt seguinte.

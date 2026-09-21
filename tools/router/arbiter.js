@@ -372,7 +372,7 @@ function arbitrate(prompt, options = {}) {
 // Porta directa de `_handoff/decisor-shadow-2026-09-21/02-arm-D-logit.mjs`, o
 // braco D medido no MP1→MP3: 4 perguntas tipadas de 1 letra ao modelo Ollama
 // residente, probabilidade lida dos `top_logprobs` da 1.a letra via
-// `/v1/chat/completions`. $0, so loopback (host de `ollama-host.js`).
+// `/v1/chat/completions`. $0, so loopback (host de `ollama-host.js`, validado).
 //
 // Medido (3 corpora reais, rotulo cego): acc 0,600 / 0,614 / 0,622 contra
 // «T2 sempre» 0,450 / 0,316 / 0,243 e a regra 0,325 / 0,439 / 0,324; p50 quente
@@ -382,13 +382,18 @@ function arbitrate(prompt, options = {}) {
 //   1. OPT-IN — so corre com MOOTER_DECISOR_SHADOW=1 (o dono liga; ver
 //      RUN-DECISOR-SHADOW-ON.bat). Sem a env, ou com MOOTER_ARBITER_DISABLE=1,
 //      zero comportamento novo.
-//   2. SOMBRA — chamado pelo hook DEPOIS de a rota estar decidida; nunca le nem
-//      escreve `decision`. O tier que devolve so vai para o log.
-//   3. LOG SEM PROMPT — evento `decisor_shadow` no decisions.log com sha12 +
-//      preview de 80 chars (como o resto do log). O que se acumula e o corpus
-//      60d, para rotular as cegas pelo mesmo metodo dos 40/57/37.
-//   4. FAST-FAIL — 800 ms de tecto (AMENDMENT mp3-2; quente ~255 ms pelo hook;
-//      frio ~2,5 s -> `outcome:'timeout'`, e a rota nunca esperou por ele).
+//   2. FORA DO CAMINHO CRITICO — o hook so tira um snapshot de 4 campos da
+//      decisao e lanca um worker DESLIGADO (`node arbiter.js --shadow-worker`,
+//      payload por stdin, nunca por argv). O hook nao espera; a rota nunca
+//      espera. (Round 3 do adversario, A3: a 1.a versao usava spawnSync e
+//      gastava ate 800 ms do orcamento de 5 s do hook.)
+//   3. LOG SEM TEXTO — evento `decisor_shadow` no decisions.log so com
+//      `prompt_sha12` + `prompt_len`; nem preview (A1: o `classified` da mesma
+//      sessao ja tem os 80 chars; o shadow nao acrescenta texto nenhum).
+//   4. FAST-FAIL + AQUECIMENTO UNICO — 800 ms de tecto (AMENDMENT mp3-2 +
+//      erratum). O Ollama 0.34 aborta o carregamento quando o cliente desliga,
+//      por isso em timeout o proprio worker aquece o modelo (keep_alive 30m),
+//      com lock de 90 s para nunca haver dois aquecimentos ao mesmo tempo (A4).
 //
 // Exports: ollamaLogit(prompt) · shadowDecisor(prompt, decision) — ver types.d.ts.
 
@@ -425,23 +430,26 @@ const DECISOR_QUESTIONS = {
   high_stakes: { options: { A: true, B: false }, text: 'Would a wrong or sloppy answer be costly (security, data loss, production, architecture)? A) yes B) no' },
   needs_repo: { options: { A: true, B: false }, text: 'Does answering well require reading or changing several files of the repository? A) yes B) no' },
 };
-// 400 ms no pre-registo (MP3 §B0, a partir dos 147-162 ms medidos EM PROCESSO). Pelo caminho do hook
-// (spawnSync + 4 fetches num filho) mediu-se p50 ~255 ms com o prefixo da rubrica em cache e ~460 ms
-// quando outra chamada ao Ollama o despeja (o hook faz a sua propria chamada nos T0): com 400 ms,
-// 7 de 10 prompts sairam `timeout` e o shadow nao acumulava nada. AMENDMENT mp3-2 (protocol.json)
-// sobe o tecto para 800 ms: o frio (~2,5 s) continua a ser timeout, e a rota nunca espera por isto.
+// 400 ms no pre-registo (MP3 §B0, a partir dos 147-162 ms medidos EM PROCESSO); AMENDMENT mp3-2 + erratum:
+// pelo caminho do hook o custo intrinseco e ~245 ms quente, ~400 ms a re-avaliar o prefixo. 800 da margem;
+// o frio (~2,5 s) continua a ser timeout — e agora ninguem espera por ele.
 const DECISOR_TIMEOUT_MS = 800;
 const DECISOR_ABSTAIN_BELOW = 0.4;
 const DECISOR_PROMPT_MAX_CHARS = 4000;
 const DECISOR_KEEP_ALIVE = '30m';
+const DECISOR_WARM_LOCK_MS = 90 * 1000;
+const LOOPBACK_HOST = /^https?:\/\/(127\.\d+\.\d+\.\d+|localhost|\[::1\])(:\d+)?$/i;
 
 /** @returns {string} */
 function decisorModel() {
   return process.env.MOOTER_DECISOR_MODEL || 'qwen2.5-coder:14b';
 }
-/** @returns {string} */
+/** @returns {string | null}  so loopback; qualquer outro destino -> null (nunca se chama) */
 function decisorHost() {
-  try { return require('./ollama-host.js').ollamaHostFromEnv(); } catch { return 'http://127.0.0.1:11434'; }
+  let host = 'http://127.0.0.1:11434';
+  try { host = require('./ollama-host.js').ollamaHostFromEnv(); } catch { /* default acima */ }
+  const clean = String(host).replace(/\/+$/, '');
+  return LOOPBACK_HOST.test(clean) ? clean : null;
 }
 /**
  * @param {string} prompt
@@ -455,65 +463,57 @@ function decisorMessages(prompt, q) {
 }
 
 /**
- * Faz as 4 chamadas em sequencia num processo filho (o hook e sincrono — o mesmo
- * padrao spawnSync+node -e do callHaikuSync). Devolve as respostas cruas do
- * /v1/chat/completions, ou { error } em timeout/falha.
+ * As 4 chamadas em sequencia, assincronas, com um orcamento total. Devolve as respostas cruas
+ * do /v1/chat/completions ou { error }. Nunca lanca. Redirects recusados (so loopback).
+ * @param {string} prompt
+ * @param {number} [budgetMs]
+ * @returns {Promise<{ responses?: unknown[], error?: string }>}
+ */
+async function ollamaLogitAsync(prompt, budgetMs = DECISOR_TIMEOUT_MS) {
+  const host = decisorHost();
+  if (!host) return { error: 'refused_non_loopback' };
+  const model = decisorModel();
+  const deadline = Date.now() + budgetMs;
+  const out = [];
+  try {
+    for (const q of Object.values(DECISOR_QUESTIONS)) {
+      const left = deadline - Date.now();
+      if (left <= 0) return { error: 'timeout' };
+      const body = { model, temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 10, keep_alive: DECISOR_KEEP_ALIVE, messages: decisorMessages(prompt, q) };
+      // `connection: close`: sem socket keep-alive pendurado, o filho/worker sai sozinho quando acaba —
+      // um process.exit() com handles do undici abertos dispara uma assercao do libuv no Windows (medido).
+      const r = await fetch(`${host}/v1/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', connection: 'close' }, body: JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(left) });
+      out.push(await r.json());
+    }
+    return { responses: out };
+  } catch (e) {
+    const name = String((e && /** @type {any} */ (e).name) || e);
+    return { error: /abort|timeout/i.test(name) ? 'timeout' : 'failed' };
+  }
+}
+
+/**
+ * Versao SINCRONA (chamadores directos, CLI, testes): corre `ollamaLogitAsync` num filho, payload por
+ * STDIN (nunca por argv — no Windows a linha de comandos e visivel a outros processos; round 3, A2).
  * @param {string} prompt
  * @returns {{ responses?: unknown[], error?: string }}
  */
 function callOllamaLogitSync(prompt) {
-  const host = decisorHost();
-  const model = decisorModel();
-  const calls = Object.values(DECISOR_QUESTIONS).map((q) => ({
-    model, temperature: 0, max_tokens: 1, logprobs: true, top_logprobs: 10, keep_alive: DECISOR_KEEP_ALIVE, messages: decisorMessages(prompt, q),
-  }));
-  const scriptText = `
-    // node -e: process.argv = [node, ...args] (argv[1] e o 1.o argumento; medido, nao assumido)
-    const [host, budgetMs, callsJson] = process.argv.slice(1);
-    const calls = JSON.parse(callsJson);
-    const deadline = Date.now() + Number(budgetMs);
-    (async () => {
-      const out = [];
-      for (const body of calls) {
-        const left = deadline - Date.now();
-        if (left <= 0) { process.stdout.write(JSON.stringify({ error: 'timeout' })); process.exit(0); }
-        const r = await fetch(host + '/v1/chat/completions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(left) });
-        out.push(await r.json());
-      }
-      process.stdout.write(JSON.stringify({ responses: out }));
-    })().catch((e) => { process.stdout.write(JSON.stringify({ error: /abort|timeout/i.test(String(e && e.name || e)) ? 'timeout' : 'failed' })); });
-  `;
-  const r = spawnSync(process.execPath, ['-e', scriptText, host, String(DECISOR_TIMEOUT_MS), JSON.stringify(calls)], {
+  const r = spawnSync(process.execPath, [__filename, '--logit-child'], {
+    input: JSON.stringify({ prompt, budgetMs: DECISOR_TIMEOUT_MS }),
     encoding: 'utf8',
-    timeout: DECISOR_TIMEOUT_MS + 250, // margem para o arranque do processo filho
+    timeout: DECISOR_TIMEOUT_MS + 400, // margem para o arranque do filho
     windowsHide: true,
   });
   const spawnErr = /** @type {(Error & { code?: string }) | undefined} */ (r.error);
-  if (spawnErr && /ETIMEDOUT/.test(String(spawnErr.code || spawnErr.message))) { warmDecisorDetached(host, model); return { error: 'timeout' }; }
+  if (spawnErr && /ETIMEDOUT/.test(String(spawnErr.code || spawnErr.message))) return { error: 'timeout' };
   if (r.status !== 0 || !r.stdout) return { error: 'failed' };
-  try { const parsed = JSON.parse(r.stdout); if (parsed && parsed.error === 'timeout') warmDecisorDetached(host, model); return parsed; } catch { return { error: 'parse_failed' }; }
-}
-
-/**
- * Medido 2026-09-21 (Ollama 0.34.2): quando o cliente aborta antes de o modelo acabar de carregar,
- * o Ollama ABORTA o carregamento («client connection closed before llama-server finished loading»).
- * Um cliente com tecto curto num modelo frio nunca o aquece — cada prompt repete o timeout. Por isso,
- * em timeout, dispara-se um aquecimento DESLIGADO do hook (mesmo padrao do ollama-warmup.js do 3b):
- * um filho que espera pelo carregamento e pede keep_alive 30m. O hook nao espera por ele.
- * @param {string} host
- * @param {string} model
- */
-function warmDecisorDetached(host, model) {
-  try {
-    const { spawn } = require('child_process');
-    const script = `fetch(process.argv[1] + '/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: process.argv[2], prompt: '', stream: false, keep_alive: '${DECISOR_KEEP_ALIVE}' }), signal: AbortSignal.timeout(120000) }).then(() => process.exit(0), () => process.exit(0));`;
-    const child = spawn(process.execPath, ['-e', script, host, model], { detached: true, stdio: 'ignore', windowsHide: true });
-    child.unref();
-  } catch { /* best-effort */ }
+  try { return JSON.parse(r.stdout); } catch { return { error: 'parse_failed' }; }
 }
 
 /**
  * Le a probabilidade de cada letra dos top_logprobs da 1.a posicao (igual ao braco D).
+ * Exige logprobs finitos e massa > 0 nas letras (A15): senao null -> `parse_failed`.
  * @param {unknown} response  resposta crua do /v1/chat/completions
  * @param {Record<string, string | number | boolean>} options
  */
@@ -525,29 +525,25 @@ function decisorRead(response, options) {
   /** @type {Record<string, number>} */
   const probs = {};
   for (const t of lp.top_logprobs) {
+    if (!Number.isFinite(t.logprob)) return null;
     const L = String(t.token).trim().toUpperCase().replace(/[^A-Z]/g, '');
     if (letters.includes(L)) probs[L] = (probs[L] || 0) + Math.exp(t.logprob);
   }
   const mass = Object.values(probs).reduce((a, b) => a + b, 0);
+  if (!(mass > 0)) return null;
   /** @type {Record<string, number>} */
   const norm = {};
-  for (const L of letters) norm[String(options[L])] = mass > 0 ? (probs[L] || 0) / mass : 1 / letters.length;
+  for (const L of letters) norm[String(options[L])] = (probs[L] || 0) / mass;
   return { probs: norm, mass_on_letters: mass };
 }
 
 /**
- * Decisor tipado local (braco D, politica v0 = argmax do tier). Nunca roteia.
- * @param {string} prompt
- * @param {ShadowOptions} [options]  _mockResponses: 4 respostas cruas (testes) · _mockTimeout: simula timeout
+ * Respostas cruas -> resultado v0 (argmax do tier). Partilhado pelos caminhos sincrono, assincrono e mock.
+ * @param {{ responses?: unknown[], error?: string } | null | undefined} raw
+ * @param {number} latencyMs
  * @returns {{ result: DecisorShadowResult | null, outcome: string }}
  */
-function ollamaLogitRaw(prompt, options = {}) {
-  if (!prompt || typeof prompt !== 'string') return { result: null, outcome: 'failed' };
-  const t0 = Date.now();
-  const raw = options._mockTimeout ? { error: 'timeout' }
-    : Array.isArray(options._mockResponses) ? { responses: options._mockResponses }
-      : callOllamaLogitSync(prompt);
-  const latencyMs = Date.now() - t0;
+function decisorResult(raw, latencyMs) {
   if (!raw || raw.error || !Array.isArray(raw.responses)) return { result: null, outcome: (raw && raw.error) || 'failed' };
   const keys = Object.keys(DECISOR_QUESTIONS);
   /** @type {Record<string, { probs: Record<string, number>, mass_on_letters: number }>} */
@@ -566,7 +562,7 @@ function ollamaLogitRaw(prompt, options = {}) {
       tier,
       probabilities: { T0: pt.T0, T1: pt.T1, T2: pt.T2, T3: pt.T3 },
       p_max: pt[tier],
-      abstained: pt[tier] < DECISOR_ABSTAIN_BELOW,
+      abstained: pt[tier] < DECISOR_ABSTAIN_BELOW, // flag: o tier existe na mesma; a avaliacao conta-o como previsao (como no braco D)
       latency_ms: latencyMs,
       backend: 'ollama-logit',
       model: decisorModel(),
@@ -579,6 +575,21 @@ function ollamaLogitRaw(prompt, options = {}) {
     },
   };
 }
+
+/**
+ * Decisor tipado local (braco D, politica v0 = argmax do tier). Sincrono. Nunca roteia.
+ * @param {string} prompt
+ * @param {ShadowOptions} [options]  _mockResponses: 4 respostas cruas (testes) · _mockTimeout: simula timeout
+ * @returns {{ result: DecisorShadowResult | null, outcome: string }}
+ */
+function ollamaLogitRaw(prompt, options = {}) {
+  if (!prompt || typeof prompt !== 'string') return { result: null, outcome: 'failed' };
+  const t0 = Date.now();
+  const raw = options._mockTimeout ? { error: 'timeout' }
+    : Array.isArray(options._mockResponses) ? { responses: options._mockResponses }
+      : callOllamaLogitSync(prompt);
+  return decisorResult(raw, Date.now() - t0);
+}
 /**
  * @param {string} prompt
  * @param {ShadowOptions} [options]
@@ -589,56 +600,130 @@ function ollamaLogit(prompt, options = {}) {
 }
 
 /**
- * Modo sombra: regista o que o decisor local DIRIA, ao lado do que a regra decidiu.
- * Nao le `decision` para decidir nada; nao escreve em `decision`; devolve o evento
- * escrito (ou null quando nao corre). Best-effort: nunca lanca.
+ * Os UNICOS campos da decisao que o shadow ve — copiados por valor, validados por tipo e tamanho (A6).
+ * @param {Record<string, unknown> | null | undefined} decision
+ * @returns {{ tier: string | null, confidence: number | null, task_category: string | null, escalation_rule: string | null, tier_arbiter_haiku: string | null }}
+ */
+function decisionSnapshot(decision) {
+  const d = /** @type {Record<string, any>} */ (decision && typeof decision === 'object' ? decision : {});
+  const str = (/** @type {unknown} */ v) => (typeof v === 'string' && v.length <= 80 ? v : null);
+  const tierOf = (/** @type {unknown} */ v) => (/^T[0-3]$/.test(String(v)) ? String(v) : null);
+  const arb = d.arbiter && typeof d.arbiter === 'object' ? d.arbiter : null;
+  return {
+    tier: tierOf(d.tier),
+    confidence: typeof d.confidence === 'number' && Number.isFinite(d.confidence) ? d.confidence : null,
+    task_category: str(d.task_category),
+    escalation_rule: str(d.escalation_rule),
+    // O arbiter Haiku corre DEPOIS deste ponto no hook (MP3 §B0); so chamadores directos o trazem.
+    // O 09-shadow-report junta ao `classified` da mesma sessao para o tier final.
+    tier_arbiter_haiku: arb ? (arb.honored ? tierOf(d.tier) : tierOf(arb.proposed_tier)) : null,
+  };
+}
+
+/**
+ * Constroi o evento (sem texto do prompt: sha12 + len, e nada mais).
+ * @param {string} prompt
+ * @param {ReturnType<typeof decisionSnapshot>} snap
+ * @param {{ result: DecisorShadowResult | null, outcome: string }} r
+ * @param {{ session_id?: string | null, hook_ts_ms?: number | null }} meta
+ * @returns {DecisorShadowEvent}
+ */
+function shadowEvent(prompt, snap, r, meta) {
+  const { result, outcome } = r;
+  return {
+    ts: new Date().toISOString(),
+    ts_ms: Date.now(),
+    hook_ts_ms: meta.hook_ts_ms ?? null,
+    event: 'decisor_shadow',
+    outcome,
+    session_id: meta.session_id || null,
+    prompt_sha12: crypto.createHash('sha256').update(prompt, 'utf8').digest('hex').slice(0, 12),
+    prompt_len: prompt.length,
+    tier_regra: snap.tier,
+    confidence_regra: snap.confidence,
+    task_category: snap.task_category,
+    escalation_rule_regra: snap.escalation_rule,
+    tier_arbiter_haiku: snap.tier_arbiter_haiku,
+    tier_D: result ? result.tier : null,
+    probs_D: result ? result.probabilities : null,
+    p_max_D: result ? result.p_max : null,
+    abstained_D: result ? result.abstained : null,
+    ms_D: result ? result.latency_ms : null,
+    aux_D: result ? result.aux : null,
+    agree_regra: result && snap.tier ? result.tier === snap.tier : null,
+    backend: 'ollama-logit',
+    model: decisorModel(),
+  };
+}
+/**
+ * @param {DecisorShadowEvent} event
+ * @param {string} logPath
+ * @returns {boolean}  true se ficou no disco
+ */
+function appendShadowEvent(event, logPath) {
+  try { fs.appendFileSync(logPath, JSON.stringify(event) + '\n', 'utf8'); return true; } catch { return false; }
+}
+/**
+ * Aquecimento unico: pede ao Ollama para carregar o modelo (keep_alive 30m) e ESPERA pelo fim — e o
+ * cliente desligar que aborta o carregamento no 0.34. Lock por ficheiro (90 s) para nunca haver dois.
+ * @param {string} model
+ */
+async function warmDecisorModel(model) {
+  const host = decisorHost(); if (!host) return false;
+  const lock = path.join(os.tmpdir(), `mooter-decisor-warm-${model.replace(/[^\w.-]/g, '_')}.lock`);
+  try { const st = fs.statSync(lock); if (Date.now() - st.mtimeMs < DECISOR_WARM_LOCK_MS) return false; } catch { /* sem lock */ }
+  try { fs.writeFileSync(lock, String(process.pid)); } catch { /* best-effort */ }
+  try {
+    await fetch(`${host}/api/generate`, { method: 'POST', headers: { 'content-type': 'application/json', connection: 'close' }, body: JSON.stringify({ model, prompt: '', stream: false, keep_alive: DECISOR_KEEP_ALIVE }), redirect: 'error', signal: AbortSignal.timeout(120000) });
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Modo sombra. Regista o que o decisor local DIRIA, ao lado do que a regra decidiu.
+ *  - sem MOOTER_DECISOR_SHADOW=1, ou com MOOTER_ARBITER_DISABLE=1 -> null, zero efeitos;
+ *  - caminho real: snapshot de 4 campos + spawn DESLIGADO do worker; devolve { detached: true }
+ *    sem esperar (a rota e o hook nunca esperam);
+ *  - com mocks (testes) ou `_inline`: corre aqui e devolve o evento escrito.
+ * Nunca escreve em `decision`. Nunca lanca.
  * @param {string} prompt
  * @param {Record<string, unknown> | null | undefined} decision  a decisao JA tomada pelo hook
- * @param {ShadowOptions} [options]  _force ignora a env (testes) · _logPath desvia o log (testes) · session_id
- * @returns {DecisorShadowEvent | null}
+ * @param {ShadowOptions} [options]
+ * @returns {DecisorShadowEvent | { detached: true, pid: number | null } | null}
  */
 function shadowDecisor(prompt, decision, options = {}) {
   try {
     if (!options._force && process.env.MOOTER_DECISOR_SHADOW !== '1') return null;
     if (process.env.MOOTER_ARBITER_DISABLE === '1') return null;
     if (!prompt || typeof prompt !== 'string') return null;
-    const d = /** @type {Record<string, any>} */ (decision || {});
-    const { result, outcome } = ollamaLogitRaw(prompt, options);
-    /** @type {DecisorShadowEvent} */
-    const event = {
-      ts: new Date().toISOString(),
-      ts_ms: Date.now(),
-      event: 'decisor_shadow',
-      outcome,
-      session_id: options.session_id || null,
-      prompt_sha12: crypto.createHash('sha256').update(prompt, 'utf8').digest('hex').slice(0, 12),
-      prompt_len: prompt.length,
-      prompt_preview: prompt.slice(0, 80).replace(/\s+/g, ' '),
-      tier_regra: typeof d.tier === 'string' ? d.tier : null,
-      confidence_regra: typeof d.confidence === 'number' ? d.confidence : null,
-      task_category: typeof d.task_category === 'string' ? d.task_category : null,
-      escalation_rule_regra: typeof d.escalation_rule === 'string' ? d.escalation_rule : null,
-      // O arbiter Haiku corre DEPOIS deste ponto no hook (MP3 §B0: a chamada vive
-      // antes da seccao v0.8 para apanhar todos os prompts); quando ja tiver
-      // corrido (chamadores directos), fica aqui. O 09-shadow-report junta com o
-      // evento `classified` da mesma sessao para o tier final.
-      tier_arbiter_haiku: d.arbiter && d.arbiter.honored ? d.tier : (d.arbiter && d.arbiter.proposed_tier) || null,
-      tier_D: result ? result.tier : null,
-      probs_D: result ? result.probabilities : null,
-      p_max_D: result ? result.p_max : null,
-      abstained_D: result ? result.abstained : null,
-      ms_D: result ? result.latency_ms : null,
-      aux_D: result ? result.aux : null,
-      agree_regra: result && typeof d.tier === 'string' ? result.tier === d.tier : null,
-      backend: 'ollama-logit',
-      model: decisorModel(),
-    };
+    const snap = decisionSnapshot(decision);
     const logPath = options._logPath || process.env.MOOTER_DECISIONS_LOG || LOG_PATH;
-    try { fs.appendFileSync(logPath, JSON.stringify(event) + '\n', 'utf8'); } catch { /* telemetria best-effort */ }
-    return event;
+    const meta = { session_id: options.session_id || null, hook_ts_ms: Date.now() };
+    if (options._inline || Array.isArray(options._mockResponses) || options._mockTimeout) {
+      const event = shadowEvent(prompt, snap, ollamaLogitRaw(prompt, options), meta);
+      appendShadowEvent(event, logPath);
+      return event;
+    }
+    const { spawn } = require('child_process');
+    const child = spawn(process.execPath, [__filename, '--shadow-worker'], { detached: true, stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true });
+    child.on('error', () => { /* best-effort: um spawn falhado nunca chega ao hook */ });
+    child.stdin.on('error', () => { /* idem */ });
+    child.stdin.end(JSON.stringify({ prompt, snap, meta, logPath }));
+    child.unref();
+    return { detached: true, pid: child.pid || null };
   } catch {
     return null;
   }
+}
+/** O worker desligado: le o payload por stdin, corre o decisor, escreve o evento, aquece em timeout. */
+async function shadowWorkerMain() {
+  let payload; try { payload = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { return; }
+  const { prompt, snap, meta, logPath } = payload; if (!prompt || !snap) return;
+  const t0 = Date.now();
+  const raw = await ollamaLogitAsync(String(prompt));
+  const r = decisorResult(raw, Date.now() - t0);
+  appendShadowEvent(shadowEvent(String(prompt), snap, r, meta || {}), logPath || LOG_PATH);
+  if (r.outcome === 'timeout') await warmDecisorModel(decisorModel());
 }
 
 module.exports = {
@@ -650,18 +735,30 @@ module.exports = {
   VALID_SUBAGENTS,
   // F2-shadow (MP3): regista, nao roteia.
   ollamaLogit,
+  ollamaLogitAsync,
   shadowDecisor,
+  decisionSnapshot,
   DECISOR_QUESTIONS,
   DECISOR_TIMEOUT_MS,
 };
 
 // CLI mode — useful for debugging: `node arbiter.js "some prompt"`
 if (require.main === module) {
-  const prompt = process.argv.slice(2).join(' ').trim();
-  if (!prompt) {
-    console.error('usage: node arbiter.js "<prompt>"');
-    process.exit(1);
+  if (process.argv[2] === '--shadow-worker') {
+    // F2-shadow: worker desligado do hook (payload por stdin). Sai em silencio; nunca escreve texto em lado nenhum.
+    shadowWorkerMain().then(() => { process.exitCode = 0; }, () => { process.exitCode = 0; });
+  } else if (process.argv[2] === '--logit-child') {
+    // F2-shadow: filho do caminho sincrono (ollamaLogit); payload por stdin, respostas cruas por stdout.
+    /** @type {{ prompt?: string, budgetMs?: number }} */
+    let p = {}; try { p = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { /* vazio */ }
+    ollamaLogitAsync(String(p.prompt || ''), p.budgetMs).then((raw) => { process.stdout.write(JSON.stringify(raw)); process.exitCode = 0; }, () => { process.stdout.write(JSON.stringify({ error: 'failed' })); process.exitCode = 0; });
+  } else {
+    const prompt = process.argv.slice(2).join(' ').trim();
+    if (!prompt) {
+      console.error('usage: node arbiter.js "<prompt>"');
+      process.exit(1);
+    }
+    const result = arbitrate(prompt);
+    console.log(JSON.stringify(result, null, 2));
   }
-  const result = arbitrate(prompt);
-  console.log(JSON.stringify(result, null, 2));
 }

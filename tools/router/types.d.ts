@@ -72,11 +72,11 @@ export interface DecisorShadowEvent {
   ts: string;
   ts_ms: number;
   event: 'decisor_shadow';
-  outcome: 'ok' | 'timeout' | 'failed' | 'parse_failed' | string;
+  outcome: 'ok' | 'timeout' | 'failed' | 'parse_failed' | 'refused_non_loopback' | string;
   session_id?: string | null;
+  hook_ts_ms?: number | null;
   prompt_sha12: string;
   prompt_len: number;
-  prompt_preview: string;
   tier_regra?: Tier | string | null;
   confidence_regra?: number | null;
   task_category?: string | null;
@@ -96,6 +96,7 @@ export interface DecisorShadowEvent {
 export interface ShadowOptions {
   session_id?: string | null;
   _force?: boolean;
+  _inline?: boolean;
   _logPath?: string;
   _mockResponses?: unknown[];
   _mockTimeout?: boolean;
