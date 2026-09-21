@@ -255,6 +255,27 @@
             320,
             426
           ]
+        },
+        "erratum": {
+          "when": "2026-09-21T11:04:40.580Z",
+          "what": "o «7/10 timeouts a 400 ms» que motivou a emenda foi medido num harness INFIEL (HOME isolado sem hw-capability.json: o hook caia para qwen3:30b, 22 GiB, e despejava o 14b). Com harness fiel e modelo quente, o custo intrinseco do shadow pelo hook e ms_D p50 245 ms (240-249; um de 414) — abaixo dos 400. O 800 fica: da margem a re-avaliacao do prefixo (~400) e a versao do Ollama que aborta carregamentos quando o cliente desliga (medido: 4/10 timeouts numa corrida em que o 14b tinha sido despejado antes). Zero efeito em qualquer numero da Frente A.",
+          "measured": {
+            "ms_D_ok_hook_fiel": [
+              240,
+              241,
+              242,
+              245,
+              249,
+              414
+            ],
+            "hook_delta_ms_warm": [
+              232,
+              236,
+              249,
+              251
+            ],
+            "timeouts_after_eviction": "4/10 (recuperou com o aquecimento desligado)"
+          }
         }
       }
     ],
