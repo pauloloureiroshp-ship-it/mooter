@@ -903,6 +903,7 @@ try {
     }
   }
 } catch { /* pin-file is best-effort; never break the hook */ }
+try { if (process.env.MOOTER_DECISOR_SHADOW === '1') require('./arbiter.js').shadowDecisor(prompt, decision, { session_id: payload.session_id || (payload.session && payload.session.id) || null }); } catch { /* F2-shadow (MP3 2026-09-21): decisor tipado local em modo SOMBRA — opt-in, regista no decisions.log, NUNCA toca em `decision`; best-effort */ }
 
 // ── v0.8 HAIKU ARBITER ─────────────────────────────────────────────────
 // When the regex classifier is uncertain (confidence < 0.75 OR the

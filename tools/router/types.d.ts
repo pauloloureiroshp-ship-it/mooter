@@ -48,6 +48,59 @@ export interface ArbitrateOptions {
   _skipCache?: boolean;
 }
 
+// ---------- F2-shadow (MP3 · 2026-09-21): decisor tipado local, modo sombra ----------
+// Todos os campos opcionais no que toca ao resto do router: nada aqui e lido por classify.js
+// nem pela rota. Ver arbiter.js «F2-shadow».
+
+export interface DecisorShadowResult {
+  tier: Tier;
+  probabilities: Record<Tier, number>;
+  p_max: number;
+  abstained: boolean;
+  latency_ms: number;
+  backend: 'ollama-logit';
+  model: string;
+  aux?: {
+    p_needs_repo?: number;
+    p_high_stakes?: number;
+    e_complexity?: number;
+    mass_on_letters_tier?: number;
+  };
+}
+
+export interface DecisorShadowEvent {
+  ts: string;
+  ts_ms: number;
+  event: 'decisor_shadow';
+  outcome: 'ok' | 'timeout' | 'failed' | 'parse_failed' | string;
+  session_id?: string | null;
+  prompt_sha12: string;
+  prompt_len: number;
+  prompt_preview: string;
+  tier_regra?: Tier | string | null;
+  confidence_regra?: number | null;
+  task_category?: string | null;
+  escalation_rule_regra?: string | null;
+  tier_arbiter_haiku?: Tier | string | null;
+  tier_D?: Tier | null;
+  probs_D?: Record<Tier, number> | null;
+  p_max_D?: number | null;
+  abstained_D?: boolean | null;
+  ms_D?: number | null;
+  aux_D?: DecisorShadowResult['aux'] | null;
+  agree_regra?: boolean | null;
+  backend: 'ollama-logit';
+  model: string;
+}
+
+export interface ShadowOptions {
+  session_id?: string | null;
+  _force?: boolean;
+  _logPath?: string;
+  _mockResponses?: unknown[];
+  _mockTimeout?: boolean;
+}
+
 // ---------- Classifier ----------
 
 export interface ClassifierFeatures {
