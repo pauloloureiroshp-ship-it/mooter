@@ -7,3 +7,11 @@ results/A-40b.json
 results/C-*.json
 results/D-*.json
 .venv-laya/
+# MP2 — corpus 60b e rotulos brutos (prompts reais / paráfrases). Nunca commitar.
+results/corpus-60b.json
+results/labels-60b*.json
+results/A-60b.json
+results/policy-v1-40.json
+results/policy-v1-60b.json
+results/nettap-D-60b.jsonl
+results/labels-60b-transcript/

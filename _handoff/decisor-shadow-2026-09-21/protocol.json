@@ -23,5 +23,66 @@
   },
   "stop_rule": "Uma corrida por braco por modelo. Se um braco falhar por infraestrutura (sem logprobs, sem VRAM), corrige-se e re-corre UMA vez, com o motivo no results/. Nunca 'mais uma' por parciais favoraveis.",
   "adversary": "codex exec (motor diferente) sobre 04-analyse output antes de qualquer PR em arbiter.js",
-  "does_not_prove": ["valor comercial", "obediencia executada", "que o rotulo cego e verdade", "poupanca em USD (sem tokens medidos)"]
+  "does_not_prove": ["valor comercial", "obediencia executada", "que o rotulo cego e verdade", "poupanca em USD (sem tokens medidos)"],
+  "mp2": {
+    "_schema": "decisor-shadow/protocol-v1/mp2",
+    "_status": "PRE-REGISTO MP2 — congelado em commit ANTES do passo 1 (valset) e ANTES de amostrar o corpus 60b",
+    "_registered_at": "2026-09-21T10:02Z",
+    "_starting_point": "PROGRESSO.md: D/14b v0 = 0,600 nos 40 (McNemar vs regra p=0,003; vs 'T2 sempre' p=0,163 — nao separa; ECE 0,110 > 0,10)",
+    "hypothesis": "Uma politica aprendida sobre as 4 respostas tipadas do D/14b (qwen2.5-coder:14b, logit-head), treinada em 154 rotulados que D nunca viu, sobe a acc nos 40 e baixa a ECE para <= 0,10 sem tocar nos 40.",
+    "principle": "Os 40 reais sao TESTE. Nenhum parametro (temperatura, pesos, lambda, limiares, escolha de candidato, learning rate, folds) e ajustado olhando para eles nem para os 60b.",
+    "train": {
+      "sets": ["gold-84 (tools/router/gold-labels.json, rotulo expected_tier)", "validation-set (tools/router/validation-set.json: canonical 20 + adversarial 25 + historical 25 = 70, rotulo expected_tier, id = <sec>-<nn>)"],
+      "n_nominal": 154,
+      "dedupe": "4 prompts byte-iguais entre gold-84 e canonical (gl-078/079/082/083 = canonical-11/12/14/17; rotulos iguais nos 4) sao contados UMA vez -> n efectivo de treino = 150. Verificado antes deste registo.",
+      "note": "gold-84 e validation-set sao TREINO DA REGRA; para o braco D sao dados independentes (D nunca os viu). Continuam a nao entrar em nenhum numero de teste."
+    },
+    "test": {
+      "primary": "40 reais do P1 (results/corpus-40-unredacted.json, rotulos labels-63.json do Codex) — so tocados no FIM do passo 2",
+      "secondary": "corpus-60b (novo, ver corpus_60b), rotulado as cegas ANTES de qualquer predicao",
+      "pooled": "100 = 40 + 60b; os gates finais avaliam-se nos 100"
+    },
+    "features": ["p_T0", "p_T1", "p_T2", "p_T3", "E_complexity = 0*p0+1*p1+2*p2", "p_complexity_2", "p_high_stakes", "p_needs_repo", "mass_on_letters_tier", "bias"],
+    "features_note": "todas ja estao em rows[].answers dos JSON do braco D — o modelo NAO se re-corre para calcular features",
+    "candidates": {
+      "v0": "argmax p(tier). E o que existe (policyV0). Referencia.",
+      "v0+T": "temperature scaling: uma temperatura escalar T sobre log p(tier); p' = softmax(log p / T). T ajustada no treino por minimizacao de log-loss, grid 0,30..5,00 passo 0,05. Nao muda o argmax; muda a ECE.",
+      "v1": "regressao softmax 4 classes sobre as 9 features (z-score com media/desvio do conjunto de treino do fold) + bias. L2 lambda in {0,01; 0,1; 1}. Gradient descent full-batch, learning rate 0,1, 2000 iteracoes, init zeros, seed 20260921 (so para os folds; o GD e deterministico). Depois temperature scaling sobre os logits, T ajustada em predicoes out-of-fold do treino (CV interna 5-fold), mesmo grid."
+    },
+    "selection": "5-fold CV estratificada por tier NO TREINO (seed 20260921). Metrica primaria: log-loss medio out-of-fold; secundaria: acc. Escolhe-se o candidato (e o lambda, para v1) com menor log-loss; desempate por acc. A tabela de CV e escrita em PROGRESSO.md ANTES de qualquer candidato tocar nos 40.",
+    "honesty_rule": "Se o vencedor da CV perder para v0 nos 40, imprime-se e NAO se troca de candidato. Os tres candidatos sao aplicados aos 40 e aos 60b para transparencia, mas o que conta para o gate e o vencedor da CV, fixado antes.",
+    "corpus_60b": {
+      "source": "~/.claude/projects/**/*.jsonl, linhas type:user com texto de prompt humano (message.content string, ou blocos type:text)",
+      "window_utc": ["2026-09-10T00:00:00Z", "2026-09-21T10:02:00Z"],
+      "window_note": "fim = hora deste pre-registo, para nenhum prompt desta sessao entrar; inicio depois do fim da janela do P1 (09-04). Usa o campo timestamp da linha, nao o mtime do ficheiro.",
+      "exclude": ["tool_result", "comandos /... (e <command-name>/<local-command-stdout>)", "isSidechain=true (prompts gerados por agentes, nao humanos)", "isMeta=true", "projectos em AppData/Local/Temp e scratchpads (harness A/B e snapshots: nao sao prompts humanos; mesma exclusao do P1)", "< 20 chars", "> 500 chars e colagens <pasted_content> (mesma elegibilidade do P1 20-500 chars sem colagens, para os 100 serem UMA populacao; o braco D trunca a 4000 de qualquer forma)", "sha256[0..12] (do texto cru OU anonimizado) presente em corpus-63.json do P1 (marcadores [[redigido sha256:...]]) ou em results/corpus-40-unredacted.json"],
+      "one_per_session": "no maximo um prompt por ficheiro .jsonl (sessao)",
+      "n": 60,
+      "seed": 20260921,
+      "sampling": "elegiveis embaralhados com PRNG mulberry32(seed); percorre-se a ordem e aceita-se o primeiro prompt de cada sessao ainda nao usada, ate 60",
+      "anonymise": "como o P1: caminhos do home -> ~, nome do dono -> <owner>, emails -> <email>",
+      "output": "results/corpus-60b.json — NAO commitar (entra no .gitignore do pacote); PROGRESSO.md regista pool, elegiveis e distribuicao por projecto (hash sha256[0..8] do nome do projecto)",
+      "labels": "codex exec em cwd isolado sem o repo, label-rubric.txt do P1 (sha256 f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091), lotes <= 13, JSON forcado (schema {labels:[{id,tier,reason}]}), ANTES de qualquer predicao sobre os 60b. results/labels-60b.json com _labeler, _rubric_sha256, _blind, _labeled_at.",
+      "second_rater": "opcional, so para kappa de Cohen: Sonnet via subagente do Claude Code (NAO Qwen — vies de familia com D). O rotulo que conta e o do Codex, sem excepcao."
+    },
+    "arms_on_60b": {
+      "A": "A-60b.mjs (<= 30 linhas): classify() em processo por item, ambiente nokey (sem ANTHROPIC_API_KEY, MOOTER_ARBITER_DISABLE=1, OLLAMA_HOST apontado a um stub 503) — o mesmo ambiente do A-nokey do P1, que e o braco com predicoes por item usado no McNemar dos 40. results/A-60b.json rows[{id,tier,run:1}].",
+      "D_v0": "02-arm-D-logit.mjs --model qwen2.5-coder:14b --corpus results/corpus-60b.json --labels results/labels-60b.json, com atestacao de egress: NODE_OPTIONS=--require <P1 lib/net-tap.cjs>, NET_TAP_OUT=results/nettap-D-60b.jsonl. Esperado: so 127.0.0.1:11434.",
+      "policy": "o vencedor da CV (e os outros dois) aplicado a rows[].answers dos 60b -> results/policy-v1-60b.json. Zero corridas novas do modelo.",
+      "cold_latency": "UMA medicao, declarada, do 1.o prompt apos `ollama stop qwen2.5-coder:14b`. So para registar; o gate e com modelo quente."
+    },
+    "gate_final_on_100": {
+      "acc_gt_always_T2": "McNemar unilateral (binomial exacto) vencedor > 'T2 sempre' nos 100, p < 0,05",
+      "ece_max": 0.10,
+      "ece_method": "10 bins de largura igual sobre p_max da classe escolhida, n=100",
+      "p50_ms_max_warm": 250,
+      "p50_note": "p50 das 4 perguntas por prompt, modelo quente, sobre os 100 (40 do MP1 + 60b)",
+      "egress_hosts_allowed": ["127.0.0.1:11434"],
+      "also_reported": ["McNemar vs regra nos 100", "acc40, acc60b, acc100 e ECE100 de cada candidato", "juiz B so nos 40 (nao correu nos 60b)"]
+    },
+    "stop_rule": "Uma corrida por (braco x corpus). Re-corrida unica so por falha de infraestrutura, com o motivo em PROGRESSO.md. Nunca 'mais uma' por parciais.",
+    "adversary_round2": "codex exec com este bloco + 06-analysis-mp2.md + policy-v1-weights.json: fuga treino->teste, sobreposicao 60b x treino, vies do rotulador unico, calibracao em 10 bins com n=100, latencia. results/adversary-codex-round2.md, cada ataque aceite/refutado.",
+    "closing_verdicts": ["GATE VERDE (100: >T2 p<0,05 ∧ ECE≤0,10 ∧ p50≤250 ∧ egress 0) → F2 PODE ABRIR", "ENTRE → F6 (Laya fine-tune nos 214 rotulados) OU mais rótulos", "❄️ ABAIXO DE T2 SEMPRE → parar"],
+    "does_not_prove": ["valor comercial", "obediencia executada", "que o rotulo cego e verdade", "generalizacao para outro dono/outra maquina (os 100 sao prompts de UMA pessoa)", "poupanca em USD"]
+  }
 }
