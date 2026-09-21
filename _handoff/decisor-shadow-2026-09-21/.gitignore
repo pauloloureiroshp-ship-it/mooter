@@ -1,0 +1,9 @@
+# Corpora e rótulos BRUTOS — contêm prompts reais do ledger. Nunca commitar.
+# (MP1 §F1c: «NÃO commitar; adiciona ao .gitignore local do pacote»)
+results/corpus-40-unredacted.json
+results/corpus-40b.json
+results/labels-40b.json
+results/A-40b.json
+results/C-*.json
+results/D-*.json
+.venv-laya/

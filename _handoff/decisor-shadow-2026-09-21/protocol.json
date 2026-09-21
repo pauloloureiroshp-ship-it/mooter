@@ -1,0 +1,27 @@
+{
+  "_schema": "decisor-shadow/protocol-v1",
+  "_frozen_at": "2026-09-21",
+  "_status": "PRE-REGISTO — congelar em commit ANTES de correr qualquer braco (o P1 falhou isto; nao repetir)",
+  "question": "Um decisor calibrado (logit-head no Ollama residente = braco D; Laya = braco C) acerta mais o tier que a regra (35 % / 22,2 %) e que o juiz local 14B (52,5 % / 69,8 %), com ECE < 0,10 e p50 < 250 ms, sem egress?",
+  "classifier_sha256_expected": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+  "baseline_ref": "_handoff/provas-v1-2026-09-09/P1-decidir-custa-zero/results/analysis.json (arms A-key/A-nokey acc40=0.35, acc63=0.222; B juiz qwen2.5-coder:14b acc40=0.525, acc63=0.698)",
+  "ground_truth": "labels-63.json (Codex CLI, cego, rubric sha f95958dd...) — mesmo rotulo do P1. Gold-84 e validation-set sao TREINO da regra: reportar separados, nunca somar.",
+  "arms": {
+    "A": "regra classify.js (referencia, ja medida)",
+    "B": "juiz local qwen2.5-coder:14b (referencia, ja medida)",
+    "C": "Laya zero-shot (convaiinnovations/laya-typed-decisions) — choice tier + noul high_stakes",
+    "D": "logit-head: modelo Ollama residente, 4 perguntas tipadas, probabilidade lida dos top_logprobs da 1a letra (fallback: amostragem n=5, marcado)"
+  },
+  "primary_test": "acc40 (40 prompts reais). acc63 e acc23 reportados mas o 23 e pseudo-replicacao (1 template).",
+  "success_criteria": {
+    "acc40_min_to_beat_rule": 0.35,
+    "acc40_target_beats_judge": 0.525,
+    "ece_max": 0.10,
+    "p50_ms_max_decisor_quente": 250,
+    "egress_hosts_allowed": ["localhost:11434"],
+    "mcnemar_vs_rule_one_sided_p": 0.05
+  },
+  "stop_rule": "Uma corrida por braco por modelo. Se um braco falhar por infraestrutura (sem logprobs, sem VRAM), corrige-se e re-corre UMA vez, com o motivo no results/. Nunca 'mais uma' por parciais favoraveis.",
+  "adversary": "codex exec (motor diferente) sobre 04-analyse output antes de qualquer PR em arbiter.js",
+  "does_not_prove": ["valor comercial", "obediencia executada", "que o rotulo cego e verdade", "poupanca em USD (sem tokens medidos)"]
+}

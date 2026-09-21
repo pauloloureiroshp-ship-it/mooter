@@ -1,0 +1,3 @@
+# braco C — Laya (Apache-2.0). Instalar num venv: python -m venv .venv-laya && .venv-laya\Scripts\pip install -r requirements-laya.txt
+# torch com CUDA para o 4090: seguir https://pytorch.org/get-started/locally/ (cu12x). CPU tambem corre (193-464 ms/pergunta).
+laya>=0.3.3
