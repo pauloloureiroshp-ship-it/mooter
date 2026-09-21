@@ -4,9 +4,12 @@
 //   node corpus-60b.mjs [--cap-per-session N] [--dry]
 import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os'; import crypto from 'node:crypto';
 import { HERE, P1, opt, args } from './lib-common.mjs';
-const proto = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8')).mp2.corpus_60b;
+// --block mp2 (default) le protocol.json#mp2.corpus_60b -> results/corpus-60b.json; --block mp3 le #mp3.frente_A.corpus_60c -> results/corpus-60c.json
+const BLOCK = opt('--block', 'mp2'); const PROTO_ALL = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8'));
+const proto = BLOCK === 'mp3' ? PROTO_ALL.mp3.frente_A.corpus_60c : PROTO_ALL.mp2.corpus_60b;
+const OUT_NAME = BLOCK === 'mp3' ? 'corpus-60c.json' : 'corpus-60b.json'; const ID_PREFIX = BLOCK === 'mp3' ? 'c' : 'b';
 const [W0, W1] = proto.window_utc.map((s) => Date.parse(s));
-const N = proto.n, SEED = proto.seed, CAP = Number(opt('--cap-per-session', 1));
+const N = proto.n ?? proto.n_target, SEED = proto.seed, CAP = Number(opt('--cap-per-session', proto.cap_per_session ?? 1));
 const ROOT_TX = path.join(os.homedir(), '.claude', 'projects');
 const HOME = os.homedir(); const OWNER = path.basename(HOME); // 'Paulo Loureiro'
 const sha12 = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex').slice(0, 12);
@@ -15,6 +18,8 @@ const sha12 = (s) => crypto.createHash('sha256').update(String(s), 'utf8').diges
 const known = new Set();
 for (const m of fs.readFileSync(path.join(P1, 'corpus-63.json'), 'utf8').matchAll(/sha256:([0-9a-f]{12})/g)) known.add(m[1]);
 try { for (const it of JSON.parse(fs.readFileSync(path.join(HERE, 'results', 'corpus-40-unredacted.json'), 'utf8')).items) { known.add(sha12(it.prompt)); if (it._sha256_12) known.add(it._sha256_12); } } catch {}
+// MP3: o 60c tambem exclui os 57 do 60b (mesma fonte, janelas diferentes; guarda a montante)
+if (BLOCK === 'mp3') { try { for (const it of JSON.parse(fs.readFileSync(path.join(HERE, 'results', 'corpus-60b.json'), 'utf8')).items) { known.add(sha12(it.prompt)); if (it._sha256_12) known.add(it._sha256_12); } } catch { console.error('AVISO: corpus-60b.json ausente — a exclusao 60c x 60b nao foi aplicada'); } }
 
 // ── anonimizacao como o P1: caminhos do home -> ~, dono -> <owner>, emails -> <email> ──
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -65,10 +70,10 @@ for (let i = elig.length - 1; i > 0; i--) { const k = Math.floor(rnd() * (i + 1)
 const perSess = {}; const picked = [];
 for (const e of elig) { if (picked.length >= N) break; if ((perSess[e.sess] || 0) >= CAP) continue; perSess[e.sess] = (perSess[e.sess] || 0) + 1; picked.push(e); }
 picked.sort((a, b) => (a.ts < b.ts ? -1 : 1));
-const items = picked.map((e, i) => ({ id: `b${String(i + 1).padStart(2, '0')}`, source: 'cc-transcripts-2026-09-10..21', prompt: e.prompt, _sha256_12: sha12(e.prompt), _chars: e.prompt.length, _session_sha8: crypto.createHash('sha256').update(e.sess).digest('hex').slice(0, 8), _project_sha8: crypto.createHash('sha256').update(e.proj).digest('hex').slice(0, 8), _day: e.ts.slice(0, 10), _dispatched: e.dispatched }));
+const items = picked.map((e, i) => ({ id: `${ID_PREFIX}${String(i + 1).padStart(2, '0')}`, source: `cc-transcripts-${proto.window_utc[0].slice(0, 10)}..${proto.window_utc[1].slice(0, 10)}`, prompt: e.prompt, _sha256_12: sha12(e.prompt), _chars: e.prompt.length, _session_sha8: crypto.createHash('sha256').update(e.sess).digest('hex').slice(0, 8), _project_sha8: crypto.createHash('sha256').update(e.proj).digest('hex').slice(0, 8), _day: e.ts.slice(0, 10), _dispatched: e.dispatched }));
 const sessions = new Set(elig.map((e) => e.sess)), projects = {};
 for (const e of elig) { const k = crypto.createHash('sha256').update(e.proj).digest('hex').slice(0, 8); projects[k] = (projects[k] || 0) + 1; }
 const pickedSess = {}; for (const it of items) pickedSess[it._session_sha8] = (pickedSess[it._session_sha8] || 0) + 1;
-const meta = { _schema: 'decisor-shadow/corpus-60b', _sampled_at: new Date().toISOString(), _window_utc: proto.window_utc, _seed: SEED, _cap_per_session: CAP, _pool_user_text_in_window: pool, _eligible: elig.length, _eligible_sessions: sessions.size, _eligible_dispatched: elig.filter((e) => e.dispatched).length, _dropped: why, _projects_eligible_sha8: projects, _picked: items.length, _picked_sessions: Object.keys(pickedSess).length, _picked_per_session: pickedSess, _picked_dispatched: items.filter((i) => i._dispatched).length, _picked_days: items.reduce((a, i) => ((a[i._day] = (a[i._day] || 0) + 1), a), {}), _anonymised: 'caminhos do home -> ~, dono -> <owner>, emails -> <email>' };
+const meta = { _schema: `decisor-shadow/${OUT_NAME.replace('.json', '')}`, _block: BLOCK, _excluded_known_sha_count: known.size, _sampled_at: new Date().toISOString(), _window_utc: proto.window_utc, _seed: SEED, _cap_per_session: CAP, _pool_user_text_in_window: pool, _eligible: elig.length, _eligible_sessions: sessions.size, _eligible_dispatched: elig.filter((e) => e.dispatched).length, _dropped: why, _projects_eligible_sha8: projects, _picked: items.length, _picked_sessions: Object.keys(pickedSess).length, _picked_per_session: pickedSess, _picked_dispatched: items.filter((i) => i._dispatched).length, _picked_days: items.reduce((a, i) => ((a[i._day] = (a[i._day] || 0) + 1), a), {}), _anonymised: 'caminhos do home -> ~, dono -> <owner>, emails -> <email>' };
 console.log(JSON.stringify(meta, null, 1));
-if (!args.includes('--dry')) { fs.writeFileSync(path.join(HERE, 'results', 'corpus-60b.json'), JSON.stringify({ ...meta, items }, null, 1)); console.log(`→ results/corpus-60b.json (${items.length} itens)`); }
+if (!args.includes('--dry')) { fs.writeFileSync(path.join(HERE, 'results', OUT_NAME), JSON.stringify({ ...meta, items }, null, 1)); console.log(`→ results/${OUT_NAME} (${items.length} itens)`); }

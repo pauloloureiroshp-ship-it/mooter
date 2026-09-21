@@ -226,7 +226,16 @@
       "latency_budget": "~150 ms quente / ~2,5 s frio, opt-in; mediana do hook com e sem shadow (10 prompts cada) registada",
       "commit": "feat(router): decisor sombra ollama-logit — regista, não roteia (F2-shadow); sem merge, sem push; gate do dono"
     },
-    "amendments": [],
+    "amendments": [
+      {
+        "id": "mp3-1",
+        "when": "2026-09-21T10:37:41.557Z",
+        "what": "corpus 60c tem n = 37, nao 60",
+        "why": "o pool da janela 2026-08-01..09-09 (fora dos sha do P1 e do 60b) tem 410 prompts elegiveis em 37 sessoes; com 1 prompt/sessao ESTRITO (nao se sobe o tecto) o maximo e 37. 7 dos 37 sao prompts despachados por runner (elegiveis pelas regras registadas; marcados _dispatched; sensibilidade sem eles reporta-se).",
+        "outcome_known": false,
+        "note": "rotulos ainda nao pedidos; nenhuma predicao existe sobre o 60c"
+      }
+    ],
     "amendment_rule": "Qualquer desvio a este bloco (n < 60, tecto por sessao, rotulador indisponivel, timeout do modelo) entra ANTES de rotulos/predicoes num commit proprio «chore(decisor-shadow): AMENDMENT mp3-<n> — <motivo>» com entrada em amendments[] {when, what, why, outcome_known:false}. Sem commit de emenda, o desvio nao existe — a corrida para.",
     "closing_verdicts": [
       "GATE VERDE (60c) → F2 PODE ABRIR (arbiter trocável, default haiku)",
