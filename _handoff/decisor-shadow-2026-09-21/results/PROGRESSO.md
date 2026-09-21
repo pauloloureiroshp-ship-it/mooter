@@ -914,3 +914,12 @@ VEREDICTO: ENTRE → SHADOW ACUMULA; RE-TESTAR COM 60D (GATE 60C: 3 DE 4 — ECE
   `node --test tools/router/arbiter-shadow.test.js tools/router/gpu-probe.test.js tools/router/arbiter-argv.test.js`.
 
 MP4-a FECHADO — 4 commits (aee71157 · 423ca9c6 · 641281ed · fecho) + 11 do MP1–MP3, sem push. Para o dono: (1) `git push origin main` · (2) `RUN-DECISOR-SHADOW-ON.bat` (duplo clique na raiz do repo; grava `MOOTER_DECISOR_SHADOW=1` para o utilizador) · (3) `/mooter-update` no Claude Code e abrir um terminal NOVO do Claude Code · (4) daqui a 14 dias: `node _handoff/decisor-shadow-2026-09-21/09-shadow-report.mjs --since 2026-09-21`
+
+## 2026-09-21T12:11Z (09:11 BRT) · rebase sobre origin/main + push
+
+- `git fetch origin`: origin/main tinha avançado (`766058e9`, merge do #519 e seguintes) — 15 commits locais por cima de base velha.
+- Rebase bloqueado à partida por um ficheiro **untracked** que o remoto passou a seguir (`_handoff/MP_AB_MOO_AUDIT_2026-08-26.md`): verificado byte-a-byte igual ao de origin/main (sha256 `5f204d791701…` dos dois lados) → posto de lado (`$TEMP`), não apagado.
+- `git rebase origin/main`: **1 conflito**, só em `SYNC.md` (os dois lados acrescentaram uma secção logo abaixo do cabeçalho — a nossa de 21/09, a do remoto de 13/09). Resolvido mantendo as duas, mais recente primeiro; `arbiter.js` e `inject_context.js` aplicaram limpos. 15/15 commits reaplicados; hashes novos: `72383176` (bug B) · `54779b62` (round 4) · `ec1d4716` (fecho MP4-a); os 12 anteriores ao conflito mantiveram o hash.
+- Suite `tools/router` (`npm test`, pós-rebase): **1386 testes · 1382 pass · 3 fail · 1 skipped** — o gate pedia ≥ 1324/1328; origin/main trouxe 58 testes novos, todos verdes. As 3 falhas são as mesmas pré-existentes, nome a nome (vault receipts immutable · device lookup read-only · tuned_demote). Os 3 ficheiros novos fora da lista do `npm test`: `arbiter-shadow` + `gpu-probe` + `arbiter-argv` = **19/19**.
+- `sha256 tools/router/classify.js` = `427d8c0b516315c6…` ✓ (intocado).
+- `git push origin main`: **`766058e9..ec1d4716`**, 0 por push depois. Esta linha entra num commit próprio a seguir, também empurrado.
