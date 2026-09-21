@@ -923,3 +923,21 @@ MP4-a FECHADO — 4 commits (aee71157 · 423ca9c6 · 641281ed · fecho) + 11 do 
 - Suite `tools/router` (`npm test`, pós-rebase): **1386 testes · 1382 pass · 3 fail · 1 skipped** — o gate pedia ≥ 1324/1328; origin/main trouxe 58 testes novos, todos verdes. As 3 falhas são as mesmas pré-existentes, nome a nome (vault receipts immutable · device lookup read-only · tuned_demote). Os 3 ficheiros novos fora da lista do `npm test`: `arbiter-shadow` + `gpu-probe` + `arbiter-argv` = **19/19**.
 - `sha256 tools/router/classify.js` = `427d8c0b516315c6…` ✓ (intocado).
 - `git push origin main`: **`766058e9..ec1d4716`**, 0 por push depois. Esta linha entra num commit próprio a seguir, também empurrado.
+
+# MP5 — Decisor no Mac (7b) · higiene do T0 · pré-registo do MP4 — 2026-09-21T12:25Z (09:25 BRT)
+
+Ponto de partida: `origin/main` = `eb6b1f85`, árvore limpa. Regras: `classify.js` FROZEN; push só no fim, depois de fetch + rebase + suite.
+
+## 1 — O decisor funciona num Mac M4 16 GB? (zero rótulos novos)
+
+- **1.1 Pré-registo** `protocol.json#mp5` em `2c198377` (`_registered_at` 2026-09-21T12:22:41Z; %cI do commit 2026-09-21T09:22:59-03:00) — **antes** de correr o 7b ou o 3b em qualquer corpus. Regra sobre o ponto: serve se acc_7b ≥ acc_14b − 0,05 em cada corpus; não serve se falha em ≥ 2; entre se falha em 1. Corpora separados; referência = os ficheiros D do 14b já existentes (não re-corridos). Declarado: o 7b **já estava instalado** (`ollama list`: 4,7 GB, há 3 meses) — o MP dizia «a puxar»; não houve pull.
+- **1.2 Corridas** (`02-arm-D-logit.mjs`, mesmas 4 perguntas, rubrica sha `f95958dd…`, v0 argmax, modelo quente, net-tap no cliente → todos os sockets `127.0.0.1:11434`, 0 hosts externos): 7b × {40, 60b, 60c} e 3b × {60b, 60c}, **uma corrida cada**; o 3b no 40 é o do MP1. Logs `results/log-D-{7b,3b}-*.txt`, brutos `results/D-*.json` (gitignorados). A 1.ª tentativa não correu nada (o `NODE_OPTIONS --require` com caminho POSIX falhou no preload de todos os 5 processos antes de tocar no Ollama) — repetida com caminho Windows; não é uma 2.ª corrida.
+- **1.3 Tabela** (`results/11-analysis-mp5.md`, gerada por `11-analyse-mp5.mjs`):
+
+| Corpus | 14b (ref.) | **7b** | 3b |
+|---|---|---|---|
+| 40 (P1, reuso) | 0.600 (24/40) [0.45–0.74] · ECE 0.110 · p50 165 ms | 0.450 (18/40) [0.31–0.60] · ECE 0.236 · p50 101 ms · Δ -15.0 pp · McNemar 7/1 p=0.070 | 0.400 (16/40) [0.26–0.55] · ECE 0.462 · p50 97 ms · Δ -20.0 pp · McNemar 13/5 p=0.096 |
+| 60b (MP2) | 0.614 (35/57) [0.48–0.73] · ECE 0.124 · p50 140 ms | 0.579 (33/57) [0.45–0.70] · ECE 0.105 · p50 97 ms · Δ -3.5 pp · McNemar 9/7 p=0.804 | 0.544 (31/57) [0.42–0.67] · ECE 0.413 · p50 83 ms · Δ -7.0 pp · McNemar 17/13 p=0.585 |
+| 60c (MP3, 1/sessão) | 0.622 (23/37) [0.46–0.76] · ECE 0.146 · p50 162 ms | 0.486 (18/37) [0.33–0.64] · ECE 0.156 · p50 107 ms · Δ -13.5 pp · McNemar 9/4 p=0.267 | 0.378 (14/37) [0.24–0.54] · ECE 0.547 · p50 85 ms · Δ -24.3 pp · McNemar 14/5 p=0.064 |
+
+  **Leitura (regra pré-registada): 7b NÃO SERVE** — abaixo de 14b − 5 pp em 2 dos 3 (40: −15,0; 60c: −13,5; só o 60b fica dentro, −3,5). O 3b falha nos 3. Honesto sobre o ponto vs o IC: os McNemar emparelhados **não** separam 7b de 14b a p<0,05 em nenhum corpus (0,070 · 0,804 · 0,267) — com n=37–57 a diferença de 13–15 pp não é estatisticamente distinguível; a regra era sobre o ponto e foi fixada antes, e o padrão é consistente: o 7b **colapsa o T2** (60b: T2→T0 11, T2→T2 2; 60c: T2→T2 0 de 9) e o 3b colapsa tudo em T3 (ECE 0,41/0,55). Implicação para o Mac: latência no Mac **n/d** (nada medido lá); `ESTUDO_LLMS_LOCAIS_MAC_MINI` **não existe no vault** (procurado por nome e por «mac mini / 16 GB»); se o 14b cabe ao lado de outro modelo em 16 GB fica n/d. O que se pode afirmar: se o Mac só correr o 7b, o decisor de lá **não é o que o MP3 mediu** — o 0,622 do 60c não se transfere.
