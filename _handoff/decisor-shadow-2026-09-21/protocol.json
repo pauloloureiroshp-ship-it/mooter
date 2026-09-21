@@ -292,5 +292,82 @@
       "generalizacao para outro dono/maquina",
       "que o shadow nao altera a rota em producao (so o teste o afirma para os 4 casos cobertos)"
     ]
+  },
+  "mp5": {
+    "_schema": "decisor-shadow/protocol-v1/mp5",
+    "_status": "PRE-REGISTO MP5 — congelado em commit ANTES de correr o 7b ou o 3b em qualquer corpus, ANTES de medir o Option A e ANTES de tocar em tools/router/",
+    "_registered_at": "2026-09-21T12:22:41.685Z",
+    "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+    "_starting_point": "origin/main = eb6b1f85. F2-shadow opt-in em main. 134 prompts reais rotulados (40 P1 + 57 60b + 37 60c), todos gitignorados. D v0 no 14b ja medido nos tres: 0,600 / 0,614 / 0,622. Nada aqui espera pelo 60d; nada aqui toca no 60d.",
+    "parte_1_mac_7b": {
+      "question": "O decisor tipado v0 corre num modelo que cabe num Mac M4 de 16 GB ao lado de outro? Operacionalizado: o qwen2.5-coder:7b fica dentro de 5 pontos percentuais do 14b em CADA um dos 3 corpora rotulados, avaliados separadamente?",
+      "candidates": {
+        "qwen2.5-coder:7b": "JA INSTALADO nesta maquina (ollama list: dae161e27b0e, 4,7 GB, ha 3 meses) — o MP dizia «a puxar»; nao houve pull. Corre-se nos 3 corpora, uma corrida cada.",
+        "qwen2.5:3b": "ja medido no corpus-40 (0,400, ECE 0,462, MP1) e no gold-84 (0,512). Corre-se no 60b e no 60c para completar a tabela modelo x corpus — uma corrida cada. O resultado do 40 NAO se re-corre."
+      },
+      "reference": "D v0 no qwen2.5-coder:14b, ficheiros D-qwen2.5-coder_14b-corpus-{40-unredacted,60b,60c}.json.json JA EXISTENTES (0,600 / 0,614 / 0,622). O 14b NAO se re-corre. Comparacao emparelhada item a item (mesmos ids).",
+      "corpora": [
+        {
+          "corpus": "results/corpus-40-unredacted.json",
+          "labels": "../provas-v1-2026-09-09/P1-decidir-custa-zero/labels-63.json",
+          "n": 40,
+          "note": "os 40 reais do P1 — reuso do MP1"
+        },
+        {
+          "corpus": "results/corpus-60b.json",
+          "labels": "results/labels-60b.json",
+          "n": 57,
+          "note": "MP2; ate 3/sessao"
+        },
+        {
+          "corpus": "results/corpus-60c.json",
+          "labels": "results/labels-60c.json",
+          "n": 37,
+          "note": "MP3; 1/sessao estrito; 3 rotuladores"
+        }
+      ],
+      "corpora_rule": "SEPARADOS. Nunca se soma o 40 aos outros sem o dizer; se se pooled, e exploratorio e diz-se.",
+      "harness": "02-arm-D-logit.mjs como esta (mesmas 4 perguntas, mesma rubrica sha256 f95958dd…, policy v0 argmax, limiar de abstencao 0,4), so muda --model. net-tap.cjs do P1 no cliente (NODE_OPTIONS --require) para atestar 0 hosts externos.",
+      "decision_rule": {
+        "serve": "acc_7b >= acc_14b - 0,05 em CADA um dos 3 corpora",
+        "nao_serve": "acc_7b < acc_14b - 0,05 em 2 ou 3 corpora",
+        "entre": "qualquer outro caso (falha em exactamente 1 corpus)",
+        "note": "5 pp e a margem pedida no MP5, fixada antes de ver um numero. Com n=37..57 o IC95 e largo (~±13-16 pp) — a regra e sobre o ponto, e diz-se que e sobre o ponto."
+      },
+      "also_reported": [
+        "Wilson IC95 por corpus",
+        "ECE 10 bins (secundaria)",
+        "p50 das 4 perguntas na RTX 4090, modelo quente",
+        "confusao expected->predicted",
+        "McNemar exacto bilateral 7b vs 14b, emparelhado por id (reportado, nao e gate)",
+        "latencia no Mac: n/d — nao ha medicao no Mac nesta sessao e nao se inventa; se o vault tiver o ESTUDO_LLMS_LOCAIS_MAC_MINI cita-se, senao n/d"
+      ],
+      "stop_rule": "Uma corrida por (modelo x corpus). Nada se re-corre. Zero rotulos novos. Se o Ollama falhar a meio, a corrida conta como falhada e declara-se; nao se repete a parte boa.",
+      "zero_new_labels": true
+    },
+    "parte_2_higiene_T0": {
+      "bug_c_question": "Os 7/20 miss do Option A no 14b quente (MP4-a §2.4) sao o orcamento de ~1 s a expirar em que? carga de contexto (load_duration), avaliacao do prompt (prompt_eval_duration — o SYSTEM do Option A + o prompt), ou geracao (eval_duration x eval_count, com num_predict 256)?",
+      "measurement": [
+        "A) 20 prompts T0 (a MESMA lista do harness do MP4-a, measure-bug-a.cjs) pelo hook real, HOME fiel (hw-capability + subscription-profile + settings.json com timeout 3), 14b quente, sem chave, sem shadow. Regista: option_a_hit/miss e motivo, ms do hook, orcamento calculado pelo hook (evento option_a_*), latencia-local.jsonl.",
+        "B) Os mesmos 20 prompts com o MESMO corpo do ollama_call_node.js (system, temperature 0,2, num_predict 256, keep_alive -1, think false) directamente em POST /api/generate SEM prazo, 1 vez cada, 14b quente. Le os campos do Ollama: load_duration, prompt_eval_count, prompt_eval_duration, eval_count, eval_duration, total_duration.",
+        "C) Cruza A com B por prompt: um miss em A tem de corresponder a total_duration > prazo em B, e a decomposicao de B diz onde vai o tempo."
+      ],
+      "decision_rule": {
+        "orcamento_curto": "se a mediana de (prompt_eval + eval) dos prompts que falham em A excede o prazo do filho (max(1000, orcamento-1500) ms) e load_duration e desprezavel (< 10% do total) -> a causa e o orcamento. PROPOE-SE (nao se aplica) o prazo que cobre p95 de total_duration + margem, com a medicao. Ficheiro: results/BUG-C-PROPOSTA.md.",
+        "prompt_grande": "se prompt_eval_duration e a maior parcela (> 50% do total) e o prompt_eval_count e dominado pelo SYSTEM -> a causa e o prompt do Option A; corrige-se SO isso, commit se <= 30 linhas e suite igual ou melhor.",
+        "carga": "se load_duration > 0 em mais de 2 dos 20 com o modelo suposto quente -> ha reload (num_ctx/keep_alive divergente entre chamadores); reporta-se o chamador, nao se muda timeout nem modelo do shadow (proibido pelo MP5).",
+        "geracao_longa": "se eval_count e a parcela dominante e o prazo nao chega para 256 tokens do 14b -> e orcamento (nao prompt): proposta, nao aplicacao."
+      },
+      "allowlist_tools_router": [
+        "o caminho do Option A / orcamento de 1 s (inject_context.js bloco Option A, ollama_call_node.js) — so se a correccao for o prompt e <= 30 linhas",
+        "package.json da suite (lista do npm test)"
+      ],
+      "suite_gate": "1382 pass + 19 novos = 1401 ou melhor; mesmas 3 falhas pre-existentes, nome a nome"
+    },
+    "does_not_prove": [
+      "Que o 7b serve no Mac: e uma medicao na RTX 4090 sobre acuracia; latencia e memoria no Mac ficam n/d.",
+      "Que o 7b generaliza: os 3 corpora sao do mesmo autor, mesma maquina, e o 40 e reuso.",
+      "Nada sobre o 60d — nao existe e nao se toca."
+    ]
   }
 }
