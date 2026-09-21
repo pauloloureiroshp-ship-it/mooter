@@ -1,0 +1,40 @@
+# Adversário · round 7 (AMENDMENT mp4-2 / mp4-3 + MP7) — ledger ataque a ataque
+
+- **Quando:** 2026-09-21T14:35:07Z → 14:36:45Z (11:35 BRT). **Motor:** `codex exec` (codex-cli 0.153.4, `gpt-6-astra`),
+  sandbox `read-only`, cwd isolado vazio, `--ephemeral`. Motor diferente do autor (Claude Code/Opus) e do braço D.
+- **Entrada (sem um único prompt real; 37 522 chars):** as emendas `mp4-2`/`mp4-3` inteiras, o gate original e os candidatos do
+  `mp4`, `protocol.json#mp7` inteiro, `15-analysis-mp7.md`, `14-tta-agreement.md`, o `call()` do harness com o ramo nativo,
+  o **código completo** de `14-tta-agreement.mjs`, o script de pré-visualização do gate (scratch) e `mcnemar` do `lib-common`.
+  Prompt exacto em `adversary-round7-prompt-sent.txt`; saída bruta em `adversary-codex-round7-raw.txt`.
+- **Três perguntas:** o gate mp4-3 está bem definido e não é cherry-pickable? · a mp4-2 é post-hoc? · o harness nativo é
+  equivalente e a concordância TTA é sã?
+- **18 ataques: 1 crítico, 16 sérios, 1 menor. Aceites e corrigidos em código 8 · aceites e verificados 3 ·
+  aceites (declaração/texto) 7 · refutados 0.** Tudo datado em `mp4-3._round7_corrections` / `mp7._round7_notes`
+  (2026-09-21T14:42:46Z; eventos vivos 3; rótulos do 60d 0). **O crítico mudou um número que estava na emenda.**
+
+| # | Sev. | Alegação atacada | Veredicto | Evidência / resposta |
+|---|---|---|---|---|
+| A1 | **crítico** | O preview não calcula o candidato do mp4-3: aplica abstenção→T2 mas não o guardrail antes de acc/McNemar/sub-rota; `hrViol` compara o tier pós-abstenção | **ACEITE → CORRIGIDO, número mudou** | Verdade. Implementação **única** `16-gate-f2.mjs#gateF2` (testes 6/6), usada pelo preview e a usar pelo 60d. Preview v2 (com guardrail): acc routed 0,625 / 0,579 / 0,568 (v1 dizia 0,650 / 0,596 / 0,595); **«vs constantes» chumba no 40 (p 0,115) e no 57 (p 0,061)**, passa só no 60c (0,047) — o v1 dizia que o 57 passava. Violações cruas medidas em `tier_D` (1/4 · 1/4 · 2/6 pelo hint de produção). Os números v1 ficam na emenda marcados SUPERSEDED. |
+| A2 | sério | Condição 4 é tautológica (max(decisor, regra) nunca falha); imprimir a taxa crua não é critério de competência | **ACEITE (declaração)** | A condição 4 passa a chamar-se **invariante do sistema**; a conclusão permitida é «sistema protegido pela regra». O gate imprime n_HR, violações cruas, intervenções e taxa crua, com `decisor_knows_high_risk` (≤ 50 %) informativo. |
+| A3 | sério | HIGH_RISK reconstruído por `classify.js` ≠ predicado real do hook; dar precedência ao classify deixa passar o que a produção protege | **ACEITE → CORRIGIDO** | O predicado de produção é `HIGH_RISK_HINT` (`inject_context.js`, `isDowngrade && isHighRiskPrompt`). O gate lê a regex do ficheiro e autentica-a (sha12 `652823a99712`); `risk_level` do classify reporta-se ao lado. **Discordam muito** (hint 4/4/6 vs classify 3/11/4 nos 3 corpora) — razão a mais para usar o de produção. |
+| A4 | sério | Fecho do 60d deixa escolhas: empate entre constantes, denominadores zero, referências ausentes viram erro da regra, escolha dos 60 | **ACEITE → CORRIGIDO** | Constantes: **todas as 4** têm de ser superadas (A6). Referência ausente → item fora da comparação (n_compared/n_missing impressos; teste de mordida). Denominador 0 → n/d → não passa. Amostragem dos 60: já fixada em `mp4.corpus_60d.sampling` (seed, ordem estável). |
+| A5 | sério | McNemar exacto: pressupostos e implementação não demonstrados; excerto truncado | **ACEITE → VERIFICADO** | Função completa (unilateral exacto binomial sobre discordantes) com valores conhecidos em teste: b=10,c=0 → 2⁻¹⁰; b=3,c=3 → 42/64; sem discordantes → null. O gate imprime b/c, acuracias e IC95. Dependência entre sessões do mesmo autor fica em `does_not_prove`. |
+| A6 | sério | «Melhor constante» seleccionada não prova «supera todas» | **ACEITE → CORRIGIDO** | Gate 2 = superioridade contra cada c ∈ {T0..T3} (intersecção, não menor p). |
+| A7 | sério | Abstenção→T2 é política composta e usa probabilidade; «a rota não depende da confiança» é falsa para p<0,4 | **ACEITE (texto + ablações)** | Candidato renomeado «política composta v0 + abstenção(<0,4)→T2 + guardrail»; origem do 0,4 = `DECISOR_ABSTAIN_BELOW` (arbiter.js) = limiar do harness desde o MP1; ablações cru/+abst/+guard impressas sempre (preview: 0,600/0,650/0,625 · 0,614/0,596/0,579 · 0,622/0,595/0,568). |
+| A8 | sério | Sub-rota ignora T3→T1, T3→T2, T2→T1; desigualdade amostral sem margem | **ACEITE (texto + matriz)** | Conclusão restrita a T2/T3→T0 (definição do dono); matriz completa expected→routed impressa, mais T3→{T0,T1} e T2→T1. Não é não-inferioridade populacional — e diz-se. |
+| A9 | sério | mp4-2/3 substituem uma hipótese que falhou, não a fazem passar | **ACEITE (declaração)** | Escrito na emenda: o mp4 como pré-registado «chumbaria previsivelmente»; o 60d testa a política NOVA; cronologia dos commits registada. |
+| A10 | sério | Os 3 eventos antes da emenda podem ter sido observados | **ACEITE → CORRIGIDO** | O autor viu metadados de 2 (tier/p_max, não texto). Sem auditoria de acesso: **janela confirmatória começa em 2026-09-21T14:25:20Z** (%cI de `996b68eb`); os 3 anteriores são diagnóstico. |
+| A11 | sério | Ramo nativo adapta formato, não prova equivalência; confunde modelo e harness | **ACEITE → VERIFICADO** | 14b pelo caminho nativo no 60c: **148/148 respostas idênticas** ao ficheiro `/v1` (valor e p_max a 1e-6; acc/ECE iguais). Conclusão limitada a «configurações completas». 1 corrida extra, declarada. |
+| A12 | menor | «ENTRE» fiel à regra, mas a regra tolera ECE arbitrariamente pior | **ACEITE (texto)** | «ENTRE segundo a regra exploratória; calibração pior e elegibilidade operacional reprovada». |
+| A13 | sério | Decisões tomadas depois de conhecer o 60c | **ACEITE (declaração)** | Igual ao round 6 A6/mp6-1: alegação estreita «sem ajuste numérico nem selecção pelo 60c neste procedimento». |
+| A14 | sério | Nível 0/4 existe e a tabela do 40 soma 39/40 | **ACEITE → CORRIGIDO** | Verdade: 1 item a 0/4 no 40. `byLevel` inclui 0/4 e o script aborta se a soma ≠ n. Veredicto inalterado. |
+| A15 | sério | Concordância é suporte interno, não probabilidade; «sistemático, não posicional» é causal a mais; rotação 0 ≠ v0 separado | **ACEITE → VERIFICADO, limite novo** | Texto corrigido. Rotação 0 vs ficheiro v0, por id: tier 38/40 · 55/57 · 37/37; p_max igual a 1e-6 em **0/40 · 0/57 · 36/37** (Δ mediana 3,5e-3 / 7,0e-3 / 0; máx 0,06). **A cabeça de decisão não é bit-reprodutível entre sessões do modelo a T=0** — 2/40 e 2/57 tiers mudam. Os ficheiros do 40/57 são das 09:38/10:14Z (antes da correcção do Bug A), o do 60c das 10:45Z com o 14b residente como na TTA. |
+| A16 | sério | Código de concordância confia em campos que devia verificar | **ACEITE → CORRIGIDO** | Probabilidades finitas e normalizadas por rotação, tier == argmax da média, alinhamento id/rótulo com o ficheiro v0 — tudo aborta se falhar. |
+| A17 | sério | `fetch()` sem `redirect:'error'`, sem timeout, sem validação de HOST | **ACEITE → CORRIGIDO** | Os dois caminhos: `redirect:'error'` + `AbortSignal.timeout(60 s)`; HOST do normalizador canónico; net-tap = evidência por corrida. Corridas deste MP feitas antes da mudança (campos de decisão não dependem dela). |
+| A18 | sério | «ECE sobre routed_D» não tem confiança definida | **ACEITE → CORRIGIDO** | ECE só do argmax cru (p_max_D ↔ tier_D); a política composta não tem confiança — «confiança: n/d». |
+
+## Veredicto do adversário (verbatim)
+
+> Q1: Não conforme para abrir F2: o preview avalia outro candidato e faltam definições e provas essenciais sobre reconstrução de risco, seleção e inferência.
+> Q2: Emenda prospetiva defensável, mas não resgate do pré-registo original; reutilizar os eventos exige demonstrar compatibilidade e ausência de seleção informada, caso contrário a janela confirmatória deve começar após a emenda.
+> Q3: «ENTRE» e «REFUTADA» seguem as regras declaradas, mas a comparação entre modelos está confundida pelo harness, o 60c já informou decisões e a análise TTA contém uma omissão concreta de níveis possíveis.

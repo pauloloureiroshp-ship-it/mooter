@@ -1,123 +1,536 @@
 {
- "at": "2026-09-21T14:22:37.880Z",
- "note": "pré-visualização informativa do gate mp4-3 nos corpora já rotulados; NÃO é o 60d; ids listados são só os de violação HIGH_RISK (sem texto)",
+ "at": "2026-09-21T14:39:38.684Z",
+ "version": 2,
+ "note": "round 7 A1: o preview corre a MESMA gateF2() do 60d (routed = abstenção + guardrail); v1 (scratch) não aplicava o guardrail. HIGH_RISK = HIGH_RISK_HINT de produção (inject_context.js, sha12 652823a99712) sobre o texto; classify risk_level reportado ao lado. Informativo; não é o 60d.",
+ "high_risk_hint": {
+  "source_sha12": "652823a99712",
+  "source": "/\\b(?:push|deploy|release|migration|migrac|drop\\s+table|rm\\s+-rf|reset\\s+--hard|…"
+ },
  "by_corpus": {
   "40": {
    "n": 40,
-   "acc_raw_argmax": 0.6,
-   "acc_routed_abstain_T2": 0.65,
-   "abstained": 3,
-   "acc_rule": 0.325,
-   "best_constant": {
-    "tier": "T2",
-    "acc": 0.45
+   "policy": "composta: v0 argmax + abstenção(<0,4)→T2 + guardrail HIGH_RISK (produção)",
+   "gates": {
+    "1_acc_gt_rule": {
+     "n_compared": 40,
+     "n_missing_rule": 0,
+     "acc_D": 0.625,
+     "acc_rule": 0.325,
+     "ci_D": [
+      0.4703216005453191,
+      0.7577722646420829
+     ],
+     "ci_rule": [
+      0.20084316962661727,
+      0.4798254191110202
+     ],
+     "mcnemar": {
+      "b": 13,
+      "c": 1,
+      "p": 0.00091552734375
+     },
+     "pass": true
+    },
+    "2_acc_gt_every_constant": {
+     "acc_D": 0.625,
+     "constants": {
+      "T0": {
+       "acc_const": 0.275,
+       "mcnemar": {
+        "b": 15,
+        "c": 1,
+        "p": 0.0002593994140625
+       },
+       "pass": true
+      },
+      "T1": {
+       "acc_const": 0.075,
+       "mcnemar": {
+        "b": 24,
+        "c": 2,
+        "p": 0.000005245208740234375
+       },
+       "pass": true
+      },
+      "T2": {
+       "acc_const": 0.45,
+       "mcnemar": {
+        "b": 16,
+        "c": 9,
+        "p": 0.11476147174835205
+       },
+       "pass": false
+      },
+      "T3": {
+       "acc_const": 0.2,
+       "mcnemar": {
+        "b": 20,
+        "c": 3,
+        "p": 0.000244140625
+       },
+       "pass": true
+      }
+     },
+     "best_constant": "T2",
+     "pass": false
+    },
+    "3_under_routing_T2T3_to_T0": {
+     "n_T2T3": 26,
+     "D_to_T0": 7,
+     "rule_to_T0": 23,
+     "n_T2T3_with_rule": 26,
+     "rate_D": 0.2692307692307692,
+     "rate_rule": 0.8846153846153846,
+     "also_T3_to_T0_or_T1": 3,
+     "also_T2_to_T1": 3,
+     "pass": true
+    },
+    "4_high_risk_invariant": {
+     "n_high_risk_hint": 4,
+     "n_high_risk_classify": 3,
+     "hint_vs_classify_disagree": 1,
+     "raw_violations_tier_D_below_rule": 1,
+     "guard_interventions": 1,
+     "violations_after_routing": 0,
+     "raw_rate": 0.25,
+     "pass": true,
+     "decisor_knows_high_risk": true
+    },
+    "5_abstention": {
+     "n_abstained": 3,
+     "acc_if_kept_argmax": 0.3333333333333333,
+     "acc_as_T2": 0.6666666666666666
+    },
+    "6_latency": {
+     "p50_ms": 164.66649999999998,
+     "pass": true,
+     "not_ok_events": 0
+    },
+    "7_egress": {
+     "external_hosts": 0,
+     "pass": true
+    }
    },
-   "mcnemar_vs_rule": {
-    "b": 14,
-    "c": 1,
-    "p": 0.00048828125
+   "all_pass": false,
+   "ablations": {
+    "raw_argmax": 0.6,
+    "plus_abstention": 0.65,
+    "plus_abstention_plus_guard": 0.625
    },
-   "mcnemar_vs_const": {
-    "b": 16,
-    "c": 8,
-    "p": 0.07579481601715088
+   "confusion_expected_to_routed": {
+    "T2→T0": 5,
+    "T2→T2": 9,
+    "T0→T0": 10,
+    "T2→T1": 3,
+    "T1→T1": 1,
+    "T3→T3": 5,
+    "T1→T0": 2,
+    "T3→T1": 1,
+    "T3→T0": 2,
+    "T0→T3": 1,
+    "T2→T3": 1
    },
-   "under_routing": {
-    "n_T2T3": 26,
-    "D_to_T0": 7,
-    "rule_to_T0": 23,
-    "rate_D": 0.2692307692307692,
-    "rate_rule": 0.8846153846153846
+   "confusion_expected_to_rule": {
+    "T2→T0": 17,
+    "T0→T0": 11,
+    "T1→T0": 3,
+    "T3→T0": 6,
+    "T3→T3": 2,
+    "T2→T3": 1
    },
-   "high_risk": {
-    "n": 3,
-    "D_below_rule": 1,
-    "ids": [
-     "n33:T3->T2"
-    ]
-   },
-   "p50_ms": 164.66649999999998,
-   "ece_routed_informative": 0.15399573119748458
+   "ece_raw_argmax_informative": 0.10990268449998994,
+   "bins_raw": [
+    {
+     "bin": "0.3",
+     "n": 3,
+     "acc": 0.3333333333333333,
+     "conf": 0.37271302201670237
+    },
+    {
+     "bin": "0.4",
+     "n": 8,
+     "acc": 0.5,
+     "conf": 0.4452625403884613
+    },
+    {
+     "bin": "0.5",
+     "n": 7,
+     "acc": 0.5714285714285714,
+     "conf": 0.5409091487206784
+    },
+    {
+     "bin": "0.6",
+     "n": 5,
+     "acc": 0.4,
+     "conf": 0.6461766698145436
+    },
+    {
+     "bin": "0.7",
+     "n": 3,
+     "acc": 0.6666666666666666,
+     "conf": 0.7603143542855456
+    },
+    {
+     "bin": "0.8",
+     "n": 3,
+     "acc": 0.6666666666666666,
+     "conf": 0.8430630159844034
+    },
+    {
+     "bin": "0.9",
+     "n": 11,
+     "acc": 0.8181818181818182,
+     "conf": 0.9623106562017605
+    }
+   ]
   },
   "57": {
    "n": 57,
-   "acc_raw_argmax": 0.6140350877192983,
-   "acc_routed_abstain_T2": 0.5964912280701754,
-   "abstained": 4,
-   "acc_rule": 0.43859649122807015,
-   "best_constant": {
-    "tier": "T3",
-    "acc": 0.40350877192982454
+   "policy": "composta: v0 argmax + abstenção(<0,4)→T2 + guardrail HIGH_RISK (produção)",
+   "gates": {
+    "1_acc_gt_rule": {
+     "n_compared": 57,
+     "n_missing_rule": 0,
+     "acc_D": 0.5789473684210527,
+     "acc_rule": 0.43859649122807015,
+     "ci_D": [
+      0.44979910140681373,
+      0.6981260024694814
+     ],
+     "ci_rule": [
+      0.31772495285894004,
+      0.567222188570608
+     ],
+     "mcnemar": {
+      "b": 12,
+      "c": 4,
+      "p": 0.0384063720703125
+     },
+     "pass": true
+    },
+    "2_acc_gt_every_constant": {
+     "acc_D": 0.5789473684210527,
+     "constants": {
+      "T0": {
+       "acc_const": 0.2807017543859649,
+       "mcnemar": {
+        "b": 18,
+        "c": 1,
+        "p": 0.00003814697265625
+       },
+       "pass": true
+      },
+      "T1": {
+       "acc_const": 0,
+       "mcnemar": {
+        "b": 33,
+        "c": 0,
+        "p": 1.1641532182693481e-10
+       },
+       "pass": true
+      },
+      "T2": {
+       "acc_const": 0.3157894736842105,
+       "mcnemar": {
+        "b": 26,
+        "c": 11,
+        "p": 0.010036925959866494
+       },
+       "pass": true
+      },
+      "T3": {
+       "acc_const": 0.40350877192982454,
+       "mcnemar": {
+        "b": 22,
+        "c": 12,
+        "p": 0.06072474247775972
+       },
+       "pass": false
+      }
+     },
+     "best_constant": "T3",
+     "pass": false
+    },
+    "3_under_routing_T2T3_to_T0": {
+     "n_T2T3": 41,
+     "D_to_T0": 15,
+     "rule_to_T0": 29,
+     "n_T2T3_with_rule": 41,
+     "rate_D": 0.36585365853658536,
+     "rate_rule": 0.7073170731707317,
+     "also_T3_to_T0_or_T1": 8,
+     "also_T2_to_T1": 1,
+     "pass": true
+    },
+    "4_high_risk_invariant": {
+     "n_high_risk_hint": 4,
+     "n_high_risk_classify": 11,
+     "hint_vs_classify_disagree": 11,
+     "raw_violations_tier_D_below_rule": 1,
+     "guard_interventions": 1,
+     "violations_after_routing": 0,
+     "raw_rate": 0.25,
+     "pass": true,
+     "decisor_knows_high_risk": true
+    },
+    "5_abstention": {
+     "n_abstained": 4,
+     "acc_if_kept_argmax": 0.5,
+     "acc_as_T2": 0.25
+    },
+    "6_latency": {
+     "p50_ms": 139.9906,
+     "pass": true,
+     "not_ok_events": 0
+    },
+    "7_egress": {
+     "external_hosts": 0,
+     "pass": true
+    }
    },
-   "mcnemar_vs_rule": {
-    "b": 13,
-    "c": 4,
-    "p": 0.0245208740234375
+   "all_pass": false,
+   "ablations": {
+    "raw_argmax": 0.6140350877192983,
+    "plus_abstention": 0.5964912280701754,
+    "plus_abstention_plus_guard": 0.5789473684210527
    },
-   "mcnemar_vs_const": {
-    "b": 23,
-    "c": 12,
-    "p": 0.04476553946733475
+   "confusion_expected_to_routed": {
+    "T3→T0": 7,
+    "T0→T0": 15,
+    "T2→T2": 7,
+    "T3→T3": 11,
+    "T2→T3": 2,
+    "T3→T2": 4,
+    "T3→T1": 1,
+    "T2→T1": 1,
+    "T2→T0": 8,
+    "T0→T2": 1
    },
-   "under_routing": {
-    "n_T2T3": 41,
-    "D_to_T0": 15,
-    "rule_to_T0": 29,
-    "rate_D": 0.36585365853658536,
-    "rate_rule": 0.7073170731707317
+   "confusion_expected_to_rule": {
+    "T3→T0": 15,
+    "T0→T0": 16,
+    "T2→T0": 14,
+    "T3→T3": 8,
+    "T2→T3": 3,
+    "T2→T2": 1
    },
-   "high_risk": {
-    "n": 11,
-    "D_below_rule": 6,
-    "ids": [
-     "b15:T3->T0",
-     "b23:T3->T0",
-     "b25:T3->T0",
-     "b29:T3->T2",
-     "b39:T3->T0",
-     "b57:T3->T2"
-    ]
-   },
-   "p50_ms": 139.9906,
-   "ece_routed_informative": 0.12357916929076072
+   "ece_raw_argmax_informative": 0.12378582879330187,
+   "bins_raw": [
+    {
+     "bin": "0.3",
+     "n": 4,
+     "acc": 0.5,
+     "conf": 0.3735275510443944
+    },
+    {
+     "bin": "0.4",
+     "n": 9,
+     "acc": 0.4444444444444444,
+     "conf": 0.46032937362919035
+    },
+    {
+     "bin": "0.5",
+     "n": 8,
+     "acc": 0.5,
+     "conf": 0.5658150371105761
+    },
+    {
+     "bin": "0.6",
+     "n": 5,
+     "acc": 0.8,
+     "conf": 0.6672550834584426
+    },
+    {
+     "bin": "0.7",
+     "n": 12,
+     "acc": 0.5833333333333334,
+     "conf": 0.7498503145240387
+    },
+    {
+     "bin": "0.8",
+     "n": 8,
+     "acc": 0.5,
+     "conf": 0.8361247525013242
+    },
+    {
+     "bin": "0.9",
+     "n": 11,
+     "acc": 0.9090909090909091,
+     "conf": 0.9572264917128742
+    }
+   ]
   },
   "60c": {
    "n": 37,
-   "acc_raw_argmax": 0.6216216216216216,
-   "acc_routed_abstain_T2": 0.5945945945945946,
-   "abstained": 3,
-   "acc_rule": 0.32432432432432434,
-   "best_constant": {
-    "tier": "T3",
-    "acc": 0.32432432432432434
+   "policy": "composta: v0 argmax + abstenção(<0,4)→T2 + guardrail HIGH_RISK (produção)",
+   "gates": {
+    "1_acc_gt_rule": {
+     "n_compared": 37,
+     "n_missing_rule": 0,
+     "acc_D": 0.5675675675675675,
+     "acc_rule": 0.32432432432432434,
+     "ci_D": [
+      0.40913906334200717,
+      0.7132851315964869
+     ],
+     "ci_rule": [
+      0.1963307782081548,
+      0.48536631495176064
+     ],
+     "mcnemar": {
+      "b": 9,
+      "c": 0,
+      "p": 0.001953125
+     },
+     "pass": true
+    },
+    "2_acc_gt_every_constant": {
+     "acc_D": 0.5675675675675675,
+     "constants": {
+      "T0": {
+       "acc_const": 0.2702702702702703,
+       "mcnemar": {
+        "b": 11,
+        "c": 0,
+        "p": 0.00048828125
+       },
+       "pass": true
+      },
+      "T1": {
+       "acc_const": 0.16216216216216217,
+       "mcnemar": {
+        "b": 19,
+        "c": 4,
+        "p": 0.001299738883972168
+       },
+       "pass": true
+      },
+      "T2": {
+       "acc_const": 0.24324324324324326,
+       "mcnemar": {
+        "b": 17,
+        "c": 5,
+        "p": 0.00845026969909668
+       },
+       "pass": true
+      },
+      "T3": {
+       "acc_const": 0.32432432432432434,
+       "mcnemar": {
+        "b": 16,
+        "c": 7,
+        "p": 0.04656982421875
+       },
+       "pass": true
+      }
+     },
+     "best_constant": "T3",
+     "pass": true
+    },
+    "3_under_routing_T2T3_to_T0": {
+     "n_T2T3": 21,
+     "D_to_T0": 3,
+     "rule_to_T0": 15,
+     "n_T2T3_with_rule": 21,
+     "rate_D": 0.14285714285714285,
+     "rate_rule": 0.7142857142857143,
+     "also_T3_to_T0_or_T1": 2,
+     "also_T2_to_T1": 1,
+     "pass": true
+    },
+    "4_high_risk_invariant": {
+     "n_high_risk_hint": 6,
+     "n_high_risk_classify": 4,
+     "hint_vs_classify_disagree": 2,
+     "raw_violations_tier_D_below_rule": 2,
+     "guard_interventions": 2,
+     "violations_after_routing": 0,
+     "raw_rate": 0.3333333333333333,
+     "pass": true,
+     "decisor_knows_high_risk": true
+    },
+    "5_abstention": {
+     "n_abstained": 3,
+     "acc_if_kept_argmax": 0.3333333333333333,
+     "acc_as_T2": 0
+    },
+    "6_latency": {
+     "p50_ms": 161.9301,
+     "pass": true,
+     "not_ok_events": 0
+    },
+    "7_egress": {
+     "external_hosts": 0,
+     "pass": true
+    }
    },
-   "mcnemar_vs_rule": {
-    "b": 10,
-    "c": 0,
-    "p": 0.0009765625
+   "all_pass": true,
+   "ablations": {
+    "raw_argmax": 0.6216216216216216,
+    "plus_abstention": 0.5945945945945946,
+    "plus_abstention_plus_guard": 0.5675675675675675
    },
-   "mcnemar_vs_const": {
-    "b": 17,
-    "c": 7,
-    "p": 0.03195732831954956
+   "confusion_expected_to_routed": {
+    "T0→T0": 10,
+    "T1→T0": 4,
+    "T2→T0": 2,
+    "T3→T3": 5,
+    "T3→T2": 5,
+    "T2→T2": 4,
+    "T3→T0": 1,
+    "T3→T1": 1,
+    "T2→T3": 2,
+    "T2→T1": 1,
+    "T1→T1": 2
    },
-   "under_routing": {
-    "n_T2T3": 21,
-    "D_to_T0": 3,
-    "rule_to_T0": 15,
-    "rate_D": 0.14285714285714285,
-    "rate_rule": 0.7142857142857143
+   "confusion_expected_to_rule": {
+    "T0→T0": 10,
+    "T1→T0": 6,
+    "T2→T0": 7,
+    "T3→T2": 2,
+    "T3→T3": 2,
+    "T3→T0": 8,
+    "T2→T3": 2
    },
-   "high_risk": {
-    "n": 4,
-    "D_below_rule": 2,
-    "ids": [
-     "c18:T3->T1",
-     "c35:T3->T2"
-    ]
-   },
-   "p50_ms": 161.9301,
-   "ece_routed_informative": 0.17329150388339726
+   "ece_raw_argmax_informative": 0.14626447685637023,
+   "bins_raw": [
+    {
+     "bin": "0.3",
+     "n": 3,
+     "acc": 0.3333333333333333,
+     "conf": 0.3566154236585664
+    },
+    {
+     "bin": "0.4",
+     "n": 10,
+     "acc": 0.5,
+     "conf": 0.44029072987933704
+    },
+    {
+     "bin": "0.5",
+     "n": 6,
+     "acc": 0.6666666666666666,
+     "conf": 0.534393562551326
+    },
+    {
+     "bin": "0.6",
+     "n": 3,
+     "acc": 0.3333333333333333,
+     "conf": 0.6436212327257319
+    },
+    {
+     "bin": "0.8",
+     "n": 3,
+     "acc": 1,
+     "conf": 0.8406969539807562
+    },
+    {
+     "bin": "0.9",
+     "n": 12,
+     "acc": 0.75,
+     "conf": 0.9618696008813665
+    }
+   ]
   }
  }
 }

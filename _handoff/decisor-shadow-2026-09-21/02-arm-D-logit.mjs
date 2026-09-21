@@ -8,11 +8,13 @@
 // Regra no-letter (mp6): se o 1.o token gerado (lp.token, temperatura 0) nao for uma letra da pergunta, a resposta
 // e mode:no-letter, value:null, p_max:null — sem fallback (modelos que «pensam» antes da letra ficam declarados).
 import fs from 'node:fs'; import path from 'node:path';
-import { HERE, TIERS, opt, loadCorpus, summarise, OLLAMA_HOST } from './lib-common.mjs';
+import { HERE, TIERS, opt, args, loadCorpus, summarise, OLLAMA_HOST } from './lib-common.mjs';
 const HOST = OLLAMA_HOST;
 const MODEL = opt('--model', 'qwen2.5:3b');
 const FALLBACK_N = Number(opt('--fallback-n', 5));
 const TTA = Number(opt('--tta-letters', 0)); // 0 = desligado (comportamento anterior); 4 = rotacoes ciclicas
+const FETCH_TIMEOUT_MS = 60_000; // round 7 A17: nenhum pedido fica pendurado; redirect:'error' em ambos os caminhos (loopback-only vem do OLLAMA_HOST canonico)
+const NATIVE = args.includes('--native-chat'); // MP7 (i): /api/chat nativo com think:false + logprobs; sem a flag o caminho /v1 nao muda
 if (TTA && TTA !== 4) { console.error('--tta-letters so aceita 4 (rotacoes ciclicas de 4 letras) ou 0'); process.exit(2); }
 const RUBRIC = fs.readFileSync(path.join(HERE, '..', 'provas-v1-2026-09-09', 'P1-decidir-custa-zero', 'label-rubric.txt'), 'utf8');
 
@@ -39,7 +41,16 @@ async function ask(prompt, q) {
   const letters = Object.keys(q.options);
   const t0 = process.hrtime.bigint();
   const call = async (temperature, want) => {
-    const r = await fetch(`${HOST}/v1/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json' },
+    if (NATIVE) {
+      // MP7 (i): /api/chat nativo — think:false (o /v1 ignora-o no Ollama 0.34.2), logprobs ao nivel de topo da resposta.
+      const r = await fetch(`${HOST}/api/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        body: JSON.stringify({ model: MODEL, stream: false, think: false, logprobs: want, top_logprobs: want ? 10 : undefined, options: { temperature, num_predict: 1 }, messages }) });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(`ollama ${r.status}: ${JSON.stringify(j.error || j).slice(0, 200)}`);
+      // adapta a forma nativa a forma OpenAI que o resto do ask() le
+      return { choices: [{ message: { content: j.message?.content ?? '' }, logprobs: { content: Array.isArray(j.logprobs) ? j.logprobs : [] } }] };
+    }
+    const r = await fetch(`${HOST}/v1/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       body: JSON.stringify({ model: MODEL, temperature, max_tokens: 1, logprobs: want, top_logprobs: want ? 10 : undefined, messages }) });
     const j = await r.json();
     // round 6 A2: um erro HTTP / JSON de erro NAO pode cair em silencio no fallback por amostragem — falha alto.
@@ -88,7 +99,7 @@ function policyV0(a) { const v = a.tier.value; return { tier: v == null ? null :
 
 const corpus = loadCorpus();
 const rows = [];
-console.error(`braco D · ${MODEL} · corpus ${corpus.name} · ${corpus.items.length} prompts${TTA ? ` · TTA letras x${TTA}` : ''}`);
+console.error(`braco D · ${MODEL} · corpus ${corpus.name} · ${corpus.items.length} prompts${TTA ? ` · TTA letras x${TTA}` : ''}${NATIVE ? ' · /api/chat nativo think:false' : ''}`);
 // aquecer
 await fetch(`${HOST}/api/generate`, { method: 'POST', body: JSON.stringify({ model: MODEL, prompt: 'hi', stream: false, keep_alive: '30m' }) }).catch(() => {});
 for (const it of corpus.items) {
@@ -101,7 +112,7 @@ for (const it of corpus.items) {
 }
 const summary = summarise(rows, corpus.labels);
 const noLetterItems = rows.filter((r) => r.answers.tier.mode === 'no-letter').length;
-const out = { arm: 'D-logit', model: MODEL, host: HOST, logprobs_used: logprobsOK, corpus: corpus.name, labels: corpus.labels_path || 'gold', questions: QUESTIONS, tta_letters: TTA || 0, policy: TTA ? 'v0-argmax-tier-tta4-mean' : 'v0-argmax-tier', at: new Date().toISOString(), summary: { ...summary, rows: undefined, no_letter_items: noLetterItems }, rows: summary.rows };
-const f = path.join(HERE, 'results', `D-${MODEL.replace(/[^\w.-]/g, '_')}-${TTA ? `tta${TTA}-` : ''}${corpus.name.split(' ')[0]}.json`);
+const out = { arm: 'D-logit', model: MODEL, host: HOST, endpoint: NATIVE ? '/api/chat (think:false)' : '/v1/chat/completions', logprobs_used: logprobsOK, corpus: corpus.name, labels: corpus.labels_path || 'gold', questions: QUESTIONS, tta_letters: TTA || 0, policy: TTA ? 'v0-argmax-tier-tta4-mean' : 'v0-argmax-tier', at: new Date().toISOString(), summary: { ...summary, rows: undefined, no_letter_items: noLetterItems }, rows: summary.rows };
+const f = path.join(HERE, 'results', `D-${MODEL.replace(/[^\w.-]/g, '_')}-${NATIVE ? 'native-' : ''}${TTA ? `tta${TTA}-` : ''}${corpus.name.split(' ')[0]}.json`);
 fs.writeFileSync(f, JSON.stringify(out, null, 1));
 console.log(JSON.stringify({ arm: out.arm, model: MODEL, tta_letters: out.tta_letters, logprobs_used: logprobsOK, no_letter_items: noLetterItems, acc: summary.p, ci95: summary.ci95, n: summary.n, ece: summary.calibration.ece, p50_ms: summary.latency_ms.p50, p50_ms_tier_only: rows.map(r=>r.ms_tier_only).sort((a,b)=>a-b)[Math.floor(rows.length/2)], abstain: summary.abstain, file: path.basename(f) }, null, 1));

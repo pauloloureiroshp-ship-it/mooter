@@ -1,0 +1,403 @@
+You are an adversarial reviewer of a pre-registered measurement package (routing decisor, local LLM, Node.js). Attack ONLY these three questions, plus anything dangerous you see in the code:
+(Q1) AMENDMENT mp4-3 (new F2 gate on the 60d): is every condition well-defined and non-cherry-pickable BEFORE labelling? Is condition 4 ('HIGH_RISK never demoted') vacuous because the guardrail is applied by construction — and is printing the raw demotion rate an honest substitute or a loophole? Is deriving HIGH_RISK by re-running the frozen classify.js on recovered text (A-60d.json) sound, given the live event lacks risk_level? Is McNemar one-sided vs the best constant appropriate at n~60 (the preview gives p=0.076/0.045/0.032)? Does 'abstention -> T2' change the candidate in a way that makes the accuracy comparison vs the rule unfair or gameable?
+(Q2) AMENDMENT mp4-2 ((b) := raw v0, calibration dropped): is this a post-hoc change that undermines the pre-registration (the rule in mp6.step7 said tta wins; the owner overrode it)? Is the justification ('route uses argmax, not probability') valid or a way to escape a failed ECE gate? Do all shadow events since 2026-09-21T12:00Z remain valid for the new candidate, or should the window restart?
+(Q3) MP7: (i) is the native /api/chat harness equivalent to the /v1 one (same messages, same letter reading), and is 'think:false' a legitimate change or a new harness that invalidates comparison with the 14b v0 reference? Is the 27b verdict 'ENTRE' honest given ECE 2-3x worse and latency 4x the ceiling? (ii) is the TTA agreement definition (votes = rotations whose argmax equals the argmax of the mean) sound, or does it bias toward high agreement? Was anything chosen after seeing the 60c?
+OUTPUT (strict): numbered list 'A<n> | severity(critical|serious|minor) | claim | attack in <=3 sentences | what would refute it', then 'VERDICT: <one sentence per question>'. No preamble. Do not restate the inputs.
+
+=== protocol.json#mp4._amendments mp4-2 and mp4-3 (committed 996b68eb at 2026-09-21T11:25:20-03:00; live shadow events at that time: 3; labels: 0) ===
+[
+ {
+  "id": "mp4-2",
+  "at": "2026-09-21T14:25:20.038Z",
+  "before": "ANTES de qualquer rotulo do 60d (eventos decisor_shadow vivos: 3; rotulos: 0; n_target 60)",
+  "supersedes": "mp4-1",
+  "change": "candidates_fixed_now.b_v0_calibrated (o candidato que conta) := v0 CRU: tier = tier_D do evento (argmax de probs_D), confianca = p_max_D crua (impressa, NAO avaliada como gate — ver mp4-3). (a) e (b) passam a ser o mesmo candidato. A clausula «since_utc_b = deploy da TTA» da mp4-1 cai: contam TODOS os eventos desde since_utc 2026-09-21T12:00Z (o shadow ja produz v0). Os pesos-251 e as variantes calibradas (iso-154, tta, tta_iso) reportam-se so como diagnostico de ECE.",
+  "reason": "A TTA piora a ECE (0,110->0,187 · 0,124->0,196 na exploracao; 0,146->0,221 no 60c) e nao esta no shadow (1 pergunta). A rota usa o ARGMAX, nao a probabilidade: a decisao de tier nao depende da confianca estar calibrada. C1/C2/C3 (TTA, modelo maior, selectivo) pre-registados em defb9c26 e refutados em 813693b0 (round 6: 6e0c1e9a, nenhum veredicto mudou). Nenhum dos candidatos do step7 bate o v0 cru (ECE media 0,117 em 40+57).",
+  "authorized_by_owner": "sim — linha de colar de 2026-09-21: «AMENDMENT mp4-2 — candidato (b) := v0 cru (a TTA piora ECE e nao esta no shadow)»"
+ },
+ {
+  "id": "mp4-3",
+  "at": "2026-09-21T14:25:20.038Z",
+  "before": "ANTES de qualquer rotulo do 60d (eventos decisor_shadow vivos: 3; rotulos: 0)",
+  "change": "gate_on_60d passa a ser o GATE DE F2 abaixo; o gate anterior (acc > constante ∧ ECE <= 0,10 ∧ p50 ∧ egress) e substituido. A ECE deixa de ser gate.",
+  "reason": "A rota usa argmax, nao a probabilidade — o que pode fazer mal a um utilizador e uma sub-rota (T2/T3 -> T0) ou uma despromocao de HIGH_RISK, nao uma probabilidade mal calibrada que ninguem le. C1/C2/C3 refutados (defb9c26 -> 813693b0): nao ha calibracao sem aprender que baixe a ECE do 60c de 0,146, e a aprendida em canonicos piora nos reais (0,110 -> 0,311). Ate haver calibracao validada num corpus virgem (ECE <= 0,10), o recibo mostra «confianca: n/d».",
+  "routed_decision": {
+   "definition": "routed_D(i): t = abstained_D ? T2 : tier_D (abstained_D = p_max_D < 0,4, campo do evento); se HIGH_RISK(i) e rank(t) < rank(tier_regra) entao t = tier_regra. E isto que o F2 faria em producao: o decisor passa pelo mesmo guardrail que qualquer arbiter (inject_context.js: isDowngrade && isHighRiskPrompt -> high_risk_downgrade_refused, mantem o tier da regra).",
+   "high_risk_source": "o evento NAO transporta risk_level. HIGH_RISK(i) = classify.js (FROZEN, deterministico) corrido in-process sobre o texto recuperado do 60d -> A-60d.json (o mesmo instrumento que produziu A-60c.json), campo risk_level === \"high\"; sem chave, como o hook desta maquina. Reporta-se tambem HIGH_RISK_HINT do inject_context.js se for importavel; se os dois discordarem, conta o classify.js e diz-se. Recomendacao (outro MP, tools/router/): gravar risk_level no evento decisor_shadow.",
+   "rule_reference": "tier_regra do evento (o que a regra disse EM TEMPO REAL, com o estado de chave que o hook tinha) — nao se re-corre a regra para a acuracia; A-60d.json serve SO para risk_level."
+  },
+  "gate_F2_60d": {
+   "1_acc_gt_rule": "acc(routed_D) > acc(tier_regra), McNemar unilateral exacto (binomial) p < 0,05, emparelhado por item",
+   "2_acc_gt_best_constant": "acc(routed_D) > acc(«c sempre») para c = tier mais frequente nos rotulos do 60d, McNemar unilateral p < 0,05",
+   "3_under_routing": "taxa de sub-rota = #(expected in {T2,T3} e routed = T0) / #(expected in {T2,T3}); rate_D <= rate_regra (regra = tier_regra do evento)",
+   "4_high_risk_never_demoted": "em todos os itens HIGH_RISK, rank(routed_D) >= rank(tier_regra): 0 violacoes. Por construcao do guardrail — por isso IMPRIME-SE o que o guardrail teve de fazer: n_high_risk, n_raw_violations (tier_D < tier_regra), taxa. E um limite conhecido do decisor, nao um gate; se a taxa crua > 50 %, o relatorio diz que o decisor «nao sabe» HIGH_RISK e o F2 so abre com o guardrail (que ja existe).",
+   "5_abstention_to_T2": "faz parte de routed_D; reporta-se n_abstained e a acc dos abstidos se tivessem ficado no argmax",
+   "6_p50_ms_max": 250,
+   "6_p50_note": "ms_D dos eventos outcome ok; eventos timeout/failed nao entram na mediana e contam na disponibilidade (> 10 % nao-ok => chumba por disponibilidade, como antes)",
+   "7_egress_hosts_allowed": [
+    "127.0.0.1:11434"
+   ],
+   "all_must_hold": true
+  },
+  "ece_status": "MEDIDA E IMPRESSA (10 bins sobre p_max_D crua, e tambem sobre routed_D) como LIMITE CONHECIDO — nao e gate. O recibo/cockpit mostra «confianca: n/d» ate existir uma calibracao validada num corpus virgem com ECE <= 0,10 (pre-registo proprio).",
+  "also_reported": [
+   "(a) argmax cru sem abstencao->T2 (continuidade com o 60c: 0,622)",
+   "(c) v0-guard (needs_repo/high_stakes >= 0,5 -> T2) com o mesmo routed",
+   "grelha selectiva (mp6-1, X fixo 70 %) — informativa, deixa de ser 2.o caminho de gate",
+   "so itens unanimes entre os 3 rotuladores",
+   "sem os despachados por runner",
+   "ECE das variantes calibradas (b-251, iso-154) — diagnostico",
+   "disponibilidade: eventos ok / elegiveis; n de sessoes = n de itens"
+  ],
+  "closing_verdicts": {
+   "all_pass": "GATE F2 VERDE (60d) -> F2 PODE ABRIR com o decisor como arbiter trocavel, dentro do guardrail HIGH_RISK, com «confianca: n/d» no recibo — decisao do dono",
+   "any_fail": "o gate que falhou diz o que falta; NAO se repete o 60d (A22); um MP seguinte precisa de pre-registo proprio"
+  },
+  "preview_on_labelled_corpora_informative": {
+   "40": {
+    "acc_raw": 0.6,
+    "acc_routed": 0.65,
+    "abstained": 3,
+    "acc_rule": 0.325,
+    "best_constant": "T2 0.450",
+    "mcnemar_vs_rule_p": 0.0005,
+    "mcnemar_vs_const_p": 0.0758,
+    "under_routing_D_vs_rule": "7/26 vs 23/26",
+    "high_risk_raw_violations": "1/3",
+    "p50_ms": 165,
+    "ece_informative": 0.154
+   },
+   "57": {
+    "acc_raw": 0.614,
+    "acc_routed": 0.596,
+    "abstained": 4,
+    "acc_rule": 0.439,
+    "best_constant": "T3 0.404",
+    "mcnemar_vs_rule_p": 0.0245,
+    "mcnemar_vs_const_p": 0.0448,
+    "under_routing_D_vs_rule": "15/41 vs 29/41",
+    "high_risk_raw_violations": "6/11",
+    "p50_ms": 140,
+    "ece_informative": 0.124
+   },
+   "note": "o MESMO gate calculado nos corpora ja rotulados (D v0 do 14b, regra por item de A-nokey run 1 / A-60b / A-60c, risk_level da regra) — previsao escrita ANTES do 60d, nao decisao. Bruto em results/preview-gate-mp4-3.json.",
+   "60c": {
+    "acc_raw": 0.622,
+    "acc_routed": 0.595,
+    "abstained": 3,
+    "acc_rule": 0.324,
+    "best_constant": "T3 0.324",
+    "mcnemar_vs_rule_p": 0.001,
+    "mcnemar_vs_const_p": 0.032,
+    "under_routing_D_vs_rule": "3/21 vs 15/21",
+    "high_risk_raw_violations": "2/4",
+    "p50_ms": 162,
+    "ece_informative": 0.173
+   },
+   "reading": "Passa (1) nos tres (p 0,0005 / 0,025 / 0,001) e (3) nos tres (0,27 vs 0,88 · 0,37 vs 0,71 · 0,14 vs 0,71). (2) e o gate arriscado: p = 0,076 no 40 (chumba), 0,045 no 57, 0,032 no 60c — com n = 60 fica na fronteira. (4): o decisor CRU despromove HIGH_RISK em 1/3 · 6/11 · 2/4 — com o guardrail sao 0, e e por isso que o guardrail fica no caminho e a taxa crua se imprime. Abstencao->T2 desce a acc no 57 e no 60c (0,614->0,596; 0,622->0,595) e sobe no 40 (0,600->0,650). p50 165/140/162 <= 250. ECE informativa 0,154 / 0,124 / 0,173."
+  },
+  "authorized_by_owner": "sim — linha de colar de 2026-09-21: «AMENDMENT mp4-3 — gate de F2 no 60d passa a: acc > regra E > melhor constante (McNemar p<0,05) ∧ taxa de sub-rota (T2/T3->T0) <= a da regra ∧ HIGH_RISK nunca despromovido ∧ abstencao->T2 ∧ p50 <= 250 ms ∧ egress 0; ECE continua medida e impressa como limite conhecido (nao e gate) e o recibo mostra confianca: n/d ate haver calibracao»"
+ }
+]
+
+=== protocol.json#mp4 original gate (superseded) and candidates block, for reference ===
+{
+ "candidates_fixed_now": {
+  "a_v0": "referencia: tier = tier_D do evento (argmax de probs_D), confianca = p_max_D. E o v0 do MP3, sem parametros.",
+  "b_v0_calibrated": "**CANDIDATO QUE CONTA.** tier = tier_D (a DECISAO NAO MUDA — acuracia identica a v0 por construcao); confianca = iso_c(p_c) com c = tier_D e p_c = probs_D[c], onde iso_c e a calibracao isotonica da classe c (ver `calibration`). So a confianca muda; o gate de ECE e sobre ela.",
+  "c_v0_guard_calibrated": "reporta-se, nao conta: tier = (tier_D == T0 e (aux_D.p_needs_repo >= 0,5 ou aux_D.p_high_stakes >= 0,5)) ? T2 : tier_D; confianca = iso_tier(probs_D[tier]) (quando o guard dispara, iso_T2(p_T2)). Limiar 0,5 fixado no MP3.",
+  "b_prime_diagnostic": "NAO e candidato: argmax das 4 probabilidades calibradas e renormalizadas (pode mudar a decisao). Reporta-se so para dizer se a calibracao mudaria decisoes; nao entra em gate nenhum.",
+  "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3).",
+  "_see_amendment": "mp4-2 (2026-09-21): (b) := v0 cru; mp4-3: gate de F2 (argmax, sub-rota, HIGH_RISK, abstencao, p50, egress; ECE impressa, nao gate). mp4-1 superseded."
+ },
+ "gate_on_60d": {
+  "evaluated_on": "(b) v0 calibrado. (a) e (c) e b-prime reportam-se.",
+  "acc_gt_strongest_constant": "acc(b) > max sobre c de acc(«c sempre») nos rotulos do 60d, McNemar unilateral exacto (binomial), p < 0,05. A constante mais forte e a que os rotulos derem (no 60c foi T3 sempre, 0,324); a regra e fixa, a constante nao se escolhe a mao.",
+  "ece_max": 0.1,
+  "ece_method": "10 bins de largura igual sobre a confianca CALIBRADA de (b)",
+  "p50_ms_max": 250,
+  "p50_note": "ms_D do evento (4 perguntas no worker desligado, modelo quente); eventos timeout contam como falha de disponibilidade (ver eligibility), nao entram na mediana.",
+  "egress_hosts_allowed": [
+   "127.0.0.1:11434"
+  ],
+  "egress_method": "o worker so aceita loopback (decisorHost(); senao outcome refused_non_loopback, nada e chamado) e fetch(redirect:error). Atestacao: (1) nenhum evento do 60d com outcome refused_non_loopback; (2) net-tap no worker (--shadow-worker) sobre os eventos do harness na maquina; limite declarado: cobre o cliente Node, nao o daemon Ollama.",
+  "also_reported": [
+   "(a) v0 e (c) v0-guard calibrado com os mesmos gates",
+   "b-prime (diagnostico)",
+   "so itens unanimes entre os 3 rotuladores",
+   "sem os despachados por runner",
+   "vs regra (tier_regra do proprio evento) e vs «T2 sempre»",
+   "n de sessoes = n de itens",
+   "disponibilidade: eventos ok / elegiveis"
+  ],
+  "_superseded_by": "mp4-3 (2026-09-21) — ver _amendments"
+ },
+ "corpus_60d_eligibility": [
+  "as MESMAS exclusoes do 60c: tool_result, tags <...> no inicio, isSidechain, isMeta, projectos em AppData/Local/Temp, < 20 chars, > 500 chars, colagens <pasted_content>, comandos /",
+  "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1 (n01-n40 E r01-r23 — o buraco do A7 do round 3, fechado aqui), corpus-40-unredacted, corpus-60b, corpus-60c",
+  "evento sem texto recuperavel: NAO entra; conta-se e reporta-se (_unrecovered). Se > 10 % dos eventos elegiveis nao se recuperarem, a recuperacao por sha e declarada insuficiente e o corpus nao se fecha sem AMENDMENT.",
+  "evento com outcome != ok (timeout/failed/parse_failed): NAO entra na acuracia (nao ha previsao). Conta-se em _events_not_ok e reporta-se como disponibilidade; se > 10 % dos elegiveis, o gate de p50/disponibilidade chumba por si."
+ ]
+}
+
+=== protocol.json#mp7 (pre-registration, committed 3e384307 at 2026-09-21T11:25:30-03:00, BEFORE the native runs and the agreement computation) ===
+{
+ "_schema": "decisor-shadow/protocol-v1/mp7",
+ "_status": "PRE-REGISTO MP7 (exploratorio) — congelado em commit ANTES de correr o /api/chat nativo em qualquer corpus e ANTES de calcular a concordancia das rotacoes TTA",
+ "_registered_at": "2026-09-21T14:25:30.415Z",
+ "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+ "_starting_point": "mp4-2/mp4-3 escritas no commit anterior. MP6: C1/C2/C3 refutadas; 27b/30b no /v1 = no-letter 100 %. Eventos decisor_shadow vivos: 3. Nada aqui toca no 60d.",
+ "rule": {
+  "exploration": "40 e 57, separados",
+  "validation": "60c so reportado",
+  "zero_adjustment": "nada e ajustado em nenhum corpus; (ii) nao corre modelo — le os ficheiros TTA ja em disco (D-qwen2.5-coder_14b-tta4-corpus-{40-unredacted,60b,60c}.json.json, gravados 2026-09-21T13:44Z)"
+ },
+ "_probe_before_registration": {
+  "what": "UMA chamada por modelo (fria + quente) ao /api/chat NATIVO com think:false, logprobs:true, top_logprobs:10, options {temperature:0, num_predict:1}, prompt SINTETICO (fix the typo in the README title), a pergunta do tier — nao e corrida de corpus.",
+  "qwen3.6:27b": {
+   "first_token": "A",
+   "p": 0.753,
+   "top": "A 0,753 · B 0,233 · C 0,010 · D 0,004",
+   "thinking_field": "vazio",
+   "cold_ms": 10030,
+   "warm_ms": 99,
+   "vram_gb": 16
+  },
+  "qwen3:30b": {
+   "first_token": "We",
+   "p": 0.979,
+   "top": "We · Okay · Hmm · Alright",
+   "thinking_field": "vazio",
+   "cold_ms": 5291,
+   "warm_ms": 24,
+   "vram_gb": 18,
+   "note": "think:false esvazia o campo thinking mas o modelo continua a raciocinar em prosa no content — sem letra"
+  },
+  "ollama_version": "0.34.2",
+  "native_logprobs": "sim — o /api/chat devolve `logprobs: [{token, logprob, top_logprobs:[...]}]` ao nivel de topo da resposta",
+  "consequence_declared_now": "Previsao: 27b responde com letra (>= 90 %) e o 30b nao (no-letter -> n/d, sem fallback, como no MP6). O 27b a ~100 ms por pergunta da ~400 ms nas 4 — acima do tecto de 250 ms do mp4-3; mede-se e diz-se; se ficar acima, o 27b nao e candidato a modelo do shadow mesmo que acerte mais."
+ },
+ "part_i_native_chat": {
+  "harness": "02-arm-D-logit.mjs com a flag nova --native-chat: POST /api/chat {model, stream:false, think:false, logprobs:true, top_logprobs:10, options:{temperature:0, num_predict:1}, messages} — as MESMAS mensagens (system com a rubrica, user com PROMPT + QUESTION); le j.logprobs[0] em vez de choices[0].logprobs.content[0]; regra no-letter igual (top-1 gerado nao e letra -> null). Sem a flag, o caminho /v1 nao muda (byte-identico). Ficheiro de saida D-<modelo>-native-<corpus>.",
+  "runs": "qwen3.6:27b e qwen3:30b, politica v0, 3 corpora, UMA corrida cada (6). 14b parado antes, re-aquecido keep_alive -1 depois. net-tap no cliente.",
+  "hypothesis": "C2-nativo: um modelo maior, quando responde com letra, e mais exacto e mais bem calibrado que o 14b v0.",
+  "confirmed_if": "letra >= 90 % dos itens em cada corpus de exploracao E acc >= acc_v0 E ECE < ECE_v0 em ambos (40: 0,600/0,110; 57: 0,614/0,124)",
+  "refuted_if": "no-letter > 10 % em algum corpus de exploracao, OU acc < acc_v0 - 0,05 em algum",
+  "otherwise": "ENTRE",
+  "latency": "p50 das 4 perguntas por corpus; tecto 250 ms (mp4-3). Reporta-se mesmo que passe o resto.",
+  "no_letter_items": "contam como errados na acc e ficam fora da ECE (como no MP6); reporta-se acc sobre os respondidos."
+ },
+ "part_ii_tta_agreement": {
+  "definition": "por item TTA (4 rotacoes r=0..3): voto_r = argmax da distribuicao da rotacao r (em espaco de tier); tier_final = argmax da media (o que o ficheiro ja tem); votos = #{r : voto_r == tier_final}; nivel = votos/4 in {1/4, 2/4, 3/4, 4/4}. p_agree = votos/4 e a confianca candidata.",
+  "metrics": "por corpus: n e acc por nivel (4/4, 3/4, 2/4, 1/4 se existir); ECE (10 bins) com p = p_agree; comparacao com ECE_v0 (0,110/0,124/0,146) e ECE_tta (0,187/0,196/0,221); acc media por nivel vs p_agree (calibracao bruta em 4 pontos); tambem a acc do v0 (rotacao 0) nos mesmos niveis.",
+  "hypothesis": "a concordancia entre rotacoes e um sinal de confianca melhor que p_max: a acc cresce com o nivel, e p_agree e mais bem calibrada que p_max da media.",
+  "confirmed_if": "acc(4/4) > acc(3/4) > acc(2/4) em AMBOS os corpora de exploracao (niveis com n >= 5; niveis com n < 5 nao contam para a monotonia) E ECE(p_agree) < ECE_tta em ambos",
+  "refuted_if": "a monotonia falha em ambos, OU ECE(p_agree) >= ECE_tta em ambos",
+  "otherwise": "ENTRE",
+  "not_a_gate": "nada disto entra no mp4; se confirmar, e uma ideia de confianca para um pre-registo proprio (e exige TTA no shadow: 4 chamadas).",
+  "script": "14-tta-agreement.mjs — le so os ficheiros TTA em disco; nao corre modelo; nao escreve texto."
+ },
+ "stop_rule": "uma corrida por (modelo, corpus); infra falhada repete-se UMA vez e diz-se; nada se ajusta olhando para o 60c; nada toca no 60d.",
+ "does_not_prove": [
+  "que o 27b nativo serve como shadow (latencia acima do tecto e outro endpoint que o arbiter.js nao usa)",
+  "que a concordancia transfere para o shadow (1 pergunta hoje)",
+  "independencia entre itens do mesmo autor/dia"
+ ]
+}
+
+=== results/15-analysis-mp7.md ===
+# decisor-shadow — análise MP7 (exploratório) · 2026-09-21T14:34:27.286Z
+
+Pré-registo: `protocol.json#mp7` (`_registered_at` 2026-09-21T14:25:30.415Z; commit `3e384307`). Exploração 40 e 57, 60c só reportado, zero ajuste. Sonda antes do pré-registo: no `/api/chat` nativo com `think:false` o 27b responde «A» (0,753) e o 30b continua «We».
+
+## (i) modelo maior pelo /api/chat nativo (think:false, logprobs, v0)
+
+| linha | acc 40 | acc 57 | **acc 60c** | ECE 40 | ECE 57 | **ECE 60c** | p50 ms 4 perg. (só tier) | letra | veredicto C2-nativo |
+|---|---|---|---|---|---|---|---|---|---|
+| 14b v0 (/v1, ref.) | 0.600 (24/40) | 0.614 (35/57) | 0.622 (23/37) | 0.110 | 0.124 | 0.146 | 165 (42) / 140 (36) / 162 (46) | 100 % / 100 % / 100 % | referência |
+| 27b nativo | 0.600 (24/40) | 0.702 (40/57) | 0.622 (23/37) · 2 no-letter (resp.: 0.657) | 0.305 | 0.244 | 0.285 | 1084 (270) / 1108 (283) / 1175 (297) | 100 % / 100 % / 95 % | ENTRE |
+| 30b nativo | 0.000 (0/40) · 40 no-letter (resp.: n/d) | 0.000 (0/57) · 57 no-letter (resp.: n/d) | 0.000 (0/37) · 37 no-letter (resp.: n/d) | n/d | n/d | n/d | 154 (42) / 158 (44) / 165 (50) | 0 % / 0 % / 0 % | REFUTADA (letra em 0 % / 0 %) |
+
+- **27b nativo: ENTRE.** Responde com letra (100 % / 100 % / 95 %); acc 0.600 / 0.702 vs v0 0.600 / 0.614 (≥ v0 nos dois; +8,8 pp no 57); **ECE 0.305 / 0.244 — 2–3× pior que o v0** (0.110 / 0.124): sobre-confiante (bins abaixo). **Latência p50 1084 / 1108 / 1175 ms nas 4 perguntas — 4× o tecto de 250 ms do mp4-3**; só a pergunta do tier já dá 270–297 ms. No 60c (só reportado): acc 0.622 (= v0 0,622), ECE 0.285, 2 no-letter.
+- **30b nativo: REFUTADA (letra em 0 % / 0 %)** — `think:false` esvazia o campo `thinking` mas o modelo continua a raciocinar em prosa no `content` («We» como 1.º token em 40/57/37 itens); acc 0 por construção, ECE n/d; p50 154 / 158 / 165 ms.
+
+### Bins do 27b nativo (sobre-confiança)
+
+- 40: 0.3:1/0%/0.39 · 0.4:3/0%/0.46 · 0.5:1/100%/0.59 · 0.6:2/100%/0.65 · 0.7:6/0%/0.77 · 0.8:5/40%/0.85 · 0.9:22/86%/0.98
+- 57: 0.4:4/100%/0.46 · 0.5:3/33%/0.57 · 0.6:3/0%/0.66 · 0.7:1/0%/0.70 · 0.8:11/45%/0.85 · 0.9:35/86%/0.97
+- 60c: 0.3:2/50%/0.38 · 0.5:2/100%/0.52 · 0.6:4/75%/0.66 · 0.7:1/0%/0.71 · 0.8:4/25%/0.86 · 0.9:22/73%/0.97
+
+## (ii) concordância das 4 rotações TTA como confiança (ficheiros do MP6, sem correr modelo)
+
+**REFUTADA** (regra pré-registada, 40 e 57). Tabela completa em `14-tta-agreement.md`. Resumo:
+
+| corpus | 4/4 (n · acc) | 3/4 | 2/4 | ECE(p_agree) | ECE(p_max TTA) | ECE(v0) | monotonia |
+|---|---|---|---|---|---|---|---|
+| 40 | 26 · 0.577 | 7 · 0.571 | 6 · 0.500 | **0.306** | 0.187 | 0.110 | ✅ |
+| 57 | 42 · 0.690 | 7 · 0.286 | 8 · 0.625 | **0.303** | 0.196 | 0.124 | ❌ |
+| 60c | 24 · 0.708 | 5 · 0.600 | 6 · 0.833 | **0.277** | 0.221 | 0.146 | ❌ |
+
+- **Leitura:** 65–74 % dos itens são unânimes (4/4) e mesmo assim só 0.58 / 0.69 / 0.71 certos — as 4 rotações concordam na MESMA resposta errada. O erro do decisor é **sistemático (juízo do modelo), não posicional**; é por isso que a TTA (MP6) não ajudou e a concordância não serve de confiança (p_agree = 1,0 em itens a 58–71 %: ECE 0,30). A monotonia falha no 57 (3/4 a 0,29 com n=7) e no 60c.
+
+## O que isto fecha
+
+- Modelo maior: o único que responde com letra (27b nativo) é **mais exacto no 57 e igual no 40/60c, mas 4× acima do tecto de latência e 2–3× pior na ECE** — não é candidato a shadow com este harness; um harness de 1 pergunta (só tier, ~280 ms) ficaria na fronteira e pede pré-registo próprio.
+- Confiança: nem p_max, nem calibração aprendida (MP5/MP6), nem TTA, nem concordância. A rota decide por argmax (mp4-3); o recibo diz «confiança: n/d» — e este MP diz porquê.
+
+⚠️ Nada aqui é decisão: o adversário (codex, round 7) ataca as emendas mp4-2/mp4-3 e este MP.
+
+
+=== results/14-tta-agreement.md ===
+# decisor-shadow — MP7 (ii) · concordância das 4 rotações TTA como confiança · 2026-09-21T14:31:54.897Z
+
+Pré-registo: `protocol.json#mp7.part_ii_tta_agreement` (`_registered_at` 2026-09-21T14:25:30.415Z). Ficheiros TTA do MP6 (gravados 2026-09-21T13:44Z), sem correr modelo, sem ajuste. `votos` = rotações cujo argmax coincide com o argmax da média; `p_agree` = votos/4. Exploração = 40 e 57; 60c só reportado.
+
+| corpus | nível | n | acc [IC95] | p_agree | p_max médio (média TTA) | acc do v0 (rotação 0) nos mesmos itens |
+|---|---|---|---|---|---|---|
+| 40 | 4/4 | 26 | 0.577 [0.39–0.74] | 1.00 | 0.80 | 0.577 |
+| 40 | 3/4 | 7 | 0.571 [0.25–0.84] | 0.75 | 0.47 | 0.714 |
+| 40 | 2/4 | 6 | 0.500 [0.19–0.81] | 0.50 | 0.43 | 0.667 |
+| 40 | **ECE** | 40 | acc TTA 0.550 | **ECE(p_agree) 0.306** | ECE(p_max TTA) 0.187 · ECE(v0) 0.110 | monotonia 4/4>3/4>2/4 (n≥5): ✅ (0.58 > 0.57 > 0.50) · voto modal ≠ argmax da média: 1 |
+| 57 | 4/4 | 42 | 0.690 [0.54–0.81] | 1.00 | 0.78 | 0.690 |
+| 57 | 3/4 | 7 | 0.286 [0.08–0.64] | 0.75 | 0.50 | 0.286 |
+| 57 | 2/4 | 8 | 0.625 [0.31–0.86] | 0.50 | 0.42 | 0.500 |
+| 57 | **ECE** | 57 | acc TTA 0.632 | **ECE(p_agree) 0.303** | ECE(p_max TTA) 0.196 · ECE(v0) 0.124 | monotonia 4/4>3/4>2/4 (n≥5): ❌ (0.69 > 0.29 > 0.63) · voto modal ≠ argmax da média: 0 |
+| 60c | 4/4 | 24 | 0.708 [0.51–0.85] | 1.00 | 0.80 | 0.708 |
+| 60c | 3/4 | 5 | 0.600 [0.23–0.88] | 0.75 | 0.48 | 0.400 |
+| 60c | 2/4 | 6 | 0.833 [0.44–0.97] | 0.50 | 0.40 | 0.500 |
+| 60c | 1/4 | 2 | 0.500 [0.09–0.91] | 0.25 | 0.33 | 0.500 |
+| 60c | **ECE** | 37 | acc TTA 0.703 | **ECE(p_agree) 0.277** | ECE(p_max TTA) 0.221 · ECE(v0) 0.146 | monotonia 4/4>3/4>2/4 (n≥5): ❌ (0.71 > 0.60 > 0.83) · voto modal ≠ argmax da média: 2 |
+
+## Veredicto (regra pré-registada, 40 e 57): **REFUTADA**
+
+- monotonia em ambos: não · ECE(p_agree) < ECE(p_max TTA) em ambos: não (40: 0.306 vs 0.187; 57: 0.303 vs 0.196). Contra o v0 (só informativo): 40 0.306 vs 0.110; 57 0.303 vs 0.124.
+- 60c (só reportado): ECE(p_agree) 0.277 · ECE(p_max TTA) 0.221 · ECE(v0) 0.146 · monotonia ❌.
+
+Nada disto entra no mp4 (mp7.part_ii.not_a_gate).
+
+
+=== 02-arm-D-logit.mjs — the call() function with the --native-chat branch (rest unchanged since round 6) ===
+const call = async (temperature, want) => {
+    if (NATIVE) {
+      // MP7 (i): /api/chat nativo — think:false (o /v1 ignora-o no Ollama 0.34.2), logprobs ao nivel de topo da resposta.
+      const r = await fetch(`${HOST}/api/chat`, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: MODEL, stream: false, think: false, logprobs: want, top_logprobs: want ? 10 : undefined, options: { temperature, num_predict: 1 }, messages }) });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(`ollama ${r.status}: ${JSON.stringify(j.error || j).slice(0, 200)}`);
+      // adapta a forma nativa a forma OpenAI que o resto do ask() le
+      return { choices: [{ message: { content: j.message?.content ?? '' }, logprobs: { content: Array.isArray(j.logprobs) ? j.logprobs : [] } }] };
+    }
+    const r = await fetch(`${HOST}/v1/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, temperature, max_tokens: 1, logprobs: want, top_logprobs: want ? 10 : undefined, messages }) });
+    const j = await r.json();
+    // round 6 A2: um erro HTTP / JSON de erro NAO pode cair em silencio no fallback por amostragem — falha alto.
+    if (!r.ok || j.error) throw new Error(`ollama ${r.status}: ${JSON.stringify(j.error || j).slice(0, 200)}`);
+    return j;
+  };
+  
+
+=== 14-tta-agreement.mjs (full source) ===
+#!/usr/bin/env node
+// 14-tta-agreement.mjs — MP7 (ii): concordância das 4 rotações TTA como sinal de confiança (protocol.json#mp7.part_ii).
+// Lê SÓ os ficheiros TTA já em disco (D-qwen2.5-coder_14b-tta4-*.json.json, MP6); não corre modelo; não ajusta nada.
+// Por item: voto_r = argmax da rotação r (espaço de tier); tier_final = argmax da média (o que o ficheiro tem);
+// votos = #{r : voto_r == tier_final}; p_agree = votos/4. Reporta acc por nível, ECE com p = p_agree, e compara.
+import fs from 'node:fs'; import path from 'node:path';
+import { HERE, TIERS, ece, wilson } from './lib-common.mjs';
+const RES = path.join(HERE, 'results'); const J = (f) => JSON.parse(fs.readFileSync(path.join(RES, f), 'utf8'));
+const mp7 = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8')).mp7;
+const fmt = (x, d = 3) => (x == null || Number.isNaN(x) ? 'n/d' : x.toFixed(d));
+const CORPORA = [['40', 'D-qwen2.5-coder_14b-tta4-corpus-40-unredacted.json.json', 'D-qwen2.5-coder_14b-corpus-40-unredacted.json.json'], ['57', 'D-qwen2.5-coder_14b-tta4-corpus-60b.json.json', 'D-qwen2.5-coder_14b-corpus-60b.json.json'], ['60c', 'D-qwen2.5-coder_14b-tta4-corpus-60c.json.json', 'D-qwen2.5-coder_14b-corpus-60c.json.json']];
+const argmaxTier = (probs) => TIERS.reduce((a, b) => (probs[a] >= probs[b] ? a : b));
+
+export function agreementRows(D) {
+  return D.rows.map((r) => {
+    const t = r.answers.tier; if (!t.tta || !t.tta.rotations || t.tta.rotations.length !== 4) throw new Error(`${r.id}: sem 4 rotações`);
+    if (!['T0', 'T1', 'T2', 'T3'].includes(r.expected)) throw new Error(`${r.id}: sem rótulo válido`);
+    const votes = t.tta.rotations.map((a) => argmaxTier(a.probs));
+    const final = r.tier; const n_agree = votes.filter((v) => v === final).length;
+    const modal = TIERS.map((x) => [x, votes.filter((v) => v === x).length]).sort((a, b) => b[1] - a[1])[0];
+    return { id: r.id, expected: r.expected, tier: final, correct: r.tier === r.expected, p_max_mean: r.p_max, votes, n_agree, p_agree: n_agree / 4, modal_tier: modal[0], modal_n: modal[1], v0_tier: votes[0], v0_correct: votes[0] === r.expected, v0_p_max: t.tta.rotations[0].p_max };
+  });
+}
+export function byLevel(rows) {
+  const out = {};
+  for (const k of [4, 3, 2, 1]) { const g = rows.filter((r) => r.n_agree === k); if (!g.length) continue; const ok = g.filter((r) => r.correct).length; out[`${k}/4`] = { n: g.length, k: ok, acc: ok / g.length, ci95: wilson(ok, g.length), p_agree: k / 4, mean_p_max: g.reduce((s, r) => s + r.p_max_mean, 0) / g.length, v0_acc: g.filter((r) => r.v0_correct).length / g.length }; }
+  return out;
+}
+export function monotone(levels, minN = 5) {
+  const seq = ['4/4', '3/4', '2/4'].map((l) => levels[l]).filter((x) => x && x.n >= minN).map((x) => x.acc);
+  if (seq.length < 2) return { ok: null, note: `menos de 2 níveis com n ≥ ${minN}` };
+  for (let i = 1; i < seq.length; i++) if (!(seq[i - 1] > seq[i])) return { ok: false, seq };
+  return { ok: true, seq };
+}
+const isMain = /14-tta-agreement\.mjs$/.test(process.argv[1] || '');
+if (isMain) {
+  const at = new Date().toISOString(); const out = { at, rule: mp7.part_ii_tta_agreement, by_corpus: {} };
+  const md = [`# decisor-shadow — MP7 (ii) · concordância das 4 rotações TTA como confiança · ${at}`, '', `Pré-registo: \`protocol.json#mp7.part_ii_tta_agreement\` (\`_registered_at\` ${mp7._registered_at}). Ficheiros TTA do MP6 (gravados 2026-09-21T13:44Z), sem correr modelo, sem ajuste. \`votos\` = rotações cujo argmax coincide com o argmax da média; \`p_agree\` = votos/4. Exploração = 40 e 57; 60c só reportado.`, '', '| corpus | nível | n | acc [IC95] | p_agree | p_max médio (média TTA) | acc do v0 (rotação 0) nos mesmos itens |', '|---|---|---|---|---|---|---|'];
+  for (const [ck, ftta, fv0] of CORPORA) {
+    const D = J(ftta); const rows = agreementRows(D); const levels = byLevel(rows);
+    const eAgree = ece(rows.map((r) => ({ p_max: r.p_agree, correct: r.correct })));
+    const eTta = ece(rows.map((r) => ({ p_max: r.p_max_mean, correct: r.correct })));
+    const V0 = J(fv0); const eV0 = ece(V0.rows.map((r) => ({ p_max: r.p_max, correct: r.correct })));
+    const mono = monotone(levels);
+    const modalDiff = rows.filter((r) => r.modal_tier !== r.tier && r.modal_n > r.n_agree).length;
+    out.by_corpus[ck] = { file: ftta, at: D.at, n: rows.length, levels, ece_p_agree: eAgree.ece, bins_p_agree: eAgree.bins, ece_tta_p_max: eTta.ece, ece_v0_p_max: eV0.ece, monotone: mono, acc_tta: rows.filter((r) => r.correct).length / rows.length, items_where_modal_vote_differs_from_mean_argmax: modalDiff };
+    for (const [l, g] of Object.entries(levels)) md.push(`| ${ck} | ${l} | ${g.n} | ${fmt(g.acc)} [${g.ci95.map((x) => fmt(x, 2)).join('–')}] | ${fmt(g.p_agree, 2)} | ${fmt(g.mean_p_max, 2)} | ${fmt(g.v0_acc)} |`);
+    md.push(`| ${ck} | **ECE** | ${rows.length} | acc TTA ${fmt(out.by_corpus[ck].acc_tta)} | **ECE(p_agree) ${fmt(eAgree.ece)}** | ECE(p_max TTA) ${fmt(eTta.ece)} · ECE(v0) ${fmt(eV0.ece)} | monotonia 4/4>3/4>2/4 (n≥5): ${mono.ok == null ? 'n/d' : mono.ok ? '✅' : '❌'} ${mono.seq ? `(${mono.seq.map((x) => fmt(x, 2)).join(' > ')})` : ''} · voto modal ≠ argmax da média: ${modalDiff} |`);
+  }
+  // veredicto pré-registado (40 e 57)
+  const ok = (ck) => out.by_corpus[ck];
+  const monoBoth = ok('40').monotone.ok === true && ok('57').monotone.ok === true;
+  const monoNone = ok('40').monotone.ok === false && ok('57').monotone.ok === false;
+  const eceBetterBoth = ok('40').ece_p_agree < ok('40').ece_tta_p_max && ok('57').ece_p_agree < ok('57').ece_tta_p_max;
+  const eceWorseBoth = ok('40').ece_p_agree >= ok('40').ece_tta_p_max && ok('57').ece_p_agree >= ok('57').ece_tta_p_max;
+  const verdict = monoBoth && eceBetterBoth ? 'CONFIRMADA' : (monoNone || eceWorseBoth) ? 'REFUTADA' : 'ENTRE';
+  out.verdict = { verdict, monotone_both: monoBoth, ece_better_than_tta_both: eceBetterBoth, ece_p_agree_vs_v0: { '40': [ok('40').ece_p_agree, ok('40').ece_v0_p_max], '57': [ok('57').ece_p_agree, ok('57').ece_v0_p_max] } };
+  md.push('', `## Veredicto (regra pré-registada, 40 e 57): **${verdict}**`, '', `- monotonia em ambos: ${monoBoth ? 'sim' : 'não'} · ECE(p_agree) < ECE(p_max TTA) em ambos: ${eceBetterBoth ? 'sim' : 'não'} (40: ${fmt(ok('40').ece_p_agree)} vs ${fmt(ok('40').ece_tta_p_max)}; 57: ${fmt(ok('57').ece_p_agree)} vs ${fmt(ok('57').ece_tta_p_max)}). Contra o v0 (só informativo): 40 ${fmt(ok('40').ece_p_agree)} vs ${fmt(ok('40').ece_v0_p_max)}; 57 ${fmt(ok('57').ece_p_agree)} vs ${fmt(ok('57').ece_v0_p_max)}.`, `- 60c (só reportado): ECE(p_agree) ${fmt(ok('60c').ece_p_agree)} · ECE(p_max TTA) ${fmt(ok('60c').ece_tta_p_max)} · ECE(v0) ${fmt(ok('60c').ece_v0_p_max)} · monotonia ${ok('60c').monotone.ok == null ? 'n/d' : ok('60c').monotone.ok ? '✅' : '❌'}.`, '', 'Nada disto entra no mp4 (mp7.part_ii.not_a_gate).', '');
+  fs.writeFileSync(path.join(RES, '14-tta-agreement.md'), md.join('\n'));
+  fs.writeFileSync(path.join(RES, '14-tta-agreement.json'), JSON.stringify(out, null, 1));
+  console.log(md.join('\n'));
+}
+
+
+=== preview script for the mp4-3 gate (scratch, run once on the labelled corpora; output in results/preview-gate-mp4-3.json) ===
+// Pré-visualização do gate mp4-3 nos corpora JÁ rotulados (40, 57, 60c) — informativo, escrito na emenda como previsão.
+import fs from 'node:fs'; import path from 'node:path';
+import { P1, mcnemar, ece } from 'file:///C:/Users/Paulo%20Loureiro/frugal/_handoff/decisor-shadow-2026-09-21/lib-common.mjs';
+const HERE = 'C:/Users/Paulo Loureiro/frugal/_handoff/decisor-shadow-2026-09-21'; const RES = path.join(HERE, 'results');
+const J = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+const CORPORA = [
+  ['40', 'D-qwen2.5-coder_14b-corpus-40-unredacted.json.json', () => { const o = {}; for (const r of J(path.join(P1, 'results', 'A-nokey.json')).rows) if (r.run === 1) o[r.id] = { tier: r.tier, risk: r.risk_level }; return o; }],
+  ['57', 'D-qwen2.5-coder_14b-corpus-60b.json.json', () => { const o = {}; for (const r of J(path.join(RES, 'A-60b.json')).rows) if (r.run === 1) o[r.id] = { tier: r.tier, risk: r.risk_level }; return o; }],
+  ['60c', 'D-qwen2.5-coder_14b-corpus-60c.json.json', () => { const o = {}; for (const r of J(path.join(RES, 'A-60c.json')).rows) if (r.run === 1) o[r.id] = { tier: r.tier, risk: r.risk_level }; return o; }],
+];
+const RANK = { T0: 0, T1: 1, T2: 2, T3: 3 };
+const out = {};
+for (const [ck, f, loadRule] of CORPORA) {
+  const rule = loadRule(); const rows = J(path.join(RES, f)).rows;
+  const routed = rows.map((r) => ({ id: r.id, expected: r.expected, raw: r.tier, tier: r.p_max < 0.4 ? 'T2' : r.tier, p_max: r.p_max, abstained: r.p_max < 0.4, rule: rule[r.id]?.tier ?? null, risk: rule[r.id]?.risk ?? null }));
+  const n = routed.length;
+  const accOf = (key) => routed.filter((r) => r[key] === r.expected).length / n;
+  const counts = {}; for (const r of routed) counts[r.expected] = (counts[r.expected] || 0) + 1;
+  const bestConst = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const scoredRouted = routed.map((r) => ({ id: r.id, expected: r.expected, correct: r.tier === r.expected }));
+  const mcRule = mcnemar(scoredRouted, Object.fromEntries(routed.map((r) => [r.id, r.rule])));
+  const mcConst = mcnemar(scoredRouted, Object.fromEntries(routed.map((r) => [r.id, bestConst[0]])));
+  const hi = routed.filter((r) => r.expected === 'T2' || r.expected === 'T3');
+  const under = { D: hi.filter((r) => r.tier === 'T0').length, rule: hi.filter((r) => r.rule === 'T0').length, n: hi.length };
+  const hr = routed.filter((r) => r.risk === 'high');
+  const hrViol = hr.filter((r) => r.rule && RANK[r.tier] < RANK[r.rule]);
+  const p50 = (() => { const s = rows.map((r) => r.ms).sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; })();
+  const e = ece(routed.map((r) => ({ p_max: r.p_max, correct: r.tier === r.expected })));
+  out[ck] = { n, acc_raw_argmax: accOf('raw'), acc_routed_abstain_T2: accOf('tier'), abstained: routed.filter((r) => r.abstained).length, acc_rule: accOf('rule'), best_constant: { tier: bestConst[0], acc: bestConst[1] / n },
+    mcnemar_vs_rule: mcRule, mcnemar_vs_const: mcConst, under_routing: { n_T2T3: under.n, D_to_T0: under.D, rule_to_T0: under.rule, rate_D: under.D / under.n, rate_rule: under.rule / under.n },
+    high_risk: { n: hr.length, D_below_rule: hrViol.length, ids: hrViol.map((r) => `${r.id}:${r.rule}->${r.tier}`) }, p50_ms: p50, ece_routed_informative: e.ece };
+}
+console.log(JSON.stringify(out, null, 1));
+fs.writeFileSync(path.join(RES, 'preview-gate-mp4-3.json'), JSON.stringify({ at: new Date().toISOString(), note: 'pré-visualização informativa do gate mp4-3 nos corpora já rotulados; NÃO é o 60d; ids listados são só os de violação HIGH_RISK (sem texto)', by_corpus: out }, null, 1));
+
+
+=== lib-common.mjs — mcnemar (one-sided exact) ===
+export function mcnemar(scored, ref) {
+  let b = 0, c = 0; for (const r of scored) { const t = ref[r.id]; if (t === undefined) continue; const refOK = t === r.expected; if (r.correct && !refOK) b++; if (!r.correct && refOK) c++; }

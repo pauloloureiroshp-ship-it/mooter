@@ -1,0 +1,309 @@
+{
+ "at": "2026-09-21T14:40:30.847Z",
+ "rule": {
+  "definition": "por item TTA (4 rotacoes r=0..3): voto_r = argmax da distribuicao da rotacao r (em espaco de tier); tier_final = argmax da media (o que o ficheiro ja tem); votos = #{r : voto_r == tier_final}; nivel = votos/4 in {1/4, 2/4, 3/4, 4/4}. p_agree = votos/4 e a confianca candidata.",
+  "metrics": "por corpus: n e acc por nivel (4/4, 3/4, 2/4, 1/4 se existir); ECE (10 bins) com p = p_agree; comparacao com ECE_v0 (0,110/0,124/0,146) e ECE_tta (0,187/0,196/0,221); acc media por nivel vs p_agree (calibracao bruta em 4 pontos); tambem a acc do v0 (rotacao 0) nos mesmos niveis.",
+  "hypothesis": "a concordancia entre rotacoes e um sinal de confianca melhor que p_max: a acc cresce com o nivel, e p_agree e mais bem calibrada que p_max da media.",
+  "confirmed_if": "acc(4/4) > acc(3/4) > acc(2/4) em AMBOS os corpora de exploracao (niveis com n >= 5; niveis com n < 5 nao contam para a monotonia) E ECE(p_agree) < ECE_tta em ambos",
+  "refuted_if": "a monotonia falha em ambos, OU ECE(p_agree) >= ECE_tta em ambos",
+  "otherwise": "ENTRE",
+  "not_a_gate": "nada disto entra no mp4; se confirmar, e uma ideia de confianca para um pre-registo proprio (e exige TTA no shadow: 4 chamadas).",
+  "script": "14-tta-agreement.mjs — le so os ficheiros TTA em disco; nao corre modelo; nao escreve texto."
+ },
+ "by_corpus": {
+  "40": {
+   "file": "D-qwen2.5-coder_14b-tta4-corpus-40-unredacted.json.json",
+   "at": "2026-09-21T13:44:01.942Z",
+   "n": 40,
+   "levels": {
+    "4/4": {
+     "n": 26,
+     "k": 15,
+     "acc": 0.5769230769230769,
+     "ci95": [
+      0.3894829692111983,
+      0.7445581009727059
+     ],
+     "p_agree": 1,
+     "mean_p_max": 0.8007228845623651,
+     "v0_acc": 0.5769230769230769
+    },
+    "3/4": {
+     "n": 7,
+     "k": 4,
+     "acc": 0.5714285714285714,
+     "ci95": [
+      0.2504542304090258,
+      0.8417830777373732
+     ],
+     "p_agree": 0.75,
+     "mean_p_max": 0.47392633525445466,
+     "v0_acc": 0.7142857142857143
+    },
+    "2/4": {
+     "n": 6,
+     "k": 3,
+     "acc": 0.5,
+     "ci95": [
+      0.1876128068994087,
+      0.8123871931005913
+     ],
+     "p_agree": 0.5,
+     "mean_p_max": 0.42890301862452107,
+     "v0_acc": 0.6666666666666666
+    },
+    "0/4": {
+     "n": 1,
+     "k": 0,
+     "acc": 0,
+     "ci95": [
+      0,
+      0.7934567085261071
+     ],
+     "p_agree": 0,
+     "mean_p_max": 0.29513756091546267,
+     "v0_acc": 1
+    }
+   },
+   "rotation0_equals_v0_file": {
+    "tier": 38,
+    "p_max_within_1e6": 0,
+    "n": 40
+   },
+   "ece_p_agree": 0.30625,
+   "bins_p_agree": [
+    {
+     "bin": "0.0",
+     "n": 1,
+     "acc": 0,
+     "conf": 0
+    },
+    {
+     "bin": "0.5",
+     "n": 6,
+     "acc": 0.5,
+     "conf": 0.5
+    },
+    {
+     "bin": "0.7",
+     "n": 7,
+     "acc": 0.5714285714285714,
+     "conf": 0.75
+    },
+    {
+     "bin": "0.9",
+     "n": 26,
+     "acc": 0.5769230769230769,
+     "conf": 1
+    }
+   ],
+   "ece_tta_p_max": 0.18656414268133747,
+   "ece_v0_p_max": 0.10990268449998994,
+   "monotone": {
+    "ok": true,
+    "seq": [
+     0.5769230769230769,
+     0.5714285714285714,
+     0.5
+    ]
+   },
+   "acc_tta": 0.55,
+   "items_where_modal_vote_differs_from_mean_argmax": 1
+  },
+  "57": {
+   "file": "D-qwen2.5-coder_14b-tta4-corpus-60b.json.json",
+   "at": "2026-09-21T13:44:16.211Z",
+   "n": 57,
+   "levels": {
+    "4/4": {
+     "n": 42,
+     "k": 29,
+     "acc": 0.6904761904761905,
+     "ci95": [
+      0.539737222336594,
+      0.8092907348027728
+     ],
+     "p_agree": 1,
+     "mean_p_max": 0.7785754531362896,
+     "v0_acc": 0.6904761904761905
+    },
+    "3/4": {
+     "n": 7,
+     "k": 2,
+     "acc": 0.2857142857142857,
+     "ci95": [
+      0.08221716570901548,
+      0.6410709098517873
+     ],
+     "p_agree": 0.75,
+     "mean_p_max": 0.5030537234968243,
+     "v0_acc": 0.2857142857142857
+    },
+    "2/4": {
+     "n": 8,
+     "k": 5,
+     "acc": 0.625,
+     "ci95": [
+      0.3057378545838018,
+      0.863158240538479
+     ],
+     "p_agree": 0.5,
+     "mean_p_max": 0.4156070228861449,
+     "v0_acc": 0.5
+    }
+   },
+   "rotation0_equals_v0_file": {
+    "tier": 55,
+    "p_max_within_1e6": 0,
+    "n": 57
+   },
+   "ece_p_agree": 0.3026315789473684,
+   "bins_p_agree": [
+    {
+     "bin": "0.5",
+     "n": 8,
+     "acc": 0.625,
+     "conf": 0.5
+    },
+    {
+     "bin": "0.7",
+     "n": 7,
+     "acc": 0.2857142857142857,
+     "conf": 0.75
+    },
+    {
+     "bin": "0.9",
+     "n": 42,
+     "acc": 0.6904761904761905,
+     "conf": 1
+    }
+   ],
+   "ece_tta_p_max": 0.19565951078649027,
+   "ece_v0_p_max": 0.12378582879330187,
+   "monotone": {
+    "ok": false,
+    "seq": [
+     0.6904761904761905,
+     0.2857142857142857,
+     0.625
+    ]
+   },
+   "acc_tta": 0.631578947368421,
+   "items_where_modal_vote_differs_from_mean_argmax": 0
+  },
+  "60c": {
+   "file": "D-qwen2.5-coder_14b-tta4-corpus-60c.json.json",
+   "at": "2026-09-21T13:44:25.679Z",
+   "n": 37,
+   "levels": {
+    "4/4": {
+     "n": 24,
+     "k": 17,
+     "acc": 0.7083333333333334,
+     "ci95": [
+      0.5083193634129031,
+      0.8508553966583573
+     ],
+     "p_agree": 1,
+     "mean_p_max": 0.7968178597585093,
+     "v0_acc": 0.7083333333333334
+    },
+    "3/4": {
+     "n": 5,
+     "k": 3,
+     "acc": 0.6,
+     "ci95": [
+      0.23071993220883702,
+      0.8823817688407467
+     ],
+     "p_agree": 0.75,
+     "mean_p_max": 0.4781922192055495,
+     "v0_acc": 0.4
+    },
+    "2/4": {
+     "n": 6,
+     "k": 5,
+     "acc": 0.8333333333333334,
+     "ci95": [
+      0.4364905634363539,
+      0.9699474141282696
+     ],
+     "p_agree": 0.5,
+     "mean_p_max": 0.3966609842906457,
+     "v0_acc": 0.5
+    },
+    "1/4": {
+     "n": 2,
+     "k": 1,
+     "acc": 0.5,
+     "ci95": [
+      0.09452865480086611,
+      0.905471345199134
+     ],
+     "p_agree": 0.25,
+     "mean_p_max": 0.3325730061722818,
+     "v0_acc": 0.5
+    }
+   },
+   "rotation0_equals_v0_file": {
+    "tier": 37,
+    "p_max_within_1e6": 36,
+    "n": 37
+   },
+   "ece_p_agree": 0.27702702702702703,
+   "bins_p_agree": [
+    {
+     "bin": "0.2",
+     "n": 2,
+     "acc": 0.5,
+     "conf": 0.25
+    },
+    {
+     "bin": "0.5",
+     "n": 6,
+     "acc": 0.8333333333333334,
+     "conf": 0.5
+    },
+    {
+     "bin": "0.7",
+     "n": 5,
+     "acc": 0.6,
+     "conf": 0.75
+    },
+    {
+     "bin": "0.9",
+     "n": 24,
+     "acc": 0.7083333333333334,
+     "conf": 1
+    }
+   ],
+   "ece_tta_p_max": 0.2210037393760874,
+   "ece_v0_p_max": 0.14626447685637023,
+   "monotone": {
+    "ok": false,
+    "seq": [
+     0.7083333333333334,
+     0.6,
+     0.8333333333333334
+    ]
+   },
+   "acc_tta": 0.7027027027027027,
+   "items_where_modal_vote_differs_from_mean_argmax": 2
+  }
+ },
+ "verdict": {
+  "verdict": "REFUTADA",
+  "monotone_both": false,
+  "ece_better_than_tta_both": false,
+  "ece_p_agree_vs_v0": {
+   "40": [
+    0.30625,
+    0.10990268449998994
+   ],
+   "57": [
+    0.3026315789473684,
+    0.12378582879330187
+   ]
+  }
+ }
+}
