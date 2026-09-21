@@ -1107,3 +1107,10 @@ Ponto de partida: `origin/main` = `3b086cc7`, árvore limpa. Âmbito: só `tools
 - **Smoke no caminho real** (worker, 14b vivo, HOME temporário): evento `outcome ok`, `high_risk_hint true`, `risk_level_regra high`, `tier_D T3`, sem `prompt`.
 - **Consumidores:** `10-corpus-60d.mjs#predictionOf` copia `high_risk_hint` (boolean|null) e `risk_level_regra` (allowlist|null) — escalares, sem texto (teste A9 das strings longas continua verde); `16-gate-f2.mjs#highRiskForItem(pred, text, HR)` usa o **campo do evento quando existe** e o texto recuperado (anonimizado) **só como fallback, declarado por item** (`high_risk_source: event | text_fallback | none`; contagens impressas no gate 4). Preview nos corpora antigos: tudo `text_fallback` (não há evento), números inalterados. Testes do pacote 11/11.
 - **Efeito no 60d:** os eventos desde este deploy trazem o predicado calculado pelo hook sobre o prompt cru — o gate 4 deixa de depender da recuperação de texto (e da anonimização) para os itens novos; os 3 eventos diagnósticos e os do intervalo 14:25Z → deploy ficam em `text_fallback`, declarado.
+
+## Fecho do MP8 — 2026-09-21T15:07Z (12:07 BRT)
+
+- `git fetch origin`: origin/main não avançou desde `3b086cc7` → rebase no-op. Suite `tools/router`: **1 399 · 1 395 pass · 3 fail · 1 skipped** (+2 testes; as 3 falhas são as mesmas pré-existentes, nome a nome). `sha256 classify.js` = `427d8c0b516315c6…` ✓. `git push origin main`: **`3b086cc7..2a6c878e`**.
+- `/mooter-update`: v1.53.0, em dia com origin; backtest ok; hub-pull «already up to date»; **runtime sincronizado (1 copiado: `arbiter.js`)** — `~/.claude/tools/router/arbiter.js` já tem `high_risk_hint`; hooks OK; 224 ficheiros em dia; cockpit OK; self-test T3 ✓. O hook nasce a cada prompt: os eventos `decisor_shadow` a partir de agora trazem os dois campos.
+
+MP8 FECHADO — 2a6c878e
