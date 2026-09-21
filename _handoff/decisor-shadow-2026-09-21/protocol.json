@@ -16,14 +16,21 @@
   "success_criteria": {
     "acc40_min_to_beat_rule": 0.35,
     "acc40_target_beats_judge": 0.525,
-    "ece_max": 0.10,
+    "ece_max": 0.1,
     "p50_ms_max_decisor_quente": 250,
-    "egress_hosts_allowed": ["localhost:11434"],
+    "egress_hosts_allowed": [
+      "localhost:11434"
+    ],
     "mcnemar_vs_rule_one_sided_p": 0.05
   },
   "stop_rule": "Uma corrida por braco por modelo. Se um braco falhar por infraestrutura (sem logprobs, sem VRAM), corrige-se e re-corre UMA vez, com o motivo no results/. Nunca 'mais uma' por parciais favoraveis.",
   "adversary": "codex exec (motor diferente) sobre 04-analyse output antes de qualquer PR em arbiter.js",
-  "does_not_prove": ["valor comercial", "obediencia executada", "que o rotulo cego e verdade", "poupanca em USD (sem tokens medidos)"],
+  "does_not_prove": [
+    "valor comercial",
+    "obediencia executada",
+    "que o rotulo cego e verdade",
+    "poupanca em USD (sem tokens medidos)"
+  ],
   "mp2": {
     "_schema": "decisor-shadow/protocol-v1/mp2",
     "_status": "PRE-REGISTO MP2 — congelado em commit ANTES do passo 1 (valset) e ANTES de amostrar o corpus 60b",
@@ -32,7 +39,10 @@
     "hypothesis": "Uma politica aprendida sobre as 4 respostas tipadas do D/14b (qwen2.5-coder:14b, logit-head), treinada em 154 rotulados que D nunca viu, sobe a acc nos 40 e baixa a ECE para <= 0,10 sem tocar nos 40.",
     "principle": "Os 40 reais sao TESTE. Nenhum parametro (temperatura, pesos, lambda, limiares, escolha de candidato, learning rate, folds) e ajustado olhando para eles nem para os 60b.",
     "train": {
-      "sets": ["gold-84 (tools/router/gold-labels.json, rotulo expected_tier)", "validation-set (tools/router/validation-set.json: canonical 20 + adversarial 25 + historical 25 = 70, rotulo expected_tier, id = <sec>-<nn>)"],
+      "sets": [
+        "gold-84 (tools/router/gold-labels.json, rotulo expected_tier)",
+        "validation-set (tools/router/validation-set.json: canonical 20 + adversarial 25 + historical 25 = 70, rotulo expected_tier, id = <sec>-<nn>)"
+      ],
       "n_nominal": 154,
       "dedupe": "4 prompts byte-iguais entre gold-84 e canonical (gl-078/079/082/083 = canonical-11/12/14/17; rotulos iguais nos 4) sao contados UMA vez -> n efectivo de treino = 150. Verificado antes deste registo.",
       "note": "gold-84 e validation-set sao TREINO DA REGRA; para o braco D sao dados independentes (D nunca os viu). Continuam a nao entrar em nenhum numero de teste."
@@ -42,7 +52,18 @@
       "secondary": "corpus-60b (novo, ver corpus_60b), rotulado as cegas ANTES de qualquer predicao",
       "pooled": "100 = 40 + 60b; os gates finais avaliam-se nos 100"
     },
-    "features": ["p_T0", "p_T1", "p_T2", "p_T3", "E_complexity = 0*p0+1*p1+2*p2", "p_complexity_2", "p_high_stakes", "p_needs_repo", "mass_on_letters_tier", "bias"],
+    "features": [
+      "p_T0",
+      "p_T1",
+      "p_T2",
+      "p_T3",
+      "E_complexity = 0*p0+1*p1+2*p2",
+      "p_complexity_2",
+      "p_high_stakes",
+      "p_needs_repo",
+      "mass_on_letters_tier",
+      "bias"
+    ],
     "features_note": "todas ja estao em rows[].answers dos JSON do braco D — o modelo NAO se re-corre para calcular features",
     "candidates": {
       "v0": "argmax p(tier). E o que existe (policyV0). Referencia.",
@@ -53,9 +74,21 @@
     "honesty_rule": "Se o vencedor da CV perder para v0 nos 40, imprime-se e NAO se troca de candidato. Os tres candidatos sao aplicados aos 40 e aos 60b para transparencia, mas o que conta para o gate e o vencedor da CV, fixado antes.",
     "corpus_60b": {
       "source": "~/.claude/projects/**/*.jsonl, linhas type:user com texto de prompt humano (message.content string, ou blocos type:text)",
-      "window_utc": ["2026-09-10T00:00:00Z", "2026-09-21T10:02:00Z"],
+      "window_utc": [
+        "2026-09-10T00:00:00Z",
+        "2026-09-21T10:02:00Z"
+      ],
       "window_note": "fim = hora deste pre-registo, para nenhum prompt desta sessao entrar; inicio depois do fim da janela do P1 (09-04). Usa o campo timestamp da linha, nao o mtime do ficheiro.",
-      "exclude": ["tool_result", "comandos /... (e <command-name>/<local-command-stdout>)", "isSidechain=true (prompts gerados por agentes, nao humanos)", "isMeta=true", "projectos em AppData/Local/Temp e scratchpads (harness A/B e snapshots: nao sao prompts humanos; mesma exclusao do P1)", "< 20 chars", "> 500 chars e colagens <pasted_content> (mesma elegibilidade do P1 20-500 chars sem colagens, para os 100 serem UMA populacao; o braco D trunca a 4000 de qualquer forma)", "sha256[0..12] (do texto cru OU anonimizado) presente em corpus-63.json do P1 (marcadores [[redigido sha256:...]]) ou em results/corpus-40-unredacted.json"],
+      "exclude": [
+        "tool_result",
+        "comandos /... (e <command-name>/<local-command-stdout>)",
+        "isSidechain=true (prompts gerados por agentes, nao humanos)",
+        "isMeta=true",
+        "projectos em AppData/Local/Temp e scratchpads (harness A/B e snapshots: nao sao prompts humanos; mesma exclusao do P1)",
+        "< 20 chars",
+        "> 500 chars e colagens <pasted_content> (mesma elegibilidade do P1 20-500 chars sem colagens, para os 100 serem UMA populacao; o braco D trunca a 4000 de qualquer forma)",
+        "sha256[0..12] (do texto cru OU anonimizado) presente em corpus-63.json do P1 (marcadores [[redigido sha256:...]]) ou em results/corpus-40-unredacted.json"
+      ],
       "one_per_session": "no maximo um prompt por ficheiro .jsonl (sessao)",
       "n": 60,
       "seed": 20260921,
@@ -73,16 +106,139 @@
     },
     "gate_final_on_100": {
       "acc_gt_always_T2": "McNemar unilateral (binomial exacto) vencedor > 'T2 sempre' nos 100, p < 0,05",
-      "ece_max": 0.10,
+      "ece_max": 0.1,
       "ece_method": "10 bins de largura igual sobre p_max da classe escolhida, n=100",
       "p50_ms_max_warm": 250,
       "p50_note": "p50 das 4 perguntas por prompt, modelo quente, sobre os 100 (40 do MP1 + 60b)",
-      "egress_hosts_allowed": ["127.0.0.1:11434"],
-      "also_reported": ["McNemar vs regra nos 100", "acc40, acc60b, acc100 e ECE100 de cada candidato", "juiz B so nos 40 (nao correu nos 60b)"]
+      "egress_hosts_allowed": [
+        "127.0.0.1:11434"
+      ],
+      "also_reported": [
+        "McNemar vs regra nos 100",
+        "acc40, acc60b, acc100 e ECE100 de cada candidato",
+        "juiz B so nos 40 (nao correu nos 60b)"
+      ]
     },
     "stop_rule": "Uma corrida por (braco x corpus). Re-corrida unica so por falha de infraestrutura, com o motivo em PROGRESSO.md. Nunca 'mais uma' por parciais.",
     "adversary_round2": "codex exec com este bloco + 06-analysis-mp2.md + policy-v1-weights.json: fuga treino->teste, sobreposicao 60b x treino, vies do rotulador unico, calibracao em 10 bins com n=100, latencia. results/adversary-codex-round2.md, cada ataque aceite/refutado.",
-    "closing_verdicts": ["GATE VERDE (100: >T2 p<0,05 ∧ ECE≤0,10 ∧ p50≤250 ∧ egress 0) → F2 PODE ABRIR", "ENTRE → F6 (Laya fine-tune nos 214 rotulados) OU mais rótulos", "❄️ ABAIXO DE T2 SEMPRE → parar"],
-    "does_not_prove": ["valor comercial", "obediencia executada", "que o rotulo cego e verdade", "generalizacao para outro dono/outra maquina (os 100 sao prompts de UMA pessoa)", "poupanca em USD"]
+    "closing_verdicts": [
+      "GATE VERDE (100: >T2 p<0,05 ∧ ECE≤0,10 ∧ p50≤250 ∧ egress 0) → F2 PODE ABRIR",
+      "ENTRE → F6 (Laya fine-tune nos 214 rotulados) OU mais rótulos",
+      "❄️ ABAIXO DE T2 SEMPRE → parar"
+    ],
+    "does_not_prove": [
+      "valor comercial",
+      "obediencia executada",
+      "que o rotulo cego e verdade",
+      "generalizacao para outro dono/outra maquina (os 100 sao prompts de UMA pessoa)",
+      "poupanca em USD"
+    ]
+  },
+  "mp3": {
+    "_schema": "decisor-shadow/protocol-v1/mp3",
+    "_status": "PRE-REGISTO MP3 — congelado em commit ANTES de amostrar o 60c, ANTES de rotular e ANTES de tocar em tools/router/",
+    "_registered_at": "2026-09-21T10:36:44.161Z",
+    "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+    "_starting_point": "MP2 fechou ENTRE. D v0 argmax = 0,608 nos 97 (exploratorio: nao era o candidato; 40 dos 97 sao reuso; 3 sessoes = 30 dos 57). v1 aprendida perdeu 2x para v0. Nada se fine-tuna neste MP.",
+    "frente_A": {
+      "question": "O decisor tipado cru (v0), fixado como candidato primario ANTES de ver qualquer dado novo, bate «T2 sempre» num corpus virgem com 1 prompt por sessao (pares independentes por construcao), com ECE <= 0,10, p50 quente <= 250 ms e 0 hosts externos?",
+      "candidates": {
+        "primary_v0": "argmax p(tier) do 02-arm-D-logit.mjs como esta (policyV0, limiar de abstencao 0,4). Sem parametros aprendidos. E o unico que conta para o gate.",
+        "secondary_v0T": "v0 + temperature scaling com T = 1,55 — o valor fixado no MP2 (policy-v1-weights.json). NAO se re-ajusta. Nao muda o argmax.",
+        "tertiary_v0_guard": "se argmax == T0 e (p_needs_repo >= 0,5 ou p_high_stakes >= 0,5) -> T2; senao argmax. Um limiar, 0,5, fixado aqui. p_max do item guardado = p(T2) da resposta do tier (para ECE)."
+      },
+      "gate_on_60c_only": {
+        "acc_gt_always_T2": "McNemar unilateral exacto (binomial), v0 > «T2 sempre», p < 0,05",
+        "ece_max": 0.1,
+        "ece_method": "10 bins de largura igual sobre p_max da classe escolhida",
+        "p50_ms_max_warm": 250,
+        "p50_note": "p50 das 4 perguntas por prompt, modelo quente",
+        "egress_hosts_allowed": [
+          "127.0.0.1:11434"
+        ],
+        "egress_method": "net-tap.cjs do P1 (NODE_OPTIONS --require) no processo do braco D; cobre o cliente Node, NAO o daemon Ollama (limite declarado no round 2, A24)",
+        "evaluated_on": "v0 (primario). v0+T e v0-guard reportam-se; nao contam.",
+        "also_reported": [
+          "gate contra so os itens UNANIMES entre os 3 rotuladores (tecto do rotulo)",
+          "McNemar vs regra",
+          "«T3 sempre»",
+          "n de sessoes = n de itens (1/sessao estrito)"
+        ]
+      },
+      "corpus_60c": {
+        "source": "~/.claude/projects/**/*.jsonl (so sessoes de topo), linhas type:user com texto humano",
+        "window_utc": [
+          "2026-08-01T00:00:00Z",
+          "2026-09-09T23:59:59Z"
+        ],
+        "window_note": "sobrepoe a janela do pool do P1 (mtime >= 09-01, prompts de agosto e setembro) — por isso excluem-se por sha256[0..12] os 63 do corpus-63.json do P1 (n01-n40 + r01-r23), os 40 do corpus-40-unredacted e os 57 do corpus-60b. Fim da janela no passado: nenhum prompt desta sessao e elegivel.",
+        "exclude": [
+          "tool_result",
+          "comandos /... e tags <command-name>/<local-command-stdout>/<task-notification>/<system-reminder>/<ci-monitor-event>",
+          "isSidechain",
+          "isMeta",
+          "projectos em AppData/Local/Temp e scratchpads",
+          "< 20 chars",
+          "> 500 chars e colagens <pasted_content>",
+          "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1, corpus-40-unredacted ou corpus-60b"
+        ],
+        "cap_per_session": 1,
+        "cap_note": "ESTRITO. Se o pool de sessoes der menos de 60, n = o que der, declarado. NAO se sobe o tecto por sessao (foi o que o A3 do round 2 atacou).",
+        "n_target": 60,
+        "seed": 20260922,
+        "sampling": "elegiveis em ordem estavel (timestamp, sessao), embaralhados com mulberry32(seed); primeiro prompt de cada sessao ainda nao usada, ate 60",
+        "anonymise": "como o P1/MP2: caminhos do home -> ~, dono -> <owner>, emails -> <email>; verificacao por regex, 0 fugas",
+        "record": "session_sha8 e project_sha8 por item; pool, elegiveis, n de sessoes elegiveis, dias, chars",
+        "output": "results/corpus-60c.json — NAO commitar (entra no .gitignore do pacote neste commit)"
+      },
+      "labels_60c": {
+        "blind": "ANTES de qualquer predicao sobre o 60c (guarda no script: aborta se existir D-/A-/policy-*60c*)",
+        "R1": "Codex CLI (codex exec, sandbox read-only, cwd isolado, --ephemeral, --output-schema, lotes <= 13), rubrica do P1 sha256 f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091 verificada",
+        "R2": "Sonnet via subagente model-reasoner do Claude Code, so rubrica + prompts, instruido a nao ler mais nada",
+        "R3": "Kimi k3 (Moonshot, api.moonshot.ai/v1, familia diferente de R1 e R2), mesma rubrica, response_format json_object, lotes <= 13. Sondado a 2026-09-21T10:36:44.161Z: responde (200, ~4 s). Limite declarado: a API so aceita temperature=1 (nao deterministico). Se falhar a meio: ordem de substituicao Opus (subagente model-architect) -> Haiku 4.5, declarada em AMENDMENT.",
+        "rule": "rotulo que conta = maioria dos 3; empate a 3 (tres rotulos diferentes) -> Codex",
+        "report": [
+          "kappa par-a-par (Cohen)",
+          "kappa de Fleiss",
+          "% de itens unanimes",
+          "distribuicao por rotulador"
+        ],
+        "output": "results/labels-60c.json com os 3 votos por item — NAO commitar"
+      },
+      "arms": {
+        "A": "A-60b.mjs adaptado (--corpus results/corpus-60c.json --out results/A-60c.json), ambiente nokey, sha do classify.js verificado antes",
+        "D_v0": "02-arm-D-logit.mjs --model qwen2.5-coder:14b --corpus results/corpus-60c.json --labels results/labels-60c.json, com net-tap -> results/nettap-D-60c.jsonl",
+        "policies": "v0+T (05-policy-v1.mjs --apply, so o T=1,55) e v0-guard (07-guard.mjs, <= 30 linhas) sobre as MESMAS respostas -> results/policy-60c.json. Zero corridas extra.",
+        "analysis": "08-analyse-mp3.mjs -> results/08-analysis-mp3.md: so 60c; regra · «T2 sempre» · «T3 sempre» · v0 · v0+T · v0-guard; acc, IC95 Wilson, ECE, p50, McNemar vs T2 e vs regra, confusao, n sessoes; gates no v0; sensibilidade so-unanimes"
+      },
+      "stop_rule": "Uma corrida por (braco x corpus). Re-corrida unica so por falha de infra que nunca chegou ao modelo, com motivo. Nunca «mais uma»."
+    },
+    "frente_B": {
+      "scope": "primeira alteracao em tools/router/: SO arbiter.js (+ types.d.ts campos opcionais, + teste novo arbiter-shadow.test.js) e UMA linha em inject_context.js. classify.js intocado (sha verificado no fim).",
+      "behaviour": "ollamaLogit(prompt): porta directa do 02-arm-D-logit.mjs (4 perguntas tipadas, 1 letra, top_logprobs via /v1/chat/completions, host de ollama-host.js, modelo MOOTER_DECISOR_MODEL || qwen2.5-coder:14b, timeout 400 ms, keep_alive 30m) -> {tier, probabilities, p_max, abstained, latency_ms, backend:\"ollama-logit\", model} ou null. shadowDecisor(prompt, decision): so com MOOTER_DECISOR_SHADOW=1 e sem MOOTER_ARBITER_DISABLE=1; corre DEPOIS da decisao; NUNCA altera a rota; escreve evento decisor_shadow no decisions.log sem texto do prompt (preview <= 80 chars).",
+      "tests": [
+        "sem env -> nenhum evento",
+        "com env + mock de logprobs -> evento com schema e rota inalterada",
+        "HIGH_RISK continua da regra",
+        "timeout -> evento outcome:timeout, rota inalterada",
+        "suite tools/router inteira verde, contagem antes/depois"
+      ],
+      "latency_budget": "~150 ms quente / ~2,5 s frio, opt-in; mediana do hook com e sem shadow (10 prompts cada) registada",
+      "commit": "feat(router): decisor sombra ollama-logit — regista, não roteia (F2-shadow); sem merge, sem push; gate do dono"
+    },
+    "amendments": [],
+    "amendment_rule": "Qualquer desvio a este bloco (n < 60, tecto por sessao, rotulador indisponivel, timeout do modelo) entra ANTES de rotulos/predicoes num commit proprio «chore(decisor-shadow): AMENDMENT mp3-<n> — <motivo>» com entrada em amendments[] {when, what, why, outcome_known:false}. Sem commit de emenda, o desvio nao existe — a corrida para.",
+    "closing_verdicts": [
+      "GATE VERDE (60c) → F2 PODE ABRIR (arbiter trocável, default haiku)",
+      "ENTRE → shadow acumula; re-testar com 60d",
+      "❄️ ABAIXO DE T2 SEMPRE → parar"
+    ],
+    "does_not_prove": [
+      "valor comercial",
+      "obediencia executada",
+      "que a maioria de 3 rotuladores e verdade",
+      "generalizacao para outro dono/maquina",
+      "que o shadow nao altera a rota em producao (so o teste o afirma para os 4 casos cobertos)"
+    ]
   }
 }
