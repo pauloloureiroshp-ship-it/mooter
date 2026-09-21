@@ -50,6 +50,10 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-21 · decisor-shadow MP1→MP4-a — o decisor local bate as constantes, chumba a calibração; 2 bugs de produção corrigidos
+- **D v0** (qwen2.5-coder:14b, 4 perguntas tipadas, logprobs): **0,622 em 37 prompts virgens** (1/sessão, 3 rotuladores, κ 0,74) vs «T2 sempre» 0,243 (p=0,002), «T3 sempre» 0,324 (p=0,017), regra 0,324 — **ECE 0,146 > 0,10 três corpora seguidos → ENTRE**; F2-shadow opt-in em `tools/router/arbiter.js` (+1 linha no hook, +4 ms, sem texto no log); commits em `main` **por push** — `_handoff/decisor-shadow-2026-09-21/results/{PROGRESSO,REVIEW-7-COMMITS}.md`.
+- **Bug A:** `gpu-probe.test.js` escrevia o `hw-capability.json` vivo (a RTX 4090 dizia «Apple M4 Pro» desde 17/09) e `bestOllamaT0()` caía para `qwen3:30b` (18 GB) → Option A despejava o 14b (266 miss / 22 hit). Corrigido + ficheiro regenerado. **Bug B:** `callHaikuSync` lia `argv[2]/[3]` em `node -e` → **o arbiter Haiku nunca correu, nem com chave** (os 171 `ok` do log são mocks) — `results/ERRATA-ARBITER-HAIKU.md` corrige P5 e Matriz-12 D15.
+
 ## 2026-09-13 · Auditoria npm — 6 PRs, a matriz passa de 3 a 8 pernas, dois RCE fechados em produção
 
 Squash merges, cada um com `final-reviewer` (2× no #489 e no #501), rebase sobre `main` e CI

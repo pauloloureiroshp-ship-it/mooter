@@ -189,8 +189,10 @@ function callHaikuSync(apiKey, prompt) {
 
   const scriptText = `
     const https = require('https');
-    const body = process.argv[2];
-    const apiKey = process.argv[3];
+    // node -e: process.argv = [node, ...args] — o 1.o argumento e argv[1]. Ate 2026-09-21 (MP4-a bug B) lia-se
+    // argv[2]/argv[3]: body = chave, apiKey = undefined -> o arbiter Haiku nunca correu, nem com chave.
+    const body = process.argv[1];
+    const apiKey = process.argv[2];
     const req = https.request({
       hostname: 'api.anthropic.com',
       path: '/v1/messages',
