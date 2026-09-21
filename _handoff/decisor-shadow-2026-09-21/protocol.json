@@ -1,462 +1,580 @@
 {
-  "_schema": "decisor-shadow/protocol-v1",
-  "_frozen_at": "2026-09-21",
-  "_status": "PRE-REGISTO — congelar em commit ANTES de correr qualquer braco (o P1 falhou isto; nao repetir)",
-  "question": "Um decisor calibrado (logit-head no Ollama residente = braco D; Laya = braco C) acerta mais o tier que a regra (35 % / 22,2 %) e que o juiz local 14B (52,5 % / 69,8 %), com ECE < 0,10 e p50 < 250 ms, sem egress?",
-  "classifier_sha256_expected": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
-  "baseline_ref": "_handoff/provas-v1-2026-09-09/P1-decidir-custa-zero/results/analysis.json (arms A-key/A-nokey acc40=0.35, acc63=0.222; B juiz qwen2.5-coder:14b acc40=0.525, acc63=0.698)",
-  "ground_truth": "labels-63.json (Codex CLI, cego, rubric sha f95958dd...) — mesmo rotulo do P1. Gold-84 e validation-set sao TREINO da regra: reportar separados, nunca somar.",
-  "arms": {
-    "A": "regra classify.js (referencia, ja medida)",
-    "B": "juiz local qwen2.5-coder:14b (referencia, ja medida)",
-    "C": "Laya zero-shot (convaiinnovations/laya-typed-decisions) — choice tier + noul high_stakes",
-    "D": "logit-head: modelo Ollama residente, 4 perguntas tipadas, probabilidade lida dos top_logprobs da 1a letra (fallback: amostragem n=5, marcado)"
-  },
-  "primary_test": "acc40 (40 prompts reais). acc63 e acc23 reportados mas o 23 e pseudo-replicacao (1 template).",
-  "success_criteria": {
-    "acc40_min_to_beat_rule": 0.35,
-    "acc40_target_beats_judge": 0.525,
-    "ece_max": 0.1,
-    "p50_ms_max_decisor_quente": 250,
-    "egress_hosts_allowed": [
-      "localhost:11434"
-    ],
-    "mcnemar_vs_rule_one_sided_p": 0.05
-  },
-  "stop_rule": "Uma corrida por braco por modelo. Se um braco falhar por infraestrutura (sem logprobs, sem VRAM), corrige-se e re-corre UMA vez, com o motivo no results/. Nunca 'mais uma' por parciais favoraveis.",
-  "adversary": "codex exec (motor diferente) sobre 04-analyse output antes de qualquer PR em arbiter.js",
-  "does_not_prove": [
-    "valor comercial",
-    "obediencia executada",
-    "que o rotulo cego e verdade",
-    "poupanca em USD (sem tokens medidos)"
+ "_schema": "decisor-shadow/protocol-v1",
+ "_frozen_at": "2026-09-21",
+ "_status": "PRE-REGISTO — congelar em commit ANTES de correr qualquer braco (o P1 falhou isto; nao repetir)",
+ "question": "Um decisor calibrado (logit-head no Ollama residente = braco D; Laya = braco C) acerta mais o tier que a regra (35 % / 22,2 %) e que o juiz local 14B (52,5 % / 69,8 %), com ECE < 0,10 e p50 < 250 ms, sem egress?",
+ "classifier_sha256_expected": "427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f",
+ "baseline_ref": "_handoff/provas-v1-2026-09-09/P1-decidir-custa-zero/results/analysis.json (arms A-key/A-nokey acc40=0.35, acc63=0.222; B juiz qwen2.5-coder:14b acc40=0.525, acc63=0.698)",
+ "ground_truth": "labels-63.json (Codex CLI, cego, rubric sha f95958dd...) — mesmo rotulo do P1. Gold-84 e validation-set sao TREINO da regra: reportar separados, nunca somar.",
+ "arms": {
+  "A": "regra classify.js (referencia, ja medida)",
+  "B": "juiz local qwen2.5-coder:14b (referencia, ja medida)",
+  "C": "Laya zero-shot (convaiinnovations/laya-typed-decisions) — choice tier + noul high_stakes",
+  "D": "logit-head: modelo Ollama residente, 4 perguntas tipadas, probabilidade lida dos top_logprobs da 1a letra (fallback: amostragem n=5, marcado)"
+ },
+ "primary_test": "acc40 (40 prompts reais). acc63 e acc23 reportados mas o 23 e pseudo-replicacao (1 template).",
+ "success_criteria": {
+  "acc40_min_to_beat_rule": 0.35,
+  "acc40_target_beats_judge": 0.525,
+  "ece_max": 0.1,
+  "p50_ms_max_decisor_quente": 250,
+  "egress_hosts_allowed": [
+   "localhost:11434"
   ],
-  "mp2": {
-    "_schema": "decisor-shadow/protocol-v1/mp2",
-    "_status": "PRE-REGISTO MP2 — congelado em commit ANTES do passo 1 (valset) e ANTES de amostrar o corpus 60b",
-    "_registered_at": "2026-09-21T10:02Z",
-    "_starting_point": "PROGRESSO.md: D/14b v0 = 0,600 nos 40 (McNemar vs regra p=0,003; vs 'T2 sempre' p=0,163 — nao separa; ECE 0,110 > 0,10)",
-    "hypothesis": "Uma politica aprendida sobre as 4 respostas tipadas do D/14b (qwen2.5-coder:14b, logit-head), treinada em 154 rotulados que D nunca viu, sobe a acc nos 40 e baixa a ECE para <= 0,10 sem tocar nos 40.",
-    "principle": "Os 40 reais sao TESTE. Nenhum parametro (temperatura, pesos, lambda, limiares, escolha de candidato, learning rate, folds) e ajustado olhando para eles nem para os 60b.",
-    "train": {
-      "sets": [
-        "gold-84 (tools/router/gold-labels.json, rotulo expected_tier)",
-        "validation-set (tools/router/validation-set.json: canonical 20 + adversarial 25 + historical 25 = 70, rotulo expected_tier, id = <sec>-<nn>)"
-      ],
-      "n_nominal": 154,
-      "dedupe": "4 prompts byte-iguais entre gold-84 e canonical (gl-078/079/082/083 = canonical-11/12/14/17; rotulos iguais nos 4) sao contados UMA vez -> n efectivo de treino = 150. Verificado antes deste registo.",
-      "note": "gold-84 e validation-set sao TREINO DA REGRA; para o braco D sao dados independentes (D nunca os viu). Continuam a nao entrar em nenhum numero de teste."
-    },
-    "test": {
-      "primary": "40 reais do P1 (results/corpus-40-unredacted.json, rotulos labels-63.json do Codex) — so tocados no FIM do passo 2",
-      "secondary": "corpus-60b (novo, ver corpus_60b), rotulado as cegas ANTES de qualquer predicao",
-      "pooled": "100 = 40 + 60b; os gates finais avaliam-se nos 100"
-    },
-    "features": [
-      "p_T0",
-      "p_T1",
-      "p_T2",
-      "p_T3",
-      "E_complexity = 0*p0+1*p1+2*p2",
-      "p_complexity_2",
-      "p_high_stakes",
-      "p_needs_repo",
-      "mass_on_letters_tier",
-      "bias"
-    ],
-    "features_note": "todas ja estao em rows[].answers dos JSON do braco D — o modelo NAO se re-corre para calcular features",
-    "candidates": {
-      "v0": "argmax p(tier). E o que existe (policyV0). Referencia.",
-      "v0+T": "temperature scaling: uma temperatura escalar T sobre log p(tier); p' = softmax(log p / T). T ajustada no treino por minimizacao de log-loss, grid 0,30..5,00 passo 0,05. Nao muda o argmax; muda a ECE.",
-      "v1": "regressao softmax 4 classes sobre as 9 features (z-score com media/desvio do conjunto de treino do fold) + bias. L2 lambda in {0,01; 0,1; 1}. Gradient descent full-batch, learning rate 0,1, 2000 iteracoes, init zeros, seed 20260921 (so para os folds; o GD e deterministico). Depois temperature scaling sobre os logits, T ajustada em predicoes out-of-fold do treino (CV interna 5-fold), mesmo grid."
-    },
-    "selection": "5-fold CV estratificada por tier NO TREINO (seed 20260921). Metrica primaria: log-loss medio out-of-fold; secundaria: acc. Escolhe-se o candidato (e o lambda, para v1) com menor log-loss; desempate por acc. A tabela de CV e escrita em PROGRESSO.md ANTES de qualquer candidato tocar nos 40.",
-    "honesty_rule": "Se o vencedor da CV perder para v0 nos 40, imprime-se e NAO se troca de candidato. Os tres candidatos sao aplicados aos 40 e aos 60b para transparencia, mas o que conta para o gate e o vencedor da CV, fixado antes.",
-    "corpus_60b": {
-      "source": "~/.claude/projects/**/*.jsonl, linhas type:user com texto de prompt humano (message.content string, ou blocos type:text)",
-      "window_utc": [
-        "2026-09-10T00:00:00Z",
-        "2026-09-21T10:02:00Z"
-      ],
-      "window_note": "fim = hora deste pre-registo, para nenhum prompt desta sessao entrar; inicio depois do fim da janela do P1 (09-04). Usa o campo timestamp da linha, nao o mtime do ficheiro.",
-      "exclude": [
-        "tool_result",
-        "comandos /... (e <command-name>/<local-command-stdout>)",
-        "isSidechain=true (prompts gerados por agentes, nao humanos)",
-        "isMeta=true",
-        "projectos em AppData/Local/Temp e scratchpads (harness A/B e snapshots: nao sao prompts humanos; mesma exclusao do P1)",
-        "< 20 chars",
-        "> 500 chars e colagens <pasted_content> (mesma elegibilidade do P1 20-500 chars sem colagens, para os 100 serem UMA populacao; o braco D trunca a 4000 de qualquer forma)",
-        "sha256[0..12] (do texto cru OU anonimizado) presente em corpus-63.json do P1 (marcadores [[redigido sha256:...]]) ou em results/corpus-40-unredacted.json"
-      ],
-      "one_per_session": "no maximo um prompt por ficheiro .jsonl (sessao)",
-      "n": 60,
-      "seed": 20260921,
-      "sampling": "elegiveis embaralhados com PRNG mulberry32(seed); percorre-se a ordem e aceita-se o primeiro prompt de cada sessao ainda nao usada, ate 60",
-      "anonymise": "como o P1: caminhos do home -> ~, nome do dono -> <owner>, emails -> <email>",
-      "output": "results/corpus-60b.json — NAO commitar (entra no .gitignore do pacote); PROGRESSO.md regista pool, elegiveis e distribuicao por projecto (hash sha256[0..8] do nome do projecto)",
-      "labels": "codex exec em cwd isolado sem o repo, label-rubric.txt do P1 (sha256 f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091), lotes <= 13, JSON forcado (schema {labels:[{id,tier,reason}]}), ANTES de qualquer predicao sobre os 60b. results/labels-60b.json com _labeler, _rubric_sha256, _blind, _labeled_at.",
-      "second_rater": "opcional, so para kappa de Cohen: Sonnet via subagente do Claude Code (NAO Qwen — vies de familia com D). O rotulo que conta e o do Codex, sem excepcao."
-    },
-    "arms_on_60b": {
-      "A": "A-60b.mjs (<= 30 linhas): classify() em processo por item, ambiente nokey (sem ANTHROPIC_API_KEY, MOOTER_ARBITER_DISABLE=1, OLLAMA_HOST apontado a um stub 503) — o mesmo ambiente do A-nokey do P1, que e o braco com predicoes por item usado no McNemar dos 40. results/A-60b.json rows[{id,tier,run:1}].",
-      "D_v0": "02-arm-D-logit.mjs --model qwen2.5-coder:14b --corpus results/corpus-60b.json --labels results/labels-60b.json, com atestacao de egress: NODE_OPTIONS=--require <P1 lib/net-tap.cjs>, NET_TAP_OUT=results/nettap-D-60b.jsonl. Esperado: so 127.0.0.1:11434.",
-      "policy": "o vencedor da CV (e os outros dois) aplicado a rows[].answers dos 60b -> results/policy-v1-60b.json. Zero corridas novas do modelo.",
-      "cold_latency": "UMA medicao, declarada, do 1.o prompt apos `ollama stop qwen2.5-coder:14b`. So para registar; o gate e com modelo quente."
-    },
-    "gate_final_on_100": {
-      "acc_gt_always_T2": "McNemar unilateral (binomial exacto) vencedor > 'T2 sempre' nos 100, p < 0,05",
-      "ece_max": 0.1,
-      "ece_method": "10 bins de largura igual sobre p_max da classe escolhida, n=100",
-      "p50_ms_max_warm": 250,
-      "p50_note": "p50 das 4 perguntas por prompt, modelo quente, sobre os 100 (40 do MP1 + 60b)",
-      "egress_hosts_allowed": [
-        "127.0.0.1:11434"
-      ],
-      "also_reported": [
-        "McNemar vs regra nos 100",
-        "acc40, acc60b, acc100 e ECE100 de cada candidato",
-        "juiz B so nos 40 (nao correu nos 60b)"
-      ]
-    },
-    "stop_rule": "Uma corrida por (braco x corpus). Re-corrida unica so por falha de infraestrutura, com o motivo em PROGRESSO.md. Nunca 'mais uma' por parciais.",
-    "adversary_round2": "codex exec com este bloco + 06-analysis-mp2.md + policy-v1-weights.json: fuga treino->teste, sobreposicao 60b x treino, vies do rotulador unico, calibracao em 10 bins com n=100, latencia. results/adversary-codex-round2.md, cada ataque aceite/refutado.",
-    "closing_verdicts": [
-      "GATE VERDE (100: >T2 p<0,05 ∧ ECE≤0,10 ∧ p50≤250 ∧ egress 0) → F2 PODE ABRIR",
-      "ENTRE → F6 (Laya fine-tune nos 214 rotulados) OU mais rótulos",
-      "❄️ ABAIXO DE T2 SEMPRE → parar"
-    ],
-    "does_not_prove": [
-      "valor comercial",
-      "obediencia executada",
-      "que o rotulo cego e verdade",
-      "generalizacao para outro dono/outra maquina (os 100 sao prompts de UMA pessoa)",
-      "poupanca em USD"
-    ]
+  "mcnemar_vs_rule_one_sided_p": 0.05
+ },
+ "stop_rule": "Uma corrida por braco por modelo. Se um braco falhar por infraestrutura (sem logprobs, sem VRAM), corrige-se e re-corre UMA vez, com o motivo no results/. Nunca 'mais uma' por parciais favoraveis.",
+ "adversary": "codex exec (motor diferente) sobre 04-analyse output antes de qualquer PR em arbiter.js",
+ "does_not_prove": [
+  "valor comercial",
+  "obediencia executada",
+  "que o rotulo cego e verdade",
+  "poupanca em USD (sem tokens medidos)"
+ ],
+ "mp2": {
+  "_schema": "decisor-shadow/protocol-v1/mp2",
+  "_status": "PRE-REGISTO MP2 — congelado em commit ANTES do passo 1 (valset) e ANTES de amostrar o corpus 60b",
+  "_registered_at": "2026-09-21T10:02Z",
+  "_starting_point": "PROGRESSO.md: D/14b v0 = 0,600 nos 40 (McNemar vs regra p=0,003; vs 'T2 sempre' p=0,163 — nao separa; ECE 0,110 > 0,10)",
+  "hypothesis": "Uma politica aprendida sobre as 4 respostas tipadas do D/14b (qwen2.5-coder:14b, logit-head), treinada em 154 rotulados que D nunca viu, sobe a acc nos 40 e baixa a ECE para <= 0,10 sem tocar nos 40.",
+  "principle": "Os 40 reais sao TESTE. Nenhum parametro (temperatura, pesos, lambda, limiares, escolha de candidato, learning rate, folds) e ajustado olhando para eles nem para os 60b.",
+  "train": {
+   "sets": [
+    "gold-84 (tools/router/gold-labels.json, rotulo expected_tier)",
+    "validation-set (tools/router/validation-set.json: canonical 20 + adversarial 25 + historical 25 = 70, rotulo expected_tier, id = <sec>-<nn>)"
+   ],
+   "n_nominal": 154,
+   "dedupe": "4 prompts byte-iguais entre gold-84 e canonical (gl-078/079/082/083 = canonical-11/12/14/17; rotulos iguais nos 4) sao contados UMA vez -> n efectivo de treino = 150. Verificado antes deste registo.",
+   "note": "gold-84 e validation-set sao TREINO DA REGRA; para o braco D sao dados independentes (D nunca os viu). Continuam a nao entrar em nenhum numero de teste."
   },
-  "mp3": {
-    "_schema": "decisor-shadow/protocol-v1/mp3",
-    "_status": "PRE-REGISTO MP3 — congelado em commit ANTES de amostrar o 60c, ANTES de rotular e ANTES de tocar em tools/router/",
-    "_registered_at": "2026-09-21T10:36:44.161Z",
-    "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
-    "_starting_point": "MP2 fechou ENTRE. D v0 argmax = 0,608 nos 97 (exploratorio: nao era o candidato; 40 dos 97 sao reuso; 3 sessoes = 30 dos 57). v1 aprendida perdeu 2x para v0. Nada se fine-tuna neste MP.",
-    "frente_A": {
-      "question": "O decisor tipado cru (v0), fixado como candidato primario ANTES de ver qualquer dado novo, bate «T2 sempre» num corpus virgem com 1 prompt por sessao (pares independentes por construcao), com ECE <= 0,10, p50 quente <= 250 ms e 0 hosts externos?",
-      "candidates": {
-        "primary_v0": "argmax p(tier) do 02-arm-D-logit.mjs como esta (policyV0, limiar de abstencao 0,4). Sem parametros aprendidos. E o unico que conta para o gate.",
-        "secondary_v0T": "v0 + temperature scaling com T = 1,55 — o valor fixado no MP2 (policy-v1-weights.json). NAO se re-ajusta. Nao muda o argmax.",
-        "tertiary_v0_guard": "se argmax == T0 e (p_needs_repo >= 0,5 ou p_high_stakes >= 0,5) -> T2; senao argmax. Um limiar, 0,5, fixado aqui. p_max do item guardado = p(T2) da resposta do tier (para ECE)."
-      },
-      "gate_on_60c_only": {
-        "acc_gt_always_T2": "McNemar unilateral exacto (binomial), v0 > «T2 sempre», p < 0,05",
-        "ece_max": 0.1,
-        "ece_method": "10 bins de largura igual sobre p_max da classe escolhida",
-        "p50_ms_max_warm": 250,
-        "p50_note": "p50 das 4 perguntas por prompt, modelo quente",
-        "egress_hosts_allowed": [
-          "127.0.0.1:11434"
-        ],
-        "egress_method": "net-tap.cjs do P1 (NODE_OPTIONS --require) no processo do braco D; cobre o cliente Node, NAO o daemon Ollama (limite declarado no round 2, A24)",
-        "evaluated_on": "v0 (primario). v0+T e v0-guard reportam-se; nao contam.",
-        "also_reported": [
-          "gate contra so os itens UNANIMES entre os 3 rotuladores (tecto do rotulo)",
-          "McNemar vs regra",
-          "«T3 sempre»",
-          "n de sessoes = n de itens (1/sessao estrito)"
-        ]
-      },
-      "corpus_60c": {
-        "source": "~/.claude/projects/**/*.jsonl (so sessoes de topo), linhas type:user com texto humano",
-        "window_utc": [
-          "2026-08-01T00:00:00Z",
-          "2026-09-09T23:59:59Z"
-        ],
-        "window_note": "sobrepoe a janela do pool do P1 (mtime >= 09-01, prompts de agosto e setembro) — por isso excluem-se por sha256[0..12] os 63 do corpus-63.json do P1 (n01-n40 + r01-r23), os 40 do corpus-40-unredacted e os 57 do corpus-60b. Fim da janela no passado: nenhum prompt desta sessao e elegivel.",
-        "exclude": [
-          "tool_result",
-          "comandos /... e tags <command-name>/<local-command-stdout>/<task-notification>/<system-reminder>/<ci-monitor-event>",
-          "isSidechain",
-          "isMeta",
-          "projectos em AppData/Local/Temp e scratchpads",
-          "< 20 chars",
-          "> 500 chars e colagens <pasted_content>",
-          "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1, corpus-40-unredacted ou corpus-60b"
-        ],
-        "cap_per_session": 1,
-        "cap_note": "ESTRITO. Se o pool de sessoes der menos de 60, n = o que der, declarado. NAO se sobe o tecto por sessao (foi o que o A3 do round 2 atacou).",
-        "n_target": 60,
-        "seed": 20260922,
-        "sampling": "elegiveis em ordem estavel (timestamp, sessao), embaralhados com mulberry32(seed); primeiro prompt de cada sessao ainda nao usada, ate 60",
-        "anonymise": "como o P1/MP2: caminhos do home -> ~, dono -> <owner>, emails -> <email>; verificacao por regex, 0 fugas",
-        "record": "session_sha8 e project_sha8 por item; pool, elegiveis, n de sessoes elegiveis, dias, chars",
-        "output": "results/corpus-60c.json — NAO commitar (entra no .gitignore do pacote neste commit)"
-      },
-      "labels_60c": {
-        "blind": "ANTES de qualquer predicao sobre o 60c (guarda no script: aborta se existir D-/A-/policy-*60c*)",
-        "R1": "Codex CLI (codex exec, sandbox read-only, cwd isolado, --ephemeral, --output-schema, lotes <= 13), rubrica do P1 sha256 f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091 verificada",
-        "R2": "Sonnet via subagente model-reasoner do Claude Code, so rubrica + prompts, instruido a nao ler mais nada",
-        "R3": "Kimi k3 (Moonshot, api.moonshot.ai/v1, familia diferente de R1 e R2), mesma rubrica, response_format json_object, lotes <= 13. Sondado a 2026-09-21T10:36:44.161Z: responde (200, ~4 s). Limite declarado: a API so aceita temperature=1 (nao deterministico). Se falhar a meio: ordem de substituicao Opus (subagente model-architect) -> Haiku 4.5, declarada em AMENDMENT.",
-        "rule": "rotulo que conta = maioria dos 3; empate a 3 (tres rotulos diferentes) -> Codex",
-        "report": [
-          "kappa par-a-par (Cohen)",
-          "kappa de Fleiss",
-          "% de itens unanimes",
-          "distribuicao por rotulador"
-        ],
-        "output": "results/labels-60c.json com os 3 votos por item — NAO commitar"
-      },
-      "arms": {
-        "A": "A-60b.mjs adaptado (--corpus results/corpus-60c.json --out results/A-60c.json), ambiente nokey, sha do classify.js verificado antes",
-        "D_v0": "02-arm-D-logit.mjs --model qwen2.5-coder:14b --corpus results/corpus-60c.json --labels results/labels-60c.json, com net-tap -> results/nettap-D-60c.jsonl",
-        "policies": "v0+T (05-policy-v1.mjs --apply, so o T=1,55) e v0-guard (07-guard.mjs, <= 30 linhas) sobre as MESMAS respostas -> results/policy-60c.json. Zero corridas extra.",
-        "analysis": "08-analyse-mp3.mjs -> results/08-analysis-mp3.md: so 60c; regra · «T2 sempre» · «T3 sempre» · v0 · v0+T · v0-guard; acc, IC95 Wilson, ECE, p50, McNemar vs T2 e vs regra, confusao, n sessoes; gates no v0; sensibilidade so-unanimes"
-      },
-      "stop_rule": "Uma corrida por (braco x corpus). Re-corrida unica so por falha de infra que nunca chegou ao modelo, com motivo. Nunca «mais uma»."
-    },
-    "frente_B": {
-      "scope": "primeira alteracao em tools/router/: SO arbiter.js (+ types.d.ts campos opcionais, + teste novo arbiter-shadow.test.js) e UMA linha em inject_context.js. classify.js intocado (sha verificado no fim).",
-      "behaviour": "ollamaLogit(prompt): porta directa do 02-arm-D-logit.mjs (4 perguntas tipadas, 1 letra, top_logprobs via /v1/chat/completions, host de ollama-host.js, modelo MOOTER_DECISOR_MODEL || qwen2.5-coder:14b, timeout 400 ms, keep_alive 30m) -> {tier, probabilities, p_max, abstained, latency_ms, backend:\"ollama-logit\", model} ou null. shadowDecisor(prompt, decision): so com MOOTER_DECISOR_SHADOW=1 e sem MOOTER_ARBITER_DISABLE=1; corre DEPOIS da decisao; NUNCA altera a rota; escreve evento decisor_shadow no decisions.log sem texto do prompt (preview <= 80 chars).",
-      "tests": [
-        "sem env -> nenhum evento",
-        "com env + mock de logprobs -> evento com schema e rota inalterada",
-        "HIGH_RISK continua da regra",
-        "timeout -> evento outcome:timeout, rota inalterada",
-        "suite tools/router inteira verde, contagem antes/depois"
-      ],
-      "latency_budget": "~150 ms quente / ~2,5 s frio, opt-in; mediana do hook com e sem shadow (10 prompts cada) registada",
-      "commit": "feat(router): decisor sombra ollama-logit — regista, não roteia (F2-shadow); sem merge, sem push; gate do dono"
-    },
-    "amendments": [
-      {
-        "id": "mp3-1",
-        "when": "2026-09-21T10:37:41.557Z",
-        "what": "corpus 60c tem n = 37, nao 60",
-        "why": "o pool da janela 2026-08-01..09-09 (fora dos sha do P1 e do 60b) tem 410 prompts elegiveis em 37 sessoes; com 1 prompt/sessao ESTRITO (nao se sobe o tecto) o maximo e 37. 7 dos 37 sao prompts despachados por runner (elegiveis pelas regras registadas; marcados _dispatched; sensibilidade sem eles reporta-se).",
-        "outcome_known": false,
-        "note": "rotulos ainda nao pedidos; nenhuma predicao existe sobre o 60c"
-      },
-      {
-        "id": "mp3-2",
-        "when": "2026-09-21T10:55:49.050Z",
-        "what": "Frente B: DECISOR_TIMEOUT_MS 400 -> 800 ms",
-        "why": "o 400 foi fixado a partir dos 147-162 ms medidos EM PROCESSO (braco D). Pelo caminho do hook (spawnSync + 4 fetches num processo filho, como o callHaikuSync) mediu-se: ollamaLogit() p50 ~255 ms com o prefixo da rubrica em cache no Ollama e ~460 ms quando outra chamada ao Ollama o despeja (o proprio hook chama o Ollama nos prompts T0); em 10 prompts pelo hook, 7 sairam timeout com 400 ms e o shadow nao acumulava nada. 800 ms deixa o frio (~2,5 s) como timeout. Nao toca em nenhum gate nem numero da Frente A (ja fechada em 08-analysis-mp3.md antes desta emenda); o que muda e se o shadow REGISTA ou nao.",
-        "outcome_known": false,
-        "measured": {
-          "ollamaLogit_ms_warm_prefix": [
-            264,
-            255,
-            255,
-            258
-          ],
-          "ollamaLogit_ms_prefix_evicted": 466,
-          "hook_timeouts_at_400ms": "7/10",
-          "hook_ms_D_ok_at_400ms": [
-            284,
-            320,
-            426
-          ]
-        },
-        "erratum": {
-          "when": "2026-09-21T11:04:40.580Z",
-          "what": "o «7/10 timeouts a 400 ms» que motivou a emenda foi medido num harness INFIEL (HOME isolado sem hw-capability.json: o hook caia para qwen3:30b, 22 GiB, e despejava o 14b). Com harness fiel e modelo quente, o custo intrinseco do shadow pelo hook e ms_D p50 245 ms (240-249; um de 414) — abaixo dos 400. O 800 fica: da margem a re-avaliacao do prefixo (~400) e a versao do Ollama que aborta carregamentos quando o cliente desliga (medido: 4/10 timeouts numa corrida em que o 14b tinha sido despejado antes). Zero efeito em qualquer numero da Frente A.",
-          "measured": {
-            "ms_D_ok_hook_fiel": [
-              240,
-              241,
-              242,
-              245,
-              249,
-              414
-            ],
-            "hook_delta_ms_warm": [
-              232,
-              236,
-              249,
-              251
-            ],
-            "timeouts_after_eviction": "4/10 (recuperou com o aquecimento desligado)"
-          }
-        }
-      }
-    ],
-    "amendment_rule": "Qualquer desvio a este bloco (n < 60, tecto por sessao, rotulador indisponivel, timeout do modelo) entra ANTES de rotulos/predicoes num commit proprio «chore(decisor-shadow): AMENDMENT mp3-<n> — <motivo>» com entrada em amendments[] {when, what, why, outcome_known:false}. Sem commit de emenda, o desvio nao existe — a corrida para.",
-    "closing_verdicts": [
-      "GATE VERDE (60c) → F2 PODE ABRIR (arbiter trocável, default haiku)",
-      "ENTRE → shadow acumula; re-testar com 60d",
-      "❄️ ABAIXO DE T2 SEMPRE → parar"
-    ],
-    "does_not_prove": [
-      "valor comercial",
-      "obediencia executada",
-      "que a maioria de 3 rotuladores e verdade",
-      "generalizacao para outro dono/maquina",
-      "que o shadow nao altera a rota em producao (so o teste o afirma para os 4 casos cobertos)"
-    ]
+  "test": {
+   "primary": "40 reais do P1 (results/corpus-40-unredacted.json, rotulos labels-63.json do Codex) — so tocados no FIM do passo 2",
+   "secondary": "corpus-60b (novo, ver corpus_60b), rotulado as cegas ANTES de qualquer predicao",
+   "pooled": "100 = 40 + 60b; os gates finais avaliam-se nos 100"
   },
-  "mp5": {
-    "_schema": "decisor-shadow/protocol-v1/mp5",
-    "_status": "PRE-REGISTO MP5 — congelado em commit ANTES de correr o 7b ou o 3b em qualquer corpus, ANTES de medir o Option A e ANTES de tocar em tools/router/",
-    "_registered_at": "2026-09-21T12:22:41.685Z",
-    "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
-    "_starting_point": "origin/main = eb6b1f85. F2-shadow opt-in em main. 134 prompts reais rotulados (40 P1 + 57 60b + 37 60c), todos gitignorados. D v0 no 14b ja medido nos tres: 0,600 / 0,614 / 0,622. Nada aqui espera pelo 60d; nada aqui toca no 60d.",
-    "parte_1_mac_7b": {
-      "question": "O decisor tipado v0 corre num modelo que cabe num Mac M4 de 16 GB ao lado de outro? Operacionalizado: o qwen2.5-coder:7b fica dentro de 5 pontos percentuais do 14b em CADA um dos 3 corpora rotulados, avaliados separadamente?",
-      "candidates": {
-        "qwen2.5-coder:7b": "JA INSTALADO nesta maquina (ollama list: dae161e27b0e, 4,7 GB, ha 3 meses) — o MP dizia «a puxar»; nao houve pull. Corre-se nos 3 corpora, uma corrida cada.",
-        "qwen2.5:3b": "ja medido no corpus-40 (0,400, ECE 0,462, MP1) e no gold-84 (0,512). Corre-se no 60b e no 60c para completar a tabela modelo x corpus — uma corrida cada. O resultado do 40 NAO se re-corre."
-      },
-      "reference": "D v0 no qwen2.5-coder:14b, ficheiros D-qwen2.5-coder_14b-corpus-{40-unredacted,60b,60c}.json.json JA EXISTENTES (0,600 / 0,614 / 0,622). O 14b NAO se re-corre. Comparacao emparelhada item a item (mesmos ids).",
-      "corpora": [
-        {
-          "corpus": "results/corpus-40-unredacted.json",
-          "labels": "../provas-v1-2026-09-09/P1-decidir-custa-zero/labels-63.json",
-          "n": 40,
-          "note": "os 40 reais do P1 — reuso do MP1"
-        },
-        {
-          "corpus": "results/corpus-60b.json",
-          "labels": "results/labels-60b.json",
-          "n": 57,
-          "note": "MP2; ate 3/sessao"
-        },
-        {
-          "corpus": "results/corpus-60c.json",
-          "labels": "results/labels-60c.json",
-          "n": 37,
-          "note": "MP3; 1/sessao estrito; 3 rotuladores"
-        }
-      ],
-      "corpora_rule": "SEPARADOS. Nunca se soma o 40 aos outros sem o dizer; se se pooled, e exploratorio e diz-se.",
-      "harness": "02-arm-D-logit.mjs como esta (mesmas 4 perguntas, mesma rubrica sha256 f95958dd…, policy v0 argmax, limiar de abstencao 0,4), so muda --model. net-tap.cjs do P1 no cliente (NODE_OPTIONS --require) para atestar 0 hosts externos.",
-      "decision_rule": {
-        "serve": "acc_7b >= acc_14b - 0,05 em CADA um dos 3 corpora",
-        "nao_serve": "acc_7b < acc_14b - 0,05 em 2 ou 3 corpora",
-        "entre": "qualquer outro caso (falha em exactamente 1 corpus)",
-        "note": "5 pp e a margem pedida no MP5, fixada antes de ver um numero. Com n=37..57 o IC95 e largo (~±13-16 pp) — a regra e sobre o ponto, e diz-se que e sobre o ponto."
-      },
-      "also_reported": [
-        "Wilson IC95 por corpus",
-        "ECE 10 bins (secundaria)",
-        "p50 das 4 perguntas na RTX 4090, modelo quente",
-        "confusao expected->predicted",
-        "McNemar exacto bilateral 7b vs 14b, emparelhado por id (reportado, nao e gate)",
-        "latencia no Mac: n/d — nao ha medicao no Mac nesta sessao e nao se inventa; se o vault tiver o ESTUDO_LLMS_LOCAIS_MAC_MINI cita-se, senao n/d"
-      ],
-      "stop_rule": "Uma corrida por (modelo x corpus). Nada se re-corre. Zero rotulos novos. Se o Ollama falhar a meio, a corrida conta como falhada e declara-se; nao se repete a parte boa.",
-      "zero_new_labels": true
-    },
-    "parte_2_higiene_T0": {
-      "bug_c_question": "Os 7/20 miss do Option A no 14b quente (MP4-a §2.4) sao o orcamento de ~1 s a expirar em que? carga de contexto (load_duration), avaliacao do prompt (prompt_eval_duration — o SYSTEM do Option A + o prompt), ou geracao (eval_duration x eval_count, com num_predict 256)?",
-      "measurement": [
-        "A) 20 prompts T0 (a MESMA lista do harness do MP4-a, measure-bug-a.cjs) pelo hook real, HOME fiel (hw-capability + subscription-profile + settings.json com timeout 3), 14b quente, sem chave, sem shadow. Regista: option_a_hit/miss e motivo, ms do hook, orcamento calculado pelo hook (evento option_a_*), latencia-local.jsonl.",
-        "B) Os mesmos 20 prompts com o MESMO corpo do ollama_call_node.js (system, temperature 0,2, num_predict 256, keep_alive -1, think false) directamente em POST /api/generate SEM prazo, 1 vez cada, 14b quente. Le os campos do Ollama: load_duration, prompt_eval_count, prompt_eval_duration, eval_count, eval_duration, total_duration.",
-        "C) Cruza A com B por prompt: um miss em A tem de corresponder a total_duration > prazo em B, e a decomposicao de B diz onde vai o tempo."
-      ],
-      "decision_rule": {
-        "orcamento_curto": "se a mediana de (prompt_eval + eval) dos prompts que falham em A excede o prazo do filho (max(1000, orcamento-1500) ms) e load_duration e desprezavel (< 10% do total) -> a causa e o orcamento. PROPOE-SE (nao se aplica) o prazo que cobre p95 de total_duration + margem, com a medicao. Ficheiro: results/BUG-C-PROPOSTA.md.",
-        "prompt_grande": "se prompt_eval_duration e a maior parcela (> 50% do total) e o prompt_eval_count e dominado pelo SYSTEM -> a causa e o prompt do Option A; corrige-se SO isso, commit se <= 30 linhas e suite igual ou melhor.",
-        "carga": "se load_duration > 0 em mais de 2 dos 20 com o modelo suposto quente -> ha reload (num_ctx/keep_alive divergente entre chamadores); reporta-se o chamador, nao se muda timeout nem modelo do shadow (proibido pelo MP5).",
-        "geracao_longa": "se eval_count e a parcela dominante e o prazo nao chega para 256 tokens do 14b -> e orcamento (nao prompt): proposta, nao aplicacao."
-      },
-      "allowlist_tools_router": [
-        "o caminho do Option A / orcamento de 1 s (inject_context.js bloco Option A, ollama_call_node.js) — so se a correccao for o prompt e <= 30 linhas",
-        "package.json da suite (lista do npm test)"
-      ],
-      "suite_gate": "1382 pass + 19 novos = 1401 ou melhor; mesmas 3 falhas pre-existentes, nome a nome"
-    },
-    "does_not_prove": [
-      "Que o 7b serve no Mac: e uma medicao na RTX 4090 sobre acuracia; latencia e memoria no Mac ficam n/d.",
-      "Que o 7b generaliza: os 3 corpora sao do mesmo autor, mesma maquina, e o 40 e reuso.",
-      "Nada sobre o 60d — nao existe e nao se toca."
-    ]
+  "features": [
+   "p_T0",
+   "p_T1",
+   "p_T2",
+   "p_T3",
+   "E_complexity = 0*p0+1*p1+2*p2",
+   "p_complexity_2",
+   "p_high_stakes",
+   "p_needs_repo",
+   "mass_on_letters_tier",
+   "bias"
+  ],
+  "features_note": "todas ja estao em rows[].answers dos JSON do braco D — o modelo NAO se re-corre para calcular features",
+  "candidates": {
+   "v0": "argmax p(tier). E o que existe (policyV0). Referencia.",
+   "v0+T": "temperature scaling: uma temperatura escalar T sobre log p(tier); p' = softmax(log p / T). T ajustada no treino por minimizacao de log-loss, grid 0,30..5,00 passo 0,05. Nao muda o argmax; muda a ECE.",
+   "v1": "regressao softmax 4 classes sobre as 9 features (z-score com media/desvio do conjunto de treino do fold) + bias. L2 lambda in {0,01; 0,1; 1}. Gradient descent full-batch, learning rate 0,1, 2000 iteracoes, init zeros, seed 20260921 (so para os folds; o GD e deterministico). Depois temperature scaling sobre os logits, T ajustada em predicoes out-of-fold do treino (CV interna 5-fold), mesmo grid."
   },
-  "mp4": {
-    "_schema": "decisor-shadow/protocol-v1/mp4",
-    "_status": "PRE-REGISTO MP4 — congelado em commit ANTES de existir um unico evento decisor_shadow vivo (contados agora no decisions.log desta maquina: 0), ANTES de rotular o 60d e ANTES de ajustar a calibracao (os pesos entram num commit posterior a este, gerados por 05b-calibrate.mjs que este bloco define)",
-    "_registered_at": "2026-09-21T12:41:16.352Z",
-    "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
-    "_live_decisor_shadow_events_at_registration": 0,
-    "_starting_point": "MP3 fechou ENTRE: v0 no 60c acc 0,622 vs «T2 sempre» 0,243 (p=0,002) e vs «T3 sempre» 0,324 (p=0,017), ECE 0,146 > 0,10 pela 3.a vez (40: 0,110; 60b: 0,124; 60c: 0,146). MP5 parte 1: o 7b nao serve (-15,0/-3,5/-13,5 pp). O shadow (F2) esta em main, opt-in, OFF nesta maquina ate o dono correr RUN-DECISOR-SHADOW-ON.bat + /mooter-update.",
-    "question": "Com a confianca calibrada por classe (ajustada em dados antigos, validada no 60c), o decisor v0 passa os 4 gates — acc > constante mais forte, ECE <= 0,10, p50 <= 250 ms, egress 0 — num corpus virgem de prompts reais recolhidos pelo shadow em producao (60d), 1 por sessao?",
-    "corpus_60d": {
-      "source": "eventos `decisor_shadow` do decisions.log vivo (~/.claude/tools/router/decisions.log). AS PREVISOES QUE CONTAM SAO AS DO EVENTO (tier_D, probs_D, p_max_D, aux_D, ms_D): o que o decisor disse em tempo real, no worker desligado, sobre o prompt real. O braco D NAO se re-corre sobre o texto recuperado; se se correr, e diagnostico e diz-se.",
-      "since_utc": "2026-09-21T12:00:00Z",
-      "since_note": "nenhum evento existe antes desta hora (o shadow nunca esteve ligado nesta maquina). Eventos do harness/testes escrevem noutros ficheiros (HOME temporario) — nao entram.",
-      "text_recovery": "o evento so tem prompt_sha12 (sha256 do texto CRU que o hook recebeu) + prompt_len. O texto recupera-se das transcricoes ~/.claude/projects/**/*.jsonl (so sessoes de topo; linhas type:user com texto humano) por sha256[0..12] do texto cru. Verificado hoje nesta sessao: o hook recebe o texto exactamente como esta na transcricao (3/3 prompt_len iguais). Ferramenta: 10-corpus-60d.mjs, testada em eventos do HARNESS (10-corpus-60d.test.mjs) — nunca nos vivos antes da hora.",
-      "join_keys": [
-        "prompt_sha12 (primario)",
-        "session_id + prompt_len + |hook_ts_ms - timestamp da transcricao| < 10 s (verificacao; ambiguidade residual declarada no MP3 A21)"
-      ],
-      "eligibility_on_recovered_text": [
-        "as MESMAS exclusoes do 60c: tool_result, tags <...> no inicio, isSidechain, isMeta, projectos em AppData/Local/Temp, < 20 chars, > 500 chars, colagens <pasted_content>, comandos /",
-        "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1 (n01-n40 E r01-r23 — o buraco do A7 do round 3, fechado aqui), corpus-40-unredacted, corpus-60b, corpus-60c",
-        "evento sem texto recuperavel: NAO entra; conta-se e reporta-se (_unrecovered). Se > 10 % dos eventos elegiveis nao se recuperarem, a recuperacao por sha e declarada insuficiente e o corpus nao se fecha sem AMENDMENT.",
-        "evento com outcome != ok (timeout/failed/parse_failed): NAO entra na acuracia (nao ha previsao). Conta-se em _events_not_ok e reporta-se como disponibilidade; se > 10 % dos elegiveis, o gate de p50/disponibilidade chumba por si."
-      ],
-      "cap_per_session": 1,
-      "cap_note": "ESTRITO, como no 60c.",
-      "n_target": 60,
-      "sessions_min": 30,
-      "sessions_note": "com 1/sessao, n >= 60 implica >= 60 sessoes; o minimo de 30 do MP5 fica escrito e e redundante.",
-      "sampling": "elegiveis em ordem estavel (hook_ts_ms, sessao), embaralhados com mulberry32(20260921); primeiro evento elegivel de cada sessao ainda nao usada, ate n_target.",
-      "seed": 20260921,
-      "stop_rule": "Se em 14 dias (ate 2026-10-05T12:00Z) nao houver 60 sessoes elegiveis: ESPERA-SE. Nao se baixa n, nao se sobe o tecto por sessao, nao se recua a janela para antes de 12:00Z, nao se juntam sessoes de outra maquina sem AMENDMENT antes de rotular. Uma corrida de analise; nada se repete.",
-      "labels": "3 rotuladores cegos — Codex (codex exec, sandbox read-only, cwd isolado, --output-schema), Sonnet (subagente model-reasoner) e Kimi k3 (Moonshot, json_object, temperatura 1 pela API) — rubrica sha256 f95958dd…, maioria simples; empate a 3 -> Codex (regra do 60c). Guarda de cegueira: os rotuladores recebem id + prompt e nada mais; o ficheiro de previsoes (D-shadow-corpus-60d.json) so pode ser escrito DEPOIS de labels-60d.json existir (10-corpus-60d.mjs --predictions recusa sem rotulos).",
-      "never_commit": [
-        "results/corpus-60d.json",
-        "results/labels-60d*.json",
-        "results/labels-60d-transcript/",
-        "results/D-shadow-corpus-60d.json",
-        "results/policy-60d.json",
-        "results/nettap-*60d*"
-      ]
-    },
-    "candidates_fixed_now": {
-      "a_v0": "referencia: tier = tier_D do evento (argmax de probs_D), confianca = p_max_D. E o v0 do MP3, sem parametros.",
-      "b_v0_calibrated": "**CANDIDATO QUE CONTA.** tier = tier_D (a DECISAO NAO MUDA — acuracia identica a v0 por construcao); confianca = iso_c(p_c) com c = tier_D e p_c = probs_D[c], onde iso_c e a calibracao isotonica da classe c (ver `calibration`). So a confianca muda; o gate de ECE e sobre ela.",
-      "c_v0_guard_calibrated": "reporta-se, nao conta: tier = (tier_D == T0 e (aux_D.p_needs_repo >= 0,5 ou aux_D.p_high_stakes >= 0,5)) ? T2 : tier_D; confianca = iso_tier(probs_D[tier]) (quando o guard dispara, iso_T2(p_T2)). Limiar 0,5 fixado no MP3.",
-      "b_prime_diagnostic": "NAO e candidato: argmax das 4 probabilidades calibradas e renormalizadas (pode mudar a decisao). Reporta-se so para dizer se a calibracao mudaria decisoes; nao entra em gate nenhum.",
-      "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3)."
-    },
-    "calibration": {
-      "method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
-      "fitted_on": "SO os 251 rotulados antigos: gold-84 (D-qwen2.5-coder_14b-gold-84.json) + valset-70 (D-qwen2.5-coder_14b-valset.json) + corpus-40 (D-qwen2.5-coder_14b-corpus-40-unredacted.json.json) + corpus-60b (D-qwen2.5-coder_14b-corpus-60b.json.json) — ficheiros do braco D ja existentes, mesmo modelo, mesmas 4 perguntas, mesma rubrica que o shadow usa (arbiter.js DECISOR_RUBRIC/DECISOR_QUESTIONS, verificado: mensagens identicas ao 02-arm-D-logit.mjs).",
-      "fitted_on_note": "gold-84 e valset-70 sao TREINO da regra (expected_tier canonico), nao rotulos humanos cegos — servem para calibrar confianca, nunca para medir acuracia. Os 154 canonicos + 40 + 57 = 251.",
-      "validation": "corpus-60c (37): ECE de v0 antes (0,146) e depois da calibracao, e o mesmo para (c). E VALIDACAO, NAO GATE: se a ECE do 60c calibrada nao ficar <= 0,10, diz-se ANTES do 60d que o MP4 vai provavelmente chumbar e que o plano precisa de outra ideia (mais rotulos, outro modelo) — e NAO se re-ajusta a calibracao depois de ver o 60c.",
-      "weights_file": "results/calibration-weights.json — commitado ANTES de existir um evento do 60d; o ficheiro guarda os nos por classe, o n por classe, os ficheiros de origem (nome + `at` + n) e o sha256 do proprio 05b-calibrate.mjs que os gerou.",
-      "transfer_assumption": "a calibracao ajustada em saidas do harness (02-arm-D-logit.mjs) aplica-se as saidas do shadow (arbiter.js) porque as mensagens, o modelo, a temperatura 0, max_tokens 1 e a leitura dos top_logprobs sao os mesmos. Se o modelo do shadow mudar, a calibracao caduca."
-    },
-    "gate_on_60d": {
-      "evaluated_on": "(b) v0 calibrado. (a) e (c) e b-prime reportam-se.",
-      "acc_gt_strongest_constant": "acc(b) > max sobre c de acc(«c sempre») nos rotulos do 60d, McNemar unilateral exacto (binomial), p < 0,05. A constante mais forte e a que os rotulos derem (no 60c foi T3 sempre, 0,324); a regra e fixa, a constante nao se escolhe a mao.",
-      "ece_max": 0.1,
-      "ece_method": "10 bins de largura igual sobre a confianca CALIBRADA de (b)",
-      "p50_ms_max": 250,
-      "p50_note": "ms_D do evento (4 perguntas no worker desligado, modelo quente); eventos timeout contam como falha de disponibilidade (ver eligibility), nao entram na mediana.",
-      "egress_hosts_allowed": [
-        "127.0.0.1:11434"
-      ],
-      "egress_method": "o worker so aceita loopback (decisorHost(); senao outcome refused_non_loopback, nada e chamado) e fetch(redirect:error). Atestacao: (1) nenhum evento do 60d com outcome refused_non_loopback; (2) net-tap no worker (--shadow-worker) sobre os eventos do harness na maquina; limite declarado: cobre o cliente Node, nao o daemon Ollama.",
-      "also_reported": [
-        "(a) v0 e (c) v0-guard calibrado com os mesmos gates",
-        "b-prime (diagnostico)",
-        "so itens unanimes entre os 3 rotuladores",
-        "sem os despachados por runner",
-        "vs regra (tier_regra do proprio evento) e vs «T2 sempre»",
-        "n de sessoes = n de itens",
-        "disponibilidade: eventos ok / elegiveis"
-      ]
-    },
-    "closing_verdicts": {
-      "all_pass": "GATE VERDE (60d) → F2 PODE ABRIR (arbiter trocavel, default haiku) — decisao do dono",
-      "below_constant": "❄️ ABAIXO DA CONSTANTE MAIS FORTE → parar o decisor local",
-      "between": "ENTRE → o MP4 acaba aqui. NAO se repete o 60d. Um MP seguinte precisa de outra ideia (mais rotulos para calibrar, outro modelo, outra pergunta) e de pre-registo proprio."
-    },
-    "does_not_prove": [
-      "Que o decisor serve noutra maquina ou noutro utilizador: sao prompts do mesmo autor, uma maquina.",
-      "Que a calibracao generaliza: e ajustada em 251 itens de 4 fontes, 154 deles rotulos canonicos, nao humanos cegos.",
-      "Egress do daemon Ollama (o tap cobre o cliente Node).",
-      "Independencia entre sessoes do mesmo autor/projecto/dia (A8 do round 3)."
+  "selection": "5-fold CV estratificada por tier NO TREINO (seed 20260921). Metrica primaria: log-loss medio out-of-fold; secundaria: acc. Escolhe-se o candidato (e o lambda, para v1) com menor log-loss; desempate por acc. A tabela de CV e escrita em PROGRESSO.md ANTES de qualquer candidato tocar nos 40.",
+  "honesty_rule": "Se o vencedor da CV perder para v0 nos 40, imprime-se e NAO se troca de candidato. Os tres candidatos sao aplicados aos 40 e aos 60b para transparencia, mas o que conta para o gate e o vencedor da CV, fixado antes.",
+  "corpus_60b": {
+   "source": "~/.claude/projects/**/*.jsonl, linhas type:user com texto de prompt humano (message.content string, ou blocos type:text)",
+   "window_utc": [
+    "2026-09-10T00:00:00Z",
+    "2026-09-21T10:02:00Z"
+   ],
+   "window_note": "fim = hora deste pre-registo, para nenhum prompt desta sessao entrar; inicio depois do fim da janela do P1 (09-04). Usa o campo timestamp da linha, nao o mtime do ficheiro.",
+   "exclude": [
+    "tool_result",
+    "comandos /... (e <command-name>/<local-command-stdout>)",
+    "isSidechain=true (prompts gerados por agentes, nao humanos)",
+    "isMeta=true",
+    "projectos em AppData/Local/Temp e scratchpads (harness A/B e snapshots: nao sao prompts humanos; mesma exclusao do P1)",
+    "< 20 chars",
+    "> 500 chars e colagens <pasted_content> (mesma elegibilidade do P1 20-500 chars sem colagens, para os 100 serem UMA populacao; o braco D trunca a 4000 de qualquer forma)",
+    "sha256[0..12] (do texto cru OU anonimizado) presente em corpus-63.json do P1 (marcadores [[redigido sha256:...]]) ou em results/corpus-40-unredacted.json"
+   ],
+   "one_per_session": "no maximo um prompt por ficheiro .jsonl (sessao)",
+   "n": 60,
+   "seed": 20260921,
+   "sampling": "elegiveis embaralhados com PRNG mulberry32(seed); percorre-se a ordem e aceita-se o primeiro prompt de cada sessao ainda nao usada, ate 60",
+   "anonymise": "como o P1: caminhos do home -> ~, nome do dono -> <owner>, emails -> <email>",
+   "output": "results/corpus-60b.json — NAO commitar (entra no .gitignore do pacote); PROGRESSO.md regista pool, elegiveis e distribuicao por projecto (hash sha256[0..8] do nome do projecto)",
+   "labels": "codex exec em cwd isolado sem o repo, label-rubric.txt do P1 (sha256 f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091), lotes <= 13, JSON forcado (schema {labels:[{id,tier,reason}]}), ANTES de qualquer predicao sobre os 60b. results/labels-60b.json com _labeler, _rubric_sha256, _blind, _labeled_at.",
+   "second_rater": "opcional, so para kappa de Cohen: Sonnet via subagente do Claude Code (NAO Qwen — vies de familia com D). O rotulo que conta e o do Codex, sem excepcao."
+  },
+  "arms_on_60b": {
+   "A": "A-60b.mjs (<= 30 linhas): classify() em processo por item, ambiente nokey (sem ANTHROPIC_API_KEY, MOOTER_ARBITER_DISABLE=1, OLLAMA_HOST apontado a um stub 503) — o mesmo ambiente do A-nokey do P1, que e o braco com predicoes por item usado no McNemar dos 40. results/A-60b.json rows[{id,tier,run:1}].",
+   "D_v0": "02-arm-D-logit.mjs --model qwen2.5-coder:14b --corpus results/corpus-60b.json --labels results/labels-60b.json, com atestacao de egress: NODE_OPTIONS=--require <P1 lib/net-tap.cjs>, NET_TAP_OUT=results/nettap-D-60b.jsonl. Esperado: so 127.0.0.1:11434.",
+   "policy": "o vencedor da CV (e os outros dois) aplicado a rows[].answers dos 60b -> results/policy-v1-60b.json. Zero corridas novas do modelo.",
+   "cold_latency": "UMA medicao, declarada, do 1.o prompt apos `ollama stop qwen2.5-coder:14b`. So para registar; o gate e com modelo quente."
+  },
+  "gate_final_on_100": {
+   "acc_gt_always_T2": "McNemar unilateral (binomial exacto) vencedor > 'T2 sempre' nos 100, p < 0,05",
+   "ece_max": 0.1,
+   "ece_method": "10 bins de largura igual sobre p_max da classe escolhida, n=100",
+   "p50_ms_max_warm": 250,
+   "p50_note": "p50 das 4 perguntas por prompt, modelo quente, sobre os 100 (40 do MP1 + 60b)",
+   "egress_hosts_allowed": [
+    "127.0.0.1:11434"
+   ],
+   "also_reported": [
+    "McNemar vs regra nos 100",
+    "acc40, acc60b, acc100 e ECE100 de cada candidato",
+    "juiz B so nos 40 (nao correu nos 60b)"
+   ]
+  },
+  "stop_rule": "Uma corrida por (braco x corpus). Re-corrida unica so por falha de infraestrutura, com o motivo em PROGRESSO.md. Nunca 'mais uma' por parciais.",
+  "adversary_round2": "codex exec com este bloco + 06-analysis-mp2.md + policy-v1-weights.json: fuga treino->teste, sobreposicao 60b x treino, vies do rotulador unico, calibracao em 10 bins com n=100, latencia. results/adversary-codex-round2.md, cada ataque aceite/refutado.",
+  "closing_verdicts": [
+   "GATE VERDE (100: >T2 p<0,05 ∧ ECE≤0,10 ∧ p50≤250 ∧ egress 0) → F2 PODE ABRIR",
+   "ENTRE → F6 (Laya fine-tune nos 214 rotulados) OU mais rótulos",
+   "❄️ ABAIXO DE T2 SEMPRE → parar"
+  ],
+  "does_not_prove": [
+   "valor comercial",
+   "obediencia executada",
+   "que o rotulo cego e verdade",
+   "generalizacao para outro dono/outra maquina (os 100 sao prompts de UMA pessoa)",
+   "poupanca em USD"
+  ]
+ },
+ "mp3": {
+  "_schema": "decisor-shadow/protocol-v1/mp3",
+  "_status": "PRE-REGISTO MP3 — congelado em commit ANTES de amostrar o 60c, ANTES de rotular e ANTES de tocar em tools/router/",
+  "_registered_at": "2026-09-21T10:36:44.161Z",
+  "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+  "_starting_point": "MP2 fechou ENTRE. D v0 argmax = 0,608 nos 97 (exploratorio: nao era o candidato; 40 dos 97 sao reuso; 3 sessoes = 30 dos 57). v1 aprendida perdeu 2x para v0. Nada se fine-tuna neste MP.",
+  "frente_A": {
+   "question": "O decisor tipado cru (v0), fixado como candidato primario ANTES de ver qualquer dado novo, bate «T2 sempre» num corpus virgem com 1 prompt por sessao (pares independentes por construcao), com ECE <= 0,10, p50 quente <= 250 ms e 0 hosts externos?",
+   "candidates": {
+    "primary_v0": "argmax p(tier) do 02-arm-D-logit.mjs como esta (policyV0, limiar de abstencao 0,4). Sem parametros aprendidos. E o unico que conta para o gate.",
+    "secondary_v0T": "v0 + temperature scaling com T = 1,55 — o valor fixado no MP2 (policy-v1-weights.json). NAO se re-ajusta. Nao muda o argmax.",
+    "tertiary_v0_guard": "se argmax == T0 e (p_needs_repo >= 0,5 ou p_high_stakes >= 0,5) -> T2; senao argmax. Um limiar, 0,5, fixado aqui. p_max do item guardado = p(T2) da resposta do tier (para ECE)."
+   },
+   "gate_on_60c_only": {
+    "acc_gt_always_T2": "McNemar unilateral exacto (binomial), v0 > «T2 sempre», p < 0,05",
+    "ece_max": 0.1,
+    "ece_method": "10 bins de largura igual sobre p_max da classe escolhida",
+    "p50_ms_max_warm": 250,
+    "p50_note": "p50 das 4 perguntas por prompt, modelo quente",
+    "egress_hosts_allowed": [
+     "127.0.0.1:11434"
+    ],
+    "egress_method": "net-tap.cjs do P1 (NODE_OPTIONS --require) no processo do braco D; cobre o cliente Node, NAO o daemon Ollama (limite declarado no round 2, A24)",
+    "evaluated_on": "v0 (primario). v0+T e v0-guard reportam-se; nao contam.",
+    "also_reported": [
+     "gate contra so os itens UNANIMES entre os 3 rotuladores (tecto do rotulo)",
+     "McNemar vs regra",
+     "«T3 sempre»",
+     "n de sessoes = n de itens (1/sessao estrito)"
     ]
-  }
+   },
+   "corpus_60c": {
+    "source": "~/.claude/projects/**/*.jsonl (so sessoes de topo), linhas type:user com texto humano",
+    "window_utc": [
+     "2026-08-01T00:00:00Z",
+     "2026-09-09T23:59:59Z"
+    ],
+    "window_note": "sobrepoe a janela do pool do P1 (mtime >= 09-01, prompts de agosto e setembro) — por isso excluem-se por sha256[0..12] os 63 do corpus-63.json do P1 (n01-n40 + r01-r23), os 40 do corpus-40-unredacted e os 57 do corpus-60b. Fim da janela no passado: nenhum prompt desta sessao e elegivel.",
+    "exclude": [
+     "tool_result",
+     "comandos /... e tags <command-name>/<local-command-stdout>/<task-notification>/<system-reminder>/<ci-monitor-event>",
+     "isSidechain",
+     "isMeta",
+     "projectos em AppData/Local/Temp e scratchpads",
+     "< 20 chars",
+     "> 500 chars e colagens <pasted_content>",
+     "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1, corpus-40-unredacted ou corpus-60b"
+    ],
+    "cap_per_session": 1,
+    "cap_note": "ESTRITO. Se o pool de sessoes der menos de 60, n = o que der, declarado. NAO se sobe o tecto por sessao (foi o que o A3 do round 2 atacou).",
+    "n_target": 60,
+    "seed": 20260922,
+    "sampling": "elegiveis em ordem estavel (timestamp, sessao), embaralhados com mulberry32(seed); primeiro prompt de cada sessao ainda nao usada, ate 60",
+    "anonymise": "como o P1/MP2: caminhos do home -> ~, dono -> <owner>, emails -> <email>; verificacao por regex, 0 fugas",
+    "record": "session_sha8 e project_sha8 por item; pool, elegiveis, n de sessoes elegiveis, dias, chars",
+    "output": "results/corpus-60c.json — NAO commitar (entra no .gitignore do pacote neste commit)"
+   },
+   "labels_60c": {
+    "blind": "ANTES de qualquer predicao sobre o 60c (guarda no script: aborta se existir D-/A-/policy-*60c*)",
+    "R1": "Codex CLI (codex exec, sandbox read-only, cwd isolado, --ephemeral, --output-schema, lotes <= 13), rubrica do P1 sha256 f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091 verificada",
+    "R2": "Sonnet via subagente model-reasoner do Claude Code, so rubrica + prompts, instruido a nao ler mais nada",
+    "R3": "Kimi k3 (Moonshot, api.moonshot.ai/v1, familia diferente de R1 e R2), mesma rubrica, response_format json_object, lotes <= 13. Sondado a 2026-09-21T10:36:44.161Z: responde (200, ~4 s). Limite declarado: a API so aceita temperature=1 (nao deterministico). Se falhar a meio: ordem de substituicao Opus (subagente model-architect) -> Haiku 4.5, declarada em AMENDMENT.",
+    "rule": "rotulo que conta = maioria dos 3; empate a 3 (tres rotulos diferentes) -> Codex",
+    "report": [
+     "kappa par-a-par (Cohen)",
+     "kappa de Fleiss",
+     "% de itens unanimes",
+     "distribuicao por rotulador"
+    ],
+    "output": "results/labels-60c.json com os 3 votos por item — NAO commitar"
+   },
+   "arms": {
+    "A": "A-60b.mjs adaptado (--corpus results/corpus-60c.json --out results/A-60c.json), ambiente nokey, sha do classify.js verificado antes",
+    "D_v0": "02-arm-D-logit.mjs --model qwen2.5-coder:14b --corpus results/corpus-60c.json --labels results/labels-60c.json, com net-tap -> results/nettap-D-60c.jsonl",
+    "policies": "v0+T (05-policy-v1.mjs --apply, so o T=1,55) e v0-guard (07-guard.mjs, <= 30 linhas) sobre as MESMAS respostas -> results/policy-60c.json. Zero corridas extra.",
+    "analysis": "08-analyse-mp3.mjs -> results/08-analysis-mp3.md: so 60c; regra · «T2 sempre» · «T3 sempre» · v0 · v0+T · v0-guard; acc, IC95 Wilson, ECE, p50, McNemar vs T2 e vs regra, confusao, n sessoes; gates no v0; sensibilidade so-unanimes"
+   },
+   "stop_rule": "Uma corrida por (braco x corpus). Re-corrida unica so por falha de infra que nunca chegou ao modelo, com motivo. Nunca «mais uma»."
+  },
+  "frente_B": {
+   "scope": "primeira alteracao em tools/router/: SO arbiter.js (+ types.d.ts campos opcionais, + teste novo arbiter-shadow.test.js) e UMA linha em inject_context.js. classify.js intocado (sha verificado no fim).",
+   "behaviour": "ollamaLogit(prompt): porta directa do 02-arm-D-logit.mjs (4 perguntas tipadas, 1 letra, top_logprobs via /v1/chat/completions, host de ollama-host.js, modelo MOOTER_DECISOR_MODEL || qwen2.5-coder:14b, timeout 400 ms, keep_alive 30m) -> {tier, probabilities, p_max, abstained, latency_ms, backend:\"ollama-logit\", model} ou null. shadowDecisor(prompt, decision): so com MOOTER_DECISOR_SHADOW=1 e sem MOOTER_ARBITER_DISABLE=1; corre DEPOIS da decisao; NUNCA altera a rota; escreve evento decisor_shadow no decisions.log sem texto do prompt (preview <= 80 chars).",
+   "tests": [
+    "sem env -> nenhum evento",
+    "com env + mock de logprobs -> evento com schema e rota inalterada",
+    "HIGH_RISK continua da regra",
+    "timeout -> evento outcome:timeout, rota inalterada",
+    "suite tools/router inteira verde, contagem antes/depois"
+   ],
+   "latency_budget": "~150 ms quente / ~2,5 s frio, opt-in; mediana do hook com e sem shadow (10 prompts cada) registada",
+   "commit": "feat(router): decisor sombra ollama-logit — regista, não roteia (F2-shadow); sem merge, sem push; gate do dono"
+  },
+  "amendments": [
+   {
+    "id": "mp3-1",
+    "when": "2026-09-21T10:37:41.557Z",
+    "what": "corpus 60c tem n = 37, nao 60",
+    "why": "o pool da janela 2026-08-01..09-09 (fora dos sha do P1 e do 60b) tem 410 prompts elegiveis em 37 sessoes; com 1 prompt/sessao ESTRITO (nao se sobe o tecto) o maximo e 37. 7 dos 37 sao prompts despachados por runner (elegiveis pelas regras registadas; marcados _dispatched; sensibilidade sem eles reporta-se).",
+    "outcome_known": false,
+    "note": "rotulos ainda nao pedidos; nenhuma predicao existe sobre o 60c"
+   },
+   {
+    "id": "mp3-2",
+    "when": "2026-09-21T10:55:49.050Z",
+    "what": "Frente B: DECISOR_TIMEOUT_MS 400 -> 800 ms",
+    "why": "o 400 foi fixado a partir dos 147-162 ms medidos EM PROCESSO (braco D). Pelo caminho do hook (spawnSync + 4 fetches num processo filho, como o callHaikuSync) mediu-se: ollamaLogit() p50 ~255 ms com o prefixo da rubrica em cache no Ollama e ~460 ms quando outra chamada ao Ollama o despeja (o proprio hook chama o Ollama nos prompts T0); em 10 prompts pelo hook, 7 sairam timeout com 400 ms e o shadow nao acumulava nada. 800 ms deixa o frio (~2,5 s) como timeout. Nao toca em nenhum gate nem numero da Frente A (ja fechada em 08-analysis-mp3.md antes desta emenda); o que muda e se o shadow REGISTA ou nao.",
+    "outcome_known": false,
+    "measured": {
+     "ollamaLogit_ms_warm_prefix": [
+      264,
+      255,
+      255,
+      258
+     ],
+     "ollamaLogit_ms_prefix_evicted": 466,
+     "hook_timeouts_at_400ms": "7/10",
+     "hook_ms_D_ok_at_400ms": [
+      284,
+      320,
+      426
+     ]
+    },
+    "erratum": {
+     "when": "2026-09-21T11:04:40.580Z",
+     "what": "o «7/10 timeouts a 400 ms» que motivou a emenda foi medido num harness INFIEL (HOME isolado sem hw-capability.json: o hook caia para qwen3:30b, 22 GiB, e despejava o 14b). Com harness fiel e modelo quente, o custo intrinseco do shadow pelo hook e ms_D p50 245 ms (240-249; um de 414) — abaixo dos 400. O 800 fica: da margem a re-avaliacao do prefixo (~400) e a versao do Ollama que aborta carregamentos quando o cliente desliga (medido: 4/10 timeouts numa corrida em que o 14b tinha sido despejado antes). Zero efeito em qualquer numero da Frente A.",
+     "measured": {
+      "ms_D_ok_hook_fiel": [
+       240,
+       241,
+       242,
+       245,
+       249,
+       414
+      ],
+      "hook_delta_ms_warm": [
+       232,
+       236,
+       249,
+       251
+      ],
+      "timeouts_after_eviction": "4/10 (recuperou com o aquecimento desligado)"
+     }
+    }
+   }
+  ],
+  "amendment_rule": "Qualquer desvio a este bloco (n < 60, tecto por sessao, rotulador indisponivel, timeout do modelo) entra ANTES de rotulos/predicoes num commit proprio «chore(decisor-shadow): AMENDMENT mp3-<n> — <motivo>» com entrada em amendments[] {when, what, why, outcome_known:false}. Sem commit de emenda, o desvio nao existe — a corrida para.",
+  "closing_verdicts": [
+   "GATE VERDE (60c) → F2 PODE ABRIR (arbiter trocável, default haiku)",
+   "ENTRE → shadow acumula; re-testar com 60d",
+   "❄️ ABAIXO DE T2 SEMPRE → parar"
+  ],
+  "does_not_prove": [
+   "valor comercial",
+   "obediencia executada",
+   "que a maioria de 3 rotuladores e verdade",
+   "generalizacao para outro dono/maquina",
+   "que o shadow nao altera a rota em producao (so o teste o afirma para os 4 casos cobertos)"
+  ]
+ },
+ "mp5": {
+  "_schema": "decisor-shadow/protocol-v1/mp5",
+  "_status": "PRE-REGISTO MP5 — congelado em commit ANTES de correr o 7b ou o 3b em qualquer corpus, ANTES de medir o Option A e ANTES de tocar em tools/router/",
+  "_registered_at": "2026-09-21T12:22:41.685Z",
+  "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+  "_starting_point": "origin/main = eb6b1f85. F2-shadow opt-in em main. 134 prompts reais rotulados (40 P1 + 57 60b + 37 60c), todos gitignorados. D v0 no 14b ja medido nos tres: 0,600 / 0,614 / 0,622. Nada aqui espera pelo 60d; nada aqui toca no 60d.",
+  "parte_1_mac_7b": {
+   "question": "O decisor tipado v0 corre num modelo que cabe num Mac M4 de 16 GB ao lado de outro? Operacionalizado: o qwen2.5-coder:7b fica dentro de 5 pontos percentuais do 14b em CADA um dos 3 corpora rotulados, avaliados separadamente?",
+   "candidates": {
+    "qwen2.5-coder:7b": "JA INSTALADO nesta maquina (ollama list: dae161e27b0e, 4,7 GB, ha 3 meses) — o MP dizia «a puxar»; nao houve pull. Corre-se nos 3 corpora, uma corrida cada.",
+    "qwen2.5:3b": "ja medido no corpus-40 (0,400, ECE 0,462, MP1) e no gold-84 (0,512). Corre-se no 60b e no 60c para completar a tabela modelo x corpus — uma corrida cada. O resultado do 40 NAO se re-corre."
+   },
+   "reference": "D v0 no qwen2.5-coder:14b, ficheiros D-qwen2.5-coder_14b-corpus-{40-unredacted,60b,60c}.json.json JA EXISTENTES (0,600 / 0,614 / 0,622). O 14b NAO se re-corre. Comparacao emparelhada item a item (mesmos ids).",
+   "corpora": [
+    {
+     "corpus": "results/corpus-40-unredacted.json",
+     "labels": "../provas-v1-2026-09-09/P1-decidir-custa-zero/labels-63.json",
+     "n": 40,
+     "note": "os 40 reais do P1 — reuso do MP1"
+    },
+    {
+     "corpus": "results/corpus-60b.json",
+     "labels": "results/labels-60b.json",
+     "n": 57,
+     "note": "MP2; ate 3/sessao"
+    },
+    {
+     "corpus": "results/corpus-60c.json",
+     "labels": "results/labels-60c.json",
+     "n": 37,
+     "note": "MP3; 1/sessao estrito; 3 rotuladores"
+    }
+   ],
+   "corpora_rule": "SEPARADOS. Nunca se soma o 40 aos outros sem o dizer; se se pooled, e exploratorio e diz-se.",
+   "harness": "02-arm-D-logit.mjs como esta (mesmas 4 perguntas, mesma rubrica sha256 f95958dd…, policy v0 argmax, limiar de abstencao 0,4), so muda --model. net-tap.cjs do P1 no cliente (NODE_OPTIONS --require) para atestar 0 hosts externos.",
+   "decision_rule": {
+    "serve": "acc_7b >= acc_14b - 0,05 em CADA um dos 3 corpora",
+    "nao_serve": "acc_7b < acc_14b - 0,05 em 2 ou 3 corpora",
+    "entre": "qualquer outro caso (falha em exactamente 1 corpus)",
+    "note": "5 pp e a margem pedida no MP5, fixada antes de ver um numero. Com n=37..57 o IC95 e largo (~±13-16 pp) — a regra e sobre o ponto, e diz-se que e sobre o ponto."
+   },
+   "also_reported": [
+    "Wilson IC95 por corpus",
+    "ECE 10 bins (secundaria)",
+    "p50 das 4 perguntas na RTX 4090, modelo quente",
+    "confusao expected->predicted",
+    "McNemar exacto bilateral 7b vs 14b, emparelhado por id (reportado, nao e gate)",
+    "latencia no Mac: n/d — nao ha medicao no Mac nesta sessao e nao se inventa; se o vault tiver o ESTUDO_LLMS_LOCAIS_MAC_MINI cita-se, senao n/d"
+   ],
+   "stop_rule": "Uma corrida por (modelo x corpus). Nada se re-corre. Zero rotulos novos. Se o Ollama falhar a meio, a corrida conta como falhada e declara-se; nao se repete a parte boa.",
+   "zero_new_labels": true
+  },
+  "parte_2_higiene_T0": {
+   "bug_c_question": "Os 7/20 miss do Option A no 14b quente (MP4-a §2.4) sao o orcamento de ~1 s a expirar em que? carga de contexto (load_duration), avaliacao do prompt (prompt_eval_duration — o SYSTEM do Option A + o prompt), ou geracao (eval_duration x eval_count, com num_predict 256)?",
+   "measurement": [
+    "A) 20 prompts T0 (a MESMA lista do harness do MP4-a, measure-bug-a.cjs) pelo hook real, HOME fiel (hw-capability + subscription-profile + settings.json com timeout 3), 14b quente, sem chave, sem shadow. Regista: option_a_hit/miss e motivo, ms do hook, orcamento calculado pelo hook (evento option_a_*), latencia-local.jsonl.",
+    "B) Os mesmos 20 prompts com o MESMO corpo do ollama_call_node.js (system, temperature 0,2, num_predict 256, keep_alive -1, think false) directamente em POST /api/generate SEM prazo, 1 vez cada, 14b quente. Le os campos do Ollama: load_duration, prompt_eval_count, prompt_eval_duration, eval_count, eval_duration, total_duration.",
+    "C) Cruza A com B por prompt: um miss em A tem de corresponder a total_duration > prazo em B, e a decomposicao de B diz onde vai o tempo."
+   ],
+   "decision_rule": {
+    "orcamento_curto": "se a mediana de (prompt_eval + eval) dos prompts que falham em A excede o prazo do filho (max(1000, orcamento-1500) ms) e load_duration e desprezavel (< 10% do total) -> a causa e o orcamento. PROPOE-SE (nao se aplica) o prazo que cobre p95 de total_duration + margem, com a medicao. Ficheiro: results/BUG-C-PROPOSTA.md.",
+    "prompt_grande": "se prompt_eval_duration e a maior parcela (> 50% do total) e o prompt_eval_count e dominado pelo SYSTEM -> a causa e o prompt do Option A; corrige-se SO isso, commit se <= 30 linhas e suite igual ou melhor.",
+    "carga": "se load_duration > 0 em mais de 2 dos 20 com o modelo suposto quente -> ha reload (num_ctx/keep_alive divergente entre chamadores); reporta-se o chamador, nao se muda timeout nem modelo do shadow (proibido pelo MP5).",
+    "geracao_longa": "se eval_count e a parcela dominante e o prazo nao chega para 256 tokens do 14b -> e orcamento (nao prompt): proposta, nao aplicacao."
+   },
+   "allowlist_tools_router": [
+    "o caminho do Option A / orcamento de 1 s (inject_context.js bloco Option A, ollama_call_node.js) — so se a correccao for o prompt e <= 30 linhas",
+    "package.json da suite (lista do npm test)"
+   ],
+   "suite_gate": "1382 pass + 19 novos = 1401 ou melhor; mesmas 3 falhas pre-existentes, nome a nome"
+  },
+  "does_not_prove": [
+   "Que o 7b serve no Mac: e uma medicao na RTX 4090 sobre acuracia; latencia e memoria no Mac ficam n/d.",
+   "Que o 7b generaliza: os 3 corpora sao do mesmo autor, mesma maquina, e o 40 e reuso.",
+   "Nada sobre o 60d — nao existe e nao se toca."
+  ]
+ },
+ "mp4": {
+  "_schema": "decisor-shadow/protocol-v1/mp4",
+  "_status": "PRE-REGISTO MP4 — congelado em commit ANTES de existir um unico evento decisor_shadow vivo (contados agora no decisions.log desta maquina: 0), ANTES de rotular o 60d e ANTES de ajustar a calibracao (os pesos entram num commit posterior a este, gerados por 05b-calibrate.mjs que este bloco define)",
+  "_registered_at": "2026-09-21T12:41:16.352Z",
+  "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+  "_live_decisor_shadow_events_at_registration": 0,
+  "_starting_point": "MP3 fechou ENTRE: v0 no 60c acc 0,622 vs «T2 sempre» 0,243 (p=0,002) e vs «T3 sempre» 0,324 (p=0,017), ECE 0,146 > 0,10 pela 3.a vez (40: 0,110; 60b: 0,124; 60c: 0,146). MP5 parte 1: o 7b nao serve (-15,0/-3,5/-13,5 pp). O shadow (F2) esta em main, opt-in, OFF nesta maquina ate o dono correr RUN-DECISOR-SHADOW-ON.bat + /mooter-update.",
+  "question": "Com a confianca calibrada por classe (ajustada em dados antigos, validada no 60c), o decisor v0 passa os 4 gates — acc > constante mais forte, ECE <= 0,10, p50 <= 250 ms, egress 0 — num corpus virgem de prompts reais recolhidos pelo shadow em producao (60d), 1 por sessao?",
+  "corpus_60d": {
+   "source": "eventos `decisor_shadow` do decisions.log vivo (~/.claude/tools/router/decisions.log). AS PREVISOES QUE CONTAM SAO AS DO EVENTO (tier_D, probs_D, p_max_D, aux_D, ms_D): o que o decisor disse em tempo real, no worker desligado, sobre o prompt real. O braco D NAO se re-corre sobre o texto recuperado; se se correr, e diagnostico e diz-se.",
+   "since_utc": "2026-09-21T12:00:00Z",
+   "since_note": "nenhum evento existe antes desta hora (o shadow nunca esteve ligado nesta maquina). Eventos do harness/testes escrevem noutros ficheiros (HOME temporario) — nao entram.",
+   "text_recovery": "o evento so tem prompt_sha12 (sha256 do texto CRU que o hook recebeu) + prompt_len. O texto recupera-se das transcricoes ~/.claude/projects/**/*.jsonl (so sessoes de topo; linhas type:user com texto humano) por sha256[0..12] do texto cru. Verificado hoje nesta sessao: o hook recebe o texto exactamente como esta na transcricao (3/3 prompt_len iguais). Ferramenta: 10-corpus-60d.mjs, testada em eventos do HARNESS (10-corpus-60d.test.mjs) — nunca nos vivos antes da hora.",
+   "join_keys": [
+    "prompt_sha12 (primario)",
+    "session_id + prompt_len + |hook_ts_ms - timestamp da transcricao| < 10 s (verificacao; ambiguidade residual declarada no MP3 A21)"
+   ],
+   "eligibility_on_recovered_text": [
+    "as MESMAS exclusoes do 60c: tool_result, tags <...> no inicio, isSidechain, isMeta, projectos em AppData/Local/Temp, < 20 chars, > 500 chars, colagens <pasted_content>, comandos /",
+    "sha256[0..12] (cru ou anonimizado) presente em corpus-63 do P1 (n01-n40 E r01-r23 — o buraco do A7 do round 3, fechado aqui), corpus-40-unredacted, corpus-60b, corpus-60c",
+    "evento sem texto recuperavel: NAO entra; conta-se e reporta-se (_unrecovered). Se > 10 % dos eventos elegiveis nao se recuperarem, a recuperacao por sha e declarada insuficiente e o corpus nao se fecha sem AMENDMENT.",
+    "evento com outcome != ok (timeout/failed/parse_failed): NAO entra na acuracia (nao ha previsao). Conta-se em _events_not_ok e reporta-se como disponibilidade; se > 10 % dos elegiveis, o gate de p50/disponibilidade chumba por si."
+   ],
+   "cap_per_session": 1,
+   "cap_note": "ESTRITO, como no 60c.",
+   "n_target": 60,
+   "sessions_min": 30,
+   "sessions_note": "com 1/sessao, n >= 60 implica >= 60 sessoes; o minimo de 30 do MP5 fica escrito e e redundante.",
+   "sampling": "elegiveis em ordem estavel (hook_ts_ms, sessao), embaralhados com mulberry32(20260921); primeiro evento elegivel de cada sessao ainda nao usada, ate n_target.",
+   "seed": 20260921,
+   "stop_rule": "Se em 14 dias (ate 2026-10-05T12:00Z) nao houver 60 sessoes elegiveis: ESPERA-SE. Nao se baixa n, nao se sobe o tecto por sessao, nao se recua a janela para antes de 12:00Z, nao se juntam sessoes de outra maquina sem AMENDMENT antes de rotular. Uma corrida de analise; nada se repete.",
+   "labels": "3 rotuladores cegos — Codex (codex exec, sandbox read-only, cwd isolado, --output-schema), Sonnet (subagente model-reasoner) e Kimi k3 (Moonshot, json_object, temperatura 1 pela API) — rubrica sha256 f95958dd…, maioria simples; empate a 3 -> Codex (regra do 60c). Guarda de cegueira: os rotuladores recebem id + prompt e nada mais; o ficheiro de previsoes (D-shadow-corpus-60d.json) so pode ser escrito DEPOIS de labels-60d.json existir (10-corpus-60d.mjs --predictions recusa sem rotulos).",
+   "never_commit": [
+    "results/corpus-60d.json",
+    "results/labels-60d*.json",
+    "results/labels-60d-transcript/",
+    "results/D-shadow-corpus-60d.json",
+    "results/policy-60d.json",
+    "results/nettap-*60d*"
+   ]
+  },
+  "candidates_fixed_now": {
+   "a_v0": "referencia: tier = tier_D do evento (argmax de probs_D), confianca = p_max_D. E o v0 do MP3, sem parametros.",
+   "b_v0_calibrated": "**CANDIDATO QUE CONTA.** tier = tier_D (a DECISAO NAO MUDA — acuracia identica a v0 por construcao); confianca = iso_c(p_c) com c = tier_D e p_c = probs_D[c], onde iso_c e a calibracao isotonica da classe c (ver `calibration`). So a confianca muda; o gate de ECE e sobre ela.",
+   "c_v0_guard_calibrated": "reporta-se, nao conta: tier = (tier_D == T0 e (aux_D.p_needs_repo >= 0,5 ou aux_D.p_high_stakes >= 0,5)) ? T2 : tier_D; confianca = iso_tier(probs_D[tier]) (quando o guard dispara, iso_T2(p_T2)). Limiar 0,5 fixado no MP3.",
+   "b_prime_diagnostic": "NAO e candidato: argmax das 4 probabilidades calibradas e renormalizadas (pode mudar a decisao). Reporta-se so para dizer se a calibracao mudaria decisoes; nao entra em gate nenhum.",
+   "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3)."
+  },
+  "calibration": {
+   "method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
+   "fitted_on": "SO os 251 rotulados antigos: gold-84 (D-qwen2.5-coder_14b-gold-84.json) + valset-70 (D-qwen2.5-coder_14b-valset.json) + corpus-40 (D-qwen2.5-coder_14b-corpus-40-unredacted.json.json) + corpus-60b (D-qwen2.5-coder_14b-corpus-60b.json.json) — ficheiros do braco D ja existentes, mesmo modelo, mesmas 4 perguntas, mesma rubrica que o shadow usa (arbiter.js DECISOR_RUBRIC/DECISOR_QUESTIONS, verificado: mensagens identicas ao 02-arm-D-logit.mjs).",
+   "fitted_on_note": "gold-84 e valset-70 sao TREINO da regra (expected_tier canonico), nao rotulos humanos cegos — servem para calibrar confianca, nunca para medir acuracia. Os 154 canonicos + 40 + 57 = 251.",
+   "validation": "corpus-60c (37): ECE de v0 antes (0,146) e depois da calibracao, e o mesmo para (c). E VALIDACAO, NAO GATE: se a ECE do 60c calibrada nao ficar <= 0,10, diz-se ANTES do 60d que o MP4 vai provavelmente chumbar e que o plano precisa de outra ideia (mais rotulos, outro modelo) — e NAO se re-ajusta a calibracao depois de ver o 60c.",
+   "weights_file": "results/calibration-weights.json — commitado ANTES de existir um evento do 60d; o ficheiro guarda os nos por classe, o n por classe, os ficheiros de origem (nome + `at` + n) e o sha256 do proprio 05b-calibrate.mjs que os gerou.",
+   "transfer_assumption": "a calibracao ajustada em saidas do harness (02-arm-D-logit.mjs) aplica-se as saidas do shadow (arbiter.js) porque as mensagens, o modelo, a temperatura 0, max_tokens 1 e a leitura dos top_logprobs sao os mesmos. Se o modelo do shadow mudar, a calibracao caduca."
+  },
+  "gate_on_60d": {
+   "evaluated_on": "(b) v0 calibrado. (a) e (c) e b-prime reportam-se.",
+   "acc_gt_strongest_constant": "acc(b) > max sobre c de acc(«c sempre») nos rotulos do 60d, McNemar unilateral exacto (binomial), p < 0,05. A constante mais forte e a que os rotulos derem (no 60c foi T3 sempre, 0,324); a regra e fixa, a constante nao se escolhe a mao.",
+   "ece_max": 0.1,
+   "ece_method": "10 bins de largura igual sobre a confianca CALIBRADA de (b)",
+   "p50_ms_max": 250,
+   "p50_note": "ms_D do evento (4 perguntas no worker desligado, modelo quente); eventos timeout contam como falha de disponibilidade (ver eligibility), nao entram na mediana.",
+   "egress_hosts_allowed": [
+    "127.0.0.1:11434"
+   ],
+   "egress_method": "o worker so aceita loopback (decisorHost(); senao outcome refused_non_loopback, nada e chamado) e fetch(redirect:error). Atestacao: (1) nenhum evento do 60d com outcome refused_non_loopback; (2) net-tap no worker (--shadow-worker) sobre os eventos do harness na maquina; limite declarado: cobre o cliente Node, nao o daemon Ollama.",
+   "also_reported": [
+    "(a) v0 e (c) v0-guard calibrado com os mesmos gates",
+    "b-prime (diagnostico)",
+    "so itens unanimes entre os 3 rotuladores",
+    "sem os despachados por runner",
+    "vs regra (tier_regra do proprio evento) e vs «T2 sempre»",
+    "n de sessoes = n de itens",
+    "disponibilidade: eventos ok / elegiveis"
+   ]
+  },
+  "closing_verdicts": {
+   "all_pass": "GATE VERDE (60d) → F2 PODE ABRIR (arbiter trocavel, default haiku) — decisao do dono",
+   "below_constant": "❄️ ABAIXO DA CONSTANTE MAIS FORTE → parar o decisor local",
+   "between": "ENTRE → o MP4 acaba aqui. NAO se repete o 60d. Um MP seguinte precisa de outra ideia (mais rotulos para calibrar, outro modelo, outra pergunta) e de pre-registo proprio."
+  },
+  "does_not_prove": [
+   "Que o decisor serve noutra maquina ou noutro utilizador: sao prompts do mesmo autor, uma maquina.",
+   "Que a calibracao generaliza: e ajustada em 251 itens de 4 fontes, 154 deles rotulos canonicos, nao humanos cegos.",
+   "Egress do daemon Ollama (o tap cobre o cliente Node).",
+   "Independencia entre sessoes do mesmo autor/projecto/dia (A8 do round 3)."
+  ]
+ },
+ "mp6": {
+  "_schema": "decisor-shadow/protocol-v1/mp6",
+  "_status": "PRE-REGISTO MP6 — congelado em commit ANTES de correr TTA, qwen3.6:27b ou qwen3:30b em qualquer corpus, ANTES de calcular uma curva selectiva e ANTES de emendar o mp4",
+  "_registered_at": "2026-09-21T13:41:18.540Z",
+  "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+  "_starting_point": "origin/main = f3ed0209 (MP5 fechado). 134 prompts reais rotulados (40 P1 + 57 60b + 37 60c). D v0 no 14b: acc 0,600/0,614/0,622, ECE 0,110/0,124/0,146. Isotonica (b) ajustada nos 251, validada no 60c: ECE 0,146 -> 0,126 (> 0,10). 60d: eventos vivos a acumular (shadow ligado nesta maquina desde hoje); nada aqui toca no 60d.",
+  "_probe_before_registration": {
+   "what": "UMA chamada por modelo (mais uma quente e uma com think:false) com um prompt SINTETICO (fix the typo in the README title), a pergunta do tier, max_tokens 1, top_logprobs 10 — NAO e corrida de corpus; feita para saber, antes de pre-registar, se os qwen3 devolvem uma letra como 1.o token.",
+   "qwen3.6:27b": {
+    "first_token": "The",
+    "top10_letters_mass": 0,
+    "think_false_on_v1": "ignorado (saida identica)",
+    "cold_ms": 14848,
+    "warm_ms": 159,
+    "vram_gb": 16
+   },
+   "qwen3:30b": {
+    "first_token": "We",
+    "top10_letters_mass": 0,
+    "think_false_on_v1": "ignorado (saida identica)",
+    "cold_ms": 9816,
+    "warm_ms": 55,
+    "vram_gb": 18
+   },
+   "ollama_version": "0.34.2",
+   "consequence_declared_now": "Com o harness tal como esta (mesmas mensagens do shadow, /v1/chat/completions), os dois qwen3 emitem thinking antes da letra. O MP manda: registar mode:no-letter, NAO inventar fallback, declarar e seguir. As 6 corridas fazem-se na mesma (sao baratas) para medir a TAXA de no-letter por corpus em vez de a assumir; um item no-letter conta como ERRADO na acuracia (nao ha previsao) e fica FORA da ECE (nao ha p). Reporta-se tambem a acc sobre os respondidos. Uma variante que force a letra (/api/chat com think:false, ou um prefixo de thinking vazio) NAO se corre neste MP — seria um harness diferente do que o shadow usa e pediria pre-registo proprio."
+  },
+  "rule": {
+   "exploration": "corpus-40 (P1, n=40) e corpus-60b (MP2, n=57) — separados, nunca somados; a ordem de preferencia dos candidatos para o MP4 fixa-se AQUI",
+   "validation": "corpus-60c (MP3, n=37) — SO se reporta; nenhuma escolha, limiar ou ordem e feita olhando para ele",
+   "zero_adjustment": "nada e ajustado em NENHUM dos tres corpora reais. TTA nao tem parametros. A unica coisa que se ajusta neste MP e a isotonica da variante TTA+isotonica, e SO nos 154 canonicos (gold-84 + valset-70), porque o MP lista essa variante como candidata e ela nao existe sem um ajuste; ver step7_candidate_rule.",
+   "corpora": [
+    {
+     "corpus": "results/corpus-40-unredacted.json",
+     "labels": "../provas-v1-2026-09-09/P1-decidir-custa-zero/labels-63.json",
+     "n": 40,
+     "rule_by_item": "../provas-v1-2026-09-09/P1-decidir-custa-zero/results/A-nokey.json (run 1)"
+    },
+    {
+     "corpus": "results/corpus-60b.json",
+     "labels": "results/labels-60b.json",
+     "n": 57,
+     "rule_by_item": "results/A-60b.json"
+    },
+    {
+     "corpus": "results/corpus-60c.json",
+     "labels": "results/labels-60c.json",
+     "n": 37,
+     "rule_by_item": "results/A-60c.json"
+    }
+   ],
+   "reference": "D v0 no 14b, ficheiros D-qwen2.5-coder_14b-corpus-{40-unredacted,60b,60c}.json.json JA EXISTENTES — nao se re-correm. Emparelhado por id."
+  },
+  "hypotheses": {
+   "C1_tta_letters": {
+    "claim": "a sobre-confianca do v0 (sobretudo nos T0) e em parte vies de posicao/letra (o A apanha massa). Perguntar o tier 4x com as 4 rotacoes ciclicas de (T0,T1,T2,T3) sobre (A,B,C,D) e fazer a MEDIA das 4 distribuicoes remove esse vies sem aprender nada.",
+    "prediction": "ECE desce; acc aproximadamente igual (|delta| <= 5 pp); custo +3 chamadas so no tier (~170 ms em vez de ~42 ms na pergunta do tier; as 3 auxiliares ficam a 1x).",
+    "confirmed_if": "ECE_TTA < ECE_v0 em AMBOS os corpora de exploracao (40 e 57) E acc_TTA >= acc_v0 - 0,05 em ambos",
+    "refuted_if": "ECE_TTA >= ECE_v0 em ambos, OU acc_TTA < acc_v0 - 0,05 em algum",
+    "otherwise": "ENTRE (reporta-se, nao se escolhe)",
+    "mean_space": "PROBABILIDADES, nao logits: cada rotacao normaliza a massa nas 4 letras para 1 (como o v0), mapeia letra->tier, e a media aritmetica das 4 distribuicoes em espaco de tier e a distribuicao final; p_max = max da media; tier = argmax da media. As 4 distribuicoes cruas ficam gravadas por item."
+   },
+   "C2_bigger_model": {
+    "claim": "um modelo maior residente na 4090 (qwen3.6:27b, qwen3:30b), politica v0, sem TTA, e mais bem calibrado em escolha multipla e mais exacto.",
+    "prediction": "acc sobe e ECE desce; latencia sobe (tecto p50 250 ms provavelmente cai — mede-se e diz-se). VRAM: um de cada vez; ollama stop do 14b antes (o shadow/Option A vivos ficam sem o 14b durante as corridas; re-aquece-se no fim com keep_alive -1).",
+    "confirmed_if": "mode letra em >= 90 % dos itens E acc >= acc_v0 E ECE < ECE_v0 em ambos os corpora de exploracao",
+    "refuted_if": "no-letter em > 10 % dos itens (nao ha decisor), OU acc < acc_v0 - 0,05 em algum corpus de exploracao",
+    "declared_before_running": "a sonda acima diz que os dois modelos pensam primeiro; a previsao honesta e REFUTADO por no-letter. Corre-se na mesma para medir, nao para esperar outra coisa.",
+    "latency_ceiling_for_step7": "p50 (4 perguntas) <= 250 ms — o tecto do mp4.gate_on_60d; acima disso o modelo nao entra na lista do passo 7 mesmo que responda com letra."
+   },
+   "C3_selective_risk": {
+    "claim": "o produto nao precisa de probabilidade certa em todos os prompts; precisa de saber QUANDO confiar. Cobrir com D so os X % mais confiantes (por p_max, a MESMA confianca do gate) e mandar o resto para a regra pode dar acc alta e ECE baixa nos cobertos sem aprender nada.",
+    "metric": "para cada ficheiro D (14b v0, 14b TTA, 27b, 30b) e corpus: ordenar por p_max desc; para cobertura X em {50,60,70,80,90,100} %: n_cobertos = round(X*n), acc nos cobertos, ECE (10 bins) nos cobertos, acc da REGRA nos nao cobertos (A-*.json por item), acc de T2-sempre nos nao cobertos, acc combinada (D nos cobertos + regra no resto). Empates em p_max: ordem estavel por id. Itens no-letter (p_max null) vao para o fim (nunca cobertos).",
+    "alt_gate_for_60d": "PRE-REGISTADO AQUI, AVALIADO LA: existe cobertura X >= 60 % tal que acc_cobertos >= 0,75 E ECE_cobertos <= 0,10. E um SEGUNDO caminho declarado; NAO substitui o gate global do mp4 (acc > constante mais forte, ECE <= 0,10, p50 <= 250, egress 0). Se so o caminho selectivo passar, o veredicto e PASSA SELECTIVO e o dono decide se o shadow serve so acima do limiar de cobertura correspondente.",
+    "confirmed_if": "em AMBOS os corpora de exploracao existe X >= 60 % com acc_cobertos >= 0,75 e ECE_cobertos <= 0,10 (para o 14b v0 ou para o 14b TTA)",
+    "refuted_if": "em nenhum dos dois existe tal X para nenhum dos dois ficheiros do 14b"
+   },
+   "d_C1_plus_C3": {
+    "claim": "a aposta principal: TTA + selectivo. Reporta-se a curva selectiva sobre o ficheiro TTA; a linha 14b TTA + selectivo@70 % entra na tabela final.",
+    "coverage_reported_in_final_table": 0.7
+   }
+  },
+  "harness": {
+   "script": "02-arm-D-logit.mjs com a flag nova --tta-letters 4 (rotacao ciclica r=0..3: letra k -> tier (k+r) mod 4). Sem a flag o comportamento e byte-identico ao actual nos campos de decisao (tier, p_max, probs, mode, mass_on_letters) — testa-se com 1 item do 60c contra o ficheiro D do 14b ja existente antes de qualquer corrida. Com TTA, o ficheiro de saida chama-se D-<modelo>-tta4-<corpus>.",
+   "no_letter_rule": "se o token top-1 dos top_logprobs (o que o modelo geraria a temperatura 0) nao for uma das letras da pergunta, a resposta e mode:no-letter, value:null, p_max:null; a massa nas letras (se houver) fica gravada. Nao ha fallback por amostragem para esse caso. Verificado antes de escrever a regra: nos 1152 answers do 14b ja gravados (gold, valset, 40, 60b, 60c) a massa minima nas letras e 0,556 > 0,5 — o top-1 e sempre uma letra, logo a regra nunca dispara no 14b e a byte-identidade fica intacta.",
+   "runs": [
+    "14b TTA nos 3 corpora reais (3 corridas) + gold-84 + valset-70 (2 corridas, SO para ajustar a isotonica da variante TTA+isotonica nos canonicos — ver step7)",
+    "qwen3.6:27b v0 nos 3 corpora (3 corridas); qwen3:30b v0 nos 3 corpora (3 corridas). Uma corrida cada. Regista VRAM (ollama ps), p50, timeouts, taxa de no-letter."
+   ],
+   "egress": "net-tap do P1 no cliente (NODE_OPTIONS --require, caminho Windows) em todas as corridas; esperado: so 127.0.0.1:11434."
+  },
+  "step7_candidate_rule": {
+   "purpose": "fixar AGORA como o candidato (b) do mp4 passa a ser escolhido (AMENDMENT mp4-1), antes de ver um numero de TTA/27b/30b.",
+   "candidates": [
+    "iso: v0 + isotonica por classe",
+    "tta: TTA (media das 4 rotacoes), sem calibracao",
+    "tta_iso: TTA + isotonica por classe ajustada nas saidas TTA",
+    "27b: qwen3.6:27b v0, SO se mode letra >= 90 % E p50 <= 250 ms (senao fora da lista)"
+   ],
+   "fairness": "a isotonica (b) do mp4 foi ajustada nos 251, que INCLUEM o 40 e o 57 — no 40+57 ela e in-sample e nao e comparavel com TTA (sem parametros). Por isso, PARA A ORDENACAO em 40+57, as duas variantes isotonicas (iso e tta_iso) usam um ajuste SO nos 154 canonicos (gold-84 + valset-70), out-of-sample para os tres corpora reais. Script novo (13-calibrate-154.mjs) que importa pav/fit/applyIso de 05b-calibrate.mjs sem o alterar; pesos em results/calibration-weights-154-{v0,tta}.json. Os pesos do mp4 (251) NAO se tocam e continuam a ser os que se reportam no 60c como (b) pre-registado.",
+   "ranking": "por candidato: ECE no 40 e ECE no 57, separados; score = media simples das duas ECE (peso igual por corpus, nunca pooled). Elegivel so se acc >= acc_v0 - 0,05 nos dois (iso nao muda decisoes; tta pode). Vencedor = menor score entre os elegiveis; empate (|diferenca| < 0,005) -> o de menos pecas (iso < tta < tta_iso < 27b).",
+   "reported_on_60c_only": "o vencedor e todos os outros imprimem-se no 60c (ECE, acc) — validacao, nao escolha. Se o vencedor no 40+57 for pior que (b)-251 no 60c, diz-se e o vencedor fica na mesma (a regra e a regra).",
+   "consequence_for_shadow": "se o vencedor exigir TTA ou outro modelo, o shadow (arbiter.js) NAO o faz hoje: as previsoes do evento sao v0 a 1 pergunta. A emenda mp4-1 tem de dizer que, nesse caso, o 60d so conta eventos DEPOIS de o shadow passar a produzir o candidato (since_utc = hora do deploy dessa mudanca, que e outro MP em tools/router/); eventos anteriores servem so para (a) v0 e para o gate selectivo, que nao dependem disso. So iso se aplica post-hoc a eventos v0; tta_iso precisa das 4 rotacoes em tempo real."
+  },
+  "bug_c": {
+   "authorized_by_owner": "sim — a linha de colar diz aplica Bug C",
+   "change": "tools/router/ollama_call_node.js: MARGEM_MS 1500 -> 300 (1 linha, medida em results/BUG-C-PROPOSTA.md)",
+   "proof": "ollama_call_node.test.js (importa MARGEM_MS; nada crava 1500) + suite tools/router",
+   "not_touched": "shadow (timeout 800, modelo), num_predict, classify.js"
+  },
+  "stop_rule": "uma corrida por (modelo, corpus, variante); nada se repete. Se uma corrida falhar por infra (Ollama caido, timeout de rede), repete-se UMA vez e diz-se. Nunca se ajusta nada olhando para o 60c. Nunca se baixa o n do 60d.",
+  "does_not_prove": [
+   "que a TTA transfere para o shadow (que hoje faz 1 pergunta) — so quando o arbiter.js a fizer",
+   "que 27b/30b nao servem com outro harness (prefixo que force a letra) — nao foi corrido",
+   "independencia entre itens do mesmo autor/dia",
+   "que o gate selectivo passa no 60d — e pre-registado aqui, avaliado la"
+  ]
+ }
 }
