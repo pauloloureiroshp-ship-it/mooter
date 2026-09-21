@@ -416,7 +416,8 @@
    "b_v0_calibrated": "**CANDIDATO QUE CONTA.** tier = tier_D (a DECISAO NAO MUDA — acuracia identica a v0 por construcao); confianca = iso_c(p_c) com c = tier_D e p_c = probs_D[c], onde iso_c e a calibracao isotonica da classe c (ver `calibration`). So a confianca muda; o gate de ECE e sobre ela.",
    "c_v0_guard_calibrated": "reporta-se, nao conta: tier = (tier_D == T0 e (aux_D.p_needs_repo >= 0,5 ou aux_D.p_high_stakes >= 0,5)) ? T2 : tier_D; confianca = iso_tier(probs_D[tier]) (quando o guard dispara, iso_T2(p_T2)). Limiar 0,5 fixado no MP3.",
    "b_prime_diagnostic": "NAO e candidato: argmax das 4 probabilidades calibradas e renormalizadas (pode mudar a decisao). Reporta-se so para dizer se a calibracao mudaria decisoes; nao entra em gate nenhum.",
-   "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3)."
+   "honesty": "nenhum candidato, limiar, bin ou metodo muda depois de existir um evento do 60d. Qualquer alteracao e AMENDMENT datada ANTES de rotular. O 60d nao se repete «ate passar» (A22 do round 3).",
+   "_see_amendment": "mp4-1 (2026-09-21): (b) passa a TTA sem calibracao; ver _amendments"
   },
   "calibration": {
    "method": "isotonica por classe, one-vs-rest (Zadrozny & Elkan 2002): para cada classe c em {T0,T1,T2,T3}, PAV (pool-adjacent-violators) sobre os pares (p_c(i), 1[y_i = c]) ordenados por p_c; nos = fronteiras dos blocos (x_min, x_max, media do bloco); aplicacao: p dentro de um bloco -> media do bloco; entre blocos -> interpolacao linear entre a media do bloco anterior e a do seguinte; abaixo do 1.o no ou acima do ultimo -> clamp. Implementado em node puro, 05b-calibrate.mjs.",
@@ -457,6 +458,65 @@
    "Que a calibracao generaliza: e ajustada em 251 itens de 4 fontes, 154 deles rotulos canonicos, nao humanos cegos.",
    "Egress do daemon Ollama (o tap cobre o cliente Node).",
    "Independencia entre sessoes do mesmo autor/projecto/dia (A8 do round 3)."
+  ],
+  "_amendments": [
+   {
+    "id": "mp4-1",
+    "at": "2026-09-21T14:04:11.952Z",
+    "before": "ANTES de rotular o 60d e antes de o 60d ter n suficiente (eventos decisor_shadow vivos: 2; n_target 60)",
+    "rule_applied": "protocol.json#mp6.step7_candidate_rule (pre-registada em defb9c26, antes de correr TTA/27b/30b): candidatos {iso, tta, tta_iso, 27b}, elegivel se acc >= v0 - 5 pp em 40 e 57, score = media das ECE de 40 e 57, vencedor = menor score; empate < 0,005 -> menos pecas.",
+    "result_40_57": {
+     "iso": {
+      "ece40": 0.31140563482661743,
+      "ece57": 0.3199774016550174,
+      "score": 0.3156915182408174,
+      "acc40": 0.6,
+      "acc57": 0.6140350877192983,
+      "eligible": true,
+      "excluded": null
+     },
+     "tta": {
+      "ece40": 0.18656414268133747,
+      "ece57": 0.19565951078649027,
+      "score": 0.19111182673391386,
+      "acc40": 0.55,
+      "acc57": 0.631578947368421,
+      "eligible": true,
+      "excluded": null
+     },
+     "tta_iso": {
+      "ece40": 0.1678660861282149,
+      "ece57": 0.23925810003022158,
+      "score": 0.20356209307921824,
+      "acc40": 0.55,
+      "acc57": 0.631578947368421,
+      "eligible": true,
+      "excluded": null
+     },
+     "27b": {
+      "ece40": null,
+      "ece57": null,
+      "score": null,
+      "acc40": 0,
+      "acc57": 0,
+      "eligible": false,
+      "excluded": "fora da lista: letra em 0 % / 0 % (< 90 %)"
+     }
+    },
+    "v0_reference_score_40_57": 0.11684425664664591,
+    "winner": "tta",
+    "reported_on_60c_only": {
+     "winner_ece": 0.2210037393760874,
+     "winner_acc": 0.7027027027027027,
+     "v0_ece": 0.146,
+     "v0_acc": 0.622,
+     "b_251_ece": 0.126
+    },
+    "change": "candidates_fixed_now.b_v0_calibrated (o candidato que conta) passa a ser: tier = argmax da MEDIA das 4 rotacoes ciclicas de (T0,T1,T2,T3) sobre (A,B,C,D) na pergunta do tier (TTA, 02-arm-D-logit.mjs --tta-letters 4), confianca = p_max dessa media, SEM calibracao. A decisao PODE mudar face a v0 (a TTA nao e so confianca). Os pesos dos 251 (calibration-weights.json) deixam de ser o candidato que conta; continuam a reportar-se como «(b)-251» (validacao 60c: 0,126).",
+    "consequence_for_60d": "A TTA precisa das 4 rotacoes EM TEMPO REAL; o shadow (arbiter.js#shadowDecisor) hoje faz 1 pergunta (v0) e as previsoes do evento sao v0. Logo: (1) o candidato (b) SO pode ser avaliado em eventos gravados DEPOIS de o shadow passar a produzir a TTA — since_utc_b = %cI do commit que a poe no shadow (outro MP, em tools/router/, com a sua propria entrada de allowlist); ate la, o (b) no 60d e n/d, e NAO se recorre o braco D sobre o texto recuperado para o fabricar (regra corpus_60d.source). (2) Os eventos v0 ja gravados continuam a servir para (a) v0, (c) v0-guard, o gate selectivo (mp6.C3 + mp6-1: X fixo 70 %) e a disponibilidade. (3) Nada mais do mp4 muda: n_target 60, 1/sessao, 3 rotuladores cegos, gates (acc > constante, ECE <= 0,10, p50 <= 250, egress 0), stop rule.",
+    "honest_prediction_before_60d": "O vencedor da regra e PIOR que (a) v0 na exploracao (ECE media 0,191 vs 0,117) e no 60c (0,221 vs 0,146). Dito agora: o gate de ECE do mp4 com (b) = tta vai provavelmente CHUMBAR. Nenhum dos 4 candidatos do step7 bate o v0 sem calibracao; a isotonica ajustada em canonicos piora nos reais (0,110 -> 0,311 no 40), e a (b)-251 so parecia servir por ser in-sample no 40 e no 57.",
+    "owner_decision_pending": "Retirar a calibracao do mp4 (fazer (b) = (a), i.e. avaliar o v0 cru como candidato que conta) NAO esta na regra do step7 e nao se decide aqui. Se o dono o quiser, e a emenda mp4-2, datada ANTES de rotular o 60d. Alternativa com pre-registo proprio: outra ideia de calibracao (mais rotulos humanos reais para ajustar; Platt/temperatura por classe com 1-2 parametros; outro modelo que responda com letra)."
+   }
   ]
  },
  "mp6": {
