@@ -576,3 +576,261 @@ nenhum por coorte; nada avança para a F2 sem um confirmatório novo, com corpus
 sessão e o candidato fixado à cabeça — e a F6 não está justificada por estes números.
 
 VEREDICTO: ENTRE → MAIS RÓTULOS (GATE REGISTADO FALHOU NA ECE; SUPERIORIDADE NÃO CONFIRMADA SOB DEPENDÊNCIA DE SESSÃO; NADA AVANÇA PARA F2; F6 NÃO JUSTIFICADA)
+
+---
+
+# MP3 — Confirmatório limpo do v0 + F2-shadow
+
+## A0 — Pré-registo MP3
+
+- **2026-09-21T10:30Z (07:30 BRT)** · CC: arranque do MP3. Lido o MP3, `arbiter.js` (385 linhas),
+  `inject_context.js` §907 (arbiter Haiku), `types.d.ts`, `ollama-host.js`, o `kimi-adapter.js` do bridge.
+  Verificado que o hook **vivo** está wired em `~/.claude/tools/router/inject_context.js` (`settings.json:115`),
+  não no repo — mexer no canónico em `tools/router/` não altera a sessão actual até um `/mooter-update`.
+- **Sondas antes de registar (não são corridas):** `MOONSHOT_API_KEY` presente; `kimi-k3` responde
+  (`200`, 4,1 s, `json_object` OK; **a API só aceita `temperature=1`** — declarado). `GEMINI/GOOGLE_API_KEY`
+  ausentes. → **R3 = Kimi k3** (Moonshot, família diferente de Codex e Sonnet), ordem de substituição
+  Opus → Haiku registada.
+- **2026-09-21T10:36:44Z (07:36 BRT)** · **Commit de pré-registo MP3: `32e65ac68a18f7caa5dc7f83949e04908a1be8d1`**
+  (`chore(decisor-shadow): pré-registo MP3 — confirmatório v0 (60c, 1/sessão) + F2-shadow`). Bloco `mp3`
+  escrito por script (timestamp = `new Date()`, não à mão — a mordida do MP2 A28): candidato primário
+  **v0 argmax** fixo; v0+T com **T=1,55 herdado**; v0-guard com limiar **0,5**; gate só no 60c; janela
+  `08-01→09-09`, **1/sessão estrito, n = o que der**; exclusão por sha dos 63 do P1 + 40 + 57 do 60b;
+  3 rotuladores cegos, maioria, empate a 3 → Codex; escopo exacto da Frente B; `amendments[]` + regra
+  formal. Nota: o `JSON.stringify(…, 2)` re-indentou as listas do bloco `mp2` (12 linhas, só formato,
+  zero conteúdo). `.gitignore` alargado aos brutos do 60c.
+
+## A1 — Corpus 60c (virgem, 1 por sessão ESTRITO)
+
+- **2026-09-21T10:37:18Z (07:37 BRT)** · `corpus-60b.mjs --block mp3` (o sampler ganhou `--block`; o
+  caminho `mp2` continua a reproduzir os 57 — verificado a seco antes). Janela `2026-08-01T00:00Z →
+  09-09T23:59:59Z`; exclusão por sha de **97** hashes conhecidos (63 P1 + 40 cru + 57 do 60b — os do
+  60b e do P1 partilham 40 shas).
+  - **Pool** (linhas `user` com texto na janela): **1 324** · **elegíveis 410** em **37 sessões** ·
+    excluídos: `tool_result` 18 134 · `<task-notification>` 254 · < 20 chars 209 · scratchpads `Temp`
+    172 · > 500 chars 136 · **sha no P1/60b: 74** · `isMeta` 47 · tags de comando 22 · sem texto 1.
+  - **1/sessão estrito → n = 37.** Não se sobe o tecto (foi o que o A3 do round 2 atacou). 37 sessões
+    únicas, 37 itens; 20 dias distintos (08-01 a 09-09), chars min 24 · p50 166 · max 500; 10 projectos
+    (sha8): `61ded45c` 99 · `91b70f25` 85 · `7146253a` 78 · `1d519314` 70 · `f4ca075a` 39 · `a8937b1a` 21 ·
+    `189c6960` 10 · `7fbc50b0` 6 · 2×1. **7 dos 37 são despachados** (`[job · S1 · …]`; 6 são as sessões
+    `controlled-eval-cc-*` de 09-06, uma por prompt) — elegíveis pelas regras registadas; marcados;
+    sensibilidade sem eles reporta-se.
+  - Anonimização: **0 fugas** (regex sobre os 37). `results/corpus-60c.json` gitignorado (linha 19).
+- **2026-09-21T10:37:41Z** · **AMENDMENT mp3-1, commit `3ce8d61b376ec7ebe6d3b555275b4b3b9b252257`**
+  («corpus 60c tem n=37, não 60»), com entrada em `protocol.json#mp3.amendments[]` (`outcome_known:false`),
+  **antes de pedir rótulos e antes de qualquer predição**. É a regra formal que o adversário pediu.
+
+## A2 — Rótulos cegos, TRÊS rotuladores, maioria
+
+- Guarda de cegueira nos scripts: abortam se existir `D-/A-/policy-*60c*`. Nenhum existia.
+- **R1 Codex** · 10:38:40Z → 10:39:24Z · codex-cli 0.153.4, `read-only`, cwd isolado, `--ephemeral`,
+  `--output-schema`, rubrica sha **verificada**, 3 lotes (13/13/11), 13,8–14,6 s cada → **37/37**.
+  Distribuição T0 12 · T1 5 · T2 8 · T3 12.
+- **R2 Sonnet** · 10:38:28Z → ~10:40Z · subagente `model-reasoner`, só rubrica + 37 prompts → **37/37**.
+  T0 9 · T1 6 · T2 9 · T3 13.
+- **R3 Kimi k3** · 10:39:24Z → 10:43:39Z · `api.moonshot.ai/v1`, `json_object`, 3 lotes, 49–139 s cada
+  (lento, mas 3/3 OK, modelo devolvido `kimi-k3`) → **37/37**. T0 11 · T1 8 · T2 7 · T3 11.
+  Limite: `temperature` fixa a 1 pela API — a corrida do Kimi não é reprodutível bit a bit.
+- **Maioria (`results/labels-60c.json`, 3 votos por item): T0 10 · T1 6 · T2 9 · T3 12.**
+  **Unânimes 27/37 = 73 %** · empate a 3 → Codex: **1** item.
+  **κ de Fleiss = 0,743** · Cohen: Codex×Sonnet **0,705** (bruto 0,784) · Codex×Kimi **0,707** (0,784) ·
+  Sonnet×Kimi **0,818** (0,865). Bem acima dos 0,59 do MP2 — com 3 rotuladores e prompts mais longos
+  (p50 166 chars vs 50), o rótulo fica menos artificial. Os 7 despachados: T1 2 · T2 3 · T3 2.
+- **Régua constante nos 37: «T2 sempre» = 9/37 = 0,243 (a referência pré-registada); «T3 sempre» =
+  12/37 = 0,324 é a constante mais forte** e reporta-se também, como pré-registado — bater só o T2
+  neste corpus é bater a constante **mais fraca**.
+
+## A3 — Correr nos 60c (uma corrida cada)
+
+- **2026-09-21T10:45:06Z (07:45 BRT)** · `A-60b.mjs --corpus results/corpus-60c.json --out results/A-60c.json`
+  (ganhou `--out`): sha do `classify.js` **verificado** antes; nokey; stub 503 com 0 hits; 37 itens,
+  p50 0,46 ms. Regra prevê **T0 31 · T3 4 · T2 2** → acc **0,324** (12/37).
+- **2026-09-21T10:45:06Z → 10:45:15Z** · `02-arm-D-logit.mjs --model qwen2.5-coder:14b --corpus
+  results/corpus-60c.json --labels results/labels-60c.json` com net-tap → **uma corrida**, modelo quente,
+  `logprobs_used: true`, 37 prompts em 9 s. **Egress:** tap carregado, 2 ligações, só `127.0.0.1:11434`,
+  0 externos, 374 413 B out / 170 047 B in.
+  - **D v0 nos 37: acc 0,622 (23/37), IC95 [0,46–0,76], ECE 0,146, p50 161,9 ms (45,8 só tier), abstém 3.**
+- **2026-09-21T10:45:50Z** · `05-policy-v1.mjs --apply` (só para o T=1,55; o v1 que também sai **não é
+  candidato** e fica fora do `policy-60c.json`) + `07-guard.mjs` (script novo, 22 linhas) →
+  `results/policy-60c.json` (gitignorado). **v0-guard disparou 0× em 37**: sempre que o D diz T0,
+  `p_needs_repo` e `p_high_stakes` ficam abaixo de 0,5 — o guard é idêntico ao v0 neste corpus.
+  **v0+T: ECE 0,187 — pior que o v0 (0,146).** A temperatura ajustada no treino canónico amacia probabilidades
+  que aqui já estavam sub-confiantes nos bins baixos.
+
+## A4 — Análise (`08-analyse-mp3.mjs` → `results/08-analysis-mp3.md`)
+
+- **2026-09-21T10:46:43Z** · só 60c, 37 itens = 37 sessões (pares independentes por construção).
+
+| Braço | acc37 [IC95] | ECE | p50 | vs «T2 sempre» | vs «T3 sempre» | vs regra |
+|---|---|---|---|---|---|---|
+| regra (nokey) | 0,324 (12/37) [0,20–0,49] | n/d | 0,46 ms | 12/9, p=0,33 | 10/10, p=0,59 | — |
+| «T2 sempre» (referência) | 0,243 (9/37) | — | — | — | 9/12, p=0,81 | 9/12, p=0,81 |
+| «T3 sempre» (mais forte) | 0,324 (12/37) | — | — | 12/9, p=0,33 | — | 10/10, p=0,59 |
+| **D v0 (primário)** | **0,622** (23/37) [0,46–0,76] | **0,146** | **162** | **18/4, p=0,0022** | **17/6, p=0,017** | **11/0, p=0,0005** |
+| D v0+T (T=1,55) | 0,622 | 0,187 | 162 | idem | idem | idem |
+| D v0-guard (0,5) | 0,622 | 0,146 | 162 | idem (0 disparos) | idem | idem |
+
+- **Sensibilidade só-unânimes (n=27, o tecto do rótulo): v0 = 0,815 (22/27), vs T2 17/0 p<0,0001, vs T3
+  16/4 p=0,006** — onde os 3 rotuladores concordam, o decisor acerta 4 em 5. ECE 0,194 (n pequeno).
+- **Sensibilidade sem despachados (n=30): v0 = 0,567, vs T2 15/4 p=0,010, vs T3 12/5 p=0,072** — os 7
+  despachados são os itens **mais fáceis** (D acerta 6/7); sem eles o v0 deixa de separar da constante
+  mais forte ao nível 0,05.
+- **Confusão do v0 nos 37:** T1→T0 **4** (de 6), T3→T0/T1 **3**, T2→T0/T1 **4**, T3→T2 3. Continua a
+  errar **para baixo** (11 dos 14 erros). Previsões T0 17 · T2 8 · T3 6 · T1 6 vs rótulo T0 10 · T2 9 · T3 12 · T1 6.
+- **Calibração (a razão do chumbo):** bin 0,9: n=12, acc 0,75, conf 0,96 (**sobre-confiante nos T0**);
+  bins 0,3–0,5: sub-confiante. ECE 0,146 — o terceiro corpus seguido acima de 0,10 (0,110 · 0,124 · 0,146).
+  O decisor **sabe** o tier melhor do que qualquer régua local medida; **não sabe** quanto sabe.
+
+### Gates do pré-registo (v0, só 60c)
+
+| Gate | Alvo | Valor | |
+|---|---|---|---|
+| acc > «T2 sempre», McNemar | p < 0,05 | 0,622 vs 0,243 · 18/4 · **p=0,0022** | ✅ |
+| ECE 10 bins, n=37 | ≤ 0,10 | **0,146** | ❌ |
+| p50 quente | ≤ 250 ms | **162 ms** | ✅ |
+| egress cliente D | 0 externos | **0** (2 ligações loopback) | ✅ |
+
+**Leitura da Frente A.** Pela primeira vez o resultado é **confirmatório** no sentido estrito: candidato
+fixado à cabeça, corpus virgem, 1 prompt/sessão, 3 rotuladores, e o v0 bate a constante **mais forte**
+(p=0,017), não só a registada. O que falha é o mesmo de sempre — **calibração** (0,146). O gate é uma
+conjunção: **não há gate verde.** «ENTRE → shadow acumula» é a leitura honesta; a Frente B existe para
+acumular o 60d sem ninguém rotear por isto.
+
+## Frente B — F2-shadow (primeira mudança de código em `tools/router/`)
+
+- **2026-09-21T10:47:25Z (07:47 BRT)** · **Suite `tools/router` ANTES de tocar em nada:** `npm test` →
+  **1 328 testes · 1 324 pass · 3 fail · 1 skipped** (6,1 s). As 3 falhas são pré-existentes e de ambiente
+  (`vault receipts are immutable…`, `device lookup is read-only…`, `tuned_demote still works…`); ficam
+  registadas nome a nome para comparar no fim.
+- **B0 · o que mudou (commit `0017f8f06e47712529f130c836b896c7023ad35e`, `feat(router): decisor sombra
+  ollama-logit — regista, não roteia (F2-shadow)`):**
+  - `tools/router/arbiter.js` (+282): `ollamaLogit(prompt)` — porta directa do `02-arm-D-logit.mjs`
+    (mesma rubrica verbatim, mesmas 4 perguntas, `top_logprobs` via `/v1/chat/completions`, host de
+    `ollama-host.js`, modelo `MOOTER_DECISOR_MODEL || qwen2.5-coder:14b`); a chamada HTTP corre num
+    processo filho com `spawnSync` (o hook é síncrono — é o mesmo padrão do `callHaikuSync`).
+    `shadowDecisor(prompt, decision)`: só com `MOOTER_DECISOR_SHADOW=1`, nunca com `MOOTER_ARBITER_DISABLE=1`;
+    **não lê `decision` para decidir nada nem lhe escreve**; escreve `decisor_shadow` no `decisions.log` com
+    `prompt_sha12` + preview ≤ 80 chars (sem texto), `tier_regra/confidence/task_category`,
+    `tier_D/probs_D/p_max_D/abstained_D/ms_D/aux_D`, `agree_regra`, `outcome`. Devolve o evento; nunca lança.
+  - `tools/router/inject_context.js` (**+1 linha**, `git diff --stat` = `1 insertion`): `try { if (env) require('./arbiter.js').shadowDecisor(prompt, decision, {session_id}) } catch {}`
+    logo antes da secção «v0.8 HAIKU ARBITER» — apanha todos os prompts, como o MP3 pede. Consequência
+    declarada: `tier_arbiter_haiku` é `null` no hook (o Haiku corre depois); o `09-shadow-report.mjs` junta ao
+    evento `classified` da mesma sessão (mesmo `prompt_len`, ts ≤ 10 s) para ter o tier final.
+  - `tools/router/types.d.ts` (+53): `DecisorShadowResult`, `DecisorShadowEvent`, `ShadowOptions` — tudo opcional
+    face ao resto. `npx tsc --noEmit`: **0 erros novos** em `arbiter.js`/`types.d.ts` (o `inject_context.js`
+    tem dezenas de erros pré-existentes, nenhum na linha nova).
+  - `tools/router/arbiter-shadow.test.js` (novo, **7 testes, 7/7**): (1) sem env → null, 0 eventos, decision
+    intacta; (2) env + mock de logprobs → evento com o schema e **decision byte-idêntica** (JSON antes = depois);
+    (3) HIGH_RISK: shadow diz T0, rota fica T3; (4) `_mockTimeout` → `outcome:'timeout'`, `tier_D:null`, rota
+    intacta; (5) `MOOTER_ARBITER_DISABLE=1` ganha; (6) sem logprobs → `parse_failed`, prompt vazio → null;
+    (7) o **hook real** por stdin em HOME isolado, sem env → 0 eventos, e sha do `classify.js` = `427d8c0b…`.
+    **Nota:** o teste **não** está na lista explícita do `npm test` (o `package.json` enumera ficheiros e não
+    está no allowlist deste MP) — corre com `node --test tools/router/arbiter-shadow.test.js`.
+  - **`classify.js` intocado** (sha verificado antes do commit). Nada mais em `tools/router/`.
+- **Suite DEPOIS:** `npm test` → **1 328 · 1 324 pass · 3 fail · 1 skipped — as mesmas 3, nome a nome.** ✅
+- **Dois defeitos meus apanhados a medir, não a ler** (ambos corrigidos antes do commit):
+  1. `node -e` põe o 1.º argumento em `process.argv[1]`, não `[2]` — o filho lia `undefined`; e2e dava
+     `outcome:'failed'`. (Achado colateral, **não mexido**: o `callHaikuSync` existente lê `argv[2]`/`[3]` com o
+     mesmo padrão — fica como pergunta para o dono, o log real tem 169 `arbiter_call ok`, n/d se vêm de
+     mocks de testes.)
+  2. **O Ollama 0.34.2 aborta o carregamento do modelo quando o cliente desliga** («client connection closed
+     before llama-server finished loading, aborting load»). Um shadow com tecto curto num modelo frio
+     **nunca o aquecia**: cada prompt repetia o timeout (medido: 10/10). Corrigido com um aquecimento
+     **desligado** do hook em timeout (`warmDecisorDetached`, mesmo padrão do `ollama-warmup.js`): medido a
+     frio, 1.º prompt 862 ms `timeout` → 2.º 387 ms ok → 248/246/254 ms, `keep_alive` 29 min.
+- **Latência do hook, mediana com e sem shadow (10 prompts cada, `results/shadow-latency-hook.json`):** três
+  medições, e só a terceira conta — as duas primeiras foram **artefacto do harness**, declarado:
+  - a 400 ms (pré-registo), HOME isolado **sem** `hw-capability.json`: o hook caía para `qwen3:30b` (22 GiB
+    previstos), o Ollama despejava o 14b, **7/10 timeouts**. Foi isto que motivou a **AMENDMENT mp3-2 (400→800,
+    commit `542438ab`)** — e a razão estava parcialmente errada: **erratum** em `amendments[1].erratum`
+    (commit `bce9cf9d`).
+  - a 800 ms, harness fiel (`hw-capability.json` + `subscription-profile.json` + `ollama-warmup.js` copiados),
+    modelo quente no arranque, aquecimento em timeout: **OFF p50 1 178 ms** (T0 ~1,18 s por causa do Option A;
+    T2 ~130 ms) · **ON p50 1 416 ms** · **Δ por prompt com o 14b residente: 232 · 236 · 249 · 251 ms → ~240 ms**;
+    `ms_D` p50 **245 ms** (240–249, um de 414). 4 dos 10 saíram `timeout` porque o 14b tinha sido **despejado
+    durante a corrida OFF** e o aquecimento levou ~3 s a repor.
+- **Achado colateral sério, fora do allowlist (não mexido):** durante as corridas OFF (sem shadow) o
+  `server.log` do Ollama mostra pedidos, com abort ao fim de ~1 s, de **todos** os modelos instalados —
+  `qwen3:30b` (22,4 GiB previstos → «evicting»), `qwen3.6:27b`, `qwen3.6:35b-a3b`, `gemma4:e4b`, `deepseek-r1:7b`,
+  `qwen2.5-coder:7b` — o que despeja o 14b e dá `option_a_miss` (o log real desta máquina tem **266 miss / 22
+  hit**). O `hw-capability.json` da runtime diz `hw_tier: apple-silicon`, `vram_mb: 16220`,
+  `available_ollama_models: []` — está **errado para este PC** (RTX 4090, 23 GB) e é a razão de o
+  `bestOllamaT0()` cair para `qwen3:30b`. **Quem faz o varrimento: n/d** (não é o shadow — o tap e o filho
+  do shadow só pedem o 14b). Isto condiciona a Frente B em produção: enquanto o hook despejar o 14b nos T0,
+  o shadow sairá `timeout` no prompt seguinte a cada despejo.
+- **B1:** `RUN-DECISOR-SHADOW-ON.bat` / `-OFF.bat` na raiz (`setx MOOTER_DECISOR_SHADOW 1` / `""`), **não
+  corridos** — `MOOTER_DECISOR_SHADOW` (User) continua vazio, verificado. Gitignorados pela regra `RUN-*.bat`.
+  `README.md` do pacote documenta o que fica no log, como desligar, e o **`09-shadow-report.mjs`** (n,
+  outcomes, concordância regra×D, distribuições, p50, join com `classified`) — testado contra o log do harness.
+- **Sem merge, sem push.** O hook vivo (`~/.claude/tools/router/inject_context.js`) **não tem** o shadow até
+  um `/mooter-update` depois de o dono fundir.
+
+## Round 3 do adversário — e a resposta em código
+
+- **2026-09-21T11:06:32Z → 11:08:15Z (08:06 BRT)** · `codex exec` (`gpt-6-astra`, `read-only`, cwd isolado, `--ephemeral`)
+  sobre o bloco `mp3` + emendas, `08-analysis-mp3.md`, metadados do 60c e dos rótulos, as medições de latência e o
+  **diff completo** da Frente B (1.ª versão, `0017f8f0`). Zero prompts reais enviados. **22 ataques, 3 críticos.**
+  Ledger em **`results/adversary-codex-round3.md`** (aceites 14 · em parte 6 · refutados 2).
+- **Veredicto dele:** «ENTRE é honesto só como gate falhado + recolha pré-definida; **o F2-shadow não está seguro
+  para merge, mesmo opt-in**: fuga de texto (preview de 80 chars), bloqueio do caminho crítico (spawnSync até 800 ms
+  dentro dos 5 s do hook), aquecimento sem controlo.» **Aceite, e respondido com código, não com prosa.**
+- **2026-09-21T11:16:51Z (08:16 BRT)** · **commit `04c78631b706597153189c7c1d02e991785d3c21`**
+  (`fix(router): F2-shadow fora do caminho crítico, sem texto, sem argv (round 3 do adversário)`):
+  - **A3 (crítico):** o hook tira um snapshot **por valor** de 4 campos da decisão e lança um **worker desligado**
+    (`node arbiter.js --shadow-worker`, `spawn` + `unref`, stdio ignorado, listeners de `error`) — devolve
+    `{detached:true}` sem esperar. **Medido em pares ON/OFF alternados (10 prompts, modelo quente, harness fiel):
+    Δ mediano do hook = +4 ms** (−22…+19; um −418 de variância do Option A), tiers idênticos 10/10, exit 0 em 20/20,
+    10/10 eventos `ok`, worker 200 ms medianos (188–763) por conta própria.
+  - **A1 (crítico):** o evento leva **só `prompt_sha12` + `prompt_len`** — sem preview (o `classified` da mesma sessão
+    já tem os 80 chars; o shadow não acrescenta texto nenhum). O teste (2) verifica que o evento serializado não contém
+    nenhuma palavra do prompt; o teste (8) idem no hook real.
+  - **A4 (crítico):** o aquecimento em timeout passa a ser feito **pelo próprio worker**, com lock de 90 s por modelo.
+  - **A2:** payload por **stdin**, nunca por argv. **A5:** host validado como loopback (`refused_non_loopback` senão)
+    e `redirect:'error'`. **A6:** `decisionSnapshot()` com validação de tipo/tamanho; a descrição «nunca lê decision» do
+    1.º commit estava errada e foi corrigida. **A15:** logprobs não finitos / massa 0 → `parse_failed`. **A19:** mock
+    corrigido; **teste (8) novo: hook real com `MOOTER_DECISOR_SHADOW=1`** → router-hint idêntico, `hook ON < OFF + 400 ms`,
+    evento chega depois, sem texto. **A17:** as medianas anteriores estavam mal calculadas (elemento central superior)
+    e condicionadas aos sucessos — corrigido em `shadow-latency-hook.json#final_detached_worker` (mediana convencional,
+    todos os 10). **A7:** apanhou um buraco real — os 23 `r01–r23` (template R-24) **não** estavam na exclusão por sha
+    (o script só lia marcadores de redacção); verificado: **0** dos 37 do 60c e 0 dos 57 do 60b coincidem com um r.
+  - Testes **8/8** · suite `tools/router` **1 328 · 1 324 · 3 pré-existentes · 1 skipped — igual** · `tsc` 0 erros
+    novos · `classify.js` `427d8c0b…` intocado · `inject_context.js` continua com **+1 linha** (o diff da Frente B em
+    `tools/router/` é `arbiter.js`, `types.d.ts`, `arbiter-shadow.test.js` e essa linha).
+- **O que o adversário não viu:** a versão corrigida. Não houve round 4 — é o dono, no reviewer gate, que decide se
+  chega. O que fica por provar em teste (declarado): concorrência real com o Option A, redirects, limites do Windows.
+
+## Fecho
+
+- **2026-09-21T11:20Z (08:20 BRT)** · Verificações:
+  - **`sha256(tools/router/classify.js)` = `427d8c0b516315c6a858b183892ec26dc0fed7b52f11000e1e6b81fd364bc48f` — FROZEN intacto.** ✅
+  - **Em `tools/router/` só mudou o permitido:** `arbiter.js`, `types.d.ts`, `inject_context.js` (**1 linha**), e o
+    teste novo `arbiter-shadow.test.js`. `package.json` **não** foi tocado (o teste novo não entra no `npm test` — precisa
+    de uma linha no allowlist do dono). Os 4 `??` pré-existentes de Julho/Agosto continuam lá, alheios.
+  - **Nenhum `git push`.** Commits por push em `main`: `1416884d` · `a01f6250` · `14c205c5` · `31072892` (MP1/MP2) ·
+    `32e65ac6` (pré-registo MP3) · `3ce8d61b` (AMENDMENT mp3-1) · `542438ab` (AMENDMENT mp3-2) · `bce9cf9d` (erratum) ·
+    `0017f8f0` (Frente B) · `04c78631` (round 3) · + o de fecho. ✅
+  - Brutos fora do git, confirmado um a um: `corpus-60c.json`, `labels-60c*.json`, `labels-60c-transcript/`, `A-60c.json`,
+    `policy-60c.json`, `nettap-D-60c.jsonl`, `D-*.json`. Os `.bat` de ON/OFF são locais (`RUN-*.bat` ignorado) e **não
+    foram corridos** — `MOOTER_DECISOR_SHADOW` (User) está vazio.
+- **Stop rule:** uma corrida por (braço × corpus) — A × 60c, D/14b × 60c; políticas aplicadas sem corridas; rótulos 1×
+  por rotulador. Nenhuma re-corrida.
+- **Emendas, todas commitadas antes do que condicionavam:** mp3-1 (n=37, antes de rotular); mp3-2 (tecto 800 ms, antes de
+  medir com ele) + erratum (a razão inicial era artefacto do harness). O 60d **só pode nascer com pré-registo próprio**
+  (n, candidato, população, regra de paragem, papel confirmatório) antes de alguém olhar para os eventos (round 3, A22).
+- **Achados colaterais para o dono (fora do allowlist, não mexidos):** (1) o `hw-capability.json` da runtime diz
+  `apple-silicon` / `vram_mb 16220` / `available_ollama_models: []` — errado para esta RTX 4090 — e é por isso que
+  `bestOllamaT0()` cai para `qwen3:30b`; (2) durante as corridas OFF o `server.log` do Ollama mostra pedidos e aborts de
+  **todos** os modelos instalados a cada ~1 s (n/d quem — não é o shadow), despejando o 14b; o log real tem
+  **266 `option_a_miss` / 22 hit**; (3) `callHaikuSync` lê `process.argv[2]/[3]` e `node -e` põe o 1.º argumento em
+  `argv[1]` — n/d se o arbiter Haiku alguma vez respondeu por esse caminho em produção.
+- **O que esta ronda diz, em três linhas:**
+  1. **Frente A, confirmatório limpo:** o v0 fixado à cabeça acerta **0,622 em 37 prompts virgens, 1 por sessão, rótulo por
+     maioria de 3 (κ Fleiss 0,74)**, bate «T2 sempre» (p=0,002), a regra (p=0,0005) **e a constante mais forte, «T3 sempre»
+     (p=0,017)**; nos 27 unânimes acerta 0,815. **Chumba a ECE (0,146) pela terceira vez.** Gate = conjunção → não há verde.
+  2. **Frente B:** o decisor existe agora no router **como sombra** — opt-in, fora do caminho crítico (+4 ms), sem texto
+     no log, sem tocar na rota, testado no hook real — para acumular o 60d. O adversário recusou a 1.ª versão por três
+     razões reais; a 2.ª responde-lhes em código e ninguém a atacou ainda.
+  3. Continua a errar **para baixo** (14/14 erros; recall T3 6/12) e a saber **menos do que diz saber** (bin 0,9: acc 0,75).
+     Não roteia nada até um 60d pré-registado com n ≥ 60, e mesmo aí só com calibração ≤ 0,10.
+
+VEREDICTO: ENTRE → SHADOW ACUMULA; RE-TESTAR COM 60D (GATE 60C: 3 DE 4 — ECE 0,146 CHUMBA; V0 BATE T2, T3 E A REGRA EM 37 PROMPTS VIRGENS; F2-SHADOW COMMITADO OPT-IN, CORRIGIDO APÓS ROUND 3, SEM MERGE, SEM PUSH; NADA ROTEIA)

@@ -2,18 +2,20 @@
 // label-60b.mjs — MP2 passo 3: rotulos CEGOS do corpus 60b pelo Codex CLI (motor diferente do braco D),
 // com a rubrica do P1 (sha f95958dd...), lotes <= 13, JSON forcado, cwd isolado sem o repo.
 // Corre ANTES de qualquer predicao sobre os 60b. Saida: results/labels-60b.json (NAO commitar).
-//   node label-60b.mjs [--sandbox read-only|danger-full-access]
+//   node label-60b.mjs [--sandbox read-only|danger-full-access] [--corpus 60b|60c] [--out <ficheiro>]
+// MP3: --corpus 60c le results/corpus-60c.json, transcricao em results/labels-60c-transcript/, saida --out (default results/labels-60c-codex.json)
 import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os'; import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { HERE, P1, opt } from './lib-common.mjs';
-const RES = path.join(HERE, 'results'); const TX = path.join(RES, 'labels-60b-transcript'); fs.mkdirSync(TX, { recursive: true });
+const RES = path.join(HERE, 'results'); const CORPUS = opt('--corpus', '60b'); const TX = path.join(RES, `labels-${CORPUS}-transcript`); fs.mkdirSync(TX, { recursive: true });
+const OUT = opt('--out', CORPUS === '60b' ? path.join(RES, 'labels-60b.json') : path.join(RES, `labels-${CORPUS}-codex.json`));
 const rubricPath = path.join(P1, 'label-rubric.txt'); const rubric = fs.readFileSync(rubricPath, 'utf8');
 const rubricSha = crypto.createHash('sha256').update(rubric).digest('hex');
 const EXPECTED_SHA = 'f95958dd6e4b40a7caa1bc4b9d7659f90a3c92a9ec7127ddb6469f88fd5c7091';
 if (rubricSha !== EXPECTED_SHA) { console.error(`rubrica com sha inesperado: ${rubricSha}`); process.exit(2); }
-const corpus = JSON.parse(fs.readFileSync(path.join(RES, 'corpus-60b.json'), 'utf8'));
+const corpus = JSON.parse(fs.readFileSync(path.join(RES, `corpus-${CORPUS}.json`), 'utf8'));
 // guarda: nenhuma predicao sobre os 60b pode existir antes dos rotulos
-for (const f of fs.readdirSync(RES)) if (/60b/.test(f) && /^(D-|A-|policy-)/.test(f)) { console.error(`ABORTA: ja existe predicao sobre os 60b (${f}) — os rotulos deixariam de ser cegos`); process.exit(3); }
+for (const f of fs.readdirSync(RES)) if (f.includes(CORPUS) && /^(D-|A-|policy-)/.test(f)) { console.error(`ABORTA: ja existe predicao sobre os ${CORPUS} (${f}) — os rotulos deixariam de ser cegos`); process.exit(3); }
 const SANDBOX = opt('--sandbox', 'read-only');
 const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'labels-60b-')); // cwd isolado, vazio, sem o repo
 const schemaPath = path.join(TX, 'schema.json');
@@ -45,6 +47,6 @@ for (const [bi, batch] of batches.entries()) {
 }
 const dist = {}; for (const l of labels) dist[l.tier] = (dist[l.tier] || 0) + 1;
 const missing = corpus.items.map((i) => i.id).filter((id) => !labels.some((l) => l.id === id));
-const out = { _schema: 'decisor-shadow/labels-60b', _labeler: `Codex CLI ${(spawnSync('codex', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' }).stdout || '').trim()} (codex exec, sandbox ${SANDBOX}, cwd isolado ${path.basename(cwd)} sem acesso ao repo, --ephemeral, ${batches.length} lotes de <= 13, --output-schema JSON forcado)`, _rubric: path.relative(HERE, rubricPath), _rubric_sha256: rubricSha, _corpus_sampled_at: corpus._sampled_at, _blind: 'rotulado ANTES de qualquer predicao sobre os 60b por qualquer braco (guarda no proprio script: aborta se existir D-/A-/policy- *60b*)', _labeled_at: new Date().toISOString(), _started_at: startedAt, _distribution: dist, _missing: missing, _batches: log, labels };
-fs.writeFileSync(path.join(RES, 'labels-60b.json'), JSON.stringify(out, null, 1));
+const out = { _schema: `decisor-shadow/labels-${CORPUS}`, _corpus: `corpus-${CORPUS}.json`, _labeler: `Codex CLI ${(spawnSync('codex', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' }).stdout || '').trim()} (codex exec, sandbox ${SANDBOX}, cwd isolado ${path.basename(cwd)} sem acesso ao repo, --ephemeral, ${batches.length} lotes de <= 13, --output-schema JSON forcado)`, _rubric: path.relative(HERE, rubricPath), _rubric_sha256: rubricSha, _corpus_sampled_at: corpus._sampled_at, _blind: `rotulado ANTES de qualquer predicao sobre os ${CORPUS} por qualquer braco (guarda no proprio script: aborta se existir D-/A-/policy- *${CORPUS}*)`, _labeled_at: new Date().toISOString(), _started_at: startedAt, _distribution: dist, _missing: missing, _batches: log, labels };
+fs.writeFileSync(OUT, JSON.stringify(out, null, 1));
 console.log(JSON.stringify({ labeled: labels.length, of: corpus.items.length, distribution: dist, missing, batches: log.map((b) => [b.batch, b.labeled + '/' + b.n, b.exit, b.ms + 'ms']) }, null, 1));

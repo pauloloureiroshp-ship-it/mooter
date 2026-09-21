@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // A-60b.mjs — MP2 passo 4: a REGRA (classify.js FROZEN, so lida) no corpus 60b, ambiente nokey (= A-nokey do P1).
+// MP3: --corpus results/corpus-60c.json --out results/A-60c.json
 import fs from 'node:fs'; import path from 'node:path'; import http from 'node:http'; import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { HERE, ROOT, opt } from './lib-common.mjs';
@@ -18,6 +19,6 @@ for (let i = 0; i < 5; i++) classify('aquecimento do processo');
 const rows = corpus.items.map((it) => { const t0 = process.hrtime.bigint(); const d = classify(it.prompt); return { id: it.id, run: 1, tier: d.tier, task_category: d.task_category, risk_level: d.risk_level, confidence: d.confidence, escalation_rule: d.escalation_rule, ms: Number(process.hrtime.bigint() - t0) / 1e6 }; });
 stub.close();
 const out = { arm: 'A', env: 'nokey', runs: 1, at: new Date().toISOString(), classify_sha256: sha, node: process.version, ollama_stub_hits: hits, n_items: rows.length, rows };
-fs.writeFileSync(path.join(HERE, 'results', 'A-60b.json'), JSON.stringify(out, null, 1));
+fs.writeFileSync(opt('--out', path.join(HERE, 'results', 'A-60b.json')), JSON.stringify(out, null, 1));
 const dist = rows.reduce((a, r) => ((a[r.tier] = (a[r.tier] || 0) + 1), a), {}); const lat = rows.map((r) => r.ms).sort((a, b) => a - b);
-console.log(JSON.stringify({ arm: 'A-60b', env: 'nokey', n: rows.length, pred_dist: dist, p50_ms: lat[Math.floor(lat.length / 2)], stub_hits: hits, sha_ok: true }));
+console.log(JSON.stringify({ arm: 'A-' + path.basename(opt('--out', 'A-60b.json'), '.json').replace(/^A-/, ''), env: 'nokey', n: rows.length, pred_dist: dist, p50_ms: lat[Math.floor(lat.length / 2)], stub_hits: hits, sha_ok: true }));
