@@ -555,13 +555,18 @@ let _hwCapability = undefined;
 
 // ── Best Ollama T0 model (v1.0) ───────────────────────────────────────────────
 // Dynamic T0 model selection based on what's actually installed in Ollama.
+// 2026-09-21 (MP4-a, bug A): `available_ollama_models` nunca era escrito e o fallback era `qwen3:30b`
+// (18 GB) — o Option A pedia-o, o Ollama despejava o 14b, o pedido abortava ao fim de 1 s: 266 miss / 22 hit.
+// Agora: 1.o o `recommended_t0` que o gpu-probe calculou (cabe E esta instalado); 2.o a lista de preferencia
+// SO entre os instalados; sem lista, `option_a_model` ou o modelo pequeno — nunca um de 18 GB as cegas.
 function bestOllamaT0() {
-  const preferred = ['qwen3:30b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5:3b'];
+  const preferred = ['qwen2.5-coder:14b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5:3b'];
   try {
-    const models = (_hwCapability && _hwCapability.available_ollama_models) || [];
-    const names = models.map(/** @param {any} m */ (m) => (m.name || m).toLowerCase());
-    return preferred.find(p => names.includes(p.toLowerCase())) || 'qwen3:30b';
-  } catch { return 'qwen3:30b'; }
+    const hw = _hwCapability || {};
+    const names = (hw.available_ollama_models || []).map(/** @param {any} m */ (m) => String(m.name || m).toLowerCase());
+    if (hw.recommended_t0 && (names.length === 0 || names.includes(String(hw.recommended_t0).toLowerCase()))) return String(hw.recommended_t0);
+    return preferred.find(p => names.includes(p.toLowerCase())) || hw.option_a_model || 'qwen2.5:3b';
+  } catch { return 'qwen2.5:3b'; }
 }
 
 // ── Hub push (v0.9.8) — fire-and-forget event submission ────────────────────

@@ -209,11 +209,29 @@ function classifyHwTier(probe) {
 }
 
 /**
+ * Modelos instalados no Ollama, SEM carregar nenhum (`ollama list` = GET /api/tags).
+ * Ate 2026-09-21 ninguem escrevia `available_ollama_models`, e o `bestOllamaT0()` do hook
+ * caia para `qwen3:30b` (18 GB): o Option A pedia-o, o Ollama despejava o 14b, o pedido
+ * abortava ao fim de 1 s — 266 `option_a_miss` / 22 hit no log desta maquina.
+ * @returns {string[]}
+ */
+function listInstalledOllamaModels() {
+  try {
+    const r = spawnSync('ollama', ['list'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+    if (r.status !== 0 || !r.stdout) return [];
+    return r.stdout.split('\n').slice(1).map((l) => l.trim().split(/\s+/)[0]).filter(Boolean);
+  } catch { return []; }
+}
+
+/**
  * @param {GpuProbe | null | undefined} probe
+ * @param {{ persist?: boolean, installed?: string[] }} [opts]  persist:false = nao escreve o ficheiro (testes)
  * @returns {Object | null}
  */
-function buildHwCapability(probe) {
+function buildHwCapability(probe, opts = {}) {
   if (!probe || (probe.vendor === 'cpu')) return null;
+  const persist = opts.persist !== false;
+  const installed = Array.isArray(opts.installed) ? opts.installed : (persist ? listInstalledOllamaModels() : []);
 
   const vram = probe.vramMB || 0;
   const hwTier = classifyHwTier(probe);
@@ -234,7 +252,8 @@ function buildHwCapability(probe) {
   // para o `qwen2.5-coder:14b` contra 0% dos Granite no prompt actual do pilar).
   const PREFER_ORDER = ['qwen2.5-coder:14b', 'gpt-oss:20b', 'granite4.2:8b', 'gemma4:12b', 'granite4.2:3b', 'qwen3:30b', 'qwen2.5:32b-q4', 'qwen2.5-coder:14b-q4', 'gemma4:e4b', 'gemma3:12b', 'deepseek-r1:7b', 'qwen2.5-coder:7b', 'qwen2.5:3b'];
   const runnable = t0Models.filter(m => m.can_run);
-  const recommended = PREFER_ORDER.find(m => runnable.some(r => r.model === m)) || 'qwen2.5:3b';
+  // Com a lista real, o recomendado tem de estar INSTALADO alem de caber; sem lista, como antes.
+  const recommended = PREFER_ORDER.find(m => runnable.some(r => r.model === m) && (installed.length === 0 || installed.includes(m))) || 'qwen2.5:3b';
 
   const capability = {
     probed_at: new Date().toISOString(),
@@ -245,16 +264,22 @@ function buildHwCapability(probe) {
     t0_models_available: t0Models,
     recommended_t0: recommended,
     option_a_model: 'qwen2.5:3b', // Option A always uses fast model — qwen3 think mode is too slow
+    available_ollama_models: installed,
   };
 
-  try {
-    fs.writeFileSync(HW_CAPABILITY_PATH, JSON.stringify(capability, null, 2) + '\n');
-  } catch { /* non-fatal — hw-capability is a cache */ }
+  // Ate 2026-09-21 isto escrevia SEMPRE — e o gpu-probe.test.js, ao chamar buildHwCapability(apple(16220)),
+  // deixava o ficheiro vivo desta RTX 4090 a dizer «Apple M4 Pro» (mtime = hora do teste). O hook so
+  // re-sonda quando o ficheiro nao existe, por isso a mentira ficava. Testes passam persist:false.
+  if (persist) {
+    try {
+      fs.writeFileSync(HW_CAPABILITY_PATH, JSON.stringify(capability, null, 2) + '\n');
+    } catch { /* non-fatal — hw-capability is a cache */ }
+  }
 
   return capability;
 }
 
-module.exports = { probeSync, fetchUtilSync, buildHwCapability, classifyHwTier, MODEL_VRAM_REQ };
+module.exports = { probeSync, fetchUtilSync, buildHwCapability, classifyHwTier, listInstalledOllamaModels, MODEL_VRAM_REQ };
 
 if (require.main === module) {
   const probe = probeSync();
