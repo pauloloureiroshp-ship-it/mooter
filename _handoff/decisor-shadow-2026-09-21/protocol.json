@@ -744,5 +744,68 @@
     "effect_on_verdicts": "nenhum: C1/C2/C3/(d) continuam REFUTADAS e o vencedor do step7 continua tta (a curva do 14b a 70 % e identica; 57 e 60c mudam em 1 item a 60 % e 90 %)."
    }
   ]
+ },
+ "mp7": {
+  "_schema": "decisor-shadow/protocol-v1/mp7",
+  "_status": "PRE-REGISTO MP7 (exploratorio) — congelado em commit ANTES de correr o /api/chat nativo em qualquer corpus e ANTES de calcular a concordancia das rotacoes TTA",
+  "_registered_at": "2026-09-21T14:25:30.415Z",
+  "_registered_at_source": "new Date().toISOString() no script que escreveu este bloco; a hora que conta e o %cI do commit que o introduz",
+  "_starting_point": "mp4-2/mp4-3 escritas no commit anterior. MP6: C1/C2/C3 refutadas; 27b/30b no /v1 = no-letter 100 %. Eventos decisor_shadow vivos: 3. Nada aqui toca no 60d.",
+  "rule": {
+   "exploration": "40 e 57, separados",
+   "validation": "60c so reportado",
+   "zero_adjustment": "nada e ajustado em nenhum corpus; (ii) nao corre modelo — le os ficheiros TTA ja em disco (D-qwen2.5-coder_14b-tta4-corpus-{40-unredacted,60b,60c}.json.json, gravados 2026-09-21T13:44Z)"
+  },
+  "_probe_before_registration": {
+   "what": "UMA chamada por modelo (fria + quente) ao /api/chat NATIVO com think:false, logprobs:true, top_logprobs:10, options {temperature:0, num_predict:1}, prompt SINTETICO (fix the typo in the README title), a pergunta do tier — nao e corrida de corpus.",
+   "qwen3.6:27b": {
+    "first_token": "A",
+    "p": 0.753,
+    "top": "A 0,753 · B 0,233 · C 0,010 · D 0,004",
+    "thinking_field": "vazio",
+    "cold_ms": 10030,
+    "warm_ms": 99,
+    "vram_gb": 16
+   },
+   "qwen3:30b": {
+    "first_token": "We",
+    "p": 0.979,
+    "top": "We · Okay · Hmm · Alright",
+    "thinking_field": "vazio",
+    "cold_ms": 5291,
+    "warm_ms": 24,
+    "vram_gb": 18,
+    "note": "think:false esvazia o campo thinking mas o modelo continua a raciocinar em prosa no content — sem letra"
+   },
+   "ollama_version": "0.34.2",
+   "native_logprobs": "sim — o /api/chat devolve `logprobs: [{token, logprob, top_logprobs:[...]}]` ao nivel de topo da resposta",
+   "consequence_declared_now": "Previsao: 27b responde com letra (>= 90 %) e o 30b nao (no-letter -> n/d, sem fallback, como no MP6). O 27b a ~100 ms por pergunta da ~400 ms nas 4 — acima do tecto de 250 ms do mp4-3; mede-se e diz-se; se ficar acima, o 27b nao e candidato a modelo do shadow mesmo que acerte mais."
+  },
+  "part_i_native_chat": {
+   "harness": "02-arm-D-logit.mjs com a flag nova --native-chat: POST /api/chat {model, stream:false, think:false, logprobs:true, top_logprobs:10, options:{temperature:0, num_predict:1}, messages} — as MESMAS mensagens (system com a rubrica, user com PROMPT + QUESTION); le j.logprobs[0] em vez de choices[0].logprobs.content[0]; regra no-letter igual (top-1 gerado nao e letra -> null). Sem a flag, o caminho /v1 nao muda (byte-identico). Ficheiro de saida D-<modelo>-native-<corpus>.",
+   "runs": "qwen3.6:27b e qwen3:30b, politica v0, 3 corpora, UMA corrida cada (6). 14b parado antes, re-aquecido keep_alive -1 depois. net-tap no cliente.",
+   "hypothesis": "C2-nativo: um modelo maior, quando responde com letra, e mais exacto e mais bem calibrado que o 14b v0.",
+   "confirmed_if": "letra >= 90 % dos itens em cada corpus de exploracao E acc >= acc_v0 E ECE < ECE_v0 em ambos (40: 0,600/0,110; 57: 0,614/0,124)",
+   "refuted_if": "no-letter > 10 % em algum corpus de exploracao, OU acc < acc_v0 - 0,05 em algum",
+   "otherwise": "ENTRE",
+   "latency": "p50 das 4 perguntas por corpus; tecto 250 ms (mp4-3). Reporta-se mesmo que passe o resto.",
+   "no_letter_items": "contam como errados na acc e ficam fora da ECE (como no MP6); reporta-se acc sobre os respondidos."
+  },
+  "part_ii_tta_agreement": {
+   "definition": "por item TTA (4 rotacoes r=0..3): voto_r = argmax da distribuicao da rotacao r (em espaco de tier); tier_final = argmax da media (o que o ficheiro ja tem); votos = #{r : voto_r == tier_final}; nivel = votos/4 in {1/4, 2/4, 3/4, 4/4}. p_agree = votos/4 e a confianca candidata.",
+   "metrics": "por corpus: n e acc por nivel (4/4, 3/4, 2/4, 1/4 se existir); ECE (10 bins) com p = p_agree; comparacao com ECE_v0 (0,110/0,124/0,146) e ECE_tta (0,187/0,196/0,221); acc media por nivel vs p_agree (calibracao bruta em 4 pontos); tambem a acc do v0 (rotacao 0) nos mesmos niveis.",
+   "hypothesis": "a concordancia entre rotacoes e um sinal de confianca melhor que p_max: a acc cresce com o nivel, e p_agree e mais bem calibrada que p_max da media.",
+   "confirmed_if": "acc(4/4) > acc(3/4) > acc(2/4) em AMBOS os corpora de exploracao (niveis com n >= 5; niveis com n < 5 nao contam para a monotonia) E ECE(p_agree) < ECE_tta em ambos",
+   "refuted_if": "a monotonia falha em ambos, OU ECE(p_agree) >= ECE_tta em ambos",
+   "otherwise": "ENTRE",
+   "not_a_gate": "nada disto entra no mp4; se confirmar, e uma ideia de confianca para um pre-registo proprio (e exige TTA no shadow: 4 chamadas).",
+   "script": "14-tta-agreement.mjs — le so os ficheiros TTA em disco; nao corre modelo; nao escreve texto."
+  },
+  "stop_rule": "uma corrida por (modelo, corpus); infra falhada repete-se UMA vez e diz-se; nada se ajusta olhando para o 60c; nada toca no 60d.",
+  "does_not_prove": [
+   "que o 27b nativo serve como shadow (latencia acima do tecto e outro endpoint que o arbiter.js nao usa)",
+   "que a concordancia transfere para o shadow (1 pergunta hoje)",
+   "independencia entre itens do mesmo autor/dia"
+  ]
  }
 }
