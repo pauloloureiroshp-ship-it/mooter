@@ -1,4 +1,4 @@
-# decisor-shadow — análise MP6 · calibração sem aprender · 2026-09-21T13:53:17.087Z
+# decisor-shadow — análise MP6 · calibração sem aprender · 2026-09-21T14:01:09.219Z
 
 Pré-registo: `protocol.json#mp6` (`_registered_at` 2026-09-21T13:41:18.540Z; conta o %cI do commit `defb9c26`). Regra: exploração em **40 e 57** (separados), validação **só reportada** no 60c, zero ajuste nos três. Referência = D v0 no 14b (ficheiros já existentes, não re-corridos). Sonda antes do pré-registo: os dois qwen3 pensam antes da letra e `think:false` é ignorado no `/v1` (Ollama 0.34.2) — previsão declarada: C2 refutada por no-letter.
 
@@ -15,7 +15,7 @@ Pré-registo: `protocol.json#mp6` (`_registered_at` 2026-09-21T13:41:18.540Z; co
 
 ## Veredictos por hipótese (regra pré-registada, decidida em 40 e 57)
 
-- **C1 · TTA por permutação de letras: REFUTADA.** ECE 40 0.110 → 0.187; ECE 57 0.124 → 0.196 (sobe nos dois). Acc 40 0.600 → 0.550 (dentro dos 5 pp, exactamente na fronteira); acc 57 0.614 → 0.632. No 60c (só reportado): acc 0.622 → 0.703, ECE 0.146 → 0.221. A média das 4 rotações não corrige onde a sobre-confiança está: os bins do meio (0,5–0,7) continuam a acertar 29–63 % com confiança 0,55–0,76 (bins abaixo), e o bin 0,9 já estava bem calibrado no v0 (82–91 %). O viés de letra não é a fonte do erro de calibração.
+- **C1 · TTA por permutação de letras: REFUTADA.** ECE 40 0.110 → 0.187; ECE 57 0.124 → 0.196 (sobe nos dois). Acc 40 0.600 → 0.550 (dentro dos 5 pp, exactamente na fronteira); acc 57 0.614 → 0.632. No 60c (só reportado): acc 0.622 → 0.703, ECE 0.146 → 0.221. A média das 4 rotações não corrige onde a sobre-confiança está: os bins do meio (0,5–0,7) continuam a acertar 29–63 % com confiança 0,55–0,76 (bins abaixo), e o bin 0,9 já estava bem calibrado no v0 (82–91 %). Esta intervenção não corrigiu a calibração; não prova que o viés de letra não exista (4 rotações cíclicas não são as 24 permutações, e o viés pode coexistir com outros efeitos — round 6 A11).
 - **C2 · modelo maior: REFUTADA por no-letter, nos dois** — 27b v0: 40/40 · 57/57 · 37/37 itens sem letra (100 %, nas 4 perguntas; 1.º token «The»/«Here»), p50 1071/995/1036 ms; 30b v0: 40/40 · 57/57 · 37/37 itens sem letra (100 %, nas 4 perguntas; 1.º token «We»), p50 151/153/158 ms. Nenhuma previsão existe, logo acc = 0 por construção e ECE n/d. O 27b, mesmo que respondesse, está acima do tecto (p50 ≈ 1 000 ms nas 4 perguntas; 250–270 ms só no tier); o 30b (MoE a3b) seria rápido (p50 ≈ 150 ms). Não se correu variante que force a letra (pré-registado: seria outro harness).
 - **C3 · risco selectivo: REFUTADA.** Em nenhum dos dois corpora de exploração existe cobertura ≥ 60 % com acc ≥ 0,75 e ECE ≤ 0,10, nem para o v0 nem para a TTA. A confiança do 14b separa pouco: no 57, os 50 % mais confiantes do v0 acertam 0.655 (todos: 0.614); no 40, 0.700 (todos: 0.600). A ECE nos cobertos é MAIOR que a global (os mais confiantes são os sobre-confiantes). O gate alternativo fica pré-registado para o 60d na mesma — avalia-se lá, e a previsão honesta é que chumba.
 - **(d) C1+C3:** REFUTADA (C1 e C3 refutadas separadamente).
@@ -27,7 +27,7 @@ Pré-registo: `protocol.json#mp6` (`_registered_at` 2026-09-21T13:41:18.540Z; co
 | `iso` — v0 + isotónica por classe (ajuste nos 154 canónicos, out-of-sample no 40/57) | 0.311 | 0.320 | 0.316 | 0.600 / 0.614 | sim | 0.266 · 0.622 |
 | `tta` — TTA (média das 4 rotações), sem calibração | 0.187 | 0.196 | 0.191 | 0.550 / 0.632 | sim (acc na fronteira dos 5 pp) | 0.221 · 0.703 |
 | `tta_iso` — TTA + isotónica por classe (ajuste nas saídas TTA dos 154 canónicos) | 0.168 | 0.239 | 0.204 | 0.550 / 0.632 | sim (acc na fronteira dos 5 pp) | 0.267 · 0.703 |
-| `27b` — qwen3.6:27b v0 | n/d | n/d | n/d | 0.000 / 0.000 | fora da lista: letra em 0 % (< 90 %) | n/d · 0.000 |
+| `27b` — qwen3.6:27b v0 | n/d | n/d | n/d | 0.000 / 0.000 | fora da lista: letra em 0 % / 0 % (< 90 %) | n/d · 0.000 |
 | *(a) v0 sem calibração — referência, não é candidato do step7* | 0.110 | 0.124 | 0.117 | 0.600 / 0.614 | — | 0.146 · 0.622 |
 | *(b)-251 do mp4 (isotónica ajustada nos 251, que incluem o 40 e o 57) — IN-SAMPLE, não comparável* | 0.161 | 0.097 | — | idem v0 | — | 0.126 · 0.622 |
 

@@ -575,6 +575,21 @@
    "que 27b/30b nao servem com outro harness (prefixo que force a letra) — nao foi corrido",
    "independencia entre itens do mesmo autor/dia",
    "que o gate selectivo passa no 60d — e pre-registado aqui, avaliado la"
+  ],
+  "_amendments": [
+   {
+    "id": "mp6-1",
+    "at": "2026-09-21T14:03:11.887Z",
+    "trigger": "round 6 do adversario (codex), ataques A3/A4/A5/A6 — ANTES de o 60d ter n suficiente (eventos decisor_shadow vivos neste momento: 2)",
+    "changes": [
+     "A3: so previsoes VALIDAS (p_max != null) sao cobriveis; itens no-letter vao SEMPRE para a regra (o slice anterior cobria-os quando faltavam validos; nos 14b nao mudou nada — 0 no-letter; nos 27b/30b a curva passa a 0 cobertos e tudo na regra).",
+     "A4: n_cobertos = ceil(X*n) em vez de round(X*n), e o gate verifica a cobertura EFECTIVA n_cob/n >= 0,60 (com round, X=0,6 em n=57 dava 34/57 = 59,6 %).",
+     "A5: o gate alternativo para o 60d e avaliado num X FIXO = 70 % (o da linha (d) da tabela final), nao «existe X na grelha»; a grelha 50..100 % reporta-se inteira, informativa. Empates no corte: ordem estavel por id. Latencia (p50 <= 250) e egress (0) continuam obrigatorios no caminho selectivo. O veredicto C3 da exploracao mantem a regra existencial pre-registada (nao se troca o criterio depois de ver os numeros); o ponto fixo reporta-se ao lado.",
+     "A6 (declaracao, nao mudanca): o pre-registo do MP6 foi escrito JA conhecendo v0 e (b)-251 no 60c (0,146 / 0,126 — e foi isso que motivou o MP). A alegacao correcta e «sem ajuste numerico nem seleccao pelo 60c neste procedimento», nao «60c intocado pela concepcao».",
+     "A1 (correccao de justificacao, nao de regra): harness.no_letter_rule dizia «massa minima nas letras 0,556 > 0,5 logo o top-1 e sempre letra» — insuficiente (0,15x4 + «The» 0,40 e contra-exemplo). Criterio suficiente correcto: max(prob_letra) > 1 - massa. Verificado nos 1152 answers historicos do 14b: 1152/1152. A regra nao muda; a identidade sem flag NAO e prometida para inputs onde o modelo nao gera letra (e essa a intencao)."
+    ],
+    "effect_on_verdicts": "nenhum: C1/C2/C3/(d) continuam REFUTADAS e o vencedor do step7 continua tta (a curva do 14b a 70 % e identica; 57 e 60c mudam em 1 item a 60 % e 90 %)."
+   }
   ]
  }
 }

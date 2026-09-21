@@ -1,5 +1,5 @@
 {
- "at": "2026-09-21T13:53:17.087Z",
+ "at": "2026-09-21T14:01:09.219Z",
  "stats": {
   "14b v0": {
    "40": {
@@ -541,7 +541,7 @@
     "ece60c": null,
     "acc60c": 0,
     "pieces": 4,
-    "excluded": "fora da lista: letra em 0 % (< 90 %)",
+    "excluded": "fora da lista: letra em 0 % / 0 % (< 90 %)",
     "eligible": false,
     "score": null,
     "acc_edge": false

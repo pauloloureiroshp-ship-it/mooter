@@ -41,7 +41,10 @@ async function ask(prompt, q) {
   const call = async (temperature, want) => {
     const r = await fetch(`${HOST}/v1/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model: MODEL, temperature, max_tokens: 1, logprobs: want, top_logprobs: want ? 10 : undefined, messages }) });
-    return r.json();
+    const j = await r.json();
+    // round 6 A2: um erro HTTP / JSON de erro NAO pode cair em silencio no fallback por amostragem — falha alto.
+    if (!r.ok || j.error) throw new Error(`ollama ${r.status}: ${JSON.stringify(j.error || j).slice(0, 200)}`);
+    return j;
   };
   let probs = {}, mode = 'logprobs', first_token = null;
   const j = await call(0, true);
@@ -75,7 +78,10 @@ async function askTierTTA(prompt) {
   if (noLetter) return { mode: 'no-letter', mass_on_letters: Math.min(...rotations.map((a) => a.mass_on_letters)), probs: null, value: null, p_max: null, ms, tta: { rotations, mean: null, no_letter_rotations: noLetter } };
   const mean = Object.fromEntries(TIERS.map((t) => [t, rotations.reduce((s, a) => s + (a.probs[t] || 0), 0) / rotations.length]));
   const best = TIERS.reduce((a, b) => (mean[a] >= mean[b] ? a : b));
-  return { mode: 'logprobs-tta4', mass_on_letters: Math.min(...rotations.map((a) => a.mass_on_letters)), probs: mean, value: best, p_max: mean[best], ms, tta: { rotations, mean, no_letter_rotations: 0 } };
+  // round 6 A2: o agregado so se chama logprobs-tta4 se as 4 rotacoes vieram de logprobs; senao carrega os modos.
+  const modes = [...new Set(rotations.map((a) => a.mode))];
+  const mode = modes.length === 1 && modes[0] === 'logprobs' ? 'logprobs-tta4' : `tta4-mixed[${modes.join(',')}]`;
+  return { mode, mass_on_letters: Math.min(...rotations.map((a) => a.mass_on_letters)), probs: mean, value: best, p_max: mean[best], ms, tta: { rotations, mean, no_letter_rotations: 0 } };
 }
 // Politica v0: argmax do tier. (v1, depois de rotulos: regressao logistica sobre as 4 respostas — ver README)
 function policyV0(a) { const v = a.tier.value; return { tier: v == null ? null : String(v), p_max: a.tier.p_max, abstain: a.tier.p_max == null || a.tier.p_max < 0.4 }; }
