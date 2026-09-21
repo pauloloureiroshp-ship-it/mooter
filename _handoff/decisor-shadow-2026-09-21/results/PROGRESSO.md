@@ -975,3 +975,56 @@ Ponto de partida: `origin/main` = `eb6b1f85`, árvore limpa. Regras: `classify.j
 - **Para o dono:** (1) `RUN-DECISOR-SHADOW-ON.bat` + `/mooter-update` — sem isso o 60d nunca começa (0 eventos hoje); (2) decidir a proposta do Bug C (`results/BUG-C-PROPOSTA.md`: `MARGEM_MS` 1500 → 300, 1 linha, não aplicada); (3) daqui a 14 dias, `node _handoff/decisor-shadow-2026-09-21/10-corpus-60d.mjs --dry` diz quantas sessões elegíveis há — **se < 60, espera-se**; (4) antes do 60d, decidir a «outra ideia» para a calibração (regularizada ou mais rótulos) com pré-registo próprio, porque a isotónica deixa o 60c em 0,126.
 
 MP5 FECHADO — 7b: NÃO SERVE · T0 miss: geração contra o piso de 1 s do filho (MARGEM_MS 1500 ≈ 30× o overhead medido; proposta 300, não aplicada) · calibração no 60c: ECE 0,146→0,126 (> 0,10; dito antes do 60d) · MP4 pré-registado em 009b509c
+
+# MP6 — Calibração sem aprender: permutação de letras, modelo maior, risco selectivo — 2026-09-21T13:41Z (10:41 BRT)
+
+Ponto de partida: `origin/main` = `f3ed0209`, árvore limpa, 14b residente `Forever`. Linha de colar diz **«aplica Bug C»** → autorizado (1 linha em `tools/router/ollama_call_node.js`, aplicada no fim, secção 8). Regras: `classify.js` FROZEN; exploração em 40+57, validação só reportada no 60c, zero ajuste nos três; push só no fim.
+
+## 1 — Pré-registo `protocol.json#mp6` — 2026-09-21T13:41:18Z (10:41 BRT)
+
+- **Sonda antes do pré-registo** (não é corrida de corpus: 1 prompt sintético, a pergunta do tier, `max_tokens 1`, `top_logprobs 10`, 3 chamadas por modelo — fria, quente, quente com `think:false`): **`qwen3.6:27b` → 1.º token «The»** (0,82; «Thinking» 0,14), **`qwen3:30b` → «We»** (0,94; «Okay» 0,06); massa nas letras **0** nos dois; `think:false` no `/v1/chat/completions` do Ollama 0.34.2 **é ignorado** (saída byte-igual). Fria 14,8 s / 9,8 s; quente 159 / 55 ms; VRAM 16 / 18 GB. Foi para o pré-registo como facto anterior às corridas, com a previsão declarada: **C2 refutada por no-letter**; corre-se na mesma para medir a taxa, não para esperar outra coisa. Uma variante que force a letra (`/api/chat` + `think:false`, prefixo de thinking vazio) **não** se corre — seria outro harness que não o do shadow, e pede pré-registo próprio.
+- **Commit `defb9c26`** (%cI 2026-09-21T10:41:18-03:00): hipóteses C1/C2/C3/(d) com `confirmed_if`/`refuted_if` sobre 40 e 57; regra no-letter (top-1 do `top_logprobs` não é letra → `mode:no-letter`, `value:null`, `p_max:null`, sem fallback; verificado ANTES de a escrever: nos 1 152 answers do 14b já gravados a massa mínima nas letras é 0,556 > 0,5, logo a regra nunca dispara no 14b); média da TTA em **espaço de probabilidade**; curva selectiva sobre o mesmo `p_max` do gate; **gate alternativo para o 60d** («existe X ≥ 60 % com acc ≥ 0,75 e ECE ≤ 0,10 nos cobertos» — 2.º caminho, não substitui o global); e a **regra do candidato (b) do mp4** (step7): candidatos {iso, tta, tta_iso, 27b se letra ≥ 90 % e p50 ≤ 250}, elegível se acc ≥ v0 − 5 pp nos dois, score = média das ECE de 40 e 57 (nunca pooled), empate < 0,005 → menos peças. **Declarado o problema de justiça:** a (b)-251 do mp4 é in-sample no 40 e no 57 (os 251 incluem-nos), logo para a ordenação as variantes isotónicas usam um ajuste **só nos 154 canónicos** (gold-84 + valset-70), out-of-sample nos três reais — é o único ajuste do MP e o MP lista «TTA+isotónica» como candidata, que não existe sem ele. Os pesos do mp4 (251) não se tocam.
+
+## 2 — `--tta-letters 4` no `02-arm-D-logit.mjs` — 2026-09-21T13:43Z (10:43 BRT)
+
+- Rotação r ∈ {0..3}: letra k → `TIERS[(k+r) % 4]`, texto da pergunta regenerado por rotação («A) T1 B) T2 C) T3 D) T0» para r=1); r=0 é exactamente a pergunta do v0. As 4 distribuições cruas (por rotação: letras, massa, p por tier, ms) ficam no item em `answers.tier.tta.rotations`; `mean` = média aritmética das 4 em espaço de tier (cada uma já normalizada à massa nas letras, como o v0); `p_max = max(mean)`, `tier = argmax(mean)` (empate → primeiro, como o `reduce` do v0). As 3 perguntas auxiliares ficam a 1×. Ficheiro de saída `D-<modelo>-tta4-<corpus>`. Regra no-letter implementada como pré-registada (o `lp.token` gerado, normalizado, tem de ser letra da pergunta; senão `first_token` fica gravado). `policyV0` passa `tier:null` quando não há letra; `summarise` conta-o como errado; `ece()` já ignorava `p_max` não finito.
+- **Byte-identidade sem a flag, testada com 1 item (c01 do 60c, 14b, corpus temporário FORA do repo — o `results/tmp1-60c.json` não estava gitignorado, movido para o scratchpad antes de correr):** os 4 `answers` idênticos nos campos de decisão (`mode`, `mass_on_letters`, `probs`, `value`, `p_max`) ao ficheiro D do 14b já existente; `tier T0`, `p_max 0.9284688601585797` iguais; mesmo conjunto de chaves em `answers.tier`. Net-tap: só `127.0.0.1:11434`. Ficheiro temporário apagado.
+
+## 3 — Corridas — 2026-09-21T13:44Z → 13:48Z (10:44–10:48 BRT)
+
+- **14b TTA** (5 corridas, `at` 13:44:01Z → 13:45:02Z; net-tap em todas, só `127.0.0.1:11434`; 0 no-letter): 40 → acc **0,550** (22/40), ECE **0,187**, p50 274 ms (tier 4× 153); 60b → **0,632** (36/57), ECE **0,196**, p50 239 (133); 60c → **0,703** (26/37), ECE **0,221**, p50 249 (143); gold-84 → 0,714, ECE 0,150; valset-70 → 0,743, ECE 0,062 (os dois canónicos só para o ajuste da `tta_iso`).
+- **qwen3.6:27b v0** (3 corridas, 13:46–13:48Z, VRAM 16 GB, 14b parado antes): **no-letter em 100 % dos itens e das 4 perguntas** (40/40 · 57/57 · 37/37; massa máxima nas letras 0,0001; 1.º token «The» 445× / «Here» 91×); p50 1 071 / 995 / 1 036 ms nas 4 perguntas (só o tier: 269 / 251 / 260) — **acima do tecto de 250 ms mesmo que respondesse**.
+- **qwen3:30b v0** (3 corridas, 13:48Z, VRAM 18 GB): **no-letter em 100 %** (1.º token «We» 535× / «Okay» 1×; massa 0,0000); p50 151 / 153 / 158 ms (MoE a3b — seria rápido).
+- 14b **re-aquecido** no fim (`keep_alive -1`, load 4,9 s) e confirmado `Forever` no `ollama ps` — o shadow e o Option A vivos ficaram sem o 14b durante ~4 min (13:45–13:49Z); eventos `decisor_shadow` desse intervalo, se os houver, terão `outcome` timeout/failed e **não entram na acurácia do 60d** (regra `eligibility` do mp4) — contam em `_events_not_ok`.
+- Logs `results/log-D-{14b-tta4,27b,30b}-*.txt` + `*.stdout.json`, taps `results/nettap-D-*.jsonl`, brutos `results/D-*.json` — todos untracked/gitignorados como os anteriores.
+
+## 4 — `11-selective.mjs` (C3) — 2026-09-21T13:50Z (10:50 BRT)
+
+Tabela completa em `results/11-selective.md` (X ∈ {50..100} %, 4 ficheiros × 3 corpora, regra por item de `A-nokey.json` run 1 / `A-60b.json` / `A-60c.json`). Extracto (14b v0 · 14b TTA):
+
+| corpus | ficheiro | X=50 % acc_cob / ECE_cob | X=60 % | X=70 % | X=80 % | X=90 % | 100 % | gate alt. (X ≥ 60, acc ≥ 0,75, ECE ≤ 0,10) |
+|---|---|---|---|---|---|---|---|---|
+| 40 | 14b v0 | 0,700 / 0,170 | 0,625 / 0,200 | 0,643 / 0,140 | 0,625 / 0,133 | 0,639 / 0,130 | 0,600 / 0,110 | **não existe** |
+| 40 | 14b TTA | 0,600 / 0,259 | 0,625 / 0,196 | 0,536 / 0,247 | 0,563 / 0,186 | 0,556 / 0,173 | 0,550 / 0,187 | não existe |
+| 57 | 14b v0 | 0,655 / 0,199 | 0,706 / 0,182 | 0,675 / 0,156 | 0,652 / 0,140 | 0,608 / 0,151 | 0,614 / 0,124 | **não existe** |
+| 57 | 14b TTA | 0,690 / 0,161 | 0,706 / 0,145 | 0,675 / 0,164 | 0,630 / 0,190 | 0,627 / 0,185 | 0,632 / 0,196 | não existe |
+| 60c (val.) | 14b v0 | 0,737 / 0,231 | 0,682 / 0,188 | 0,731 / 0,222 | 0,700 / 0,200 | 0,667 / 0,174 | 0,622 / 0,146 | não existe |
+| 60c (val.) | 14b TTA | 0,737 / 0,225 | 0,682 / 0,190 | 0,692 / 0,174 | 0,667 / 0,158 | 0,697 / 0,198 | 0,703 / 0,221 | não existe |
+
+- **C3 REFUTADA** (regra pré-registada, 40 e 57, v0 e TTA). A confiança do 14b separa pouco: os 50 % mais confiantes acertam 0,655–0,737 contra 0,60–0,62 de todos, e a **ECE nos cobertos é maior que a global** — os mais confiantes são os sobre-confiantes. Nos não cobertos a regra acerta 0–38 % (o que o `classify.js` sem chave já fazia nestes corpora); «T2 sempre» 0–100 %. A acc combinada (D nos cobertos + regra no resto) fica **sempre abaixo** do D a 100 % (40: 0,525 vs 0,600 a X=70 %) — cortar cobertura não paga, com esta regra por baixo. 27b/30b: curva n/d (p_max null em tudo).
+
+## 5 — `13-calibrate-154.mjs` + `12-analyse-mp6.mjs` → `results/12-analysis-mp6.md` — 2026-09-21T13:53Z (10:53 BRT)
+
+- **Isotónica nos 154 canónicos** (importa `fit/candidates/applyIso` do `05b-calibrate.mjs` sem o alterar; recusa sobrescrever pesos como o 05b; pesos em `results/calibration-weights-154-{v0,tta}.json`, commitáveis — só nós, sem texto): in-sample 0,104 → 0,025 (v0), 0,102 → 0,024 (tta). **Out-of-sample nos reais, piora muito:** v0 ECE 40 **0,110 → 0,311**, 57 **0,124 → 0,320**, 60c 0,146 → 0,266; tta 0,187 → 0,168 (40), 0,196 → 0,239 (57), 0,221 → 0,267 (60c). Causa visível nos números: o 14b acerta 0,71–0,74 nos canónicos e 0,60–0,62 nos reais — a curva «p alto ⇒ certo» aprendida lá transfere como sobre-confiança cá. **Corolário para o mp4:** a (b)-251 só parecia servir por ser in-sample no 40 e no 57 (0,161 / 0,097 — e o 0,161 do 40 é **pior** que o v0, 0,110); no 60c dá 0,126, que já se sabia > 0,10.
+- **Tabela final** (`results/12-analysis-mp6.md`):
+
+| linha | acc 40 | acc 57 | **acc 60c** | ECE 40 | ECE 57 | **ECE 60c** | p50 ms | veredicto |
+|---|---|---|---|---|---|---|---|---|
+| 14b v0 | 0,600 | 0,614 | 0,622 | 0,110 | 0,124 | 0,146 | 165 / 140 / 162 | referência |
+| 14b TTA | 0,550 | 0,632 | 0,703 | 0,187 | 0,196 | 0,221 | 274 / 239 / 249 (7 chamadas) | **C1 REFUTADA** |
+| 27b v0 | 0 (40 no-letter) | 0 (57) | 0 (37) | n/d | n/d | n/d | 1 071 / 995 / 1 036 | **C2 REFUTADA** (no-letter 100 %) |
+| 30b v0 | 0 (40 no-letter) | 0 (57) | 0 (37) | n/d | n/d | n/d | 151 / 153 / 158 | **C2 REFUTADA** (no-letter 100 %) |
+| 14b TTA + selectivo@70 % | 0,536 cob. · 0,450 comb. | 0,675 · 0,544 | 0,692 · 0,486 | 0,247 cob. | 0,164 | 0,174 | como TTA | **(d) REFUTADA** |
+
+- **C1 REFUTADA** pela regra (ECE sobe nos dois: 0,110 → 0,187; 0,124 → 0,196; acc 40 cai exactamente para a fronteira dos 5 pp, 0,550; acc 57 sobe 0,614 → 0,632). No 60c, só reportado: acc **0,622 → 0,703** e ECE 0,146 → 0,221 — a TTA acerta mais no 60c e no 57, mas o que o MP mede é calibração, e a média das rotações não corrige onde a sobre-confiança está (bins 0,5–0,7 continuam a acertar 29–63 % com confiança 0,55–0,76; o bin 0,9 já estava bem, 82–91 %). O viés de letra não é a fonte do erro de calibração. Latência: 274 ms no 40 (acima do tecto), 239/249 no 57/60c.
+- **Ordenação do step7** (regra pré-registada): `iso` score 0,316 (elegível) · **`tta` 0,191 (elegível, acc na fronteira)** · `tta_iso` 0,204 (elegível) · `27b` fora (letra em 0 %). **Vencedor: `tta`.** Dito antes do 60d: **nenhum candidato bate o v0 sem calibração** (score 0,117) na exploração; a regra manda `tta` para (b) e é o que a emenda mp4-1 faz — retirar a calibração do mp4 (fazer (b) = (a)) não está na regra e é decisão do dono, a tomar **antes de rotular o 60d**.
