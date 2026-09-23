@@ -56,7 +56,10 @@
 - **Pendências (decisão do dono, 2026-09-23):**
   - `/mooter-update` — **com o dono, só depois de 05/10** (até lá o runtime em `~/.claude` ainda grava o excerto).
   - Migração das linhas antigas (`migrate-prompt-preview.js --apply`, 2306 linhas, backup automático) — **não agora; depois do gate de 05/10.**
-  - `/privacy` tem de declarar o diário de handoff local (até 1200 caracteres, segredos removidos) depois de 20/10, quando o site descongelar. O diário fica como está.
+  - O diário de handoff local (até 1200 caracteres, segredos removidos) fica como está e passa a estar declarado **agora** no `/privacy` (secção «Local records»), no ramo `site/privacy-2026-09-23` (`4c511bdc` + `5f3a28fe`, base `2cac7278`). Em produção só depois do deploy, com o «sim» do Paulo.
+- **028 · conflito de regras de freeze, não incidente.** O push de `5600aa1d` para `main` foi autorizado pelo Cowork Prisma (`PEDIDO-MOOTER-PRIVACY-20260923.md:18`: «Push para `main` é permitido») enquanto o handoff Mooter tinha `main` congelado. Os dois lados seguiram as suas regras; o que falhou foi não haver precedência escrita entre elas.
+- **Regra até 05/10:** nenhum teste de `tools/router/` corre contra o `~/.claude` real — sempre com `HOME`/`USERPROFILE` temporários (adversário incluído).
+- **Regra até 27/10 (D-30):** o ramo `site/privacy-2026-09-23` **não entra em `main`** (nem merge nem cherry-pick). Um `landing/` alterado em `main` faz o Vercel auto-buildar e, sem `generateBuildId`, o sha do HTML muda e parte o D-30. Até lá, `main` e produção divergem em `landing/` de propósito. O D0 de 29/09 monta-se sobre o commit do deploy do `/privacy` + facto, nunca sobre `main`.
 
 ## 2026-09-21 · decisor-shadow MP1→MP4-a — o decisor local bate as constantes, chumba a calibração; 2 bugs de produção corrigidos
 - **D v0** (qwen2.5-coder:14b, 4 perguntas tipadas, logprobs): **0,622 em 37 prompts virgens** (1/sessão, 3 rotuladores, κ 0,74) vs «T2 sempre» 0,243 (p=0,002), «T3 sempre» 0,324 (p=0,017), regra 0,324 — **ECE 0,146 > 0,10 três corpora seguidos → ENTRE**; F2-shadow opt-in em `tools/router/arbiter.js` (+1 linha no hook, +4 ms, sem texto no log); commits em `main` **por push** — `_handoff/decisor-shadow-2026-09-21/results/{PROGRESSO,REVIEW-7-COMMITS}.md`.
