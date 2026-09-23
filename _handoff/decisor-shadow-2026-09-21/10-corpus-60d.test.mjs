@@ -6,7 +6,7 @@ import test from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os'; import crypto from 'node:crypto';
 import { createRequire } from 'node:module'; import { execFileSync } from 'node:child_process';
 import { HERE, ROOT } from './lib-common.mjs';
-import { readShadowEvents, indexTranscripts, buildCorpus, eligible, sha12 } from './10-corpus-60d.mjs';
+import { readShadowEvents, indexTranscripts, buildCorpus, eligible, sha12, SINCE_CONFIRMATORY } from './10-corpus-60d.mjs';
 const require = createRequire(import.meta.url);
 const { shadowDecisor } = require(path.join(ROOT, 'tools', 'router', 'arbiter.js'));
 
@@ -14,6 +14,8 @@ const chat = (top) => ({ choices: [{ message: { content: top[0][0] }, logprobs: 
 const mockT2 = [chat([['C', 0.62], ['A', 0.20], ['B', 0.10], ['D', 0.05]]), chat([['B', 0.5], ['A', 0.3], ['C', 0.2]]), chat([['B', 0.8], ['A', 0.2]]), chat([['A', 0.7], ['B', 0.3]])];
 const decision = { tier: 'T0', confidence: 0.9, task_category: 'trivial_local', escalation_rule: 'none', recommended_backend: 'ollama', recommended_model: 'qwen2.5:3b' };
 const OWNER = path.basename(os.homedir());
+// round 8c A1: labels-60d.json leva _corpus_sha256 dos bytes do corpus que rotula
+const relabel = (out, labelsPath, rows) => fs.writeFileSync(labelsPath, JSON.stringify({ _corpus_sha256: crypto.createHash('sha256').update(fs.readFileSync(out)).digest('hex'), labels: rows }));
 
 function harness() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'corpus-60d-'));
@@ -108,7 +110,7 @@ test('(5) o adversário (round 5, A7/A8/A11): saídas gitignoradas, --out fora d
     assert.ok(ignored, `${f} tem de estar no .gitignore do pacote`);
   }
   const { log, tx, dir } = harness();
-  const run = (extra) => { try { const out = execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', log, '--transcripts', tx, '--since', '2026-09-21T12:00:00Z', ...extra], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); return { code: 0, out }; } catch (e) { return { code: e.status, out: String(e.stdout || ''), err: String(e.stderr || '') }; } };
+  const run = (extra) => { try { const out = execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', log, '--transcripts', tx, ...extra], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); return { code: 0, out }; } catch (e) { return { code: e.status, out: String(e.stdout || ''), err: String(e.stderr || '') }; } };
   // A7: um --out dentro do repo que NÃO está gitignorado é recusado antes de ler seja o que for
   const bad = path.join(HERE, 'results', 'corpus-60d-copia.json');
   const r7 = run(['--out', bad]); assert.notEqual(r7.code, 0, 'recusa --out não ignorado'); assert.ok(!fs.existsSync(bad));
@@ -123,15 +125,107 @@ test('(5) o adversário (round 5, A7/A8/A11): saídas gitignoradas, --out fora d
   // A8: --predictions recusa sem rótulos, recusa com rótulos incompletos, e só escreve ligado ao corpus congelado
   assert.equal(run(['--out', out, '--predictions']).code, 3, 'sem labels-60d.json');
   const labelsPath = path.join(dir, 'results', 'labels-60d.json');
-  fs.writeFileSync(labelsPath, JSON.stringify({ labels: written.items.slice(1).map((it) => ({ id: it.id, tier: 'T2' })) }));
+  relabel(out, labelsPath, written.items.slice(1).map((it) => ({ id: it.id, tier: 'T2' })));
   assert.equal(run(['--out', out, '--predictions']).code, 3, 'rótulos incompletos (falta 1 id)');
-  fs.writeFileSync(labelsPath, JSON.stringify({ labels: written.items.map((it) => ({ id: it.id, tier: 'T2' })) }));
+  relabel(out, labelsPath, written.items.map((it) => ({ id: it.id, tier: 'T2' })));
   assert.equal(run(['--out', out, '--predictions']).code, 3, 'corpus parcial (n_target não atingido) também recusa');
   fs.writeFileSync(out, JSON.stringify({ ...written, _target_reached: true, _partial: false })); // simula um corpus completo congelado
+  relabel(out, labelsPath, written.items.map((it) => ({ id: it.id, tier: 'T2' })));
+  fs.writeFileSync(labelsPath, JSON.stringify({ _corpus_sha256: 'f'.repeat(64), labels: written.items.map((it) => ({ id: it.id, tier: 'T2' })) }));
+  assert.equal(run(['--out', out, '--predictions']).code, 3, 'round 8c A1: rótulos ligados a outro corpus');
+  relabel(out, labelsPath, [...written.items.map((it) => ({ id: it.id, tier: 'T2' })), { id: written.items[0].id, tier: 'T0' }]);
+  assert.equal(run(['--out', out, '--predictions']).code, 3, 'round 8d: rótulo duplicado e contraditório');
+  relabel(out, labelsPath, written.items.map((it, i) => ({ id: it.id, tier: i ? 'T2' : 'T9' })));
+  assert.equal(run(['--out', out, '--predictions']).code, 3, 'round 8d: tier inválido');
+  relabel(out, labelsPath, written.items.map((it, i) => ({ id: it.id, tier: i ? 'T2' : ['T0'] })));
+  assert.equal(run(['--out', out, '--predictions']).code, 3, 'round 8e: tier em array passa a regex por coerção, não o includes');
+  relabel(out, labelsPath, written.items.map((it) => ({ id: it.id, tier: 'T2' })));
   const ok = run(['--out', out, '--predictions']); assert.equal(ok.code, 0, ok.err);
   const pred = JSON.parse(fs.readFileSync(path.join(dir, 'results', 'D-shadow-corpus-60d.json'), 'utf8'));
   assert.equal(pred.rows.length, 4); assert.ok(pred.rows.every((r) => r.tier === 'T2' && typeof r.probs.T2 === 'number' && typeof r.aux.p_needs_repo === 'number'));
   assert.ok(pred._corpus_sha256 && pred._labels_sha256, 'previsões ligadas por sha ao corpus e aos rótulos');
   // A9: nada além de escalares — nenhum valor de string longa nas previsões
   const strings = JSON.stringify(pred.rows).match(/"[^"]{25,}"/g) || []; assert.deepEqual(strings, [], 'sem strings longas nas previsões');
+});
+
+test('(6) MP9 · janela confirmatória A10: default 14:25:20Z, evento de 14:25:19Z fora e contado, --since anterior recusado', () => {
+  assert.equal(SINCE_CONFIRMATORY, '2026-09-21T14:25:20Z');
+  const proto = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8'));
+  assert.ok(JSON.stringify(proto.mp4).includes('since_utc_confirmatory = ' + SINCE_CONFIRMATORY), 'a constante é a do protocol.json A10');
+  const { log, tx, dir, P } = harness();
+  // dois eventos «à mão» colados à fronteira: 14:25:19Z (diagnóstico) e 14:25:20Z (primeiro confirmatório)
+  const base = readShadowEvents(log, 0).find((e) => e.prompt_sha12 === sha12(P.s2a));
+  const pre = { ...base, session_id: 'pre', hook_ts_ms: Date.parse('2026-09-21T14:25:19Z'), ts: '2026-09-21T14:25:19Z' };
+  const at = { ...base, session_id: 's2', hook_ts_ms: Date.parse('2026-09-21T14:25:20Z'), ts: '2026-09-21T14:25:20Z' };
+  const log2 = path.join(dir, 'decisions-2.log');
+  fs.writeFileSync(log2, [pre, at].map((e) => JSON.stringify(e)).join('\n') + '\n');
+  fs.writeFileSync(path.join(tx, 'C--proj-a', 'pre.jsonl'), JSON.stringify({ type: 'user', message: { role: 'user', content: P.s2a } }) + '\n');
+  const evs = readShadowEvents(log2, Date.parse(SINCE_CONFIRMATORY));
+  assert.equal(evs.length, 1); assert.equal(evs.diagnostic_excluded, 1, '14:25:19Z fica fora e é contado');
+  const { idx } = indexTranscripts(tx);
+  const a = buildCorpus({ events: evs, idx, known: new Set(), n: 60, cap: 1, seed: 20260921, since: Date.parse(SINCE_CONFIRMATORY) });
+  assert.equal(a.meta._since_utc, '2026-09-21T14:25:20.000Z'); assert.equal(a.meta._since_confirmatory, SINCE_CONFIRMATORY); assert.equal(a.meta._diagnostic_excluded, 1);
+  assert.equal(a.items.length, 1, 'o de 14:25:20Z entra');
+  // defesa em profundidade: pela biblioteca com since 12:00Z, o de 14:25:19Z passa o filtro mas o buildCorpus larga-o (sem duplicar a conta)
+  const early = readShadowEvents(log2, Date.parse('2026-09-21T12:00:00Z'));
+  assert.equal(early.length, 2); assert.equal(early.diagnostic_excluded, 0);
+  const b = buildCorpus({ events: early, idx, known: new Set(), n: 60, cap: 1, seed: 20260921, since: Date.parse('2026-09-21T12:00:00Z') });
+  assert.equal(b.meta._diagnostic_excluded, 1); assert.equal(b.meta._events, 1); assert.equal(b.items.length, 1);
+  assert.equal(b.meta._since_utc, '2026-09-21T14:25:20.000Z', 'o meta diz a janela efectiva, nunca a pedida');
+  // CLI: --since 12:00Z recusado (exit 4) antes de ler ou escrever; sem --since o default é a janela A10
+  const cli = (extra) => { try { return { code: 0, out: execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', log2, '--transcripts', tx, ...extra], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; } catch (e) { return { code: e.status, out: String(e.stdout || ''), err: String(e.stderr || '') }; } };
+  const r = cli(['--since', '2026-09-21T12:00:00Z', '--dry']); assert.equal(r.code, 4); assert.ok(/RECUSADO/.test(r.err) && /14:25:20Z/.test(r.err));
+  assert.equal(cli(['--since', 'lixo', '--dry']).code, 4, 'since inválido também recusa');
+  assert.equal(cli(['--since', '2026-09-21T14:25:19.999Z', '--dry']).code, 4, '1 ms antes recusa');
+  const d = cli(['--dry']); assert.equal(d.code, 0, d.err); const m = JSON.parse(d.out);
+  assert.equal(m._since_utc, '2026-09-21T14:25:20.000Z'); assert.equal(m._diagnostic_excluded, 1);
+});
+
+test('(7) MP9 · round 8 A3/A4/A5: janela efectiva max(since, A10), ts inválido à parte, _t_utc por item, --predictions recusa corpus fora da janela', () => {
+  const { log, tx, dir, P } = harness();
+  const evs = readShadowEvents(log, Date.parse(SINCE_CONFIRMATORY));
+  const s2 = evs.find((e) => e.prompt_sha12 === sha12(P.s2a)); const s3 = evs.find((e) => e.prompt_sha12 === sha12(P.s3a));
+  const { idx } = indexTranscripts(tx);
+  // A4: since posterior a A10 — um evento entre A10 e o since NÃO entra e o meta diz o since pedido
+  const mid = { ...s2, hook_ts_ms: Date.parse('2026-09-22T00:00:00Z') }; const late = { ...s3, hook_ts_ms: Date.parse('2026-09-23T00:00:00Z') };
+  const a = buildCorpus({ events: [mid, late], idx, known: new Set(), n: 60, cap: 1, seed: 20260921, since: Date.parse('2026-09-22T12:00:00Z'), diagnostic_upstream: 0 });
+  assert.equal(a.meta._since_utc, '2026-09-22T12:00:00.000Z'); assert.equal(a.meta._before_since_excluded, 1); assert.equal(a.meta._diagnostic_excluded, 0);
+  assert.deepEqual(a.items.map((i) => i._event_sha12), [sha12(P.s3a)]); assert.equal(a.items[0]._t_utc, '2026-09-23T00:00:00.000Z', 'cada item leva a hora do evento');
+  // A5: ts inválido conta à parte, não como diagnóstico; a cópia do array perde o contador mas o parâmetro explícito não
+  const bad = { ...s2, hook_ts_ms: null, ts: 'lixo' };
+  const b = buildCorpus({ events: [bad, late], idx, known: new Set(), n: 60, cap: 1, seed: 20260921, since: Date.parse(SINCE_CONFIRMATORY), diagnostic_upstream: 3, invalid_upstream: 0 });
+  assert.equal(b.meta._invalid_ts_excluded, 1); assert.equal(b.meta._diagnostic_excluded, 3); assert.equal(b.items.length, 1);
+  // A3: --predictions recusa um corpus congelado sem o carimbo do MP9 e um com um item diagnóstico, mesmo com rótulos completos
+  const cli = (extra) => { try { execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', log, '--transcripts', tx, ...extra], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); return { code: 0 }; } catch (e) { return { code: e.status, err: String(e.stderr || '') }; } };
+  const out = path.join(dir, 'res', 'corpus-60d.json'); fs.mkdirSync(path.dirname(out));
+  assert.equal(cli(['--out', out, '--partial']).code, 0); const written = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.ok(written.items.every((it) => Date.parse(it._t_utc) >= Date.parse(SINCE_CONFIRMATORY)), 'o corpus escrito leva _t_utc em cada item');
+
+  fs.writeFileSync(out, JSON.stringify({ ...written, _target_reached: true, _partial: false, _since_confirmatory: undefined }));
+  relabel(out, path.join(dir, 'res', 'labels-60d.json'), written.items.map((it) => ({ id: it.id, tier: 'T2' })));
+  const r1 = cli(['--out', out, '--predictions']); assert.equal(r1.code, 3); assert.ok(/_since_confirmatory/.test(r1.err), r1.err);
+  fs.writeFileSync(out, JSON.stringify({ ...written, _target_reached: true, _partial: false, items: written.items.map((it, i) => (i === 0 ? { ...it, _t_utc: '2026-09-21T14:00:00.000Z' } : it)) }));
+  relabel(out, path.join(dir, 'res', 'labels-60d.json'), written.items.map((it) => ({ id: it.id, tier: 'T2' })));
+  const r2 = cli(['--out', out, '--predictions']); assert.equal(r2.code, 3); assert.ok(/anteriores à janela/.test(r2.err), r2.err);
+  // A3: hora do item que não bate com a do evento (evento repetido/trocado) → sem evento único → recusa
+  fs.writeFileSync(out, JSON.stringify({ ...written, _target_reached: true, _partial: false, items: written.items.map((it, i) => (i === 0 ? { ...it, _t_utc: new Date(Date.parse(it._t_utc) + 1).toISOString() } : it)) }));
+  relabel(out, path.join(dir, 'res', 'labels-60d.json'), written.items.map((it) => ({ id: it.id, tier: 'T2' })));
+  const r3 = cli(['--out', out, '--predictions']); assert.equal(r3.code, 3); assert.ok(/sem evento único/.test(r3.err), r3.err);
+  fs.writeFileSync(out, JSON.stringify({ ...written, _target_reached: true, _partial: false }));
+  relabel(out, path.join(dir, 'res', 'labels-60d.json'), written.items.map((it) => ({ id: it.id, tier: 'T2' })));
+  assert.equal(cli(['--out', out, '--predictions']).code, 0, 'o corpus íntegro passa');
+});
+
+test('(8) MP9 · round 8b A5: contadores honestos — ts inválido contado no leitor, cópia do array dá null (n/d), nunca 0', () => {
+  const { log, tx, dir } = harness();
+  const log2 = path.join(dir, 'decisions-inv.log');
+  const good = readShadowEvents(log, Date.parse(SINCE_CONFIRMATORY))[0];
+  fs.writeFileSync(log2, [{ ...good, hook_ts_ms: null, ts: 'lixo' }, { ...good, hook_ts_ms: Date.parse('2026-09-21T14:00:00Z') }, good].map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const evs = readShadowEvents(log2, Date.parse(SINCE_CONFIRMATORY));
+  assert.equal(evs.length, 1); assert.equal(evs.invalid_ts_excluded, 1); assert.equal(evs.diagnostic_excluded, 1);
+  const { idx } = indexTranscripts(tx);
+  const a = buildCorpus({ events: evs, idx, known: new Set(), n: 60, cap: 1, seed: 20260921 });
+  assert.equal(a.meta._invalid_ts_excluded, 1); assert.equal(a.meta._diagnostic_excluded, 1);
+  const b = buildCorpus({ events: [...evs], idx, known: new Set(), n: 60, cap: 1, seed: 20260921 });
+  assert.equal(b.meta._invalid_ts_excluded, null); assert.equal(b.meta._diagnostic_excluded, null, 'a cópia perde o contador → n/d, não 0');
 });

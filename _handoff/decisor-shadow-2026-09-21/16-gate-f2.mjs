@@ -6,6 +6,7 @@
 //   node 16-gate-f2.mjs --preview      # 40 · 57 · 60c com D v0 do 14b, regra por item, texto só para o predicado HIGH_RISK
 import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto';
 import { HERE, ROOT, P1, TIERS, ece, wilson, mcnemar } from './lib-common.mjs';
+import { SINCE_CONFIRMATORY, N_TARGET, assertConfirmatoryCorpus } from './10-corpus-60d.mjs';
 const RES = path.join(HERE, 'results'); const J = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 export const RANK = { T0: 0, T1: 1, T2: 2, T3: 3 };
 export const ABSTAIN_BELOW = 0.4; // = DECISOR_ABSTAIN_BELOW em tools/router/arbiter.js (e o limiar do harness desde o MP1)
@@ -38,8 +39,56 @@ export function routedD({ tier_D, p_max_D, abstained_D, tier_regra, high_risk })
 }
 const acc = (rows, key) => rows.length ? rows.filter((r) => r[key] === r.expected).length / rows.length : null;
 const conf = (rows, key) => { const m = {}; for (const r of rows) { const k = `${r.expected}→${r[key] ?? 'null'}`; m[k] = (m[k] || 0) + 1; } return m; };
+// Janela confirmatória (protocol.json A10; round 8 A1/A2, 8b A1/A7): o gate NÃO infere proveniência pelo id. Quem o chama
+// declara UMA de duas coisas: { artifacts } — o que load60dArtifacts(dir) lê dos BYTES dos três ficheiros congelados
+// (corpus-60d.json, labels-60d.json, D-shadow-corpus-60d.json) — ou { preview: "<nome>" } para os corpora antigos já
+// rotulados (40/57/60c), cujo resultado nunca é confirmatório. Sem nenhuma: recusa. Com artifacts exige-se: a janela
+// (assertConfirmatoryCorpus: meta + _t_utc de cada item >= 2026-09-21T14:25:20Z), o corpus COMPLETO (n_target, não
+// parcial), as previsões ligadas por sha256 aos bytes do corpus e dos rótulos, e cada item do gate IGUAL, por id, ao
+// rótulo (expected) e à previsão do evento (tier_D, p_max_D) — ids iguais nos quatro conjuntos.
+export { assertConfirmatoryCorpus };
+const LOADED = new WeakSet(); // round 8e: só o objecto devolvido por load60dArtifacts serve (um clone adulterado e recongelado não)
+export function load60dArtifacts(dir) {
+  const rd = (f) => fs.readFileSync(path.join(dir, f)); const h = (b) => crypto.createHash('sha256').update(b).digest('hex');
+  const c = rd('corpus-60d.json'), l = rd('labels-60d.json'), p = rd('D-shadow-corpus-60d.json');
+  // round 8d: congelados em profundidade — os objectos não podem divergir dos bytes que os hashes representam
+  const deepFreeze = (o) => { if (o && typeof o === 'object' && !Object.isFrozen(o)) { Object.freeze(o); for (const v of Object.values(o)) deepFreeze(v); } return o; };
+  const out = Object.freeze({ corpus: deepFreeze(JSON.parse(c)), labels: deepFreeze(JSON.parse(l)), predictions: deepFreeze(JSON.parse(p)), corpus_sha256: h(c), labels_sha256: h(l) });
+  LOADED.add(out); return out;
+}
+function assertArtifacts(items, A) {
+  const { corpus, labels, predictions } = A || {};
+  const frozen = (o) => o && Object.isFrozen(o) && Object.values(o).every((v) => !v || typeof v !== 'object' || frozen(v));
+  if (!A || !LOADED.has(A)) throw new Error('RECUSADO: artefactos não carregados por load60dArtifacts(dir) (round 8e: um clone pode divergir do sha).');
+  if (!Object.isFrozen(A) || ![corpus, labels, predictions].every(frozen)) throw new Error('RECUSADO: artefactos não congelados — usa load60dArtifacts(dir) (round 8d: objecto mutável pode divergir do sha).');
+  assertConfirmatoryCorpus(corpus);
+  if (corpus._partial === true || corpus._target_reached !== true || corpus._n_target !== N_TARGET || corpus.items.length < N_TARGET) throw new Error(`RECUSADO: corpus 60d parcial ou abaixo de n_target=${N_TARGET} (${corpus.items.length} itens) — o pré-registo manda esperar.`);
+  // round 8c A5/A1: hashes obrigatórios e bem formados (undefined === undefined não liga nada); rótulos ligados ao corpus
+  const H = /^[0-9a-f]{64}$/;
+  if (![A.corpus_sha256, A.labels_sha256, predictions?._corpus_sha256, predictions?._labels_sha256, labels?._corpus_sha256].every((x) => H.test(String(x)))) throw new Error('RECUSADO: artefactos sem sha256 válidos (usa load60dArtifacts; os rótulos levam _corpus_sha256).');
+  if (predictions._corpus_sha256 !== A.corpus_sha256 || predictions._labels_sha256 !== A.labels_sha256) throw new Error('RECUSADO: as previsões não estão ligadas por sha256 a estes bytes do corpus e dos rótulos.');
+  if (labels._corpus_sha256 !== A.corpus_sha256) throw new Error('RECUSADO: os rótulos não estão ligados por sha256 a estes bytes do corpus.');
+  // round 8c A6: unicidade nos arrays CRUS (um Map esconderia o duplicado)
+  const want = corpus.items.map((it) => it.id); const W = new Set(want);
+  const same = (xs) => xs.length === W.size && new Set(xs).size === xs.length && xs.every((id) => W.has(id));
+  const labRows = labels.labels || [], predRows = predictions.rows || [];
+  if (!same(items.map((it) => it.id)) || !same(labRows.map((x) => x.id)) || !same(predRows.map((r) => r.id))) throw new Error('RECUSADO: os itens do gate não são os do corpus 60d congelado (ids diferentes, em falta ou repetidos entre corpus/rótulos/previsões/itens).');
+  // round 8c A4: TODOS os campos que o gate consome vêm dos artefactos — rótulo, previsão do evento, regra, latência,
+  // abstenção e, quando o evento o traz, o HIGH_RISK (sem ele, o fallback de texto é declarado por item e contado no gate 4)
+  const lab = new Map(labRows.map((x) => [x.id, x.tier])); const pred = new Map(predRows.map((r) => [r.id, r]));
+  const off = items.filter((it) => {
+    const r = pred.get(it.id);
+    if (it.expected !== lab.get(it.id) || it.tier_D !== r.tier || it.p_max_D !== r.p_max || it.tier_regra !== r.tier_regra || it.ms !== r.ms || !!it.abstained_D !== !!r.abstain) return true;
+    if (typeof r.high_risk_hint === 'boolean') return it.high_risk !== r.high_risk_hint || it.high_risk_source !== 'event';
+    return it.high_risk_source !== 'text_fallback';
+  });
+  if (off.length) throw new Error(`RECUSADO: ${off.length} item(ns) do gate diferem do rótulo ou da previsão do evento (${off.slice(0, 5).map((it) => it.id).join(',')}).`);
+}
 // items: {id, expected, tier_D, p_max_D, abstained_D, tier_regra|null, high_risk (hint), high_risk_classify|null, ms}
-export function gateF2(items, { egress_external_hosts = 0, not_ok_events = 0 } = {}) {
+export function gateF2(items, { egress_external_hosts = 0, not_ok_events = 0, artifacts, preview } = {}) {
+  if (artifacts !== undefined && preview !== undefined) throw new Error('RECUSADO: gateF2 com artifacts E preview — escolhe um.');
+  if (artifacts !== undefined) assertArtifacts(items, artifacts);
+  else if (!(typeof preview === 'string' && preview.length)) throw new Error('RECUSADO: gateF2 exige { artifacts } (60d confirmatório) ou { preview: nome } (corpora antigos).');
   for (const it of items) if (!TIERS.includes(it.expected)) throw new Error(`${it.id}: rótulo inválido`);
   const rows = items.map((it) => ({ ...it, ...routedD(it), raw: it.tier_D }));
   const n = rows.length;
@@ -71,10 +120,15 @@ export function gateF2(items, { egress_external_hosts = 0, not_ok_events = 0 } =
   const abl = { raw_argmax: acc(rows, 'raw'), plus_abstention: acc(rows.map((r) => ({ ...r, x: r.abstained ? 'T2' : r.raw })), 'x'), plus_abstention_plus_guard: acc(rows, 'tier') };
   const e = ece(rows.filter((r) => r.p_max_D != null).map((r) => ({ p_max: r.p_max_D, correct: r.raw === r.expected })));
   const all = g1.pass && g2.pass && g3.pass && g4.pass && g6.pass && g7.pass;
-  return { n, policy: 'composta: v0 argmax + abstenção(<0,4)→T2 + guardrail HIGH_RISK (produção)', gates: { '1_acc_gt_rule': g1, '2_acc_gt_every_constant': g2, '3_under_routing_T2T3_to_T0': g3, '4_high_risk_invariant': g4, '5_abstention': g5, '6_latency': g6, '7_egress': g7 }, all_pass: all, ablations: abl, confusion_expected_to_routed: conf(rows, 'tier'), confusion_expected_to_rule: conf(withRule, 'tier_regra'), ece_raw_argmax_informative: e.ece, bins_raw: e.bins };
+  return { n, window: artifacts !== undefined ? 'confirmatory:' + artifacts.corpus._since_utc : 'preview:' + preview, policy: 'composta: v0 argmax + abstenção(<0,4)→T2 + guardrail HIGH_RISK (produção)', gates: { '1_acc_gt_rule': g1, '2_acc_gt_every_constant': g2, '3_under_routing_T2T3_to_T0': g3, '4_high_risk_invariant': g4, '5_abstention': g5, '6_latency': g6, '7_egress': g7 }, all_pass: all, ablations: abl, confusion_expected_to_routed: conf(rows, 'tier'), confusion_expected_to_rule: conf(withRule, 'tier_regra'), ece_raw_argmax_informative: e.ece, bins_raw: e.bins };
 }
 // ── pré-visualização nos corpora já rotulados ──
 const isMain = /16-gate-f2\.mjs$/.test(process.argv[1] || '');
+// --check-corpus <corpus-60d.json>: só a verificação da janela (sem rótulos, sem gate). exit 3 = RECUSADO.
+if (isMain && process.argv.includes('--check-corpus')) {
+  const p = process.argv[process.argv.indexOf('--check-corpus') + 1];
+  try { assertConfirmatoryCorpus(J(p)); console.log(`OK: ${path.basename(p)} dentro da janela confirmatória (desde ${SINCE_CONFIRMATORY}).`); process.exit(0); } catch (e) { console.error(e.code === 'ENOENT' ? `RECUSADO: ${p} não existe` : e.message); process.exit(3); }
+}
 if (isMain && process.argv.includes('--preview')) {
   if (process.argv.some((a) => /60d/i.test(a))) { console.error('RECUSADO: sem 60d aqui'); process.exit(3); }
   const HR = highRiskHint();
@@ -91,7 +145,7 @@ if (isMain && process.argv.includes('--preview')) {
     const A = {}; for (const r of J(af).rows) if (r.run === 1 || r.run === undefined) A[r.id] = r;
     // nos corpora antigos nao ha evento -> fallback ao texto, declarado por item (high_risk_source: text_fallback)
     const items = D.rows.map((r) => ({ id: r.id, expected: r.expected, tier_D: r.tier, p_max_D: r.p_max, abstained_D: r.abstain, tier_regra: A[r.id]?.tier ?? null, ...highRiskForItem(null, text[r.id] || '', HR), high_risk_classify: A[r.id] ? A[r.id].risk_level === 'high' : null, ms: r.ms }));
-    const g = gateF2(items); out.by_corpus[ck] = g; const G = g.gates;
+    const g = gateF2(items, { preview: ck }); out.by_corpus[ck] = g; const G = g.gates;
     md.push(`| ${ck} | ${g.n} | ${fmt(g.ablations.raw_argmax)} / ${fmt(g.ablations.plus_abstention)} / ${fmt(g.ablations.plus_abstention_plus_guard)} | ${fmt(G['1_acc_gt_rule'].acc_rule)}, ${G['1_acc_gt_rule'].mcnemar.b}/${G['1_acc_gt_rule'].mcnemar.c}, p=${fmt(G['1_acc_gt_rule'].mcnemar.p, 4)} ${G['1_acc_gt_rule'].pass ? '✅' : '❌'} | ${G['2_acc_gt_every_constant'].best_constant} ${fmt(G['2_acc_gt_every_constant'].constants[G['2_acc_gt_every_constant'].best_constant].acc_const)}, p=${fmt(G['2_acc_gt_every_constant'].constants[G['2_acc_gt_every_constant'].best_constant].mcnemar.p, 4)}; ${G['2_acc_gt_every_constant'].pass ? '✅' : '❌'} | ${G['3_under_routing_T2T3_to_T0'].D_to_T0}/${G['3_under_routing_T2T3_to_T0'].n_T2T3} vs ${G['3_under_routing_T2T3_to_T0'].rule_to_T0}/${G['3_under_routing_T2T3_to_T0'].n_T2T3_with_rule} ${G['3_under_routing_T2T3_to_T0'].pass ? '✅' : '❌'} | ${G['4_high_risk_invariant'].n_high_risk_hint}/${G['4_high_risk_invariant'].n_high_risk_classify} (fonte: ${Object.entries(G['4_high_risk_invariant'].high_risk_source_counts).map(([k, v]) => `${k} ${v}`).join(', ')}) · cru ${G['4_high_risk_invariant'].raw_violations_tier_D_below_rule} · guard ${G['4_high_risk_invariant'].guard_interventions} · pós ${G['4_high_risk_invariant'].violations_after_routing} ${G['4_high_risk_invariant'].pass ? '✅' : '❌'} | ${fmt(G['6_latency'].p50_ms, 0)} ${G['6_latency'].pass ? '✅' : '❌'} | ${fmt(g.ece_raw_argmax_informative)} | ${g.all_pass ? '**PASSA**' : 'não'} |`);
   }
   md.push('', '`+abst` = abstenção→T2; `+guard` = e guardrail HIGH_RISK (a política que conta). «vs constantes» exige superioridade (McNemar unilateral p<0,05) contra CADA uma das 4; imprime-se a mais forte. Sub-rota = expected∈{T2,T3} → routed T0. HIGH_RISK: n pelo hint de produção / n pelo `risk_level` da regra; «cru» = tier_D abaixo da regra; «pós» tem de ser 0 (invariante do sistema).', '');

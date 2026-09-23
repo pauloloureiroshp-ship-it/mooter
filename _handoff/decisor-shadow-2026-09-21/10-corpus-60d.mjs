@@ -15,9 +15,15 @@ const PROTO = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8
 const C = PROTO.corpus_60d;
 const LOG = opt('--log', path.join(os.homedir(), '.claude', 'tools', 'router', 'decisions.log'));
 const TX = opt('--transcripts', path.join(os.homedir(), '.claude', 'projects'));
-const SINCE = Date.parse(opt('--since', C.since_utc));
+// protocol.json#mp4._amendments[mp4-3]._round7_corrections.A10_confirmatory_window (aceite): a AMOSTRA CONFIRMATÓRIA
+// começa em since_utc_confirmatory = 2026-09-21T14:25:20Z (%cI de 996b68eb, 11:25:20-03:00); os eventos anteriores
+// são DIAGNÓSTICO e não entram nos gates. O C.since_utc (12:00Z) é o início do shadow, NÃO da janela que conta.
+export const SINCE_CONFIRMATORY = '2026-09-21T14:25:20Z';
+export const SINCE_CONFIRMATORY_MS = Date.parse(SINCE_CONFIRMATORY);
+const SINCE = Date.parse(opt('--since', SINCE_CONFIRMATORY));
 const OUT = opt('--out', path.join(HERE, 'results', 'corpus-60d.json'));
 const N = C.n_target, SEED = C.seed, CAP = C.cap_per_session;
+export const N_TARGET = N;
 const HOME = os.homedir(); const OWNER = path.basename(HOME);
 export const sha12 = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex').slice(0, 12);
 
@@ -52,15 +58,20 @@ export function anonymise(t) {
 const clean = (s) => s.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').replace(/^Shell cwd was reset to .*$/gm, '').trim();
 
 // ── 1. eventos do shadow ──
+// out.diagnostic_excluded = eventos anteriores à janela A10 que o filtro de since deixou fora (os que passam o filtro
+// com since < A10 — só pela biblioteca, o CLI recusa — são contados e largados no buildCorpus; a soma nunca duplica).
+// out.invalid_ts_excluded = linhas decisor_shadow sem hora legível. Round 8b A5: os contadores viajam no array; uma cópia
+// ([...events]) perde-os e o buildCorpus reporta então null (n/d), nunca um 0 falso.
 export function readShadowEvents(logPath, sinceMs) {
-  const out = [];
+  const out = []; out.diagnostic_excluded = 0; out.invalid_ts_excluded = 0;
   if (!fs.existsSync(logPath)) return out;
   for (const l of fs.readFileSync(logPath, 'utf8').split('\n')) {
     if (!l.startsWith('{') || !l.includes('"decisor_shadow"')) continue;
     let e; try { e = JSON.parse(l); } catch { continue; }
     if (e.event !== 'decisor_shadow') continue;
     const t = Number.isFinite(e.hook_ts_ms) ? e.hook_ts_ms : Date.parse(e.ts || '');
-    if (!(t >= sinceMs)) continue;
+    if (!Number.isFinite(t)) { out.invalid_ts_excluded++; continue; }
+    if (!(t >= sinceMs)) { if (t < SINCE_CONFIRMATORY_MS) out.diagnostic_excluded++; continue; }
     out.push(e);
   }
   return out;
@@ -110,6 +121,20 @@ export function predictionOf(e, id) {
   const P = e.probs_D || {}, A = e.aux_D || {};
   return { id, tier: tierOf(e.tier_D), p_max: num(e.p_max_D), probs: { T0: num(P.T0), T1: num(P.T1), T2: num(P.T2), T3: num(P.T3) }, aux: { p_needs_repo: num(A.p_needs_repo), p_high_stakes: num(A.p_high_stakes), e_complexity: num(A.e_complexity) }, ms: num(e.ms_D), abstain: e.abstained_D === true, tier_regra: tierOf(e.tier_regra), confidence_regra: num(e.confidence_regra), high_risk_hint: typeof e.high_risk_hint === 'boolean' ? e.high_risk_hint : null, risk_level_regra: ['minimal', 'low', 'medium', 'high'].includes(e.risk_level_regra) ? e.risk_level_regra : null, event_sha12: /^[0-9a-f]{12}$/.test(String(e.prompt_sha12)) ? e.prompt_sha12 : null };
 }
+// Janela confirmatória (A10) verificada no corpus CONGELADO, não só no meta (round 8 A1/A3): meta com _since_utc >= A10
+// e o carimbo _since_confirmatory, itens não vazios, ids únicos, e CADA item com _t_utc (hora do evento) >= A10 e >= _since_utc.
+export function assertConfirmatoryCorpus(corpus) {
+  if (!corpus || typeof corpus !== 'object') throw new Error('RECUSADO: corpus 60d ausente — não há como provar a janela confirmatória (A10).');
+  const since = Date.parse(corpus._since_utc ?? '');
+  if (!(since >= SINCE_CONFIRMATORY_MS)) throw new Error(`RECUSADO: corpus 60d com _since_utc ${corpus._since_utc ?? 'ausente'} anterior à janela confirmatória ${SINCE_CONFIRMATORY} (protocol.json A10) — eventos diagnósticos no corpus.`);
+  if (corpus._since_confirmatory !== SINCE_CONFIRMATORY) throw new Error(`RECUSADO: corpus 60d sem _since_confirmatory = ${SINCE_CONFIRMATORY} (construído por um 10-corpus-60d.mjs anterior ao MP9).`);
+  const items = Array.isArray(corpus.items) ? corpus.items : [];
+  if (!items.length) throw new Error('RECUSADO: corpus 60d sem itens.');
+  const ids = new Set(items.map((it) => it.id)); if (ids.size !== items.length) throw new Error('RECUSADO: ids repetidos no corpus 60d.');
+  const bad = items.filter((it) => { const t = Date.parse(it._t_utc ?? ''); return !(t >= SINCE_CONFIRMATORY_MS && t >= since); });
+  if (bad.length) throw new Error(`RECUSADO: ${bad.length} item(ns) do corpus 60d sem _t_utc ou anteriores à janela (${bad.slice(0, 5).map((it) => it.id).join(',')}).`);
+  return true;
+}
 // A7 do round 5: um caminho de saída dentro do repo tem de estar gitignorado; fora do repo (tmp dos testes) é livre.
 export function assertSafeOut(p, root = ROOT) {
   const abs = path.resolve(p); const inRepo = abs.toLowerCase().startsWith(path.resolve(root).toLowerCase() + path.sep);
@@ -121,10 +146,21 @@ export function assertSafeOut(p, root = ROOT) {
 
 function mulberry32(x) { return function () { x |= 0; x = x + 0x6D2B79F5 | 0; let t = Math.imul(x ^ x >>> 15, 1 | x); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
-export function buildCorpus({ events, idx, known, n = N, cap = CAP, seed = SEED }) {
+export function buildCorpus({ events, idx, known, n = N, cap = CAP, seed = SEED, since = SINCE, diagnostic_upstream = events.diagnostic_excluded ?? null, invalid_upstream = events.invalid_ts_excluded ?? null }) {
   const why = {}; const drop = (k) => { why[k] = (why[k] || 0) + 1; };
   const elig = [];
-  let notOk = 0, unrecovered = 0;
+  let notOk = 0, unrecovered = 0, diagnostic = 0, invalidTs = 0, beforeSince = 0;
+  // defesa em profundidade (A10; round 8 A4/A5): filtra-se pela janela EFECTIVA max(since, A10) — o meta nunca declara
+  // uma janela que os eventos não respeitam; ts inválido é contado à parte, não como diagnóstico.
+  const effSince = Number.isFinite(since) ? Math.max(since, SINCE_CONFIRMATORY_MS) : SINCE_CONFIRMATORY_MS;
+  const inWindow = [];
+  for (const e of events) {
+    const t = Number.isFinite(e.hook_ts_ms) ? e.hook_ts_ms : Date.parse(e.ts || '');
+    if (!Number.isFinite(t)) invalidTs++; else if (t < SINCE_CONFIRMATORY_MS) diagnostic++; else if (t < effSince) beforeSince++; else inWindow.push(e);
+  }
+  const diagnosticExcluded = diagnostic_upstream == null ? null : diagnostic_upstream + diagnostic;
+  const invalidExcluded = invalid_upstream == null ? null : invalid_upstream + invalidTs;
+  events = inWindow;
   for (const e of events) {
     if (e.outcome !== 'ok') { notOk++; drop('evento_' + e.outcome); continue; }
     const recs = idx.get(e.prompt_sha12) || [];
@@ -144,16 +180,17 @@ export function buildCorpus({ events, idx, known, n = N, cap = CAP, seed = SEED 
   for (const x of elig) { if (picked.length >= n) break; if ((perSess[x.sess] || 0) >= cap) continue; perSess[x.sess] = (perSess[x.sess] || 0) + 1; picked.push(x); }
   picked.sort((a, b) => a.t - b.t);
   const sha8 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 8);
-  const items = picked.map((x, i) => ({ id: `d${String(i + 1).padStart(2, '0')}`, source: 'decisor_shadow-events+cc-transcripts', prompt: x.prompt, _sha256_12: sha12(x.prompt), _event_sha12: x.e.prompt_sha12, _chars: x.prompt.length, _session_sha8: sha8(x.sess), _project_sha8: sha8(x.rec.proj), _day: (x.e.ts || '').slice(0, 10), _dispatched: /^\[[^\]]+·\s*S\d/.test(x.rec.text) }));
+  const items = picked.map((x, i) => ({ id: `d${String(i + 1).padStart(2, '0')}`, source: 'decisor_shadow-events+cc-transcripts', prompt: x.prompt, _sha256_12: sha12(x.prompt), _event_sha12: x.e.prompt_sha12, _chars: x.prompt.length, _session_sha8: sha8(x.sess), _t_utc: new Date(x.t).toISOString(), _project_sha8: sha8(x.rec.proj), _day: (x.e.ts || '').slice(0, 10), _dispatched: /^\[[^\]]+·\s*S\d/.test(x.rec.text) }));
   // previsões DO EVENTO — ficheiro separado, só com --predictions e só depois dos rótulos
   const predictions = picked.map((x, i) => predictionOf(x.e, `d${String(i + 1).padStart(2, '0')}`));
   const okEvents = events.length - notOk;
-  const meta = { _schema: 'decisor-shadow/corpus-60d', _block: 'mp4', _built_at: new Date().toISOString(), _since_utc: new Date(SINCE).toISOString(), _seed: seed, _cap_per_session: cap, _n_target: n, _events: events.length, _events_ok: okEvents, _events_not_ok: notOk, _not_ok_rate: events.length ? +(notOk / events.length).toFixed(3) : null, _unrecovered: unrecovered, _unrecovered_rate: okEvents ? +(unrecovered / okEvents).toFixed(3) : null, _known_sources: known.sources || null, _eligible: elig.length, _eligible_sessions: new Set(elig.map((x) => x.sess)).size, _dropped: why, _excluded_known_sha_count: known.size, _picked: items.length, _picked_sessions: Object.keys(perSess).length, _picked_dispatched: items.filter((i) => i._dispatched).length, _anonymised: 'caminhos do home -> ~, dono -> <owner>, emails -> <email>', _target_reached: items.length >= n };
+  const meta = { _schema: 'decisor-shadow/corpus-60d', _block: 'mp4', _built_at: new Date().toISOString(), _since_utc: new Date(effSince).toISOString(), _since_confirmatory: SINCE_CONFIRMATORY, _diagnostic_excluded: diagnosticExcluded, _invalid_ts_excluded: invalidExcluded, _before_since_excluded: beforeSince, _seed: seed, _cap_per_session: cap, _n_target: n, _events: events.length, _events_ok: okEvents, _events_not_ok: notOk, _not_ok_rate: events.length ? +(notOk / events.length).toFixed(3) : null, _unrecovered: unrecovered, _unrecovered_rate: okEvents ? +(unrecovered / okEvents).toFixed(3) : null, _known_sources: known.sources || null, _eligible: elig.length, _eligible_sessions: new Set(elig.map((x) => x.sess)).size, _dropped: why, _excluded_known_sha_count: known.size, _picked: items.length, _picked_sessions: Object.keys(perSess).length, _picked_dispatched: items.filter((i) => i._dispatched).length, _anonymised: 'caminhos do home -> ~, dono -> <owner>, emails -> <email>', _target_reached: items.length >= n };
   return { meta, items, predictions };
 }
 
 const isMain = path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url);
 if (isMain) {
+  if (!(SINCE >= SINCE_CONFIRMATORY_MS)) { console.error(`RECUSADO: --since ${opt('--since')} é anterior à janela confirmatória ${SINCE_CONFIRMATORY} (protocol.json A10) ou inválido — eventos diagnósticos não entram no 60d.`); process.exit(4); }
   const outAbs = assertSafeOut(OUT); // A7: dentro do repo só se gitignorado
   const events = readShadowEvents(LOG, SINCE);
   const known = knownShas();
@@ -163,14 +200,20 @@ if (isMain) {
     const labelsPath = path.join(path.dirname(outAbs), 'labels-60d.json');
     if (!fs.existsSync(outAbs)) { console.error('RECUSADO: não há corpus-60d.json congelado.'); process.exit(3); }
     let corpus, labels; try { corpus = JSON.parse(fs.readFileSync(outAbs, 'utf8')); labels = JSON.parse(fs.readFileSync(labelsPath, 'utf8')); } catch { console.error('RECUSADO: --predictions só com results/labels-60d.json legível (cegueira dos rotuladores).'); process.exit(3); }
-    const labelled = new Set((labels.labels || []).filter((l) => /^T[0-3]$/.test(l.tier)).map((l) => l.id));
+    // round 8c A1: os rótulos ligam-se ao corpus que rotularam — labels-60d.json leva _corpus_sha256 = sha256 dos bytes do corpus-60d.json
+    if (labels._corpus_sha256 !== crypto.createHash('sha256').update(fs.readFileSync(outAbs)).digest('hex')) { console.error('RECUSADO: labels-60d.json sem _corpus_sha256 igual ao sha256 deste corpus-60d.json — rótulos de outro corpus?'); process.exit(3); }
+    // round 8d: rótulos únicos, todos com tier válido e o conjunto EXACTO de ids do corpus — um d01 duplicado e contraditório não liberta previsões
+    const labRows = labels.labels || []; const labIds = labRows.map((l) => l.id); const corpusIds = new Set((corpus.items || []).map((it) => it.id));
+    if (new Set(labIds).size !== labIds.length || labRows.some((l) => !['T0', 'T1', 'T2', 'T3'].includes(l.tier)) || labIds.some((id) => !corpusIds.has(id))) { console.error('RECUSADO: labels-60d.json com ids repetidos, tiers inválidos ou ids fora do corpus.'); process.exit(3); }
+    const labelled = new Set((labels.labels || []).filter((l) => ['T0', 'T1', 'T2', 'T3'].includes(l.tier)).map((l) => l.id));
     const missing = (corpus.items || []).map((it) => it.id).filter((id) => !labelled.has(id));
     if (!corpus.items?.length || missing.length) { console.error(`RECUSADO: rótulos não cobrem o corpus (${missing.length} em falta: ${missing.slice(0, 5).join(',')}…).`); process.exit(3); }
     if (!corpus._target_reached) { console.error('RECUSADO: o corpus congelado não atingiu n_target — o pré-registo manda esperar.'); process.exit(3); }
+    try { assertConfirmatoryCorpus(corpus); } catch (err) { console.error(err.message); process.exit(3); } // round 8 A3: a janela A10 no corpus congelado
     const bySha = new Map(); for (const e of events) if (e.outcome === 'ok') { const k = e.prompt_sha12; if (!bySha.has(k)) bySha.set(k, []); bySha.get(k).push(e); }
     const sha8 = (x) => crypto.createHash('sha256').update(String(x)).digest('hex').slice(0, 8);
     const rows = []; const lost = [];
-    for (const it of corpus.items) { const cands = (bySha.get(it._event_sha12) || []).filter((e) => sha8(e.session_id || '') === it._session_sha8); if (cands.length !== 1) { lost.push(it.id); continue; } rows.push(predictionOf(cands[0], it.id)); }
+    for (const it of corpus.items) { const cands = (bySha.get(it._event_sha12) || []).filter((e) => sha8(e.session_id || '') === it._session_sha8 && new Date(Number.isFinite(e.hook_ts_ms) ? e.hook_ts_ms : Date.parse(e.ts)).toISOString() === it._t_utc); /* round 8 A3: sha + sessão + hora do evento */ if (cands.length !== 1) { lost.push(it.id); continue; } rows.push(predictionOf(cands[0], it.id)); }
     if (lost.length) { console.error(`RECUSADO: ${lost.length} itens do corpus sem evento único correspondente (${lost.slice(0, 5).join(',')}) — o log mudou?`); process.exit(3); }
     const pf = path.join(path.dirname(outAbs), 'D-shadow-corpus-60d.json');
     fs.writeFileSync(pf, JSON.stringify({ arm: 'D-shadow (eventos vivos)', _from: path.basename(LOG), _corpus_sha256: crypto.createHash('sha256').update(fs.readFileSync(outAbs)).digest('hex'), _labels_sha256: crypto.createHash('sha256').update(fs.readFileSync(labelsPath)).digest('hex'), at: new Date().toISOString(), rows }, null, 1));
