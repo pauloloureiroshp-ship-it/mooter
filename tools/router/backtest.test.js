@@ -761,10 +761,15 @@ test('patterns v0.7: classify.js imports HIGH_RISK from patterns.js', () => {
 
 test('patterns v0.7: backtest.js imports TUNING_EXCLUDE from patterns.js', () => {
   const backtestSrc = fs.readFileSync(path.join(__dirname, 'backtest.js'), 'utf8');
+  // 2026-09-23: the import moved to prompt-traits.js (shared by the hook that
+  // writes the traits and by backtest that reads them).
+  const traitsSrc = fs.readFileSync(path.join(__dirname, 'prompt-traits.js'), 'utf8');
   assert.ok(
-    /require\(['"]\.\/patterns['"]\)/.test(backtestSrc),
-    'backtest.js must require("./patterns")'
+    /require\(['"]\.\/prompt-traits['"]\)/.test(backtestSrc) &&
+      /TUNING_EXCLUDE: HIGH_RISK_MARKERS \} = require\(['"]\.\/patterns['"]\)/.test(traitsSrc),
+    'backtest.js must get HIGH_RISK_MARKERS from prompt-traits.js ← patterns.js'
   );
+  assert.equal(require('./backtest.js').HIGH_RISK_MARKERS, require('./patterns').TUNING_EXCLUDE);
   // The old inline HIGH_RISK_MARKERS definition must be gone.
   assert.ok(
     !/^const HIGH_RISK_MARKERS = \[/m.test(backtestSrc),

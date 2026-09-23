@@ -67,6 +67,41 @@ test('pin-down on HIGH_RISK prompt is REFUSED (haiku on deploy/push)', () => {
   assert.ok(!/honored — pinned to claude-haiku-4-5/.test(out), 'high-risk downgrade must not be honored');
 });
 
+test('privacy (bite): the hook writes the prompt hash, never its text, to decisions.log or anywhere under HOME', (t) => {
+  // /privacy (mooter.ai): «We log a SHA-256 hash of each prompt — never the text
+  // itself». Until 2026-09-23 the classified event carried prompt.slice(0, 80).
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-privacy-hook-'));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(home, '.claude', 'tools', 'router'), { recursive: true });
+  const env = Object.assign({}, process.env, { HOME: home, USERPROFILE: home });
+  for (const k of ['MOOTER_PIN_MODEL', 'MOOTER_CONTEXT_BRIDGE', 'MOOTER_DECISOR_SHADOW']) delete env[k];
+  const phrase = 'zanzibar-quokka-7f3e marmalade teleport ledger oboe';
+  const prompt = `explain why ${phrase} keeps failing`;
+  const res = spawnSync(process.execPath, [SCRIPT], {
+    input: JSON.stringify({ prompt, session_id: 'privacy-hook' }), encoding: 'utf8', timeout: 15000, env,
+  });
+  assert.strictEqual(res.status, 0, res.stderr || res.stdout);
+
+  const sha = require('node:crypto').createHash('sha256').update(prompt, 'utf8').digest('hex');
+  const log = fs.readFileSync(path.join(home, '.claude', 'tools', 'router', 'decisions.log'), 'utf8');
+  const classified = log.trim().split('\n').map((l) => JSON.parse(l))
+    .filter((e) => e.event === 'classified' && e.session_id === 'privacy-hook');
+  assert.strictEqual(classified.length, 1);
+  assert.strictEqual(classified[0].prompt_sha256, sha);
+  assert.ok(!('prompt_preview' in classified[0]), 'no prompt_preview');
+
+  /** @param {string} dir @returns {string[]} */
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true })
+    .flatMap((d) => d.isDirectory() ? walk(path.join(dir, d.name)) : [path.join(dir, d.name)]);
+  for (const file of walk(home)) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (let i = 0; i + 6 <= phrase.length; i++) {
+      const chunk = phrase.slice(i, i + 6);
+      assert.ok(!text.includes(chunk), `${path.relative(home, file)} leaks "${chunk}"`);
+    }
+  }
+});
+
 test('P0-B — classified mede e identifica os caminhos spawn e cache usados pelo piloto', (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-p0b-hook-'));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));

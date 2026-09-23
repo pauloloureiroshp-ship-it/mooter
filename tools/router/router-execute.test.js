@@ -434,83 +434,26 @@ test('execute() never throws on async wrapper rejection — error captured in re
 
 // os, fs and path are already required at the top of this file.
 
-test('I10: prompt_preview redacts API keys, bearer tokens, and KEY=value patterns', () => {
-  const r = _internal.sanitisePromptPreview(
-    'use OPENAI_API_KEY=sk-proj-abcdef1234567890 to debug, also Bearer eyJhbGciOiJIUzI1Ni'
-  );
-  assert.ok(!r.includes('sk-proj-abcdef1234567890'), 'sk-proj key must be redacted');
-  assert.ok(!r.includes('Bearer eyJhbGciOiJIUzI1Ni'), 'bearer token must be redacted');
-  assert.ok(r.includes('[REDACTED]'));
-  assert.ok(r.length <= 80, 'preview is capped at 80 chars');
-});
-
-test('I10: sanitisePromptPreview redacts ghp_ and AIza patterns', () => {
-  const a = _internal.sanitisePromptPreview('GitHub PAT ghp_abcdefghijklmnopqrstuv1234');
-  const b = _internal.sanitisePromptPreview('Google AIzaSyCabcdefghij1234567890abc');
-  assert.ok(!a.includes('ghp_abcdefghijklmnopqrstuv'));
-  assert.ok(!b.includes('AIzaSyCabcdefghij1234567890abc'));
-});
-
-test('I10: redacts GitHub PATs across all five prefixes (ghp/gho/ghu/ghs/ghr)', () => {
-  for (const p of ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_']) {
-    const token = p + 'abcdefghijklmnopqrstuv1234';
-    const r = _internal.sanitisePromptPreview(`GitHub ${token} for repo`);
-    assert.ok(!r.includes(token), `expected redaction for ${p} prefix in: ${r}`);
-  }
-});
-
-test('I10: redacts AWS access key IDs (AKIA...)', () => {
-  const r = _internal.sanitisePromptPreview('use AKIAIOSFODNN7EXAMPLE to upload backups');
-  assert.ok(!r.includes('AKIAIOSFODNN7EXAMPLE'), `not redacted: ${r}`);
-  assert.ok(r.includes('[REDACTED]'));
-});
-
-test('I10: redacts GitLab PATs (glpat-...)', () => {
-  const r = _internal.sanitisePromptPreview('GITLAB_TOKEN=glpat-abcdef1234567890qrstuv');
-  assert.ok(!r.includes('glpat-abcdef1234567890qrstuv'), `not redacted: ${r}`);
-  assert.ok(r.includes('[REDACTED]'));
-});
-
-test('I10: redacts Slack tokens (xoxb/xoxp/xoxa/xoxr/xoxs)', () => {
-  for (const p of ['xoxb-', 'xoxp-', 'xoxa-', 'xoxr-', 'xoxs-']) {
-    const token = p + '1234-5678-9abcdefghijk';
-    const r = _internal.sanitisePromptPreview(`SLACK ${token}`);
-    assert.ok(!r.includes(token), `expected redaction for ${p} in: ${r}`);
-  }
-});
-
-test('I10: redacts JWT tokens (eyJ.X.Y)', () => {
-  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NSJ9.SflKxwRJSMeKKF2QT4fwp';
-  const r = _internal.sanitisePromptPreview(`Authorization: ${jwt} expired`);
-  assert.ok(!r.includes(jwt.slice(0, 40)), `not redacted: ${r}`);
-});
-
-test('I10: redacts Azure SharedAccessSignature', () => {
-  const r = _internal.sanitisePromptPreview('uri SharedAccessSignature sv=2020-08-04&ss=b&sig=abc');
-  assert.ok(!r.includes('sv=2020-08-04'), `not redacted: ${r}`);
-});
-
-test('I10: redacts generic credential env-vars (SECRET_KEY, ACCESS_TOKEN, etc)', () => {
-  const cases = [
-    'SECRET_KEY=topsecret123',
-    'ACCESS_TOKEN=ya29.aBcDeFgHiJ',
-    'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-    'AZURE_CLIENT_SECRET=Q1abcdefghij~',
-    'GITLAB_TOKEN=glpat-shortbutset',
-  ];
-  for (const c of cases) {
-    const r = _internal.sanitisePromptPreview(c);
-    const value = c.split('=')[1];
-    assert.ok(!r.includes(value), `expected redaction for "${c}", got: ${r}`);
-  }
-});
-
-test('I10: sanitisePromptPreview tolerates non-string and empty input', () => {
-  assert.equal(_internal.sanitisePromptPreview(undefined), '');
-  assert.equal(_internal.sanitisePromptPreview(null), '');
-  assert.equal(_internal.sanitisePromptPreview(''), '');
-  // Numbers / objects pass through as ''.
-  assert.equal(_internal.sanitisePromptPreview(/** @type {any} */ (42)), '');
+// /privacy (mooter.ai): «We log a SHA-256 hash of each prompt — never the text
+// itself». Until 2026-09-23 the executed record carried the first 80 chars as
+// prompt_preview (redacted for API keys). It now carries prompt_sha256 + traits:
+// no text at all, which also covers every credential pattern the redactor knew.
+test('I10: executed record carries prompt_sha256 + traits and no prompt_preview', () => {
+  const crypto = require('node:crypto');
+  const prompt = 'use OPENAI_API_KEY=sk-proj-abcdef1234567890 to debug the deploy of api.ts';
+  const rec = _internal.buildTelemetryRecord({
+    prompt,
+    classification: { tier: 'T1', confidence: 0.8, task_category: 'explain_error' },
+    result: { ok: true },
+    suggestedProviders: [],
+  });
+  assert.equal(rec.prompt_preview, undefined);
+  assert.equal(rec.prompt_sha256, crypto.createHash('sha256').update(prompt, 'utf8').digest('hex'));
+  assert.equal(rec.tuning_exclude, true); // "deploy" is a TUNING_EXCLUDE marker
+  assert.deepEqual(rec.keyword_signals, ['bug', 'debug', 'deploy']); // substring match, as before
+  assert.equal(rec.has_file_refs, true);
+  assert.equal(rec.has_code_block, false);
+  assert.ok(!JSON.stringify(rec).includes('sk-proj'), 'no credential fragment');
 });
 
 test('appendDecisionsLog writes one JSONL line under MOOTER_DECISIONS_LOG override', async () => {
@@ -658,27 +601,57 @@ test('execute() with no telemetryWriter dep falls back to defaultTelemetryWriter
   }
 });
 
-test('I10 (e2e): executed telemetry record has redacted prompt_preview', async () => {
-  reset();
-  const handcrafted = {
-    prompt: 'use OPENAI_API_KEY=sk-proj-abcdef1234567890 to debug rate limiter',
-    classification: {
-      tier: 'T1',
-      confidence: 0.85,
-      suggested_providers: ['haiku'],
-      task_category: 'explain_error',
-      escalation_rule: 'none',
-    },
-    provider_state: {},
-    provider_mocks: {},
-  };
-  const { telemetryWrites } = await runExecutorWithFixture({ fixture: handcrafted });
-  assert.equal(telemetryWrites.length, 1);
-  const preview = telemetryWrites[0].prompt_preview;
-  assert.ok(!preview.includes('sk-proj-abcdef1234567890'),
-    `expected redaction in: ${preview}`);
-  assert.ok(preview.includes('[REDACTED]'));
+test('privacy (e2e, bite): a unique phrase reaches neither decisions.log nor the :7821 POST — only its hash', async () => {
+  const crypto = require('node:crypto');
+  const http = require('node:http');
+  const phrase = 'zanzibar-quokka-7f3e marmalade teleport ledger oboe';
+  const prompt = `please explain why ${phrase} keeps failing`;
+  const sha = crypto.createHash('sha256').update(prompt, 'utf8').digest('hex');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mooter-privacy-'));
+  const tmpLog = path.join(tmpDir, 'decisions.log');
+  /** @type {string[]} */
+  const bodies = [];
+  let gotPost;
+  const posted = new Promise((r) => { gotPost = r; });
+  const server = http.createServer((req, res) => {
+    let b = '';
+    req.on('data', (c) => { b += c; });
+    req.on('end', () => { bodies.push(b); res.end('ok'); gotPost(); });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', () => r(undefined)));
+  const SAVED = { log: process.env.MOOTER_DECISIONS_LOG, port: process.env.MOOTER_TRACKER_PORT };
+  process.env.MOOTER_DECISIONS_LOG = tmpLog;
+  process.env.MOOTER_TRACKER_PORT = String(/** @type {any} */ (server.address()).port);
+  try {
+    delete require.cache[require.resolve('./router-execute')];
+    const mod = require('./router-execute');
+    await mod.execute({
+      prompt,
+      classification: { tier: 'T1', confidence: 0.85, suggested_providers: ['haiku'], task_category: 'explain_error', escalation_rule: 'none' },
+    });
+    await mod._internal.flushDecisionsLog();
+    await Promise.race([posted, new Promise((r) => setTimeout(r, 2000))]);
+
+    const logText = fs.readFileSync(tmpLog, 'utf8');
+    assert.equal(bodies.length, 1, 'exactly one POST to /decision');
+    // Every 6-char window of the phrase: a slice(0, 80) of the prompt would contain several.
+    for (const sink of [['decisions.log', logText], ['POST /decision', bodies[0]]]) {
+      for (let i = 0; i + 6 <= phrase.length; i++) {
+        const chunk = phrase.slice(i, i + 6);
+        assert.ok(!sink[1].includes(chunk), `${sink[0]} leaks "${chunk}"`);
+      }
+      assert.ok(!sink[1].includes('prompt_preview'), `${sink[0]} still has prompt_preview`);
+      assert.ok(sink[1].includes(sha), `${sink[0]} carries the prompt hash`);
+    }
+  } finally {
+    await new Promise((r) => server.close(() => r(undefined)));
+    if (SAVED.log === undefined) delete process.env.MOOTER_DECISIONS_LOG; else process.env.MOOTER_DECISIONS_LOG = SAVED.log;
+    if (SAVED.port === undefined) delete process.env.MOOTER_TRACKER_PORT; else process.env.MOOTER_TRACKER_PORT = SAVED.port;
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
 });
+
 
 // ── T-09 — calibration trigger (I8) ─────────────────────────────────────
 

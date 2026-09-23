@@ -37,6 +37,7 @@ const {
 } = backtest;
 
 const { naiveOpusCost, estimateTurnCost } = require('./pricing.js');
+const { lineHighRisk, lineKeywordSignals } = require('./prompt-traits.js');
 
 const ROUTER_DIR = path.join(os.homedir(), '.claude', 'tools', 'router');
 const VERSION_PATH = path.join(ROUTER_DIR, 'version.json');
@@ -284,11 +285,13 @@ function buildEvent(classified, execEntries, lastClassified, opts) {
   // Dual-enforce HIGH_RISK filter. Anything that matches the guardrail
   // must NEVER enter the feedback corpus, even if the classifier already
   // routed it correctly.
-  if (hasHighRisk(classified.prompt_preview || '')) return null;
+  // Legacy lines carry prompt_preview; lines since 2026-09-23 carry only the
+  // hash + traits computed at write time (prompt-traits.js).
+  if (lineHighRisk(classified)) return null;
 
   const promptLen = classified.prompt_len || 0;
   const promptLenBucket = lenBucket(promptLen);
-  const keywordSignals = extractKeywordSignals(classified.prompt_preview || '');
+  const keywordSignals = lineKeywordSignals(classified);
 
   // actual_model_used + subagent_spawned derived from exec rows.
   // First non-null model wins; subagent_spawned=1 if any cmd starts with

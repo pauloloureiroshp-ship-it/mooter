@@ -111,15 +111,12 @@ const TIER_TO_MODEL = {
 // Patterns that identify non-user prompts injected by Claude Code itself.
 // These are hook echoes and should NOT count toward the routing stats —
 // otherwise a busy session with many tool notifications inflates Ollama %.
-const SYSTEM_PROMPT_PATTERNS = [
-  /^<task-notification>/i,
-  /^<system-reminder>/i,
-  /^<command-name>/i,
-];
+// Lines since 2026-09-23 carry the `is_system_prompt` trait instead of text;
+// legacy lines are matched on prompt_preview (prompt-traits.js).
+const { SYSTEM_PROMPT_PATTERNS, lineIsSystemPrompt } = require('./prompt-traits');
 
 function isSystemPrompt(entry) {
-  const p = entry.prompt_preview || '';
-  return SYSTEM_PROMPT_PATTERNS.some((rx) => rx.test(p));
+  return lineIsSystemPrompt(entry);
 }
 
 // ── Turn latency measurement (v0.7.2) ──────────────────────────────────────

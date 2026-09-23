@@ -35,6 +35,9 @@ SYNC_FILES=(
   paths.js
   classify.js
   patterns.js
+  # hash + traits of the prompt (2026-09-23): required by inject_context,
+  # router-execute, savings-tracker, backtest and event-builder.
+  prompt-traits.js
   inject_context.js
   # dependencia directa do inject_context.js: sem ela o require falha, o catch
   # engole o erro em silencio e o P0 do USER_OVERRIDE fantasma reabre sem aviso.

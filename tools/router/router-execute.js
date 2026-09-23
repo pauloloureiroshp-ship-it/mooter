@@ -32,6 +32,7 @@
 const fs = require('node:fs');
 const http = require('node:http');
 const { sanitizeJson } = require('./sanitize');
+const { promptTraits } = require('./prompt-traits');
 
 // Lazy paths import — keeps the hot path fast and avoids a circular
 // import if paths.js ever pulls something from this module.
@@ -286,7 +287,10 @@ function buildClassificationInvalidError() {
  * @param {string[]} args.suggestedProviders
  */
 function buildTelemetryRecord({ prompt, classification, result, suggestedProviders }) {
-  const sanitisedPreview = sanitisePromptPreview(prompt);
+  // /privacy: «We log a SHA-256 hash of each prompt — never the text itself».
+  // Until 2026-09-23 this record carried the first 80 chars (prompt_preview);
+  // it now carries the hash + closed-vocabulary traits (prompt-traits.js).
+  const traits = promptTraits(prompt);
   // outcome semantics:
   //   ok       — provider returned text successfully
   //   error    — executor itself failed without a usable defer target
@@ -305,7 +309,7 @@ function buildTelemetryRecord({ prompt, classification, result, suggestedProvide
     ts: new Date().toISOString(),
     event: 'executed',
     session_id: process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID || null,
-    prompt_preview: sanitisedPreview,
+    ...traits,
     tier: classification.tier || 'unknown',
     task_category: classification.task_category || 'unknown',
     confidence: typeof classification.confidence === 'number' ? classification.confidence : null,
@@ -325,45 +329,6 @@ function buildTelemetryRecord({ prompt, classification, result, suggestedProvide
     user_override_honored: !!(classification.user_override && classification.user_override.honored),
     quality_intent: classification.quality_intent || 'normal',
   };
-}
-
-/**
- * Redact API keys and bearer tokens from prompt_preview before telemetry.
- * Defends against I10 invariant. Pulls in repo's sanitizeJson too.
- *
- * @param {string} prompt
- */
-function sanitisePromptPreview(prompt) {
-  if (!prompt || typeof prompt !== 'string') return '';
-  const PATTERNS = [
-    // OpenAI / Anthropic / generic sk- prefix keys
-    /sk-[A-Za-z0-9_-]{4,}/g,
-    // Authorization: Bearer ...
-    /Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
-    // Google API keys (AIza...)
-    /AIza[0-9A-Za-z_-]{20,}/g,
-    // GitHub PATs across all prefixes (ghp_/gho_/ghu_/ghs_/ghr_)
-    /gh[pousr]_[A-Za-z0-9]{20,}/g,
-    // GitLab PATs
-    /glpat-[A-Za-z0-9_-]{20,}/g,
-    // Slack tokens (xoxb-/xoxp-/xoxa-/xoxr-/xoxs-)
-    /xox[baprs]-[A-Za-z0-9-]{10,}/g,
-    // AWS access key IDs (AKIA + 16 base32 chars)
-    /AKIA[0-9A-Z]{16}/g,
-    // JWT tokens (header.payload.signature, base64url)
-    /eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}/g,
-    // Azure SAS signatures
-    /SharedAccessSignature\s+\S+/gi,
-    // Generic credential env-var assignments — broad catch-all
-    /(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|API_KEY|SECRET_KEY|ACCESS_TOKEN|AUTH_TOKEN|PRIVATE_KEY|AWS_SECRET_ACCESS_KEY|AZURE_CLIENT_SECRET|GITLAB_TOKEN|SLACK_TOKEN|GITHUB_TOKEN)\s*=\s*\S+/gi,
-  ];
-  let redacted = prompt;
-  for (const re of PATTERNS) redacted = redacted.replace(re, '[REDACTED]');
-  // sanitizeJson handles structured objects elsewhere; for plain string we
-  // only need the regex pass. Keep the import to ensure shared dep stays
-  // wired (final-reviewer would notice an unused import).
-  void sanitizeJson;
-  return redacted.slice(0, 80);
 }
 
 // ── Default telemetry writer (T-08) ─────────────────────────────────────
@@ -1079,7 +1044,6 @@ module.exports = {
     isHighRiskFloor,
     mapAnthropicOverrideToSubagent,
     defaultSubagentForTier,
-    sanitisePromptPreview,
     buildTelemetryRecord,
     resolveFallbackChain,
     estadoPersistido,

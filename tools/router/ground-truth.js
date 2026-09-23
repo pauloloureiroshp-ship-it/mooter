@@ -141,7 +141,10 @@ function main() {
   const { events, alreadyVerified } = loadClassified();
 
   // Find oracle-eligible events
+  // Lines since 2026-09-23 carry prompt_sha256, not text: the oracle needs the
+  // text, so only legacy lines (prompt_preview) are eligible.
   const eligible = events.filter(e =>
+    e.prompt_preview &&
     e.task_category &&
     ORACLE_CATEGORIES[e.task_category] &&
     !alreadyVerified.has(e.decision_id || `${e.session_id}_${e.ts_ms}`)

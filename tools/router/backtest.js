@@ -60,43 +60,14 @@ function naiveCostFor(promptLen) {
 // tuning-exclusion markers (bare `push`, `merge`, `review`, `database`,
 // `schema`, `--force`, `force-push`, `ci`). Kept as HIGH_RISK_MARKERS for
 // backwards compatibility with existing module exports.
-const { TUNING_EXCLUDE: HIGH_RISK_MARKERS } = require('./patterns');
-
-/**
- * @param {string | undefined | null} text
- */
-function hasHighRisk(text) {
-  if (!text) return false;
-  return HIGH_RISK_MARKERS.some(/** @param {RegExp} rx */ (rx) => rx.test(text));
-}
-
-// Mirror of classify.js QUALITY_INTENT_PATTERNS + USER_OVERRIDE detection.
-// These phrases are DELIBERATE high-tier signals. Filtering them out of the
-// tuning pool prevents the daily backtest from proposing the same demotions
-// every cycle. (2026-04-18 audit — classify.js doesn't export these.)
-const QUALITY_INTENT_LOCAL = [
-  /\bpensa\s+bem\b/i, /\bpensa\s+(bem\s+)?antes\b/i, /\bultrathink\b/i,
-  /\bthink\s+(hard|deeply|carefully|step[-\s]by[-\s]step)\b/i,
-  /\bmega\s*think\b/i, /\bpreciso\s+do\s+teu\s+melhor\b/i,
-  /\bgive\s+me\s+your\s+best\b/i, /\bdon'?t\s+(mess|screw)\s+this\s+up\b/i,
-  /\bn[aã]o\s+podes\s+falhar\b/i, /\bmission\s+critical\b/i,
-  /\bdeep\s+dive\s+(analysis)?\b/i,
-];
-const USER_OVERRIDE_LOCAL = [
-  /@(opus|sonnet|haiku|gemini|gpt-?4o?|ollama|qwen)\b/i,
-  /\b(usa|use|usar|com|with|via|por)\s+(o\s+)?(opus|sonnet|haiku|gemini|gpt-?4o?|ollama|qwen)\b/i,
-  /\bforce\s+(opus|sonnet|haiku|gemini|gpt-?4o?|ollama|qwen)\b/i,
-  /\b(sonnet|opus|haiku|gemini|ollama)\s+diagnostica\b/i,
-  /\bmodel\s*:\s*(opus|sonnet|haiku|gemini|ollama)\b/i,
-];
-/**
- * @param {string | undefined | null} text
- */
-function hasDeliberateHighTierSignal(text) {
-  if (!text) return false;
-  return QUALITY_INTENT_LOCAL.some((rx) => rx.test(text)) ||
-         USER_OVERRIDE_LOCAL.some((rx) => rx.test(text));
-}
+// 2026-09-23: the marker lists moved to prompt-traits.js, so the hook that
+// writes the traits and this reader cannot drift.
+const promptTraits = require('./prompt-traits');
+const {
+  HIGH_RISK_MARKERS, hasHighRisk, hasDeliberateHighTierSignal,
+  KEYWORD_ALLOW_LIST, extractKeywordSignals,
+  lineHighRisk, lineDeliberateHighTier, lineKeywordSignals,
+} = promptTraits;
 
 function loadDecisions() {
   if (!fs.existsSync(LOG_PATH)) return [];
@@ -130,6 +101,25 @@ function signature(preview) {
     .filter(Boolean)
     .slice(0, 3)
     .join(' ');
+}
+
+// Lines written since 2026-09-23 carry no text (prompt_sha256 only): they group
+// by exact repeat of the prompt instead of by its first 3 words.
+/** @param {Record<string, any>} d @returns {string} */
+function lineSignature(d) {
+  if (!d) return '';
+  if (d.prompt_preview) return signature(d.prompt_preview);
+  const sha = d.prompt_sha256 || d.prompt_preview_sha256; // the latter: migrated legacy line
+  return typeof sha === 'string' && sha ? 'sha:' + sha.slice(0, 16) : '';
+}
+
+// A `sha:` signature groups repeats for reports, but it is not a pattern:
+// update-router.js would turn it into a regex that never matches any prompt,
+// and idealCost/additionalSavings would count savings that cannot happen.
+// Only text signatures (legacy lines) may become tuning patterns.
+/** @param {string} sig */
+function isTunableSig(sig) {
+  return !!sig && !sig.startsWith('sha:');
 }
 
 // ── Sprint A (2026-04-15): Explicit feedback resolution ───────────────────
@@ -329,7 +319,7 @@ function computeCorrectionRepeats(decisions) {
       d.shadow_demote === true ||
       isHonoredUpgrade(d);
     if (!isCorrection) continue;
-    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
+    const sig = lineSignature(d);
     if (!sig) continue;
     out.set(sig, (out.get(sig) || 0) + 1);
   }
@@ -355,7 +345,7 @@ function sampleWeight(d, opts) {
   // Multiplicative repeat bonus — capped so a single runaway signature can't
   // dominate the whole demote pool.
   if (opts.repeats) {
-    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
+    const sig = lineSignature(d);
     if (sig) {
       const repeats = opts.repeats.get(sig) || 0;
       if (repeats >= 2) w = Math.min(w * 5, 50);
@@ -413,7 +403,7 @@ function analyze(decisions, opts = {}) {
     byTier[tier] = (byTier[tier] || 0) + 1;
     if (d.quality_intent === true) qualityIntentHits += 1;
     if (d.cache_hit === true) cacheHits += 1;
-    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
+    const sig = lineSignature(d);
     if (sig) {
       if (!sigToTiers.has(sig)) sigToTiers.set(sig, []);
       const list = sigToTiers.get(sig);
@@ -424,7 +414,7 @@ function analyze(decisions, opts = {}) {
     // The runtime guardrail in classify.js already blocks demote on HIGH_RISK
     // prompts, but filtering upstream keeps router-tuning.json clean and stops
     // the daily backtest from relearning the same bad patterns every 24h.
-    const risky = hasHighRisk(/** @type {string | undefined} */ (d.prompt_preview));
+    const risky = lineHighRisk(d);
     if (risky) continue;
     // Quality intent / honored user override are DELIBERATE high-tier signals.
     // The classifier promoted them intentionally (e.g. "pensa bem antes",
@@ -435,7 +425,7 @@ function analyze(decisions, opts = {}) {
     if (d.user_override && /** @type {any} */ (d.user_override).honored === true) continue;
     // Fallback: detect deliberate signals via preview text (older decision logs
     // don't persist the boolean flags, so we pattern-match as a safety net).
-    if (hasDeliberateHighTierSignal(/** @type {string | undefined} */ (d.prompt_preview))) continue;
+    if (lineDeliberateHighTier(d)) continue;
     // Sprint A: explicit rating overrides length heuristic for T2/T3
     if (d.explicit_rating === 0 && (tier === 'T2' || tier === 'T3')) {
       explicitBadOnHighTier.push(d);
@@ -470,8 +460,8 @@ function analyze(decisions, opts = {}) {
   /** @type {Map<string, number>} */
   const demoteCandidates = new Map();
   for (const d of shortHighTier) {
-    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
-    if (!sig) continue;
+    const sig = lineSignature(d);
+    if (!isTunableSig(sig)) continue;
     const w = sampleWeight(d, { boost, repeats });
     demoteCandidates.set(sig, (demoteCandidates.get(sig) || 0) + w);
   }
@@ -491,8 +481,8 @@ function analyze(decisions, opts = {}) {
     for (const d of decisions) {
       if (d.source === 'mooter-tester') continue;
       if (!isHonoredUpgrade(d)) continue;
-      const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
-      if (!sig) continue;
+      const sig = lineSignature(d);
+      if (!isTunableSig(sig)) continue;
       const ov = /** @type {any} */ (d.user_override);
       const existing = underRouteMap.get(sig);
       if (existing) {
@@ -517,8 +507,8 @@ function analyze(decisions, opts = {}) {
   const promoteCandidates = new Set();
   for (const d of lowConfHighTier) {
     if ((d.prompt_len || 0) < 30) {
-      const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
-      if (sig) promoteCandidates.add(sig);
+      const sig = lineSignature(d);
+      if (isTunableSig(sig)) promoteCandidates.add(sig);
     }
   }
 
@@ -532,7 +522,7 @@ function analyze(decisions, opts = {}) {
     actualCost += tierCostFor(t, pl);
     naiveCost += naiveCostFor(pl);
     // ideal: if it was a demote candidate, drop one tier
-    const sig = signature(/** @type {string | undefined} */ (d.prompt_preview));
+    const sig = lineSignature(d);
     const isDemote = demoteCandidates.has(sig);
     if (isDemote && t === 'T3') idealCost += tierCostFor('T2', pl);
     else if (isDemote && t === 'T2') idealCost += tierCostFor('T1', pl);
@@ -732,13 +722,7 @@ function explainCandidates(decisions) {
 //   - instance_id is a SHA-256(machine-id) truncated to 8 chars
 //   - has_file_refs / has_code_block are booleans
 
-const KEYWORD_ALLOW_LIST = new Set([
-  'commit', 'message', 'docstring', 'summarize', 'explain', 'fix',
-  'bug', 'error', 'debug', 'trace', 'root cause', 'refactor', 'extract',
-  'classify', 'plan', 'design', 'architect', 'review', 'test', 'deploy',
-  'migration', 'secret', 'credentials', 'production', 'merge', 'schema',
-  'math', 'proof', 'equation', 'step by step', 'reasoning',
-]);
+// KEYWORD_ALLOW_LIST lives in prompt-traits.js (imported at the top).
 
 /**
  * @param {number | null | undefined} n
@@ -759,18 +743,6 @@ function hourOf(tsIso) {
   } catch { return null; }
 }
 
-/**
- * @param {string | null | undefined} preview
- */
-function extractKeywordSignals(preview) {
-  if (!preview) return [];
-  const low = preview.toLowerCase();
-  const hits = [];
-  for (const kw of KEYWORD_ALLOW_LIST) {
-    if (low.includes(kw)) hits.push(kw);
-  }
-  return hits;
-}
 
 function instanceIdSync() {
   try {
@@ -807,10 +779,10 @@ function exportDelta(decisions) {
   const promoteBuckets = new Map();
 
   for (const d of decisions) {
-    if (!d || !d.tier || !d.prompt_preview) continue;
-    if (hasHighRisk(/** @type {string} */ (d.prompt_preview))) continue; // never export HIGH_RISK
+    if (!d || !d.tier || !(d.prompt_preview || d.prompt_sha256)) continue;
+    if (lineHighRisk(d)) continue; // never export HIGH_RISK
     const bucket = lenBucket(d.prompt_len || 0);
-    const signals = extractKeywordSignals(/** @type {string} */ (d.prompt_preview));
+    const signals = lineKeywordSignals(d);
     const key = `${d.tier}|${bucket}|${signals.join(',')}`;
     // Misroute heuristic: low confidence + high tier = candidate for T0.
     if (Number(d.confidence || 0) < 0.6 && (d.tier === 'T2' || d.tier === 'T3')) {
@@ -819,8 +791,8 @@ function exportDelta(decisions) {
         decided_tier: d.tier,
         correct_tier: 'T0',
         prompt_len_bucket: bucket,
-        has_file_refs: /\.(js|ts|py|go|md|json)\b/.test(/** @type {string} */ (d.prompt_preview)),
-        has_code_block: /```/.test(/** @type {string} */ (d.prompt_preview)),
+        has_file_refs: typeof d.has_file_refs === 'boolean' ? d.has_file_refs : /\.(js|ts|py|go|md|json)\b/.test(String(d.prompt_preview || '')),
+        has_code_block: typeof d.has_code_block === 'boolean' ? d.has_code_block : /```/.test(String(d.prompt_preview || '')),
         keyword_signals: signals,
         session_hour: hourOf(/** @type {string | undefined} */ (d.ts)),
         n: 0,
@@ -1283,6 +1255,8 @@ module.exports = {
   loadDecisions,
   buildTuning,
   signature,
+  lineSignature,
+  isTunableSig,
   // v0.9 exports
   exportDelta,
   explainCandidates,
@@ -1290,6 +1264,8 @@ module.exports = {
   hardwareTier,
   HIGH_RISK_MARKERS,
   hasHighRisk,
+  hasDeliberateHighTierSignal,
+  extractKeywordSignals,
   // v0.9.1 exports
   resolveFeedback,
   // Sprint A (2026-04-15) exports

@@ -1046,7 +1046,13 @@ logDecision({
   event: 'classified',
   session_id: sessionId,
   prompt_len: prompt.length,
-  prompt_preview: prompt.slice(0, 80).replace(/\s+/g, ' '),
+  // /privacy: hash + closed-vocabulary traits, never the text (2026-09-23; was
+  // the first 80 chars as prompt_preview). If prompt-traits.js is missing from a
+  // stale runtime, the hash alone — never a fallback to the excerpt.
+  ...(() => {
+    try { return require('./prompt-traits.js').promptTraits(prompt); }
+    catch { return { prompt_sha256: crypto.createHash('sha256').update(String(prompt), 'utf8').digest('hex') }; }
+  })(),
   tier: decision.tier,
   task_category: decision.task_category,
   recommended_backend: decision.recommended_backend,

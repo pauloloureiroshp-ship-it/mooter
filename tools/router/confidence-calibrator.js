@@ -96,6 +96,7 @@ function calibrationCurve(events) {
   let sampled = 0;
   let skippedNoOracle = 0;
   let skippedInapplicable = 0;
+  let skippedNoText = 0;
   let brierAccum = 0;
   let brierCount = 0;
 
@@ -108,7 +109,9 @@ function calibrationCurve(events) {
     }
     const conf = Number(e.confidence);
     if (!Number.isFinite(conf)) continue;
-    const result = runOracle(e.task_category, e.prompt_preview || '');
+    // Lines since 2026-09-23 carry prompt_sha256, not text: the oracle cannot run.
+    if (!e.prompt_preview) { skippedNoText++; continue; }
+    const result = runOracle(e.task_category, e.prompt_preview);
     if (!result || !result.applicable) {
       skippedInapplicable++;
       continue;
@@ -132,6 +135,7 @@ function calibrationCurve(events) {
     sampled,
     skipped_no_oracle: skippedNoOracle,
     skipped_oracle_inapplicable: skippedInapplicable,
+    skipped_no_text: skippedNoText,
     brier_score: brier,
   };
 }

@@ -281,7 +281,7 @@ Subagents are just markdown files. They contain a role description, allowed tool
 Every classifier invocation appends a JSON line to `decisions.log`:
 
 ```json
-{"ts":"2026-04-07T10:20:53.944Z","event":"classified","prompt_len":99,"prompt_preview":"consegue verificar se eu de facto tenho o Ollama local?","tier":"T0","task_category":"trivial_local","recommended_backend":"ollama","recommended_model":"qwen2.5:3b","confidence":0.8,"escalation_rule":"none"}
+{"ts":"2026-04-07T10:20:53.944Z","event":"classified","prompt_len":99,"prompt_sha256":"3f1c…","tuning_exclude":false,"deliberate_high_tier":false,"keyword_signals":[],"has_file_refs":false,"has_code_block":false,"tier":"T0","task_category":"trivial_local","recommended_backend":"ollama","recommended_model":"qwen2.5:3b","confidence":0.8,"escalation_rule":"none"}
 ```
 
 **`savings-tracker.js`** is a ~235-line HTTP server bound to `127.0.0.1:7821`. It reads `decisions.log` (cached for 4 s) and exposes:
@@ -544,7 +544,7 @@ The system is **designed to fail gracefully.** Every failure mode falls back to 
 
 ## 14. Security and privacy
 
-- **decisions.log** contains the first ~80 characters of every prompt as `prompt_preview`. It is stored locally in `~/.claude/tools/router/` and never sent anywhere. Delete it any time — nothing depends on its history beyond the last 24 h.
+- **decisions.log** stores a SHA-256 hash of each prompt (`prompt_sha256`) plus closed-vocabulary traits (`tuning_exclude`, `deliberate_high_tier`, `keyword_signals` from a fixed allow-list, `has_file_refs`, `has_code_block`, `is_system_prompt`) — never the text (`tools/router/prompt-traits.js`). Until 2026-09-23 it stored the first ~80 characters as `prompt_preview`; old lines keep it until `tools/router/migrate-prompt-preview.js --apply` is run. It is stored locally in `~/.claude/tools/router/` and never sent anywhere. Delete it any time — nothing depends on its history beyond the last 24 h.
 - **savings-tracker.js** binds to `127.0.0.1:7821` only. Not accessible from LAN.
 - **No API keys are stored in the repo.** All secrets live in `~/.claude/.env` (gitignored) or in environment variables.
 - **`.gitignore`** excludes `decisions.log`, `router-tuning.json`, `*.bak`, `backtest-latest.log`, and `.env*`.

@@ -425,7 +425,7 @@ Hoje `reference_model = claude-opus-4-6`. Quando um modelo novo entra no catálo
 
 ### 10.1 Invariantes
 
-- **Prompt raw nunca sai do device**. Persistido em `decisions.log` só como `prompt_preview` truncado a 200 chars **após normalização de paths e identifiers**.
+- **Prompt raw nunca sai do device**. Desde 2026-09-23 o `decisions.log` guarda só o SHA-256 do prompt (`prompt_sha256`) e traços de vocabulário fechado (`tools/router/prompt-traits.js`) — nunca texto. Antes guardava `prompt_preview` (80 chars); as linhas antigas mantêm-no até correr `migrate-prompt-preview.js --apply`. A normalização de 10.2 aplica-se só a essas linhas antigas.
 - **Código do projecto nunca é armazenado**. Embeddings são vectorizações numéricas, não reversíveis para o texto original.
 - **Hub aggregation é opt-in explícito**. Default `allow_hub_aggregation = false`. Quando on, só payload anonimizado:
   ```json

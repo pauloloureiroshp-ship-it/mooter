@@ -170,7 +170,20 @@ export interface ClassifierTuning {
 export interface DecisionLogEntry {
   ts: string;
   event?: string;
+  /** Legacy (until 2026-09-23): first 80 chars of the prompt. No longer written. */
   prompt_preview?: string;
+  /** sha256 hex of the full prompt + closed-vocabulary traits (prompt-traits.js). */
+  prompt_sha256?: string;
+  /** Set by migrate-prompt-preview.js: sha256 of the old 80-char excerpt, not of the prompt. */
+  prompt_preview_sha256?: string;
+  tuning_exclude?: boolean;
+  deliberate_high_tier?: boolean;
+  keyword_signals?: string[];
+  has_file_refs?: boolean;
+  has_code_block?: boolean;
+  is_system_prompt?: boolean;
+  /** Set by migrate-prompt-preview.js on rewritten legacy lines. */
+  migrated_from_preview?: boolean;
   prompt_len?: number;
   tier?: Tier | string;
   subagent?: string;

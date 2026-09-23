@@ -354,9 +354,8 @@
       "reason": "anthropic_only_chain",
       "fallback_chain": [],
       "classification_ref": { "tier": "T1", "confidence": 0.85, "task_category": "explain_error" },
-      "telemetry_prompt_preview_must_not_contain": "sk-proj-abcdef1234567890",
-      "telemetry_prompt_preview_must_contain_redaction": true
+      "telemetry_must_not_contain": "sk-proj-abcdef1234567890"
     },
-    "note": "When chain is purely Anthropic-tier (no codex/openai/ollama in suggested_providers), executor defers immediately. Reason is `anthropic_only_chain` (cheap defer), not `all_non_anthropic_failed` (which implies a real failure happened). Sanitisation must redact API key from prompt_preview."
+    "note": "When chain is purely Anthropic-tier (no codex/openai/ollama in suggested_providers), executor defers immediately. Reason is `anthropic_only_chain` (cheap defer), not `all_non_anthropic_failed` (which implies a real failure happened). The telemetry record carries prompt_sha256 + traits, never prompt text (2026-09-23), so the API key cannot reach it."
   }
 ]
