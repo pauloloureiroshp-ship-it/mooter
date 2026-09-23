@@ -506,16 +506,10 @@ function accumulateAgentSync() {
       const fd = fs.openSync(transcriptPath, 'r');
       const st = fs.fstatSync(fd); const buf = Buffer.alloc(Math.min(st.size, 96 * 1024));
       fs.readSync(fd, buf, 0, buf.length, 0); fs.closeSync(fd);
-      for (const line of buf.toString('utf8').split('\n')) {
-        let row; try { row = JSON.parse(line); } catch { continue; }
-        if (!row || row.type !== 'user' || !row.message) continue;
-        const c = row.message.content; let txt = '';
-        if (typeof c === 'string') txt = c;
-        else if (Array.isArray(c)) { for (const b of c) if (b && b.type === 'text' && typeof b.text === 'string') txt += b.text; }
-        txt = txt.trim(); if (!txt || txt.charAt(0) === '<') continue;
-        title = (txt.split('\n').find((x) => x.trim()) || txt).replace(/^#+\s*/, '').replace(/\s+/g, ' ').slice(0, 160);
-        if (title) break;
-      }
+      // Secrets removed by the same privacy.sanitize as the handoff journal
+      // (ledger-turn-io.js). A runtime without that module gets no title —
+      // never the raw first line (2026-09-23).
+      title = require(path.join(ROUTER_DIR, 'ledger-turn-io.js')).sessionTitle(buf.toString('utf8'));
     }
   } catch { title = null; }
 

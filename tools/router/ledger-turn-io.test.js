@@ -204,3 +204,33 @@ test('`intent` e `outcome` são kinds já declarados pelo journal — nada de sc
   assert.ok(journal.EVENT_KINDS.includes('intent'));
   assert.ok(journal.EVENT_KINDS.includes('outcome'));
 });
+
+// ── session_title (agent-sync) — mesma remoção de segredos do intent ──────
+// Até 2026-09-23 o gsd-turn-end.js gravava a 1.ª linha do prompt crua, até 160
+// chars, no events.jsonl do agent-sync. Agora passa por sessionTitle().
+test('sessionTitle: remove segredos da 1.ª linha, e remove-os ANTES do corte a 160', () => {
+  const { sessionTitle } = require('./ledger-turn-io.js');
+  const key = 'sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const row = (content) => JSON.stringify({ type: 'user', message: { content } }) + '\n';
+
+  const t1 = sessionTitle(row(`deploy com ${key} e ghp_abcdefghijklmnopqrstuvwxyz0123456789 hoje`));
+  assert.ok(t1 && t1.startsWith('deploy com'), t1);
+  assert.ok(!t1.includes('ABCDEFGHIJ') && !t1.includes('ghp_abcdef'), `segredo no título: ${t1}`);
+
+  // A chave atravessa a fronteira dos 160: cortar primeiro deixaria «sk-proj-ABC…»
+  // curto demais para a regex (exige 20+) — e esse pedaço iria para o disco.
+  const t2 = sessionTitle(row('x'.repeat(150) + ' ' + key));
+  assert.ok(t2.length <= 160);
+  assert.ok(!t2.includes('sk-proj-A'), `pedaço da chave no título: ${t2}`);
+
+  // Salta prompts de sistema e linhas vazias; sem prompt humano ⇒ null.
+  assert.strictEqual(sessionTitle(row('<system-reminder> x') + row('# Título real\nresto')), 'Título real');
+  assert.strictEqual(sessionTitle(row('<command-name>')), null);
+  assert.strictEqual(sessionTitle(''), null);
+});
+
+test('gsd-turn-end.js: o session_title vem de sessionTitle(), nunca da linha crua', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'gsd-turn-end.js'), 'utf8');
+  assert.match(src, /require\(path\.join\(ROUTER_DIR, 'ledger-turn-io\.js'\)\)\.sessionTitle\(/);
+  assert.ok(!/\.slice\(0, 160\)/.test(src), 'o corte cru a 160 voltou ao hook');
+});

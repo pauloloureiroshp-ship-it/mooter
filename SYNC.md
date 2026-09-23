@@ -52,7 +52,11 @@
 
 ## 2026-09-23 · Correcção de privacidade — `decisions.log` passa a guardar o hash do prompt, não o texto (`2e4ecdd2`)
 - `/privacy` dizia «SHA-256 hash … never the text itself»; o hook e o `router-execute` gravavam 80 chars (`prompt_preview`) no log e no POST ao `:7821`. Agora: `prompt_sha256` + traços fixos (`tools/router/prompt-traits.js`); mordida provada (repor `slice(0, 80)` ⇒ vermelho). Origem: CC-OUTBOX 046 §3 (Prisma). `landing/` intocado.
-- **Por fazer, com o dono:** `/mooter-update` (o runtime em `~/.claude` ainda grava o excerto); `migrate-prompt-preview.js --apply` (2306 linhas antigas, backup automático); decidir sobre o texto que ainda persiste por omissão — diário de handoff (`ledger-turn-io.js:34`, até 1200 chars) e `session_title` do agent-sync (`gsd-turn-end.js:516`, 160 chars, sem sanitize).
+- `session_title` do agent-sync (160 chars) passa pela mesma remoção de segredos do diário de handoff, antes do corte (`ledger-turn-io.js` `sessionTitle`); decisão do dono 2026-09-23.
+- **Pendências (decisão do dono, 2026-09-23):**
+  - `/mooter-update` — **com o dono, só depois de 05/10** (até lá o runtime em `~/.claude` ainda grava o excerto).
+  - Migração das linhas antigas (`migrate-prompt-preview.js --apply`, 2306 linhas, backup automático) — **não agora; depois do gate de 05/10.**
+  - `/privacy` tem de declarar o diário de handoff local (até 1200 caracteres, segredos removidos) depois de 20/10, quando o site descongelar. O diário fica como está.
 
 ## 2026-09-21 · decisor-shadow MP1→MP4-a — o decisor local bate as constantes, chumba a calibração; 2 bugs de produção corrigidos
 - **D v0** (qwen2.5-coder:14b, 4 perguntas tipadas, logprobs): **0,622 em 37 prompts virgens** (1/sessão, 3 rotuladores, κ 0,74) vs «T2 sempre» 0,243 (p=0,002), «T3 sempre» 0,324 (p=0,017), regra 0,324 — **ECE 0,146 > 0,10 três corpora seguidos → ENTRE**; F2-shadow opt-in em `tools/router/arbiter.js` (+1 linha no hook, +4 ms, sem texto no log); commits em `main` **por push** — `_handoff/decisor-shadow-2026-09-21/results/{PROGRESSO,REVIEW-7-COMMITS}.md`.

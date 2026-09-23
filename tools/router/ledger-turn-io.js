@@ -228,4 +228,26 @@ function _parse(ln) {
   try { return JSON.parse(String(ln)); } catch { return null; }
 }
 
-module.exports = { deriveTurnIO, _isHumanPrompt, _turnId, _messageText, _isToolError, WRITE_TOOLS };
+// PURE: título da sessão para o agent-sync (session_title) — 1.ª linha do 1.º
+// prompt humano do transcript, até 160 chars. Passa pela MESMA remoção de
+// segredos do intent (privacy.sanitize), e ANTES do corte: cortar primeiro
+// podia partir uma chave a meio e deixar metade dela fora do alcance das regex.
+// Até 2026-09-23 o gsd-turn-end.js gravava esta linha crua, sem sanitize.
+const TITLE_MAX = 160;
+/** @param {string} transcriptHead texto JSONL (início do transcript) */
+function sessionTitle(transcriptHead) {
+  for (const line of String(transcriptHead || '').split('\n')) {
+    let row; try { row = JSON.parse(line); } catch { continue; }
+    if (!row || row.type !== 'user' || !row.message) continue;
+    const c = row.message.content; let txt = '';
+    if (typeof c === 'string') txt = c;
+    else if (Array.isArray(c)) { for (const b of c) if (b && b.type === 'text' && typeof b.text === 'string') txt += b.text; }
+    txt = txt.trim(); if (!txt || txt.charAt(0) === '<') continue;
+    const first = (txt.split('\n').find((x) => x.trim()) || txt).replace(/^#+\s*/, '').replace(/\s+/g, ' ');
+    const title = _sanitize(first).slice(0, TITLE_MAX);
+    if (title) return title;
+  }
+  return null;
+}
+
+module.exports = { deriveTurnIO, sessionTitle, _isHumanPrompt, _turnId, _messageText, _isToolError, WRITE_TOOLS };
