@@ -1130,3 +1130,54 @@ Ponto de partida: `origin/main` = `5600aa1d` (dois commits de outra sessão sobr
 - **(c) `--dry` depois do fix (13:09Z):** `_since_utc` 2026-09-21T14:25:20Z · `_diagnostic_excluded` **3** · **elegíveis desde 14:25:20Z = 24 prompts em 7 sessões → 7 escolhidos (1/sessão)**, `_target_reached: false`.
   - **Ritmo:** 7 sessões em 1,95 dias desde o início da janela = **3,6/dia** → projecção para **2026-10-05T12:00Z** (09:00 BRT): 7 + 3,6 × 11,95 ≈ **50 < 60**. Nas últimas 24 h entraram as 7 (22/09 22:44Z → 23/09 12:47Z) = 7/dia → ≈ 91, os 60 por volta de 2026-10-01 — mas 5 das 7 vêm de um só bloco hoje (12:14–12:47Z) e o regime `/clear` tem 1 sessão medida (d07). **O n é pequeno de mais para escolher entre as duas; a honesta é 50–91, e a regra é esperar, não baixar n.**
   - **Achado (fora do âmbito, para o dono):** o `--dry` mostra 72 eventos com `_not_ok_rate` 23,6 % e `_unrecovered_rate` 40 % — os dois acima do tecto de 10 % que impede fechar o corpus. **32 dos 72 não são sessões reais:** `session_id` `test-inject-pin` (20), `test-reasoning-effort` (8), `badge-test` (4), entre 12:52Z e 13:03Z — os testes `tools/router/inject_context.test.js` e `reasoning-effort-hint.test.js` a correr o hook contra o `~/.claude` **vivo** (outra sessão; este MP não correu a suite de `tools/router/`). Só nos eventos com `session_id` UUID: 40 eventos, 39 ok (**2,5 %** não-ok), mas **6/39 = 15,4 % sem texto recuperável** — todos com `prompt_len` > 500 (cairiam em `gt500` de qualquer forma), em pares longo + ~890 chars segundos depois, nas sessões `79cc1a1c` e `5d9804eb`; causa n/d. Nenhum dos dois contamina itens (nada disto é elegível), mas os dois fazem o fecho recusar. Corrigir exige mexer em `tools/router/` (isolar o HOME nesses testes) ou mudar exclusões — **nenhuma das duas cabe neste MP**; fica para decisão do dono.
+
+# MP10 — AMENDMENT mp4-4 (antes de rótulos) + diagnóstico — 2026-09-23T13:20Z (10:20 BRT)
+
+Ponto de partida: `main` = `19627cb4` (local, 2 à frente de `origin/main`, que não avançou durante o MP). Âmbito: só `_handoff/decisor-shadow-2026-09-21/`. Nada em `tools/router/`, `prisma-data/` nem `classify.js`. **Sem push:** commits locais. A suite de `tools/router/` **não** foi corrida; o `sha256` do `decisions.log` vivo foi medido antes e depois de cada corrida de testes e de cada ronda do adversário — **`d870d4145e4a`, 4 938 linhas, em todas**.
+
+## 1 — Diagnóstico (só leitura)
+
+- **(a) Quem poluiu — PROVADO.** Os 32 eventos de `session_id` não-UUID caem em **3 rajadas**, e cada uma casa com um comando de testes da **sessão CC `52556d4f`** (a da correcção de privacidade, commits `2e4ecdd2` e `19627cb4`), a correr a suite de `tools/router` contra o `~/.claude` vivo:
+
+  | rajada (UTC) | eventos | comando da 52556d4f | atraso |
+  |---|---|---|---|
+  | 12:52:06–12:52:08 | 11 (os 3 ids) | `npm test` às 12:51:56 | 10 s |
+  | 13:00:35–13:00:36 | 5 (só `test-inject-pin`) | subagente `agent-a54fe5`: `node --test prompt-traits backtest router-execute inject_context` às 13:00:33 | 2 s |
+  | 13:00:46–13:00:47 | 5 (só `test-inject-pin`) | o mesmo, com `--test-reporter=tap`, às 13:00:44 | 2 s |
+  | 13:03:14–13:03:15 | 11 (os 3 ids) | `npm test` às 13:03:04 | 10 s |
+
+  A composição também bate: nas rajadas das 13:00 só corre `inject_context.test.js`, e só aparece `test-inject-pin`. Os três ids são literais de `badge.test.js`, `inject_context.test.js` e `reasoning-effort-hint.test.js`. **O codex do MP9 não:** a sub-ronda 8 (12:55:59–12:56:25) não tem eventos; as rajadas das 13:00:35 e 13:03:14 caem 34 s e 12 s **depois** do fim da 8b e da 8c. **Anomalia n/d:** um `npm test` da mesma sessão às 12:50:05Z (1 390 testes) não deixou nenhum evento `decisor_shadow`.
+- **(b) Os 6 sem texto — causa PROVADA, única.** São **hand-backs de subagentes** entregues à sessão principal, em pares: 3 `<agent-message from=…>` (6 536 · 5 192 · 8 702 chars) + 3 `<task-notification>` (894 · 889 · 899), nas sessões `9ea57a09` e `52556d4f`. O Claude Code passa-os ao `UserPromptSubmit`, mas grava-os na transcrição como `queue-operation` (enqueue/remove) e `attachment.queued_command` — **não** como `type:user`. O sha12 do texto cru casa **6/6** nesses campos. **Não são colagens e não há diferença de sha** entre o prompt cru e a transcrição: o texto está lá, num tipo de linha que o indexador não lê. Cairiam de qualquer forma em `tag_*` e `gt500`.
+
+## 2 — AMENDMENT mp4-4 — commit próprio `c67732e2` (13:26:08Z), antes do código
+
+`protocol.json#mp4._amendments[mp4-4]`, `outcome_known: false`, **0 rótulos, 0 previsões lidas** (não existem `corpus-60d.json` nem `labels-60d.json`):
+- **(i)** `session_id` que não é UUID (ou ausente) = teste: sai do universo antes de qualquer taxa **corrigida** e de ser candidato ao corpus.
+- **(ii)** `prompt_len` > 500 (campo do evento) sai do numerador e do denominador da taxa de recuperação **corrigida** — **não** do caminho de elegibilidade (o `gt500` do 60c continua a medir o texto limpo).
+- Taxas **cruas** continuam no meta ao lado das corrigidas, com numeradores e denominadores; os tectos de 10 % do fecho aplicam-se às corrigidas. `n_target` 60, tecto 1/sessão, tectos de 10 %, janela A10, seed e restantes exclusões **inalterados**.
+
+## 3 — Código e testes — `d0f4cc8f`
+
+- `10-corpus-60d.mjs`: `isSessionUuid`, `RECOVERY_RATE_LEN_MAX = 500`, `KNOWN_TEST_SESSION_IDS`. Meta novo: `_not_ok_rate_raw/_corrected`, `_unrecovered_rate_raw/_corrected`, `_non_uuid_session_excluded`, `_non_uuid_session_ids`, `_non_uuid_session_unknown`, `_events_uuid`, `_events_uuid_not_ok`, `_prompt_len_gt500_out_of_recovery_rate`, `_recovery_rate_denominator`, `_unrecovered_corrected`. `_not_ok_rate`/`_unrecovered_rate` mantêm o significado cru. `_dropped` passa a contar só o universo UUID (declarado).
+- Testes: o harness passou a `session_id` UUID determinísticos (como o Claude Code). **(9)** UUID vs não-UUID; `prompt_len` 500 fica e 501 sai da taxa; um 501 cru com lembrete e ≤ 500 limpo **continua elegível**; cruas e corrigidas no meta; o fecho olha para as corrigidas e imprime as duas; AVISO para não-UUID desconhecido (incl. `__proto__`). **(10)** o CLI **fecha** 60 sessões num log com 25 eventos de teste e 2 hand-backs > 500 (cruas 23,0 % / 10,4 %, corrigidas 0).
+- **Pacote 21/21** (`05b-calibrate` + `10-corpus-60d` + `16-gate-f2`; eram 19). **Mordida 14/14** — cada mutação reprova (9) e/ou (10); reposto → 0 falhas. `sha256 classify.js` = `427d8c0b516315c6…` ✓.
+
+## 4 — Adversário (round 9) — antes do commit do código
+
+`codex exec` (`-s read-only`, cwd isolado, `--ephemeral`), **com `HOME`/`USERPROFILE` num directório temporário** (`CODEX_HOME` real só para a autenticação) e a instrução, na 1.ª linha, de **não correr comando nenhum**. O HOME temporário recebeu escritas do próprio codex (`AppData/`, `.claude-server-commander/`) — o isolamento não era cosmético. `decisions.log` vivo igual antes e depois das 3 sub-rondas. **9 SHIP-COM-CORRECÇÕES → 9b SHIP-COM-CORRECÇÕES → 9c SHIP.**
+- **A1 (sério) — declarado, com medida:** (ii) pode esconder a perda de um prompt > 500 cru e ≤ 500 limpo. Em todo o histórico desta máquina: 1 786 linhas `type:user`, 412 > 500 crus, 4 ≤ 500 limpos, **3 elegíveis (0,17 %)**; na janela, 0. A regra do dono fica.
+- **A2 (sério) — mitigado:** (i) exclui por formato; valores fora dos 3 literais provados contam à parte e o CLI avisa (hoje 0). **9b:** `"__proto__"` escapava ao acumulador `{}` → `Object.create(null)`.
+- **A5 (sério) — corrigido:** teste (10). **A3/A4/A6 — declarados** em `_round9_notes` (A6: a emenda é pós-diagnóstico; `outcome_known:false` refere-se ao resultado do 60d, não às taxas que a motivaram). Ledger em `results/adversary-codex-round9.md`.
+
+## 5 — Regra operacional (até 2026-10-05T12:00Z, 09:00 BRT)
+
+**Nada corre os testes de `tools/router/` sem `HOME`/`USERPROFILE` temporário — adversário incluído.** `badge.test.js`, `inject_context.test.js` e `reasoning-effort-hint.test.js` escrevem no `decisions.log` real; isolá-los é trabalho em `tools/router/` (outro MP). A emenda protege o fecho do corpus, não o log.
+
+## 6 — `--dry` depois da emenda (13:37:34Z · 10:37 BRT)
+
+- Janela desde **2026-09-21T14:25:20Z**; `_diagnostic_excluded` 3; 76 eventos.
+- **Não-ok:** crua **22,4 %** (17/76) · corrigida **2,3 %** (1/44). **Sem texto:** crua **37,3 %** (22/59) · corrigida **0 %** (0/31; 12 eventos com `prompt_len` > 500 fora da taxa). Não-UUID excluídos: 32 (`test-inject-pin` 20 · `test-reasoning-effort` 8 · `badge-test` 4), desconhecidos 0. **Com as taxas corrigidas o fecho já não recusa por disponibilidade nem por recuperação** — só por n.
+- **Elegíveis:** 25 prompts em **7 sessões** → 7 escolhidos (1/sessão), `_target_reached: false`. Nenhuma sessão elegível nova desde o MP9 (a deste MP abriu com uma colagem → `tag_pasted`).
+- **Ritmo:** 7 sessões em 1,97 dias = **3,6/dia** → projecção para **2026-10-05T12:00Z**: 7 + 3,56 × 11,93 ≈ **50 < 60** (os 60 por volta de 2026-10-08). Pelas últimas 24 h (as 7 caem entre 22/09 22:44Z e 23/09 12:47Z) = 7/dia → ≈ **90**, os 60 por volta de 2026-10-01. Honesta: **50–90**, o n continua pequeno de mais para escolher; a regra é esperar, não baixar n.
+
+MP10 FECHADO — c67732e2 (emenda) · d0f4cc8f (código + round 9) · quem poluiu: provado (sessão 52556d4f, 3/3 rajadas) · not_ok 22,4 % cru / 2,3 % corr · unrecovered 37,3 % cru / 0 % corr · elegíveis 7 sessões · ritmo 3,6/dia · codex 9 → 9b → 9c SHIP
