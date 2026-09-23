@@ -50,6 +50,10 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-23 · Correcção de privacidade — `decisions.log` passa a guardar o hash do prompt, não o texto (`2e4ecdd2`)
+- `/privacy` dizia «SHA-256 hash … never the text itself»; o hook e o `router-execute` gravavam 80 chars (`prompt_preview`) no log e no POST ao `:7821`. Agora: `prompt_sha256` + traços fixos (`tools/router/prompt-traits.js`); mordida provada (repor `slice(0, 80)` ⇒ vermelho). Origem: CC-OUTBOX 046 §3 (Prisma). `landing/` intocado.
+- **Por fazer, com o dono:** `/mooter-update` (o runtime em `~/.claude` ainda grava o excerto); `migrate-prompt-preview.js --apply` (2306 linhas antigas, backup automático); decidir sobre o texto que ainda persiste por omissão — diário de handoff (`ledger-turn-io.js:34`, até 1200 chars) e `session_title` do agent-sync (`gsd-turn-end.js:516`, 160 chars, sem sanitize).
+
 ## 2026-09-21 · decisor-shadow MP1→MP4-a — o decisor local bate as constantes, chumba a calibração; 2 bugs de produção corrigidos
 - **D v0** (qwen2.5-coder:14b, 4 perguntas tipadas, logprobs): **0,622 em 37 prompts virgens** (1/sessão, 3 rotuladores, κ 0,74) vs «T2 sempre» 0,243 (p=0,002), «T3 sempre» 0,324 (p=0,017), regra 0,324 — **ECE 0,146 > 0,10 três corpora seguidos → ENTRE**; F2-shadow opt-in em `tools/router/arbiter.js` (+1 linha no hook, +4 ms, sem texto no log); commits em `main` **por push** — `_handoff/decisor-shadow-2026-09-21/results/{PROGRESSO,REVIEW-7-COMMITS}.md`.
 - **Bug A:** `gpu-probe.test.js` escrevia o `hw-capability.json` vivo (a RTX 4090 dizia «Apple M4 Pro» desde 17/09) e `bestOllamaT0()` caía para `qwen3:30b` (18 GB) → Option A despejava o 14b (266 miss / 22 hit). Corrigido + ficheiro regenerado. **Bug B:** `callHaikuSync` lia `argv[2]/[3]` em `node -e` → **o arbiter Haiku nunca correu, nem com chave** (os 171 `ok` do log são mocks) — `results/ERRATA-ARBITER-HAIKU.md` corrige P5 e Matriz-12 D15.
