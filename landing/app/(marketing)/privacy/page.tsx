@@ -7,7 +7,7 @@ import versionInfo from '@/app/version.json';
 
 export const metadata: Metadata = {
   title: 'Privacy — your code stays yours',
-  description: 'Mooter is a hook in your terminal, not a proxy. T0 stays local, prompts are hashed, telemetry is opt-in.',
+  description: 'Mooter is a hook in your terminal, not a proxy. T0 stays local, the routing log keeps a hash of each prompt, telemetry is opt-in.',
 };
 
 /* 2026-08-28 · a folha 014 entra na gramática Papel Milimétrico.
@@ -59,18 +59,26 @@ function Grupo({ rotulo, children }: { rotulo: string; children: ReactNode }) {
 }
 
 const cards: { title: string; body: string }[] = [
-  { title: 'T0 runs on Ollama, locally', body: 'When mooter executes on your local Ollama, your prompt and code never touch a network. One caveat: with an API key set, some T0-classified tasks run on cloud Haiku for quality — see “Routing vs execution” below.' },
-  { title: 'Prompts hashed', body: 'We log a SHA-256 hash of each prompt — never the text itself.' },
+  { title: 'T0 runs on Ollama, locally', body: 'When mooter executes on your local Ollama, that call never touches a network. Two caveats: with an API key set, some T0-classified tasks run on cloud Haiku for quality, and an unsure classification can be checked by Haiku first — see “Routing vs execution” below.' },
+  { title: 'Routing log is hashed', body: 'The routing log keeps a SHA-256 hash of each prompt, not its text. The other records mooter keeps on your machine are listed under “Local records” below.' },
   { title: 'Opt-in telemetry', body: 'Defaults OFF. When you turn it on, only aggregated stats leave.' },
-  { title: 'Opt out anytime', body: 'Turn telemetry fully off with `mooter quiet --telemetry-off`. No prompt text is ever transmitted — only hashes and counts.' },
+  { title: 'Opt out anytime', body: 'Turn telemetry fully off with `mooter quiet --telemetry-off`. Telemetry never carries prompt text — only hashes and counts.' },
   { title: 'The herd stays on your machine', body: 'The 🐄×N counter and the “Moos that worked” digest are in-process runtime state only — counts and latencies, never prompt text, and none of it is sent anywhere. Tune it with `mooter quiet --verbose|--herd-quiet|--herd-off`; even `verbose` logs file paths, never their contents.' },
   { title: 'Open source · audit it', body: 'Every line of mooter is on GitHub under MIT. Read the code yourself.' },
 ];
 
 // D4 — how mooter differs from cloud routers/proxies on privacy.
 const vsCloud: { head: string; items: string[] }[] = [
-  { head: 'mooter (hook, local-first)', items: ['T0 runs on your machine — prompt never leaves', 'T1–T3 go direct to your own provider key', 'mooter never sees or stores your prompt text'] },
+  { head: 'mooter (hook, local-first)', items: ['T0 runs on your machine — prompt never leaves', 'T1–T3 go direct to your own provider key', 'Your prompt never goes to a mooter server'] },
   { head: 'Cloud routers / proxies (e.g. LiteLLM-as-a-service, OpenRouter)', items: ['Every prompt transits a third-party server', 'That hop can log, cache or train on your text', 'You trust an extra party with your code'] },
+];
+
+// 2026-09-23 · what the installed code writes locally (see the section that renders it).
+const localRecords: { head: string; body: string }[] = [
+  { head: 'Routing log', body: '~/.claude/tools/router/decisions.log: a SHA-256 hash of each prompt, its length, fixed-vocabulary flags and the routing decision — no prompt text. Installs made before 2026-09-23 wrote the first 80 characters; update and delete the file to drop those lines.' },
+  { head: 'Turn journal (on by default)', body: '~/.claude/tools/router/handoff/: up to 1,200 characters of each prompt and 400 of the reply, plus the paths of files written, with API keys and tokens removed. It lets a new session resume where the last one stopped.' },
+  { head: 'Context Bridge (opt-in, off by default)', body: 'with MOOTER_CONTEXT_BRIDGE=1 (or context_bridge: true in ~/.mooter/preferences.json), up to 4,000 characters per turn of the conversation, secrets removed, are kept for 7 days in ~/.claude/tools/router/.session-context/ and given to your local Ollama model as context.' },
+  { head: 'Contributors only', body: 'when you work inside the mooter repository itself, the first line of each session (up to 160 characters) is recorded in its _handoff/agent-sync/ folder.' },
 ];
 
 const compliance: { head: string; items: string[] }[] = [
@@ -235,13 +243,32 @@ export default async function PrivacyPage() {
               mooter has two separate steps, and they have different privacy properties:
             </p>
             <ul style={{ margin: '0 0 12px', paddingLeft: 18, color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.8 }}>
-              <li><strong style={{ color: 'var(--color-text)' }}>Routing (classification)</strong> runs 100% locally. It&apos;s pure regex in <code style={{ fontFamily: 'var(--mono)' }}>classify.js</code> — no AI, no network. Nothing is sent anywhere to decide which model handles your prompt.</li>
+              <li><strong style={{ color: 'var(--color-text)' }}>Routing (classification)</strong> starts locally: regex in <code style={{ fontFamily: 'var(--mono)' }}>classify.js</code> — no AI, no network. If an Anthropic API key is set and the regex is unsure (confidence below 0.75, or an ambiguous category), mooter asks Claude Haiku to break the tie — that call sends your prompt to Anthropic with your key. Set <code style={{ fontFamily: 'var(--mono)' }}>MOOTER_ARBITER_DISABLE=1</code> to keep classification fully local.</li>
               <li><strong style={{ color: 'var(--color-text)' }}>Execution (the model call)</strong> then runs either locally (Ollama) or in the cloud (Anthropic), using <em>your own</em> API key — the prompt goes direct to your provider, never through a mooter server.</li>
               <li><strong style={{ color: 'var(--color-text)' }}>One honest caveat:</strong> when you have an Anthropic API key configured, some tasks that classify as <code style={{ fontFamily: 'var(--mono)' }}>T0</code> (e.g. summarisation) still execute on cloud Haiku for quality, rather than local Ollama. This is a deliberate quality trade-off — and your CLI&apos;s <strong>divergence chip</strong> surfaces it in real time so you always know when local intent ran in the cloud.</li>
             </ul>
             <p style={{ color: 'var(--color-muted)', fontSize: 13, lineHeight: 1.7, margin: 0 }}>
-              Bottom line: mooter never proxies or stores your prompt text. But &ldquo;routed to T0&rdquo; does not always mean &ldquo;stayed on your machine&rdquo; — the divergence chip is how we keep that transparent.
+              Bottom line: mooter never proxies your prompt through a mooter server. It does keep a few records on your machine, listed below. And &ldquo;routed to T0&rdquo; does not always mean &ldquo;stayed on your machine&rdquo; — the divergence chip is how we keep that transparent.
             </p>
+          </div>
+        </div>
+
+        {/* 2026-09-23 · o que o código instalado grava localmente, dito à letra.
+            Fontes (revisão que o /install clona): tools/router/prompt-traits.js,
+            ledger-turn-io.js:34-35, session-context.js:45-54, agent-sync-ledger.js:174-184. */}
+        <div className="moo-secao m-stack">
+          <div className="moo-marg">
+            local records
+            <b>{localRecords.length} kinds</b>
+            on your disk; delete them anytime
+          </div>
+          <div style={{ maxWidth: 760 }}>
+            <h2 className="moo-h3" style={{ margin: '0 0 16px' }}>Local records — what mooter writes on your machine</h2>
+            <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.8 }}>
+              {localRecords.map((r) => (
+                <li key={r.head}><strong style={{ color: 'var(--color-text)' }}>{r.head}</strong> — {r.body}</li>
+              ))}
+            </ul>
           </div>
         </div>
 
