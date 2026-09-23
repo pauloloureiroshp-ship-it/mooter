@@ -75,10 +75,10 @@ const vsCloud: { head: string; items: string[] }[] = [
 
 // 2026-09-23 · what the installed code writes locally (see the section that renders it).
 const localRecords: { head: string; body: string }[] = [
-  { head: 'Routing log', body: '~/.claude/tools/router/decisions.log: a SHA-256 hash of each prompt, its length, fixed-vocabulary flags and the routing decision — no prompt text. Installs made before 2026-09-23 wrote the first 80 characters; update and delete the file to drop those lines.' },
+  { head: 'Routing log', body: '~/.claude/tools/router/decisions.log: a SHA-256 hash of each prompt, its length, fixed-vocabulary flags and the routing decision — no prompt text. Installs from before 2026-09-23 13:03 UTC keep writing the first 80 characters of each prompt here until they are updated; update, then delete the file (or run tools/router/migrate-prompt-preview.js) to drop those lines.' },
   { head: 'Turn journal (on by default)', body: '~/.claude/tools/router/handoff/: up to 1,200 characters of each prompt and 400 of the reply, plus the paths of files written, with API keys and tokens removed. It lets a new session resume where the last one stopped.' },
   { head: 'Context Bridge (opt-in, off by default)', body: 'with MOOTER_CONTEXT_BRIDGE=1 (or context_bridge: true in ~/.mooter/preferences.json), up to 4,000 characters per turn of the conversation, secrets removed, are kept for 7 days in ~/.claude/tools/router/.session-context/ and given to your local Ollama model as context.' },
-  { head: 'Contributors only', body: 'when you work inside the mooter repository itself, the first line of each session (up to 160 characters) is recorded in its _handoff/agent-sync/ folder.' },
+  { head: 'Contributors only', body: 'when you work inside the mooter repository itself, the first line of each session (up to 160 characters), with API keys and tokens removed, is recorded in its _handoff/agent-sync/ folder.' },
 ];
 
 const compliance: { head: string; items: string[] }[] = [
