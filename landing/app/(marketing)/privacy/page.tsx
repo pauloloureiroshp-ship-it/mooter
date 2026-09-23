@@ -63,13 +63,13 @@ const cards: { title: string; body: string }[] = [
   { title: 'Routing log is hashed', body: 'The routing log keeps a SHA-256 hash of each prompt, not its text. The other records mooter keeps on your machine are listed under “Local records” below.' },
   { title: 'Opt-in telemetry', body: 'Defaults OFF. When you turn it on, only aggregated stats leave.' },
   { title: 'Opt out anytime', body: 'Turn telemetry fully off with `mooter quiet --telemetry-off`. Telemetry never carries prompt text — only hashes and counts.' },
-  { title: 'The herd stays on your machine', body: 'The 🐄×N counter and the “Moos that worked” digest are in-process runtime state only — counts and latencies, never prompt text, and none of it is sent anywhere. Tune it with `mooter quiet --verbose|--herd-quiet|--herd-off`; even `verbose` logs file paths, never their contents.' },
+  { title: 'The herd stays on your machine', body: 'The 🐄×N counter and the “Moos that worked” digest keep only agent names, tiers, models and timings — never prompt text — in a per-session file in your system temp folder, and none of it is sent anywhere. Tune it with `mooter quiet --verbose|--herd-quiet|--herd-off`.' },
   { title: 'Open source · audit it', body: 'Every line of mooter is on GitHub under MIT. Read the code yourself.' },
 ];
 
 // D4 — how mooter differs from cloud routers/proxies on privacy.
 const vsCloud: { head: string; items: string[] }[] = [
-  { head: 'mooter (hook, local-first)', items: ['T0 runs on your machine — prompt never leaves', 'T1–T3 go direct to your own provider key', 'Your prompt never goes to a mooter server'] },
+  { head: 'mooter (hook, local-first)', items: ['T0 on your local Ollama runs on your machine', 'T1–T3 go direct to your own provider key', 'Your prompt never goes to a mooter server'] },
   { head: 'Cloud routers / proxies (e.g. LiteLLM-as-a-service, OpenRouter)', items: ['Every prompt transits a third-party server', 'That hop can log, cache or train on your text', 'You trust an extra party with your code'] },
 ];
 
@@ -245,10 +245,10 @@ export default async function PrivacyPage() {
             <ul style={{ margin: '0 0 12px', paddingLeft: 18, color: 'var(--color-muted)', fontSize: 13.5, lineHeight: 1.8 }}>
               <li><strong style={{ color: 'var(--color-text)' }}>Routing (classification)</strong> starts locally: regex in <code style={{ fontFamily: 'var(--mono)' }}>classify.js</code> — no AI, no network. If an Anthropic API key is set and the regex is unsure (confidence below 0.75, or an ambiguous category), mooter asks Claude Haiku to break the tie — that call sends your prompt to Anthropic with your key. Set <code style={{ fontFamily: 'var(--mono)' }}>MOOTER_ARBITER_DISABLE=1</code> to keep classification fully local.</li>
               <li><strong style={{ color: 'var(--color-text)' }}>Execution (the model call)</strong> then runs either locally (Ollama) or in the cloud (Anthropic), using <em>your own</em> API key — the prompt goes direct to your provider, never through a mooter server.</li>
-              <li><strong style={{ color: 'var(--color-text)' }}>One honest caveat:</strong> when you have an Anthropic API key configured, some tasks that classify as <code style={{ fontFamily: 'var(--mono)' }}>T0</code> (e.g. summarisation) still execute on cloud Haiku for quality, rather than local Ollama. This is a deliberate quality trade-off — and your CLI&apos;s <strong>divergence chip</strong> surfaces it in real time so you always know when local intent ran in the cloud.</li>
+              <li><strong style={{ color: 'var(--color-text)' }}>One honest caveat:</strong> when you have an Anthropic API key configured, some tasks that classify as <code style={{ fontFamily: 'var(--mono)' }}>T0</code> (e.g. summarisation) still execute on cloud Haiku for quality, rather than local Ollama. This is a deliberate quality trade-off.</li>
             </ul>
             <p style={{ color: 'var(--color-muted)', fontSize: 13, lineHeight: 1.7, margin: 0 }}>
-              Bottom line: mooter never proxies your prompt through a mooter server. It does keep a few records on your machine, listed below. And &ldquo;routed to T0&rdquo; does not always mean &ldquo;stayed on your machine&rdquo; — the divergence chip is how we keep that transparent.
+              Bottom line: mooter never proxies your prompt through a mooter server. It does keep a few records on your machine, listed below. And &ldquo;routed to T0&rdquo; does not always mean &ldquo;stayed on your machine&rdquo;.
             </p>
           </div>
         </div>
