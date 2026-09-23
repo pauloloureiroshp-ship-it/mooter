@@ -6,7 +6,7 @@ import test from 'node:test'; import assert from 'node:assert/strict';
 import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os'; import crypto from 'node:crypto';
 import { createRequire } from 'node:module'; import { execFileSync } from 'node:child_process';
 import { HERE, ROOT } from './lib-common.mjs';
-import { readShadowEvents, indexTranscripts, buildCorpus, eligible, sha12, SINCE_CONFIRMATORY } from './10-corpus-60d.mjs';
+import { readShadowEvents, indexTranscripts, buildCorpus, eligible, sha12, SINCE_CONFIRMATORY, isSessionUuid } from './10-corpus-60d.mjs';
 const require = createRequire(import.meta.url);
 const { shadowDecisor } = require(path.join(ROOT, 'tools', 'router', 'arbiter.js'));
 
@@ -14,6 +14,8 @@ const chat = (top) => ({ choices: [{ message: { content: top[0][0] }, logprobs: 
 const mockT2 = [chat([['C', 0.62], ['A', 0.20], ['B', 0.10], ['D', 0.05]]), chat([['B', 0.5], ['A', 0.3], ['C', 0.2]]), chat([['B', 0.8], ['A', 0.2]]), chat([['A', 0.7], ['B', 0.3]])];
 const decision = { tier: 'T0', confidence: 0.9, task_category: 'trivial_local', escalation_rule: 'none', recommended_backend: 'ollama', recommended_model: 'qwen2.5:3b' };
 const OWNER = path.basename(os.homedir());
+// mp4-4 (i): session_id não-UUID = teste, fora do universo — o harness usa UUIDs determinísticos (como o Claude Code)
+const U = (k) => { const h = crypto.createHash('sha256').update(String(k)).digest('hex'); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`; };
 // round 8c A1: labels-60d.json leva _corpus_sha256 dos bytes do corpus que rotula
 const relabel = (out, labelsPath, rows) => fs.writeFileSync(labelsPath, JSON.stringify({ _corpus_sha256: crypto.createHash('sha256').update(fs.readFileSync(out)).digest('hex'), labels: rows }));
 
@@ -35,22 +37,22 @@ function harness() {
   };
   const ev = (prompt, session_id) => shadowDecisor(prompt, decision, { _inline: true, _force: true, _logPath: log, _mockResponses: mockT2, session_id }); // hook_ts_ms = Date.now() real, crescente
   const t0 = Date.parse('2026-09-21T12:00:00Z'); // o since do pré-registo; os eventos do harness nascem depois
-  const events = [ev(P.s1a, 's1'), ev(P.s1b, 's1'), ev(P.s2a, 's2'), ev(P.s3a, 's3'), ev(P.s4a, 's4'), ev(P.s4b, 's4'), ev(P.curto, 's5'), ev(P.colagem, 's6'), ev(P.comando, 's7'), ev(P.temp, 's8')];
+  const events = [ev(P.s1a, U('s1')), ev(P.s1b, U('s1')), ev(P.s2a, U('s2')), ev(P.s3a, U('s3')), ev(P.s4a, U('s4')), ev(P.s4b, U('s4')), ev(P.curto, U('s5')), ev(P.colagem, U('s6')), ev(P.comando, U('s7')), ev(P.temp, U('s8'))];
   assert.ok(events.every((e) => e && e.event === 'decisor_shadow' && e.outcome === 'ok'), 'o harness escreveu 10 eventos ok');
   // transcrições: uma linha type:user por prompt (o texto CRU), mais ruído (tool_result, sidechain), e o «temp» num projecto Temp
   const line = (text, extra = {}) => JSON.stringify({ type: 'user', timestamp: '2026-09-21T13:00:01.000Z', message: { role: 'user', content: text }, ...extra }) + '\n';
   const noise = JSON.stringify({ type: 'user', timestamp: '2026-09-21T13:00:01.000Z', message: { role: 'user', content: [{ type: 'tool_result', content: 'x' }] } }) + '\n';
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 's1.jsonl'), line(P.s1a) + noise + line(P.s1b));
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 's2.jsonl'), line(P.s2a) + line('linha sidechain que não conta', { isSidechain: true }));
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 's3.jsonl'), line(P.s3a));
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 's4.jsonl'), line(P.s4a) + line(P.s4b));
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 's5.jsonl'), line(P.curto)); fs.writeFileSync(path.join(tx, 'C--proj-a', 's6.jsonl'), line(P.colagem)); fs.writeFileSync(path.join(tx, 'C--proj-a', 's7.jsonl'), line(P.comando));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('s1') + '.jsonl'), line(P.s1a) + noise + line(P.s1b));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('s2') + '.jsonl'), line(P.s2a) + line('linha sidechain que não conta', { isSidechain: true }));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('s3') + '.jsonl'), line(P.s3a));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('s4') + '.jsonl'), line(P.s4a) + line(P.s4b));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('s5') + '.jsonl'), line(P.curto)); fs.writeFileSync(path.join(tx, 'C--proj-a', U('s6') + '.jsonl'), line(P.colagem)); fs.writeFileSync(path.join(tx, 'C--proj-a', U('s7') + '.jsonl'), line(P.comando));
   // A10: o mesmo texto do s3a numa OUTRA sessão — o evento s3 tem de ir buscar a ocorrência da sessão s3, não a primeira
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 's0.jsonl'), line(P.s3a));
-  fs.writeFileSync(path.join(tx, 'C--Users-x-AppData-Local-Temp-y', 's8.jsonl'), line(P.temp));
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('s0') + '.jsonl'), line(P.s3a));
+  fs.writeFileSync(path.join(tx, 'C--Users-x-AppData-Local-Temp-y', U('s8') + '.jsonl'), line(P.temp));
   // um 11.º evento cujo texto NÃO está em transcrição nenhuma (sha órfão) e um 12.º com outcome != ok
-  const orphan = ev('este prompt não aparece em nenhuma transcrição do harness', 's9');
-  fs.appendFileSync(log, JSON.stringify({ ...orphan, prompt_sha12: 'ffffffffffff', session_id: 's10', outcome: 'timeout', tier_D: null, probs_D: null, hook_ts_ms: Date.now() }) + '\n');
+  const orphan = ev('este prompt não aparece em nenhuma transcrição do harness', U('s9'));
+  fs.appendFileSync(log, JSON.stringify({ ...orphan, prompt_sha12: 'ffffffffffff', session_id: U('s10'), outcome: 'timeout', tier_D: null, probs_D: null, hook_ts_ms: Date.now() }) + '\n');
   return { dir, log, tx, P, t0 };
 }
 
@@ -155,11 +157,11 @@ test('(6) MP9 · janela confirmatória A10: default 14:25:20Z, evento de 14:25:1
   const { log, tx, dir, P } = harness();
   // dois eventos «à mão» colados à fronteira: 14:25:19Z (diagnóstico) e 14:25:20Z (primeiro confirmatório)
   const base = readShadowEvents(log, 0).find((e) => e.prompt_sha12 === sha12(P.s2a));
-  const pre = { ...base, session_id: 'pre', hook_ts_ms: Date.parse('2026-09-21T14:25:19Z'), ts: '2026-09-21T14:25:19Z' };
-  const at = { ...base, session_id: 's2', hook_ts_ms: Date.parse('2026-09-21T14:25:20Z'), ts: '2026-09-21T14:25:20Z' };
+  const pre = { ...base, session_id: U('pre'), hook_ts_ms: Date.parse('2026-09-21T14:25:19Z'), ts: '2026-09-21T14:25:19Z' };
+  const at = { ...base, session_id: U('s2'), hook_ts_ms: Date.parse('2026-09-21T14:25:20Z'), ts: '2026-09-21T14:25:20Z' };
   const log2 = path.join(dir, 'decisions-2.log');
   fs.writeFileSync(log2, [pre, at].map((e) => JSON.stringify(e)).join('\n') + '\n');
-  fs.writeFileSync(path.join(tx, 'C--proj-a', 'pre.jsonl'), JSON.stringify({ type: 'user', message: { role: 'user', content: P.s2a } }) + '\n');
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('pre') + '.jsonl'), JSON.stringify({ type: 'user', message: { role: 'user', content: P.s2a } }) + '\n');
   const evs = readShadowEvents(log2, Date.parse(SINCE_CONFIRMATORY));
   assert.equal(evs.length, 1); assert.equal(evs.diagnostic_excluded, 1, '14:25:19Z fica fora e é contado');
   const { idx } = indexTranscripts(tx);
@@ -228,4 +230,97 @@ test('(8) MP9 · round 8b A5: contadores honestos — ts inválido contado no le
   assert.equal(a.meta._invalid_ts_excluded, 1); assert.equal(a.meta._diagnostic_excluded, 1);
   const b = buildCorpus({ events: [...evs], idx, known: new Set(), n: 60, cap: 1, seed: 20260921 });
   assert.equal(b.meta._invalid_ts_excluded, null); assert.equal(b.meta._diagnostic_excluded, null, 'a cópia perde o contador → n/d, não 0');
+});
+
+test('(9) MP10 · AMENDMENT mp4-4: session_id não-UUID fora antes de qualquer taxa corrigida; prompt_len > 500 fora da taxa de recuperação (não da elegibilidade); cruas e corrigidas no meta e no fecho', () => {
+  const am = JSON.parse(fs.readFileSync(path.join(HERE, 'protocol.json'), 'utf8')).mp4._amendments.find((a) => a.id === 'mp4-4');
+  assert.ok(am && am.outcome_known === false, 'a emenda mp4-4 existe no protocol.json, com outcome_known:false');
+  assert.equal(isSessionUuid(U('x')), true); assert.equal(isSessionUuid('64FF4030-0104-4AC3-9E8F-DA65280E08ED'), true);
+  for (const s of ['test-inject-pin', 'badge-test', 'test-reasoning-effort', '', null, undefined, 's1', '3c9eb831', U('x') + 'a', ' ' + U('x')]) assert.equal(isSessionUuid(s), false, String(s));
+
+  const { log, tx, dir } = harness();
+  const { idx } = indexTranscripts(tx);
+  const base = readShadowEvents(log, Date.parse(SINCE_CONFIRMATORY));
+  const opts = { idx, known: new Set(), n: 60, cap: 1, seed: 20260921, diagnostic_upstream: 0, invalid_upstream: 0 };
+  const ref = buildCorpus({ events: base, ...opts });
+  assert.equal(ref.meta._non_uuid_session_excluded, 0); assert.equal(ref.meta._not_ok_rate_raw, ref.meta._not_ok_rate_corrected);
+  const tpl = base.find((e) => e.outcome === 'ok');
+
+  // (i) 4 eventos de teste: ok com texto recuperável (sha de um prompt real), ok sem texto, timeout, e sem session_id
+  const tests = [{ ...tpl, session_id: 'test-inject-pin' }, { ...tpl, session_id: 'badge-test', prompt_sha12: 'aaaaaaaaaaaa' }, { ...tpl, session_id: 'test-reasoning-effort', outcome: 'timeout' }, { ...tpl, session_id: undefined }];
+  const a = buildCorpus({ events: [...base, ...tests], ...opts });
+  assert.equal(a.meta._non_uuid_session_excluded, 4);
+  assert.deepEqual(a.meta._non_uuid_session_ids, { 'test-inject-pin': 1, 'badge-test': 1, 'test-reasoning-effort': 1, '(ausente)': 1 });
+  assert.equal(a.meta._non_uuid_session_unknown, 1, 'round 9 A2: «(ausente)» não é um literal de teste provado — sai, mas é contado à parte');
+  const proto = buildCorpus({ events: [...base, { ...tpl, session_id: '__proto__' }], ...opts }).meta;
+  assert.equal(proto._non_uuid_session_excluded, 1); assert.equal(proto._non_uuid_session_unknown, 1, 'round 9b: "__proto__" não se perde no acumulador');
+  assert.equal(Object.getOwnPropertyDescriptor(proto._non_uuid_session_ids, '__proto__')?.value, 1); assert.ok(JSON.stringify(proto._non_uuid_session_ids).includes('"__proto__":1'), 'e chega ao JSON do meta');
+  assert.equal(a.meta._events, ref.meta._events + 4, 'o bruto conta tudo'); assert.equal(a.meta._events_uuid, ref.meta._events);
+  assert.equal(a.meta._not_ok_rate_raw, +((ref.meta._events_not_ok + 1) / (ref.meta._events + 4)).toFixed(3), 'crua inclui o timeout de teste');
+  assert.equal(a.meta._not_ok_rate, a.meta._not_ok_rate_raw, '_not_ok_rate mantém a definição crua');
+  assert.equal(a.meta._not_ok_rate_corrected, ref.meta._not_ok_rate_corrected, 'corrigida ignora os testes');
+  assert.equal(a.meta._unrecovered, ref.meta._unrecovered + 1, 'crua conta o badge-test sem texto'); assert.equal(a.meta._unrecovered_rate_corrected, ref.meta._unrecovered_rate_corrected);
+  assert.deepEqual(a.items.map((i) => [i._event_sha12, i._session_sha8]), ref.items.map((i) => [i._event_sha12, i._session_sha8]), 'nenhum evento de teste entra no corpus');
+  assert.deepEqual(a.meta._dropped, ref.meta._dropped, 'os testes saem ANTES de qualquer razão de exclusão');
+
+  // (ii) prompt_len: 501 sem texto sai da taxa; 500 sem texto fica; 501 cru com lembrete e <= 500 limpo continua elegível
+  const body = 'explica passo a passo como o retry com backoff exponencial funciona neste módulo de sync';
+  const raw501 = '<system-reminder>' + 'r'.repeat(501 - body.length - 35) + '</system-reminder>' + body;
+  assert.equal(raw501.length, 501);
+  fs.writeFileSync(path.join(tx, 'C--proj-a', U('x501b') + '.jsonl'), JSON.stringify({ type: 'user', message: { role: 'user', content: raw501 } }) + '\n');
+  const { idx: idx2 } = indexTranscripts(tx);
+  const e501 = { ...tpl, session_id: U('x501'), prompt_sha12: 'dddddddddddd', prompt_len: 501 };
+  const e500 = { ...tpl, session_id: U('x500'), prompt_sha12: 'eeeeeeeeeeee', prompt_len: 500 };
+  const eLong = { ...tpl, session_id: U('x501b'), prompt_sha12: sha12(raw501), prompt_len: 501, hook_ts_ms: tpl.hook_ts_ms + 1 };
+  const refB = buildCorpus({ events: base, ...opts, idx: idx2 });
+  const b = buildCorpus({ events: [...base, e501, e500, eLong], ...opts, idx: idx2 });
+  assert.equal(b.meta._prompt_len_gt500_out_of_recovery_rate, 2, 'e501 e eLong');
+  assert.equal(b.meta._recovery_rate_denominator, refB.meta._recovery_rate_denominator + 1, 'só o de 500 entra no denominador');
+  assert.equal(b.meta._unrecovered_corrected, refB.meta._unrecovered_corrected + 1, 'só o de 500 entra no numerador — LIMITE DECLARADO (round 9 A1): o e501 sem texto não conta, mesmo que, limpo, pudesse ser elegível');
+  assert.equal(b.meta._unrecovered, refB.meta._unrecovered + 2, 'crua conta os dois sem texto');
+  assert.equal(b.meta._unrecovered_rate_raw, +((refB.meta._unrecovered + 2) / (refB.meta._events_ok + 3)).toFixed(3));
+  assert.equal(b.meta._unrecovered_rate_corrected, +((refB.meta._unrecovered_corrected + 1) / (refB.meta._recovery_rate_denominator + 1)).toFixed(3));
+  assert.ok(b.items.some((i) => i._event_sha12 === sha12(raw501)), 'a elegibilidade do 60c não mudou: 501 cru, <= 500 limpo, entra');
+  for (const k of ['_not_ok_rate_raw', '_not_ok_rate_corrected', '_unrecovered_rate_raw', '_unrecovered_rate_corrected']) assert.ok(k in b.meta, k);
+
+  // fecho: os tectos de 10 % olham para as CORRIGIDAS e a recusa imprime as duas
+  const cli = (logPath) => { try { execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', logPath, '--transcripts', tx, '--out', path.join(dir, 'res9', 'corpus-60d.json')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); return { code: 0, err: '' }; } catch (e) { return { code: e.status, err: String(e.stderr || '') }; } };
+  fs.mkdirSync(path.join(dir, 'res9'));
+  const noisy = path.join(dir, 'decisions-testes.log');
+  const junk = [...Array.from({ length: 20 }, (_, i) => ({ ...tpl, session_id: 'test-inject-pin', outcome: 'timeout', prompt_sha12: 'cccccccccccc', hook_ts_ms: tpl.hook_ts_ms + 10 + i })),
+    ...Array.from({ length: 5 }, (_, i) => ({ ...tpl, session_id: 'badge-test', prompt_sha12: 'aaaaaaaaaaaa', hook_ts_ms: tpl.hook_ts_ms + 30 + i }))]; // ok sem texto: crua de recuperação > 10 %
+  fs.writeFileSync(noisy, [...base, ...junk].map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const r1 = cli(noisy); assert.equal(r1.code, 5, r1.err);
+  assert.ok(/ESPERAR/.test(r1.err) && !/não-ok/.test(r1.err) && !/recuperável/.test(r1.err), 'crua > 10 % só por testes não impede o fecho: ' + r1.err);
+  assert.ok(!/AVISO/.test(r1.err), 'só literais de teste conhecidos: sem aviso');
+  const real = [...Array.from({ length: 3 }, (_, i) => ({ ...tpl, session_id: U('t' + i), outcome: 'timeout', hook_ts_ms: tpl.hook_ts_ms + 40 + i })),
+    ...Array.from({ length: 3 }, (_, i) => ({ ...tpl, session_id: U('u' + i), prompt_sha12: 'bbbbbbbbbbb' + i, prompt_len: 120, hook_ts_ms: tpl.hook_ts_ms + 50 + i })),
+    { ...tpl, session_id: '__proto__', outcome: 'timeout', hook_ts_ms: tpl.hook_ts_ms + 60 }]; // round 9b: o caso patológico do acumulador
+  fs.writeFileSync(noisy, [...base, ...junk, ...real].map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const r2 = cli(noisy); assert.equal(r2.code, 5);
+  assert.ok(/não-ok corrigida \d+\.\d % > 10 %.*crua \d+\.\d %/.test(r2.err), 'corrigida > 10 % recusa e imprime crua e corrigida: ' + r2.err);
+  assert.ok(/recuperável corrigida \d+\.\d % > 10 %.*crua \d+\.\d %/.test(r2.err), 'idem para a recuperação: ' + r2.err);
+  assert.ok(/AVISO.*1 evento\(s\) com session_id não-UUID fora dos literais/.test(r2.err), 'round 9 A2: um não-UUID desconhecido é avisado: ' + r2.err);
+});
+
+test('(10) MP10 · round 9 A5: o corpus FECHA com n = 60 num log poluído por testes e hand-backs > 500; as cruas ficam acima de 10 % no ficheiro escrito', () => {
+  const { log, tx, dir } = harness();
+  const tpl = readShadowEvents(log, Date.parse(SINCE_CONFIRMATORY)).find((e) => e.outcome === 'ok');
+  const t0 = tpl.hook_ts_ms; const evs = [];
+  for (let i = 0; i < 60; i++) {
+    const text = `pergunta sintética número ${i} sobre o módulo ${i % 7} e a cache de sessão ${i * 13}`; const sid = U('c' + i);
+    fs.writeFileSync(path.join(tx, 'C--proj-a', sid + '.jsonl'), JSON.stringify({ type: 'user', message: { role: 'user', content: text } }) + '\n');
+    evs.push({ ...tpl, session_id: sid, prompt_sha12: sha12(text), prompt_len: text.length, hook_ts_ms: t0 + i });
+  }
+  for (let i = 0; i < 20; i++) evs.push({ ...tpl, session_id: 'test-inject-pin', outcome: 'timeout', hook_ts_ms: t0 + 100 + i });
+  for (let i = 0; i < 5; i++) evs.push({ ...tpl, session_id: 'badge-test', prompt_sha12: 'aaaaaaaaaaaa', hook_ts_ms: t0 + 200 + i });
+  for (let i = 0; i < 2; i++) evs.push({ ...tpl, session_id: U('c' + i), prompt_sha12: 'abababababa' + i, prompt_len: 890 + i, hook_ts_ms: t0 + 300 + i }); // hand-backs sem type:user
+  const L = path.join(dir, 'decisions-60.log'); fs.writeFileSync(L, evs.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const out = path.join(dir, 'r10', 'corpus-60d.json'); fs.mkdirSync(path.dirname(out));
+  try { execFileSync(process.execPath, [path.join(HERE, '10-corpus-60d.mjs'), '--log', L, '--transcripts', tx, '--out', out], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { assert.fail('o fecho recusou: ' + String(e.stderr)); }
+  const w = JSON.parse(fs.readFileSync(out, 'utf8'));
+  assert.equal(w.items.length, 60); assert.equal(w._partial, false); assert.deepEqual(w._problems, []); assert.equal(w._target_reached, true); assert.equal(w._picked_sessions, 60);
+  assert.ok(w._not_ok_rate_raw > 0.10 && w._unrecovered_rate_raw > 0.10, `as cruas ficam acima de 10 % e impressas (${w._not_ok_rate_raw}, ${w._unrecovered_rate_raw})`);
+  assert.equal(w._not_ok_rate_corrected, 0); assert.equal(w._unrecovered_rate_corrected, 0);
+  assert.equal(w._prompt_len_gt500_out_of_recovery_rate, 2); assert.equal(w._non_uuid_session_excluded, 25); assert.equal(w._non_uuid_session_unknown, 0);
 });

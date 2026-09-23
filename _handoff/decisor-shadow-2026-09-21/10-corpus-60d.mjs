@@ -26,6 +26,16 @@ const N = C.n_target, SEED = C.seed, CAP = C.cap_per_session;
 export const N_TARGET = N;
 const HOME = os.homedir(); const OWNER = path.basename(HOME);
 export const sha12 = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex').slice(0, 12);
+// protocol.json#mp4._amendments[mp4-4] (c67732e2, antes de rótulos): (i) session_id que não é UUID (ou ausente) = evento de
+// TESTE — sai do universo antes de qualquer taxa CORRIGIDA (as cruas contam tudo) e de ser candidato; (ii) prompt_len do evento > 500 sai do numerador e do
+// denominador da taxa de recuperação corrigida, SEM sair do caminho de elegibilidade (o gt500 do 60c mede o texto limpo).
+export const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isSessionUuid = (s) => typeof s === 'string' && SESSION_UUID.test(s);
+export const RECOVERY_RATE_LEN_MAX = 500;
+// round 9 A2: a regra (i) exclui por FORMATO; a proveniência só está provada para estes literais (badge.test.js,
+// inject_context.test.js, reasoning-effort-hint.test.js). Qualquer outro valor não-UUID sai na mesma, mas é contado à
+// parte e o CLI avisa — um evento real com session_id estranho não desaparece em silêncio.
+export const KNOWN_TEST_SESSION_IDS = ['test-inject-pin', 'test-reasoning-effort', 'badge-test'];
 
 // ── exclusão por sha: P1 corpus-63 (marcadores + os r01-r23 em claro), 40, 60b, 60c ──
 export function knownShas(resDir = path.join(HERE, 'results')) {
@@ -161,10 +171,19 @@ export function buildCorpus({ events, idx, known, n = N, cap = CAP, seed = SEED,
   const diagnosticExcluded = diagnostic_upstream == null ? null : diagnostic_upstream + diagnostic;
   const invalidExcluded = invalid_upstream == null ? null : invalid_upstream + invalidTs;
   events = inWindow;
-  for (const e of events) {
+  // taxas CRUAS (definição do MP9): todos os eventos da janela, todos os ok — impressas ao lado das corrigidas (mp4-4)
+  let okRaw = 0, notOkRaw = 0, unrecoveredRaw = 0;
+  for (const e of events) { if (e.outcome !== 'ok') notOkRaw++; else { okRaw++; if (!(idx.get(e.prompt_sha12) || []).length) unrecoveredRaw++; } }
+  // mp4-4 (i): o universo corrigido só tem sessões UUID; os testes ficam contados, por valor
+  const nonUuid = Object.create(null); const universe = []; // round 9b: sem protótipo — um session_id "__proto__" conta como os outros
+  for (const e of events) { if (isSessionUuid(e.session_id)) universe.push(e); else { const k = e.session_id == null || e.session_id === '' ? '(ausente)' : String(e.session_id).slice(0, 40); nonUuid[k] = (nonUuid[k] || 0) + 1; } }
+  let recoveryDen = 0, gt500OutOfRate = 0;
+  for (const e of universe) {
     if (e.outcome !== 'ok') { notOk++; drop('evento_' + e.outcome); continue; }
     const recs = idx.get(e.prompt_sha12) || [];
-    if (!recs.length) { unrecovered++; drop('sem_texto_na_transcricao'); continue; }
+    // mp4-4 (ii): prompt_len > 500 fora da taxa (numerador e denominador); prompt_len ilegível fica DENTRO (conservador)
+    const inRate = !(Number(e.prompt_len) > RECOVERY_RATE_LEN_MAX); if (inRate) recoveryDen++; else gt500OutOfRate++;
+    if (!recs.length) { if (inRate) unrecovered++; drop('sem_texto_na_transcricao'); continue; }
     // o nome do ficheiro da transcrição É o session_id: exige-se a mesma sessão; sem session_id no evento, só serve se a ocorrência for única
     const rec = e.session_id ? recs.find((r) => r.sess === e.session_id) : (recs.length === 1 ? recs[0] : null);
     if (!rec) { drop(e.session_id ? 'sessao_diferente' : 'ambiguo_sem_sessao'); continue; }
@@ -183,8 +202,12 @@ export function buildCorpus({ events, idx, known, n = N, cap = CAP, seed = SEED,
   const items = picked.map((x, i) => ({ id: `d${String(i + 1).padStart(2, '0')}`, source: 'decisor_shadow-events+cc-transcripts', prompt: x.prompt, _sha256_12: sha12(x.prompt), _event_sha12: x.e.prompt_sha12, _chars: x.prompt.length, _session_sha8: sha8(x.sess), _t_utc: new Date(x.t).toISOString(), _project_sha8: sha8(x.rec.proj), _day: (x.e.ts || '').slice(0, 10), _dispatched: /^\[[^\]]+·\s*S\d/.test(x.rec.text) }));
   // previsões DO EVENTO — ficheiro separado, só com --predictions e só depois dos rótulos
   const predictions = picked.map((x, i) => predictionOf(x.e, `d${String(i + 1).padStart(2, '0')}`));
-  const okEvents = events.length - notOk;
-  const meta = { _schema: 'decisor-shadow/corpus-60d', _block: 'mp4', _built_at: new Date().toISOString(), _since_utc: new Date(effSince).toISOString(), _since_confirmatory: SINCE_CONFIRMATORY, _diagnostic_excluded: diagnosticExcluded, _invalid_ts_excluded: invalidExcluded, _before_since_excluded: beforeSince, _seed: seed, _cap_per_session: cap, _n_target: n, _events: events.length, _events_ok: okEvents, _events_not_ok: notOk, _not_ok_rate: events.length ? +(notOk / events.length).toFixed(3) : null, _unrecovered: unrecovered, _unrecovered_rate: okEvents ? +(unrecovered / okEvents).toFixed(3) : null, _known_sources: known.sources || null, _eligible: elig.length, _eligible_sessions: new Set(elig.map((x) => x.sess)).size, _dropped: why, _excluded_known_sha_count: known.size, _picked: items.length, _picked_sessions: Object.keys(perSess).length, _picked_dispatched: items.filter((i) => i._dispatched).length, _anonymised: 'caminhos do home -> ~, dono -> <owner>, emails -> <email>', _target_reached: items.length >= n };
+  const rate = (a, b) => (b ? +(a / b).toFixed(3) : null);
+  // _events/_events_ok/_events_not_ok/_unrecovered e as duas _rate mantêm a definição CRUA do MP9; as corrigidas vêm à parte
+  const meta = { _schema: 'decisor-shadow/corpus-60d', _block: 'mp4', _built_at: new Date().toISOString(), _since_utc: new Date(effSince).toISOString(), _since_confirmatory: SINCE_CONFIRMATORY, _diagnostic_excluded: diagnosticExcluded, _invalid_ts_excluded: invalidExcluded, _before_since_excluded: beforeSince, _seed: seed, _cap_per_session: cap, _n_target: n, _events: events.length, _events_ok: okRaw, _events_not_ok: notOkRaw, _not_ok_rate: rate(notOkRaw, events.length), _unrecovered: unrecoveredRaw, _unrecovered_rate: rate(unrecoveredRaw, okRaw),
+    _amendment: 'mp4-4', _non_uuid_session_excluded: events.length - universe.length, _non_uuid_session_ids: { ...nonUuid },_non_uuid_session_unknown: Object.entries(nonUuid).filter(([k]) => !KNOWN_TEST_SESSION_IDS.includes(k)).reduce((s, [, v]) => s + v, 0), _events_uuid: universe.length, _events_uuid_not_ok: notOk, _prompt_len_gt500_out_of_recovery_rate: gt500OutOfRate, _recovery_rate_denominator: recoveryDen, _unrecovered_corrected: unrecovered,
+    _not_ok_rate_raw: rate(notOkRaw, events.length), _not_ok_rate_corrected: rate(notOk, universe.length), _unrecovered_rate_raw: rate(unrecoveredRaw, okRaw), _unrecovered_rate_corrected: rate(unrecovered, recoveryDen),
+    _known_sources: known.sources || null, _eligible: elig.length, _eligible_sessions: new Set(elig.map((x) => x.sess)).size, _dropped: why, _excluded_known_sha_count: known.size, _picked: items.length, _picked_sessions: Object.keys(perSess).length, _picked_dispatched: items.filter((i) => i._dispatched).length, _anonymised: 'caminhos do home -> ~, dono -> <owner>, emails -> <email>', _target_reached: items.length >= n };
   return { meta, items, predictions };
 }
 
@@ -223,12 +246,15 @@ if (isMain) {
   const { idx, lines } = indexTranscripts(TX);
   const { meta, items } = buildCorpus({ events, idx, known });
   console.log(JSON.stringify({ ...meta, _transcript_user_lines: lines }, null, 1));
+  if (meta._non_uuid_session_unknown > 0) console.error(`AVISO (mp4-4, round 9 A2): ${meta._non_uuid_session_unknown} evento(s) com session_id não-UUID fora dos literais de teste conhecidos (${KNOWN_TEST_SESSION_IDS.join(', ')}) — excluídos pela regra (i), mas a proveniência NÃO está provada: ver _non_uuid_session_ids.`);
   if (args.includes('--dry')) process.exit(0);
   // A10/A11 do round 5: sem as 4 fontes de exclusão, sem n_target, ou com taxas acima de 10 %, o corpus NÃO se fecha.
   const problems = [];
   for (const [src, st] of Object.entries(meta._known_sources || {})) if (!st.ok) problems.push(`fonte de exclusão em falta: ${src}`);
-  if (meta._not_ok_rate != null && meta._not_ok_rate > 0.10) problems.push(`eventos não-ok ${(meta._not_ok_rate * 100).toFixed(1)} % > 10 % (disponibilidade)`);
-  if (meta._unrecovered_rate != null && meta._unrecovered_rate > 0.10) problems.push(`sem texto recuperável ${(meta._unrecovered_rate * 100).toFixed(1)} % > 10 % (recuperação por sha insuficiente)`);
+  // mp4-4: os tectos de 10 % aplicam-se às taxas CORRIGIDAS; a recusa imprime crua e corrigida
+  const pct = (x) => (x == null ? 'n/d' : (x * 100).toFixed(1) + ' %');
+  if (meta._not_ok_rate_corrected != null && meta._not_ok_rate_corrected > 0.10) problems.push(`eventos não-ok corrigida ${pct(meta._not_ok_rate_corrected)} > 10 % (disponibilidade; crua ${pct(meta._not_ok_rate_raw)})`);
+  if (meta._unrecovered_rate_corrected != null && meta._unrecovered_rate_corrected > 0.10) problems.push(`sem texto recuperável corrigida ${pct(meta._unrecovered_rate_corrected)} > 10 % (recuperação por sha insuficiente; crua ${pct(meta._unrecovered_rate_raw)})`);
   if (!meta._target_reached) problems.push(`${items.length}/${N} — o pré-registo manda ESPERAR, não baixar n`);
   if (problems.length && !args.includes('--partial')) { console.error('NÃO FECHADO:\n  - ' + problems.join('\n  - ') + '\n(--partial escreve na mesma, marcado _partial:true, só para inspecção; nunca serve para rotular)'); process.exit(5); }
   fs.writeFileSync(outAbs, JSON.stringify({ ...meta, _partial: problems.length > 0, _problems: problems, items }, null, 1));

@@ -733,7 +733,19 @@
      "(ii) nao recupera os hand-backs; a alternativa (indexar queue-operation) nao foi escolhida porque nao muda o corpus (seriam excluidos por tag) e alarga o indexador.",
      "risco residual de (i): um evento REAL com session_id nao-UUID sairia sem aviso de erro — medido na janela: 0 eventos sem session_id e os unicos 3 valores nao-UUID sao os literais dos testes; o meta imprime os valores excluidos."
     ],
-    "authorized_by_owner": "2026-09-23, pedido explicito no MP10: «AMENDMENT mp4-4 em protocol.json (amendments[], outcome_known:false), commit proprio ANTES do codigo»"
+    "authorized_by_owner": "2026-09-23, pedido explicito no MP10: «AMENDMENT mp4-4 em protocol.json (amendments[], outcome_known:false), commit proprio ANTES do codigo»",
+    "_round9_notes": {
+     "at": "2026-09-23T13:35:03.247Z",
+     "source": "round 9 do adversario (codex, -s read-only, HOME/USERPROFILE temporarios, 13:31:49Z -> 13:32:15Z): SHIP-COM-CORRECCOES, 6 ataques (4 serios, 2 menores). Ledger em results/adversary-codex-round9.md. A regra da emenda NAO muda; o que muda e o que se declara e o que se avisa.",
+     "A1_limit_of_ii": "PROCEDE, DECLARADO: um prompt real com prompt_len > 500 cru e <= 500 depois de tirar <system-reminder> e elegivel pelo 60c; se o texto nao se recuperar, a perda nao entra na taxa corrigida. Medido: em todas as transcricoes desta maquina (1 786 linhas type:user com texto), 412 tem > 500 crus, 4 ficam <= 500 limpos e 3 dessas seriam elegiveis (0,17 %). Na janela A10: 12 eventos UUID ok com prompt_len > 500, 6 recuperados e 0 elegiveis; os 6 nao recuperados sao os hand-backs de causa provada. A regra do dono fica; o limite fica escrito e o teste (9) afirma-o.",
+     "A2_format_vs_provenance": "PROCEDE, MITIGADO SEM MUDAR A REGRA: (i) continua a excluir qualquer session_id nao-UUID, mas os valores fora dos 3 literais provados (test-inject-pin, test-reasoning-effort, badge-test) contam em _non_uuid_session_unknown e o CLI imprime AVISO. Hoje: 0 desconhecidos, 0 session_id ausentes na janela.",
+     "A3_dropped_universe": "DECLARADO: _dropped passa a contar so o universo UUID (os eventos de teste saem antes de qualquer razao de exclusao); os totais crus estao em _events/_events_not_ok/_unrecovered.",
+     "A4_wording": "CORRIGIDO AQUI: onde a emenda diz «antes de qualquer taxa» le-se «antes de qualquer taxa CORRIGIDA» — as cruas incluem tudo, por definicao.",
+     "A5_tests": "CORRIGIDO: teste (10) — o CLI FECHA um corpus de 60 sessoes num log com 25 eventos de teste e 2 hand-backs > 500 (cruas 23,0 % e 10,4 %, corrigidas 0), escreve _partial:false e imprime as cruas no ficheiro. 13 mutacoes mordem (9) e/ou (10).",
+     "A6_post_hoc": "DECLARADO: a emenda foi escrita DEPOIS de ver as taxas de disponibilidade e recuperacao do --dry do MP9 e muda quais eventos condicionam o FECHO do corpus. outcome_known:false refere-se ao resultado do 60d (rotulos, previsoes, gate F2), que continua desconhecido — nao a essas taxas, que eram conhecidas e motivaram a emenda. O 60d testa-se como protocolo emendado apos diagnostico.",
+     "A7_proto_round9b": "CORRIGIDO: ronda 9b (13:35:11Z -> 13:35:28Z, SHIP-COM-CORRECCOES) encontrou que um session_id \"__proto__\" num acumulador {} nao criava entrada propria e _non_uuid_session_unknown ficava 0 sem aviso. Acumulador passa a Object.create(null); o meta leva { ...acumulador }. Teste (9) e o CLI r2 exigem a contagem, a propriedade propria, o JSON e o AVISO; mutacao M14 (voltar a {}) reprova.",
+     "verdicts": "9: SHIP-COM-CORRECCOES (13:31:49-13:32:15Z) -> 9b: SHIP-COM-CORRECCOES (13:35:11-13:35:28Z) -> 9c: SHIP (13:36:44-13:37:16Z). decisions.log vivo com o mesmo sha antes e depois de cada ronda (d870d4145e4a)."
+    }
    }
   ]
  },
