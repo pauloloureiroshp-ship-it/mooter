@@ -309,6 +309,14 @@ export default function MethodologyPage() {
                 reads the token counts Claude Code already writes to your transcripts, attributes every API call to
                 the prompt that caused it, and prices it — no estimate anywhere in that number.
               </div>
+              {/* 2026-09-29 · a correcção pública do 47%. Até aqui a retirada só
+                  vivia num comentário (acima) — o leitor não a via, e o ChatGPT
+                  continuava a atribuir o número ao site (diagnóstico de 28/09).
+                  A frase fica numa só linha porque a excepção declarada em
+                  moo-tokens.json casa com ela linha a linha. */}
+              <p style={{ marginTop: 12, marginBottom: 0, fontSize: 11.5, color: 'var(--color-muted)', lineHeight: 1.55 }}>
+                <strong style={{ color: 'var(--color-text)' }}>Correction</strong> — earlier launch posts said Mooter saved &ldquo;47% in 658 calls&rdquo;. Mooter does not log token counts, so no dollar or percentage saving can be measured; the figure is withdrawn. What we can measure — recommended vs executed tier — is dated in the <Link href="/#honest-numbers" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>honest numbers</Link> section.
+              </p>
             </Grupo>
 
             {/* tier distribution */}
