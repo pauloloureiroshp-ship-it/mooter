@@ -7,9 +7,9 @@ import { M } from '../lib/canonical-metrics';
 
 // TwoTerminalDemo — the two-terminal live-typing savings showpiece (Wave 60).
 // Same six prompts streamed into vanilla Claude Code (everything → Opus) vs
-// Claude Code + mooter (routed across T0–T3). The cumulative math is internally
-// shows per-prompt list prices only — no totals (withdrawn 2026-09-29, see the
-// reveal bar). HONESTY: the hard prompt (the
+// Claude Code + mooter (routed across T0–T3). It shows per-prompt list prices
+// only — no totals (withdrawn 2026-09-29, see the reveal bar). HONESTY: the hard
+// prompt (the
 // schema migration) stays on Opus on BOTH sides — mooter only routes down when
 // quality holds. Wording stays "comparable quality on routine tasks" — never the
 // banned over-claim about identical outputs.
@@ -345,9 +345,8 @@ export default function TwoTerminalDemo() {
           }}
         >
           {/* Era `{pctSaved}%` a 40px e a rosa, com "cheaper on this trace" ao
-              lado — o mesmo claim do título, repetido. As duas somas ficam
-              (são aritmética à vista sobre preços de tabela declarados); a
-              percentagem sai. */}
+              lado — o mesmo claim do título, repetido. A percentagem saiu a
+              2026-08-27; as duas somas ficaram até 2026-09-29 (ver abaixo). */}
           {/* 2026-09-29 · as duas somas também saíram — o par "vanilla → routed"
               e os dois "running cost" dos terminais. Eram preços de tabela sobre
               seis prompts inventados, e fora do site (ChatGPT, 28/09) liam-se

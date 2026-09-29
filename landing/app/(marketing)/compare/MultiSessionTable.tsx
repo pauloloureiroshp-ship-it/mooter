@@ -98,7 +98,7 @@ export default function MultiSessionTable() {
       </h2>
       <p style={{ color: 'var(--color-muted)', fontSize: 15, maxWidth: 760, marginBottom: 28, lineHeight: 1.6 }}>
         The capabilities below are derived from the real pain points of running many Claude Code sessions at once.
-        Each tool does <em>something</em> well — none of the others does all eleven.
+        Each tool does <em>something</em> well — none does all eleven.
       </p>
 
       <RevealOnView>
