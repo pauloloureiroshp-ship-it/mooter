@@ -44,7 +44,9 @@ describe('Wave 24 24.C — copy honesty (Wave 23 divergence alignment)', () => {
   it('/privacy has a "Routing vs execution" section with the T0→cloud caveat', () => {
     const s = read(PRIVACY);
     expect(s).toMatch(/Routing vs execution/i);
-    expect(s).toMatch(/divergence chip/);
+    // 2026-09-29 · o /privacy deixou de citar o «divergence chip» (8cf270e2:
+    // «duas frases que o código instalado não prova»). A ressalva T0→cloud
+    // continua a ser exigida; o chip já não é uma promessa da página.
     expect(s).toMatch(/cloud Haiku/);
   });
 });
