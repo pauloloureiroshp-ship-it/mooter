@@ -8,7 +8,8 @@ import { M } from '../lib/canonical-metrics';
 // TwoTerminalDemo — the two-terminal live-typing savings showpiece (Wave 60).
 // Same six prompts streamed into vanilla Claude Code (everything → Opus) vs
 // Claude Code + mooter (routed across T0–T3). The cumulative math is internally
-// consistent and lands on the author's real 47%. HONESTY: the hard prompt (the
+// shows per-prompt list prices only — no totals (withdrawn 2026-09-29, see the
+// reveal bar). HONESTY: the hard prompt (the
 // schema migration) stays on Opus on BOTH sides — mooter only routes down when
 // quality holds. Wording stays "comparable quality on routine tasks" — never the
 // banned over-claim about identical outputs.
@@ -109,11 +110,7 @@ export default function TwoTerminalDemo() {
   }, [runId, started, reduceMotion]);
 
   const done = DEMO_PROMPTS.slice(0, st.completed);
-  const vanillaTotal = done.reduce((a, b) => a + b.van, 0);
-  const mooterTotal = done.reduce((a, b) => a + b.cost, 0);
   const finished = st.phase === 'finished';
-  const allVan = DEMO_PROMPTS.reduce((a, b) => a + b.van, 0);
-  const allMoo = DEMO_PROMPTS.reduce((a, b) => a + b.cost, 0);
   /* `pctSaved` foi removido a 2026-08-27, e não só o sítio onde era impresso.
      Enquanto a conta existir, alguém volta a usá-la — e a decisão de 24/08 não
      diz "não mostres a percentagem", diz "não publiques poupança até haver
@@ -266,10 +263,6 @@ export default function TwoTerminalDemo() {
                 </div>
               )}
             </div>
-            <div style={{ borderTop: '1px solid var(--color-term-border)', padding: '12px 16px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--color-term-dim)', fontSize: 11.5 }}>running cost</span>
-              <span style={{ color: 'var(--color-tier-3)', fontSize: 26, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{fmt(vanillaTotal)}</span>
-            </div>
           </div>
 
           {/* ── MOOTER ── */}
@@ -332,10 +325,6 @@ export default function TwoTerminalDemo() {
                 </div>
               )}
             </div>
-            <div style={{ borderTop: '1px solid var(--color-term-border)', padding: '12px 16px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--color-term-dim)', fontSize: 11.5 }}>running cost</span>
-              <span style={{ color: 'var(--color-green)', fontSize: 26, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{fmt(mooterTotal)}</span>
-            </div>
           </div>
         </div>
 
@@ -359,12 +348,12 @@ export default function TwoTerminalDemo() {
               lado — o mesmo claim do título, repetido. As duas somas ficam
               (são aritmética à vista sobre preços de tabela declarados); a
               percentagem sai. */}
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--color-term-dim)' }}>
-            <span style={{ color: 'var(--color-tier-3)' }}>{fmt(allVan)}</span> vanilla →{' '}
-            <span style={{ color: 'var(--color-green)' }}>{fmt(allMoo)}</span> routed
-          </div>
-          <div style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--color-muted)', maxWidth: 380, lineHeight: 1.5 }}>
-            *Illustrative trace — this six-prompt demo measures nothing. What IS measured:{' '}
+          {/* 2026-09-29 · as duas somas também saíram — o par "vanilla → routed"
+              e os dois "running cost" dos terminais. Eram preços de tabela sobre
+              seis prompts inventados, e fora do site (ChatGPT, 28/09) liam-se
+              como a factura medida do Mooter. Ficam só os preços por linha. */}
+          <div style={{ fontSize: 12.5, color: 'var(--color-muted)', maxWidth: 380, lineHeight: 1.5 }}>
+            Illustrative trace — this six-prompt demo measures nothing. What IS measured:{' '}
             <MonoNum color="var(--color-text)">{M.recomendadoBarato}</MonoNum> classified prompts routed to a local or cheap tier. No cost is claimed: no tokens are logged.
           </div>
         </div>

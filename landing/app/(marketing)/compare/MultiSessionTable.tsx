@@ -19,7 +19,9 @@ import RevealOnView from './RevealOnView';
 // exactamente o que a tabela irmã (a dos routers, em `page.tsx`) já faz na mesma
 // folha. Nenhum número, rótulo ou célula mudou.
 
-type Kind = 'y' | 'n' | 'p' | 'cve';
+// 'nm' = not measured: the cell carries a sentence instead of a glyph, because
+// a ✗ would read "doesn't have it" and a ✓ was the claim we are withdrawing.
+type Kind = 'y' | 'n' | 'p' | 'cve' | 'nm';
 
 const TOOLS: { name: string; sub: string; highlight?: boolean }[] = [
   { name: 'mooter', sub: `v${versionInfo.version}`, highlight: true },
@@ -37,9 +39,15 @@ const TOOLS: { name: string; sub: string; highlight?: boolean }[] = [
 const ROWS: { label: string; note: string; cells: Kind[] }[] = [
   { label: 'Spawn agents', note: 'mooter local by default · others cloud-only', cells: ['y', 'y', 'y', 'y', 'y', 'y', 'y', 'n'] },
   { label: 'Local-first', note: 'runs without the cloud', cells: ['y', 'p', 'p', 'p', 'y', 'p', 'p', 'y'] },
-  { label: 'Cross-session $ savings', note: 'tracks spend across every terminal', cells: ['y', 'n', 'n', 'n', 'n', 'n', 'n', 'n'] },
+  // 2026-09-29 · era ✓. Mooter não regista tokens, por isso não mede despesa nem
+  // poupança em sessão nenhuma — o ✓ contradizia a secção «Honest numbers» (23/08).
+  // A célula diz agora o que é verdade; o score desce um ponto e o título segue-o.
+  { label: 'Cross-session $ savings', note: "reads each local session's prompts and routing tiers — no tokens", cells: ['nm', 'n', 'n', 'n', 'n', 'n', 'n', 'n'] },
   { label: '5-hour quota forecast', note: 'predicts when you hit the wall', cells: ['y', 'n', 'n', 'n', 'n', 'n', 'n', 'n'] },
-  { label: 'Cross-session routing learning', note: 'gets cheaper the more you use it', cells: ['y', 'n', 'n', 'n', 'n', 'n', 'n', 'n'] },
+  // 2026-09-29 · era «gets cheaper the more you use it» — custo sem medição. O que o
+  // código faz: backtest.js lê o decisions.log de todas as sessões e update-router.js
+  // escreve tuning-state.json, que o classify.js carrega (corre com /update-router).
+  { label: 'Cross-session routing learning', note: "retunes the classifier from every session's routing log when you run /update-router", cells: ['y', 'n', 'n', 'n', 'n', 'n', 'n', 'n'] },
   { label: '4-layer sandbox', note: 'network · fs · secrets · config', cells: ['y', 'p', 'p', 'y', 'y', 'y', 'cve', 'p'] },
   { label: 'Intent-based UX', note: 'say the goal, not the model', cells: ['y', 'n', 'p', 'y', 'n', 'y', 'n', 'n'] },
   { label: 'State-of-art install wizard', note: 'one path, no foot-guns', cells: ['y', 'p', 'p', 'y', 'p', 'y', 'p', 'p'] },
@@ -57,6 +65,7 @@ const ICON: Record<Kind, { c: string; g: string }> = {
   n: { c: 'var(--moo-faint)', g: '✗' },
   p: { c: 'var(--color-yellow)', g: '◐' },
   cve: { c: 'var(--color-tier-3)', g: '⚠' },
+  nm: { c: 'var(--color-muted)', g: 'Not measured (no token logging)' },
 };
 
 // A hairline que fecha o desenho. `--moo-line-strong` é a linha da gramática
@@ -72,6 +81,8 @@ export default function MultiSessionTable() {
   // headline numbers can never drift from the matrix. No hardcoded metrics.
   const mooterScore = scores[0];
   const runnerUpScore = Math.max(...scores.slice(1));
+  // Rows only Mooter has (✓ for Mooter, ✗ for every other tool) — counted, not typed.
+  const onlyMooter = ROWS.filter((r) => r.cells[0] === 'y' && r.cells.slice(1).every((c) => c === 'n')).length;
 
   return (
     <div style={{ marginBottom: 56 }}>
@@ -81,7 +92,9 @@ export default function MultiSessionTable() {
           («And against the routers and proxies»), e a ênfase é peso + cor de
           texto sobre corpo esbatido, que é o padrão do lede desta folha. */}
       <h2 style={{ fontFamily: 'var(--font-sans)', fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2, margin: '0 0 10px', color: 'var(--color-muted)' }}>
-        Eleven capabilities. <span style={{ color: 'var(--color-text)', fontWeight: 700 }}>Mooter is the only 11/11.</span>
+        {/* Era «Mooter is the only 11/11.» escrito à mão; passa a ler o score da
+            própria matriz, para não voltar a desalinhar quando uma célula muda. */}
+        Eleven capabilities. <span style={{ color: 'var(--color-text)', fontWeight: 700 }}>Mooter scores {mooterScore}/{ROWS.length}.</span>
       </h2>
       <p style={{ color: 'var(--color-muted)', fontSize: 15, maxWidth: 760, marginBottom: 28, lineHeight: 1.6 }}>
         The capabilities below are derived from the real pain points of running many Claude Code sessions at once.
@@ -143,10 +156,14 @@ export default function MultiSessionTable() {
                           borderRight: isMooter ? LINHA_COLUNA : undefined,
                         }}
                       >
+                        {kind === 'nm' ? (
+                          <span style={{ color: ic.c, fontSize: 10.5, lineHeight: 1.3, fontFamily: 'var(--font-mono)', display: 'inline-block' }}>{ic.g}</span>
+                        ) : (
                         <span aria-label={kind === 'y' ? 'yes' : kind === 'n' ? 'no' : kind === 'cve' ? 'shipped with disclosed flaw' : 'partial'} style={{ color: ic.c, fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                           {ic.g}
                           {kind === 'cve' && <sup style={{ fontSize: 9, marginLeft: 1 }}>†</sup>}
                         </span>
+                        )}
                       </td>
                     );
                   })}
@@ -207,9 +224,12 @@ export default function MultiSessionTable() {
         <div className="moo-label" style={{ color: 'var(--moo-faint)' }}>honest &gt; inflated</div>
         <p style={{ margin: '10px 0 0', fontSize: 13.5, lineHeight: 1.65, color: 'var(--color-text)' }}>
           Scores are derived honestly from the per-row cells, not curated to make Mooter look better. Mooter wins{' '}
-          <strong style={{ color: 'var(--color-text)' }}>5 capabilities no other tool has</strong> — cross-session $
-          savings, 5h quota forecast, cross-session routing learning, orchestration locks across terminals, and the
-          workflow-visibility statusline chip — and it is the only stack that ships all 11 in one tool.
+          {/* 2026-09-29 · dizia «5 capabilities» com «cross-session $ savings» na lista e
+              «the only stack that ships all 11» — as duas coisas deixaram de ser verdade
+              quando a célula dos $ passou a «Not measured». A contagem vem das células. */}
+          <strong style={{ color: 'var(--color-text)' }}>{onlyMooter} capabilities no other tool has</strong> — 5h quota
+          forecast, cross-session routing learning, orchestration locks across terminals, and the
+          workflow-visibility statusline chip.
         </p>
         <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 12 }}>
           <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>

@@ -83,7 +83,7 @@ export default function CmdKPalette() {
         { group: 'Navigate', label: 'Dashboard', keywords: ['dashboard', 'home', 'savings'], run: () => go('/dashboard') },
         { group: 'Navigate', label: 'Settings', keywords: ['settings', 'subscriptions', 'account'], run: () => go('/settings') },
         { group: 'Navigate', label: 'Packs', keywords: ['packs', 'moo'], run: () => go('/packs') },
-        { group: 'Navigate', label: 'Compare', hint: '11/11', keywords: ['compare', 'field'], run: () => go('/compare') },
+        { group: 'Navigate', label: 'Compare', hint: 'vs field', keywords: ['compare', 'field'], run: () => go('/compare') },
         ...cmds.map<Item>(([cmd, desc]) => ({
           group: 'Copy command',
           label: cmd,
@@ -99,7 +99,7 @@ export default function CmdKPalette() {
       { group: 'Go to', label: 'Home', keywords: ['home', 'mooter'], run: () => go('/') },
       { group: 'Go to', label: 'How it works', hint: 'quantization · adapters', keywords: ['how', 'under the hood', 'routing'], run: () => go('/under-the-hood') },
       { group: 'Go to', label: 'Packs', hint: 'Moo Packs', keywords: ['packs', 'moo'], run: () => go('/packs') },
-      { group: 'Go to', label: 'Compare', hint: '11/11', keywords: ['compare', 'field', 'agents'], run: () => go('/compare') },
+      { group: 'Go to', label: 'Compare', hint: 'vs field', keywords: ['compare', 'field', 'agents'], run: () => go('/compare') },
       { group: 'Go to', label: 'Conductor', hint: 'multi-session', keywords: ['conductor', 'locks', 'git', 'sessions'], run: () => go('/conductor') },
       { group: 'Go to', label: 'Workflow', hint: 'live visibility', keywords: ['workflow', 'agents', 'chip'], run: () => go('/workflow') },
       { group: 'Go to', label: 'Methodology', hint: 'cost calculator', keywords: ['methodology', 'benchmark', 'estimate'], run: () => go('/methodology') },
