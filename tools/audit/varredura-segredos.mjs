@@ -176,6 +176,12 @@ const DUMMIES = new Map([
   // cita o segredo passa a ser, ele proprio, um sitio onde o segredo esta.
   // Sufixo de 26 chars em palavras minusculas; uma chave real tem `api03-` e ~100.
   ['sk-ant-inherited-friend-build-key', 'placeholder em palavras — fixture do backtest.test.js, e as citacoes dele'],
+  // Encontrado a 2026-09-29 (HIGH na `main`, commit 19627cb4): fixture do teste
+  // de `sessionTitle` em `tools/router/ledger-turn-io.test.js`. O corpo e o
+  // alfabeto a-z seguido de 0-9, em sequencia — declara-se falso a olho.
+  // Montado por concatenacao para este ficheiro nao carregar mais um literal
+  // com forma de token; o `includes` da linha do achado continua exacto.
+  ['ghp_' + 'abcdefghijklmnopqrstuvwxyz' + '0123456789', 'alfabeto sequencial — fixture do teste de sessionTitle (ledger-turn-io.test.js)'],
 ]);
 
 /**
