@@ -34,7 +34,11 @@ const ROWS: string[][] = [
   // (`tools/router/bench-hook.js`). Corrido: p50 177,1 ms de hook completo,
   // 0,001 ms de classify. A linha passa a comparar a mesma grandeza para todos:
   // o custo por prompt, e o que este esconde (um spawn de processo Node).
-  [`Pre-prompt overhead (measured)`, `✓ classify ${LATENCIA.classifyP50Ms} ms · hook ${LATENCIA.hookP50Ms} ms p50`, 'n/a', '~80–200ms', '~120ms', '~200ms cloud'],
+  //
+  // 2026-09-29 · as três células dos concorrentes diziam '~80–200ms', '~120ms' e
+  // '~200ms cloud' sem fonte nenhuma, numa linha que se chama «(measured)». Não
+  // medimos nenhuma delas: passam a `n/d`.
+  [`Pre-prompt overhead (measured)`, `✓ classify ${LATENCIA.classifyP50Ms} ms · hook ${LATENCIA.hookP50Ms} ms p50`, 'n/a', 'n/d', 'n/d', 'n/d'],
   ['Code/prompts leave machine', '⚠️ T0 routes local; cloud Haiku if key set', '✓ all to Anthropic', '✓ through proxy', '✓ to cloud', '✓ via gateway'],
   ['Pack-based specialization', '✓ Moo Packs', '✗', '✗', '⚠️ commands', '✗'],
   ['Adapter Forge (local LoRA)', '⚠️ Wave 26 (training)', '✗', '✗', '✗', '✗'],
@@ -44,9 +48,15 @@ const ROWS: string[][] = [
   ['Sparkline (last-10 tier mix)', '✓ inline', '✗', '✗', '✗', '✗'],
   ['End-of-session digest', '✓ mooter digest', '✗', '✗', '✗', '✗'],
   ['Live local subagent visibility', '✓ 🐄×N live', '✗', '✗', '✗', '✗'],
-  ['Cost tracking per-prompt', '✓ real-time', '✗', '✓ in logs', '⚠️ session', '✓ dashboard'],
+  // 2026-09-29 · dizia '✓ real-time'. O mooter não regista tokens, logo não há
+  // custo por prompt medido; a célula passa a dizer o mesmo que a linha dos $
+  // da MultiSessionTable (#521).
+  ['Cost tracking per-prompt', 'Not measured (no token logging)', '✗', '✓ in logs', '⚠️ session', '✓ dashboard'],
   ['Open source', '✓ MIT', 'n/a (closed)', '✓ Apache 2', '✓ Apache 2', '✗ (gateway hosted)'],
-  ['Free', '✓ forever', 'depends on sub', 'self-host or paid', '✓', '⚠️ markup on API'],
+  // 2026-09-29 · '✓ forever' era uma promessa sem fonte; o que é verificável é a
+  // licença. '⚠️ markup on API' do OpenRouter contradizia a FAQ deles («without
+  // any markup on inference pricing»); a taxa existe, mas na compra de créditos.
+  ['Free', '✓ (MIT license)', 'depends on sub', 'self-host or paid', '✓', '⚠️ fee on credit purchases, no inference markup (openrouter.ai/docs/faq, read 2026-09-29)'],
   ['Setup time', '1 command', 'n/a', '30+ min (config)', 'install plugin', 'sign up + key'],
   ['Works without internet', '✓ T0 local', '✗', '✗', '✗', '✗'],
 ];
@@ -83,9 +93,10 @@ export default async function ComparePage() {
         <h1 className="moo-h1" style={{ margin: '0 0 12px' }}>How mooter compares</h1>
         <p style={{ color: 'var(--color-muted)', fontSize: 17, maxWidth: 720, lineHeight: 1.55, margin: 0 }}>
           We&apos;re not the only LLM router. We are the one built for Claude Code. Every score below is{' '}
-          <strong style={{ color: 'var(--color-text)' }}>counted from the cells</strong>, not asserted. On routine tasks
-          mooter aims for <em>comparable quality</em> at a fraction of the cost — not identical output. Where a
-          competitor&apos;s capability is undocumented we mark it partial, never invent a win.
+          <strong style={{ color: 'var(--color-text)' }}>counted from the cells</strong>, not asserted. mooter classifies
+          each prompt — locally, or with Haiku when an API key is set and the local rules are unsure — and routes
+          it to a tier from local Ollama (T0) up to Opus (T3). Where a
+          competitor&apos;s capability is undocumented we mark it partial or n/d, never invent a win.
         </p>
       </div>
 
