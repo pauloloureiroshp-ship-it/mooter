@@ -33,6 +33,7 @@ import {
  * `lp-secret-scan.js` ja usa para a sua propria fixture publica.
  */
 const AKIA = (corpo) => 'AKIA' + corpo;
+const GHP = (corpo) => 'ghp_' + corpo;
 const PEM = (tipo) => '-----BEGIN ' + (tipo ? tipo + ' ' : '') + 'PRIVATE KEY' + '-----';
 /** Base64 sem forma de chave nenhuma — 72 chars de alfabeto, montados. */
 const CORPO_B64 = 'MIIEpAIBAAKCAQEA' + '3ZqLxK9vN2mWtQ7bYcRfHdJgP4sUvA1eT6nXoZi0KlMrBwCyDgEhFjIk';
@@ -80,6 +81,19 @@ test('um AKIA de forma real e desconhecido continua HIGH', () => {
   const motivo = motivoDeDummy({ type: 'aws-access-key', line: 1 }, c);
   assert.equal(motivo, null);
   assert.equal(severidade({ type: 'aws-access-key', severity: 'critical' }, REPO, motivo), 'HIGH');
+});
+
+test('o fixture ghp_ do teste de sessionTitle e dummy pelo valor EXACTO', () => {
+  const c = 'deploy com ' + GHP('abcdefghijklmnopqrstuvwxyz0123456789') + ' hoje';
+  assert.equal(motivoDeDummy({ type: 'github-token', line: 1 }, c),
+    'alfabeto sequencial — fixture do teste de sessionTitle (ledger-turn-io.test.js)');
+});
+
+test('UM caracter diferente do fixture ghp_ ja NAO e dummy — continua HIGH', () => {
+  const c = 'deploy com ' + GHP('abcdefghijklmnopqrstuvwxyz0123456788') + ' hoje';
+  const motivo = motivoDeDummy({ type: 'github-token', line: 1 }, c);
+  assert.equal(motivo, null);
+  assert.equal(severidade({ type: 'github-token', severity: 'critical' }, REPO, motivo), 'HIGH');
 });
 
 // ── a regra do PEM ──────────────────────────────────────────────────────────
