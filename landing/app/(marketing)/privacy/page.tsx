@@ -63,7 +63,7 @@ const cards: { title: string; body: string }[] = [
   // 2026-09-29 · a garantia não tinha data e só a secção «Local records» dizia
   // que as instalações antigas ainda gravam o excerto. A data é a do fix
   // (2e4ecdd2, 2026-09-23 13:03 UTC); o instalador clona a main, logo é essa.
-  { title: 'Routing log is hashed', body: 'Since 2026-09-23, the routing log keeps a SHA-256 hash of each prompt, not its text. Installs from before that date still write the first 80 characters of each prompt until the next update, which switches them to the hash. The other records mooter keeps on your machine are listed under “Local records” below.' },
+  { title: 'Routing log is hashed', body: 'Since 2026-09-23, the routing log keeps a SHA-256 hash of each prompt, not its text. Installs from before that date still write the first 80 characters of each prompt until the next update, which switches new entries to the hash. The other records mooter keeps on your machine are listed under “Local records” below.' },
   { title: 'Opt-in telemetry', body: 'Defaults OFF. When you turn it on, only aggregated stats leave.' },
   { title: 'Opt out anytime', body: 'Turn telemetry fully off with `mooter quiet --telemetry-off`. Telemetry never carries prompt text — only hashes and counts.' },
   { title: 'The herd stays on your machine', body: 'The 🐄×N counter and the “Moos that worked” digest keep only agent names, tiers, models and timings — never prompt text — in a per-session file in your system temp folder, and none of it is sent anywhere. Tune it with `mooter quiet --verbose|--herd-quiet|--herd-off`.' },

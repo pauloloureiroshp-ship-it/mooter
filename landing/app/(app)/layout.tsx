@@ -386,7 +386,7 @@ function LoginHero() {
               fontFamily: 'var(--font-mono), monospace',
               letterSpacing: '0.04em',
             }}>
-              Free forever · MIT · No credit card
+              Free (MIT license) · No credit card
             </p>
             <p style={{
               color: 'var(--muted)',
