@@ -53,7 +53,9 @@
 ## 2026-09-29 · Site: números sem medição retirados de home, /compare e /methodology (#521 → `7fab69a0`)
 - Home: saíram o par `$ vanilla → $ routed` e os dois «running cost» da demo. /compare: «Cross-session $ savings» = «Not measured (no token logging)»; título/resumo derivados da matriz (10/11, 4 exclusivas). /methodology: correcção visível do «47% in 658 calls», com excepção declarada em `moo-tokens.json` (sim do dono).
 - Prova: design:check:ci 10.00/10 (local e na `main`), landing vitest 220/220, build 49/49; final-reviewer SHIP-WITH-NITS, nits corrigidos. Merge 2026-09-29 08:25 (São Paulo).
-- **29/09 — D-30 levantado** (ciclo 1 on-site encerrado; D0 nunca aconteceu: pré-check t4 pendente, W1a não congelada — prisma-data/precheck/CLOCK.md). Prisma: README+About+site = pacote único; dia zero = deploy do site; remedição = deploy + 28 dias. Motor/CLI/plugin nunca estiveram congelados; única trava do motor: /mooter-update e migração só depois de 05/10.
+- **Deploy FEITO 29/09 10:04:53 (São Paulo)** — `dpl_3bPLjiXg…` (READY, alias mooter.ai), redeploy de `bf5a87b3` = `main` com #521 + `/privacy` (#524), pelo Cowork (Project Prisma, desktop-j26409q). Verificado ao vivo (Cowork e CC): home sem `$1.17`/`vanilla →`; /compare «Not measured (no token logging)» + «Mooter scores 10/11», sem «only 11/11»; /methodology «47% in 658 calls … withdrawn»; /privacy «Local records», sem «divergence chip».
+- **D-30 levantado** (ciclo 1 on-site encerrado; D0 nunca aconteceu: pré-check t4 pendente, W1a não congelada — prisma-data/precheck/CLOCK.md). Prisma: README+About+site = pacote único; dia zero = este deploy; remedição = deploy + 28 dias. Motor/CLI/plugin nunca estiveram congelados.
+- ⚠️ **A partir de agora cada merge na `main` faz deploy automático do mooter.ai** — a Ignored Build Step do `landing` passou de «Don't build anything» a «Automatic» (29/09 ~10:03, pelo Chrome; o conector Vercel dá 403 nas settings).
 
 ## 2026-09-23 · Correcção de privacidade — `decisions.log` passa a guardar o hash do prompt, não o texto (`2e4ecdd2`)
 - `/privacy` dizia «SHA-256 hash … never the text itself»; o hook e o `router-execute` gravavam 80 chars (`prompt_preview`) no log e no POST ao `:7821`. Agora: `prompt_sha256` + traços fixos (`tools/router/prompt-traits.js`); mordida provada (repor `slice(0, 80)` ⇒ vermelho). Origem: CC-OUTBOX 046 §3 (Prisma). `landing/` intocado.
@@ -199,9 +201,13 @@ fan-out — probes genéricos ou auto-auditoria assumida; `git pull` no mac e no
 > de sessão antigas; arquivar sem promover seria perdê-lo. O registo completo,
 > com o contexto de cada um, fica no arquivo.
 
-<!-- segredos HIGH — sessão própria (2026-09-29) -->
-### 🔐 Scanner de segredos: 1 HIGH em `tools/router/ledger-turn-io.test.js:216` (sessão própria)
-- `slack-spike tests` → job `segredos` falha na `main` (visto no #521 e em `d653c442`): `github-token` `ghp_abcd…` num fixture do teste de `sessionTitle` (commit `19627cb4`, 23/09). Parece fixture, mas **não está declarado dummy** — o scanner manda parar e reportar ao dono. O job `test` do mesmo workflow também falha (20/286). Decisão do dono 2026-09-29: **não mexer agora**; tratar numa sessão própria.
+<!-- pendentes do site e do repo — sessão Mooter própria (2026-09-29) -->
+### 🔜 Pendentes para uma sessão Mooter própria (registados 2026-09-29)
+- **(a) /compare, tabela «vs routers»:** `Cost tracking per-prompt` = «✓ real-time» (`landing/app/(marketing)/compare/page.tsx:47`) é afirmação de custo sem medição — Mooter não regista tokens. Lembrar: merge em `main` = deploy automático.
+- **(b) Scanner de segredos:** 1 HIGH em `tools/router/ledger-turn-io.test.js:216` — `github-token` `ghp_abcd…` num fixture do teste de `sessionTitle` (commit `19627cb4`, 23/09), não declarado dummy; o job `segredos` do `slack-spike tests` falha na `main` por isso (e o `test` do mesmo workflow, 20/286). Não mexer sem sessão própria.
+- **(c) `/mooter-update` e migração do `decisions.log`:** só depois de 05/10 (secção de 23/09 acima).
+- **(d) `~/frugal`:** na branch `cc/prompt-audit-opus55-2026-09-28` (sem upstream, trabalho de outra sessão) com `.git/index.lock` de 26/09 (0 bytes) — não apagar sem o dono.
+- **(e) `SYNC.md` com ~300 linhas** (296 a 29/09; orçamento ~220): arquivar a parte antiga em `docs/foundation/SYNC_ARCHIVE_2026.md`.
 
 <!-- miscalibração T3 (parqueado 2026-08-03) -->
 ### 🅿️ PARQUEADO — miscalibração T3 vs trabalho crítico (2026-08-03)
