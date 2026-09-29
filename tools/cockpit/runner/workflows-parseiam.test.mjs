@@ -122,3 +122,68 @@ test('todo o workflow declara um `name:` — é ele que o GitHub mostra', () => 
   assert.deepEqual(semNome, [],
     `sem \`name:\`, a corrida aparece com o caminho do ficheiro: ${semNome.join(', ')}`);
 });
+
+/**
+ * As workflows de VERIFICAÇÃO não podem filtrar por base de PR.
+ *
+ * MEDIDO A 2026-09-11. Onze dos doze workflows com `pull_request:` traziam
+ * `branches: [main]`. Num `pull_request`, esse filtro é sobre a **base** do PR —
+ * não sobre o branch de trabalho. Resultado: quatro PRs empilhados uns sobre os
+ * outros (#492, #493, #496, #497, com base `feat/onboarding-v2-w*`) **nunca
+ * dispararam** nenhuma das suites. Apareciam com 9 checks verdes — `ratchet`,
+ * `segredos`, Vercel — e nem um deles era um teste. O #491, com base `main`,
+ * teve 15.
+ *
+ * E não foi só perder cobertura: o espelho do `test-skip.yml` foi partido pelas
+ * W2/W3 (dois `paths:` novos no `test.yml` sem o par cá), o teste que o apanha
+ * estava **vermelho localmente**, e não reprovou PR nenhum — porque a workflow
+ * que o corre não chegava a arrancar. Um defeito a esconder o outro.
+ *
+ * Trabalho empilhado é um padrão normal. Uma CI que só vê PRs para `main` é
+ * cega exactamente quando há mais código por rever de uma vez.
+ *
+ * As caras ficam de fora da lista de propósito: `benchmark` e `latency` gastam
+ * minutos a sério, e `claude-review` gasta modelo.
+ */
+const VERIFICACAO = [
+  'test.yml', 'test-skip.yml', 'landing-test.yml', 'design-gate.yml',
+  'security.yml', 'docs-hygiene.yml', 'wave-gate.yml', 'lp-trust.yml',
+];
+
+/** O `branches:` que está DENTRO do bloco `pull_request:`, se existir. */
+function branchesDoPullRequest(src) {
+  const linhas = String(src).replace(/\r/g, '').split('\n');
+  for (let i = 0; i < linhas.length; i++) {
+    if (linhas[i].trim() !== 'pull_request:') continue;
+    for (let j = i + 1; j < linhas.length; j++) {
+      if (/^\s{0,2}\S/.test(linhas[j])) break;          // saiu do bloco
+      if (/^\s{4}branches:/.test(linhas[j])) return linhas[j].trim();
+      if (/^\s{4}[a-z-]+:/.test(linhas[j]) && !/^\s{4}branches:/.test(linhas[j])) continue;
+    }
+    return null;
+  }
+  return null;
+}
+
+test('as workflows de verificação correm em QUALQUER base de PR', () => {
+  const comFiltro = [];
+  for (const nome of VERIFICACAO) {
+    const caminho = `${DIR}/${nome}`;
+    if (!fs.existsSync(caminho)) continue;
+    const b = branchesDoPullRequest(fs.readFileSync(caminho, 'utf8'));
+    if (b) comFiltro.push(`${nome} → ${b}`);
+  }
+  assert.deepEqual(comFiltro, [],
+    'estas workflows voltaram a filtrar a base do PR — PRs empilhados deixam de ' +
+    `correr testes e aparecem verdes na mesma:\n  ${comFiltro.join('\n  ')}`);
+});
+
+test('o `test.yml` e o `test-skip.yml` continuam a concordar no gatilho', () => {
+  // Se um correr numa base e o outro não, os checks obrigatórios ou ficam por
+  // reportar (PR bloqueado para sempre) ou são reportados a verde sem nada ter
+  // corrido. A segunda é pior, e é a que este par de ficheiros existe para
+  // evitar — ver o cabeçalho do `test-skip.yml`.
+  const a = branchesDoPullRequest(fs.readFileSync(`${DIR}/test.yml`, 'utf8'));
+  const b = branchesDoPullRequest(fs.readFileSync(`${DIR}/test-skip.yml`, 'utf8'));
+  assert.equal(a, b, `test.yml (${a}) e test-skip.yml (${b}) divergiram no \`branches:\` do pull_request`);
+});

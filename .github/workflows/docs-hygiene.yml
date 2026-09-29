@@ -22,7 +22,23 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # 2026-09-11 — este `branches:` NAO esta aqui.
+    #
+    # Estava, e dizia `[main]`. Num `pull_request`, esse filtro e sobre a BASE do
+    # PR — nao sobre o branch de trabalho. Consequencia medida nesse dia: os PRs
+    # #492, #493, #496 e #497, empilhados uns sobre os outros (base
+    # `feat/onboarding-v2-w*`), NUNCA dispararam esta workflow. Apareciam com 9
+    # checks verdes — `ratchet`, `segredos`, Vercel — e nenhum deles era uma
+    # suite. Comparacao: o #491, com base `main`, teve 15.
+    #
+    # Pior: um teste que apanha um defeito REAL (o espelho do `test-skip.yml`
+    # partido pelas W2/W3) estava vermelho localmente e nunca reprovou em PR
+    # nenhum, porque a workflow que o corre nao chegava a arrancar.
+    #
+    # O trabalho empilhado e um padrao normal, nao uma excepcao — e uma CI que
+    # so ve PRs para `main` e cega exactamente quando ha mais codigo por rever de
+    # uma vez. Sem `branches:`, esta workflow corre em qualquer PR; os `paths:`
+    # abaixo continuam a decidir SE ha algo a correr.
   workflow_dispatch:
 
 concurrency:
