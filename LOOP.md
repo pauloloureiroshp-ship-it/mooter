@@ -29,7 +29,7 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 1. **Um job vermelho só mostra a primeira causa.** O job `segredos` falhava na
    `main` no passo 4 (o fixture `ghp_` falso). Declarado o dummy (#528), o
    passo 4 passou e o job continuou vermelho — no passo 6, uma catraca de testes
-   fora do CI com 3 ficheiros de 23/09 (`4ff40f41`) que ninguém tinha visto,
+   fora do CI com 3 ficheiros criados a 21/09 (`009b509c`, `2d17d9f7`) que ninguém tinha visto,
    porque os passos 7–9 e este nunca chegavam a correr. «Corrige o HIGH e o job
    fica verde» era uma previsão; a descrição do PR teve de ser corrigida depois
    do CI. **Hipótese:** antes de prometer um job verde, ler os passos `skipped`
