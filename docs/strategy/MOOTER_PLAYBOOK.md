@@ -609,7 +609,7 @@ Shippada numa única sessão (~14h) em 2026-05-27. 7 PRs merged, tag `v0.1.0-pas
 
 ### Wave 2 — Bottleneck fixes + statusline + events + slash commands (2026-05-28 → 2026-06-10)
 
-> **SSoT operacional**: [`docs/strategy/WAVE2_PLAN.md`](./WAVE2_PLAN.md). Tabela abaixo é resumo, plano completo dia-a-dia + Definition of Done + master prompts pointers vivem no WAVE2_PLAN.
+> **SSoT operacional**: [`docs/archive/waves/WAVE2_PLAN.md`](../archive/waves/WAVE2_PLAN.md). Tabela abaixo é resumo, plano completo dia-a-dia + Definition of Done + master prompts pointers vivem no WAVE2_PLAN.
 
 | Dia | Entrega | Estado |
 |---|---|---|
@@ -624,7 +624,7 @@ Shippada numa única sessão (~14h) em 2026-05-27. 7 PRs merged, tag `v0.1.0-pas
 
 ### Wave 2.5 — Activation Polish (2026-05-30 → 2026-06-03) 🔥 EM CURSO
 
-> **SSoT operacional**: [`docs/strategy/WAVE2_5_PLAN.md`](./WAVE2_5_PLAN.md). Surgiu pós-Wave 2 closure baseado em uso real. Endurecimento de statusline + wizard + per-terminal isolation. **Gate para Wave 3** (sem confiança nos números, telemetria opt-in não tem fundação).
+> **SSoT operacional**: [`docs/archive/waves/WAVE2_5_PLAN.md`](../archive/waves/WAVE2_5_PLAN.md). Surgiu pós-Wave 2 closure baseado em uso real. Endurecimento de statusline + wizard + per-terminal isolation. **Gate para Wave 3** (sem confiança nos números, telemetria opt-in não tem fundação).
 
 | Dia | Entrega | Estado |
 |---|---|---|
@@ -637,7 +637,7 @@ Shippada numa única sessão (~14h) em 2026-05-27. 7 PRs merged, tag `v0.1.0-pas
 
 > **Pré-requisito**: Wave 2.5 fechada com tag `v0.2.1-polish`. Sem polish, hub upload pressupõe statusline confiável.
 >
-> **SSoT operacional**: [`docs/strategy/WAVE3_PLAN.md`](./WAVE3_PLAN.md). Foco: activation journey (Momentos 2 e 3 da análise UX/UI) + hub Cloudflare D1 + digest local.
+> **SSoT operacional**: [`docs/archive/waves/WAVE3_PLAN.md`](../archive/waves/WAVE3_PLAN.md). Foco: activation journey (Momentos 2 e 3 da análise UX/UI) + hub Cloudflare D1 + digest local.
 
 | Dia | Entrega | Notas |
 |---|---|---|

@@ -59,7 +59,7 @@ frugal status — all green
 - Your prompts stay on your machine — always
 - frugal works silently in the background
 - Only the routing tier (T0/T1/T2/T3) is shared anonymously to improve the algorithm
-- See [PRIVACY.md](PRIVACY.md) for full details
+- See [PRIVACY.md](../PRIVACY.md) for full details
 
 ## Useful commands
 

@@ -173,7 +173,7 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | Low-confidence rate | 2.0% |
 | **Savings vs naive Opus** | **not measured** — see [Honest numbers](#honest-numbers) |
 | Guaranteed savings (Option-A hits) | measured per-session |
-| Cost model | token-estimated, [see `docs/COST_MODEL.md`](docs/COST_MODEL.md) |
+| Cost model | token-estimated, [see `docs/archive/2026-04-reports/COST_MODEL.md`](docs/archive/2026-04-reports/COST_MODEL.md) |
 | Unit tests (loop + cost model) | **59/59** passing (`node:test`) |
 | Projects validated on | marleyliving (CRM), cloude-home, misc |
 
@@ -462,10 +462,9 @@ Checks: hook registration in settings.json, Ollama reachability, GPU probe, deci
 | [docs/ROUTING_POLICY.md](docs/ROUTING_POLICY.md) | Complete tier routing rules |
 | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) | Request lifecycle diagram |
 | [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | What mooter does *not* do |
-| [docs/REAL_CORPUS_VALIDATION.md](docs/REAL_CORPUS_VALIDATION.md) | The 1,370-prompt benchmark |
+| [docs/archive/2026-04-reports/REAL_CORPUS_VALIDATION.md](docs/archive/2026-04-reports/REAL_CORPUS_VALIDATION.md) | The 1,370-prompt benchmark |
 | [docs/MODEL_MAPPING.md](docs/MODEL_MAPPING.md) | How to swap providers |
-| [docs/COST_MODEL.md](docs/COST_MODEL.md) | How v0.6 measures savings (token-estimated) |
-| [AUDIT.md](AUDIT.md) | The 13-gap audit that drove v0.6 |
+| [docs/archive/2026-04-reports/COST_MODEL.md](docs/archive/2026-04-reports/COST_MODEL.md) | How v0.6 measures savings (token-estimated) |
 | [PRIVACY.md](PRIVACY.md) | What data is collected and what stays local |
 | [ONBOARDING_GUIDE.md](docs/ONBOARDING_GUIDE.md) | 5-minute install guide for Mac and Windows |
 
