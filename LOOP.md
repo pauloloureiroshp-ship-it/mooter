@@ -20,6 +20,34 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-29-a-regra-de-freeze-vivia-num-ramo-e-o-deploy-ia-apagar-o-privacy
+
+**Contexto:** masterprompt do Cowork Prisma para tirar do mooter.ai números sem
+medição (`$1.17 → $0.62`, «Cross-session $ savings ✓», o 47% sem correcção
+visível). PR #521 fundido com gate, testes e build verdes. No passo do deploy,
+a produção revelou-se outra coisa.
+
+**Observado:**
+
+1. **Produção ≠ `main`.** O mooter.ai servia um deploy **não-git** de 23/09
+   com o `/privacy` de um ramo que nunca entrou em `main`. «Deploy a partir de
+   `main`» teria apagado texto de privacidade publicado. Antes de fazer deploy,
+   comparar o que está NO AR com o que vai subir — não só o diff do PR.
+2. **A regra que mandava vivia fora de `main`.** O D-30 («até 27/10 `main` e
+   produção divergem em `landing/`; o sha do HTML não muda») estava só no
+   SYNC do ramo `mooter/p0-2026-09-26` (`24b17dec`). Uma sessão que lê o
+   SYNC da `main` não a vê. 2.º conflito de regras de freeze depois do 028.
+3. **O Ignored Build Step escondia o congelamento.** Os checks diziam
+   «success · Canceled by Ignored Build Step»: verde no GitHub, nada no ar.
+   Todos os builds git de produção desde 23/09 foram cancelados, com ou sem
+   `landing/` no diff. O comando está nas settings da Vercel e a API não o
+   devolve (`n/d`).
+4. **O portão de números funcionou e mordeu.** `claims_banidos` bloqueou o
+   `47%` numa linha nova; a excepção declarada passou; sem ela, exit 1.
+
+**Régua:** um congelamento que só existe num ramo ou nas settings de um
+fornecedor não é uma regra, é uma armadilha — tem de estar no SYNC da `main`.
+
 ### 2026-09-13-o-audit-verde-media-tres-pacotes-e-o-rce-estava-num-quarto
 
 **Contexto:** a 10/09 as 3 pernas do `npm audit (block on HIGH)` estavam
