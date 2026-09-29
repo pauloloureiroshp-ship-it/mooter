@@ -53,7 +53,7 @@
 ## 2026-09-29 · Site: números sem medição retirados de home, /compare e /methodology (#521 → `7fab69a0`)
 - Home: saíram o par `$ vanilla → $ routed` e os dois «running cost» da demo. /compare: «Cross-session $ savings» = «Not measured (no token logging)»; título/resumo derivados da matriz (10/11, 4 exclusivas). /methodology: correcção visível do «47% in 658 calls», com excepção declarada em `moo-tokens.json` (sim do dono).
 - Prova: design:check:ci 10.00/10 (local e na `main`), landing vitest 220/220, build 49/49; final-reviewer SHIP-WITH-NITS, nits corrigidos. Merge 2026-09-29 08:25 (São Paulo).
-- **Deploy do site: NÃO feito — bloqueado por conflito (ver PENDENTE «Deploy do site × D-30»).** Recibo para o Cowork/Prisma: dia zero da remedição de 26/10 ainda por marcar.
+- **29/09 — D-30 levantado** (ciclo 1 on-site encerrado; D0 nunca aconteceu: pré-check t4 pendente, W1a não congelada — prisma-data/precheck/CLOCK.md). Prisma: README+About+site = pacote único; dia zero = deploy do site; remedição = deploy + 28 dias. Motor/CLI/plugin nunca estiveram congelados; única trava do motor: /mooter-update e migração só depois de 05/10.
 
 ## 2026-09-23 · Correcção de privacidade — `decisions.log` passa a guardar o hash do prompt, não o texto (`2e4ecdd2`)
 - `/privacy` dizia «SHA-256 hash … never the text itself»; o hook e o `router-execute` gravavam 80 chars (`prompt_preview`) no log e no POST ao `:7821`. Agora: `prompt_sha256` + traços fixos (`tools/router/prompt-traits.js`); mordida provada (repor `slice(0, 80)` ⇒ vermelho). Origem: CC-OUTBOX 046 §3 (Prisma). `landing/` intocado.
@@ -202,12 +202,6 @@ fan-out — probes genéricos ou auto-auditoria assumida; `git pull` no mac e no
 <!-- segredos HIGH — sessão própria (2026-09-29) -->
 ### 🔐 Scanner de segredos: 1 HIGH em `tools/router/ledger-turn-io.test.js:216` (sessão própria)
 - `slack-spike tests` → job `segredos` falha na `main` (visto no #521 e em `d653c442`): `github-token` `ghp_abcd…` num fixture do teste de `sessionTitle` (commit `19627cb4`, 23/09). Parece fixture, mas **não está declarado dummy** — o scanner manda parar e reportar ao dono. O job `test` do mesmo workflow também falha (20/286). Decisão do dono 2026-09-29: **não mexer agora**; tratar numa sessão própria.
-
-<!-- deploy do site × D-30 (2026-09-29) -->
-### 🚧 Deploy do site × D-30 — decisão do dono (2026-09-29)
-- Produção do projecto Vercel `landing` (mooter.ai) = `dpl_9yUPF1q6…`, deploy **não-git** de 2026-09-23 11:53 (São Paulo), com o `/privacy` «Local records» do ramo `site/privacy-2026-09-23`. Esse texto **não está em `main`** (`git grep` = 0). Deploy de `main` @ `7fab69a0` apagaria o `/privacy` de produção.
-- Regra D-30 (commit `24b17dec`, só no ramo `mooter/p0-2026-09-26`, **não em `main`**): até 27/10 `main` e produção divergem em `landing/` de propósito; o sha do HTML não pode mudar. Conflita com o pedido Prisma de marcar o dia zero com este deploy — 2.º conflito de regras de freeze (cf. 028).
-- **Ignored Build Step** do `landing`: o comando vive nas settings do projecto (não no repo) e a API não o devolve → texto exacto `n/d`. Comportamento medido: os 4 builds git de produção desde 23/09 (`5600aa1d`, `9a0d0c24`, `d653c442` só README, `7fab69a0`) foram CANCELED independentemente dos ficheiros; o último git READY é `2cac7278` (21/09). Lê-se como um congelamento total, não um filtro por pasta. **Não alterar a regra** até decisão do dono.
 
 <!-- miscalibração T3 (parqueado 2026-08-03) -->
 ### 🅿️ PARQUEADO — miscalibração T3 vs trabalho crítico (2026-08-03)
