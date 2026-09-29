@@ -1,7 +1,9 @@
-# Launch a routed session
+# Review and publish a change
 
-Use **Mooter: New Claude Code Session** (or the button in the Cockpit) to start Claude Code with mooter hints active.
+Use **Mooter: Open Live Preview ⚡** to inspect the running app and select an element.
 
-As you work, the **Decisions** feed fills in and **Saved** climbs. Pairs with the official [Claude Code extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) — the cockpit detects it and shows the pairing in the header.
+Deterministic edits show a diff before writing and are bound to the confirmed preview tree and source hash. Agent-assisted edits require Workspace Trust, use the workspace's Claude Agent SDK, and return for keep/revert review.
+
+Before publishing, accepted changes must pass a current Security Review. Commit + Push selects only approved paths and never force-pushes. A production deploy requires the exact Vercel project name and uses the immutable commit already sent to Git.
 
 > Community project. Not affiliated with, or endorsed by, Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic, PBC.
