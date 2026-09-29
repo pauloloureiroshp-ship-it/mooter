@@ -39,8 +39,13 @@ export const viewport: Viewport = {
 // "1,437 prompts", and NO fabricated aggregateRating (single-founder MIT project
 // with zero collected reviews — a fake rating is both dishonest and a Google
 // rich-result violation).
+//
+// 2026-09-29 · dizia «learns forever … same results, a fraction of the spend,
+// zero code changes». Nenhuma das três está medida (não há custo registado —
+// ver o /compare, «Not measured (no token logging)»). Fica só o que o Mooter é:
+// um hook local que escolhe o tier de cada prompt, MIT.
 const DESCRIPTION =
-  'The router for Claude Code. Local-first, learns forever, spawns agents safely by default. Routes prompts across Ollama, Haiku, Sonnet and Opus — same results, a fraction of the spend, zero code changes.';
+  'The local router for Claude Code: a hook on your machine that routes each prompt to a tier — local Ollama, Haiku, Sonnet or Opus. Open source, MIT.';
 
 export const metadata: Metadata = {
   title: 'mooter — The router for Claude Code',
@@ -101,7 +106,7 @@ const jsonLd = {
       '@id': 'https://mooter.ai/#website',
       url: 'https://mooter.ai',
       name: 'mooter',
-      description: 'The router for Claude Code. Local-first. Learns forever.',
+      description: 'The local router for Claude Code. Open source, MIT.',
       publisher: { '@id': 'https://mooter.ai/#paulo' },
     },
     {

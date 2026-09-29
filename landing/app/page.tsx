@@ -71,16 +71,15 @@ export default function Page() {
               </h1>
 
               <h2 style={{ fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 600, marginTop: 18, color: 'var(--color-text)' }}>
-                The router for Claude Code. Local-first. Learns forever.
+                The router for Claude Code. Local-first. Can retune from your own routing log.
               </h2>
               <p style={{ fontSize: 15, fontWeight: 500, marginTop: 6, color: 'var(--color-muted)' }}>
-                Spawns agents safely by default.
+                Spawns agents in their own git worktree, sandboxed (Linux, macOS) — on Windows it refuses to spawn.
               </p>
 
               <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 18, maxWidth: 540 }}>
                 Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
-                But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
-                environment and routes every prompt to the optimal model —{' '}
+                Mooter classifies each prompt and picks its tier —{' '}
                 <strong style={{ color: 'var(--color-text)' }}>{M.recomendadoBarato} classified prompts went to a local or cheap tier</strong>. {M.ressalva}{' '}
                 <a href="/methodology" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
                   See the benchmark *
@@ -212,9 +211,7 @@ export default function Page() {
             <div style={{ maxWidth: 720 }}>
             <p style={{ color: 'var(--color-muted)', fontSize: 17, lineHeight: 1.65, marginTop: 0 }}>
               Your GPU, your subscriptions, your local models — you&apos;re already paying for a powerful AI stack.
-              But Claude Code defaults to Opus for everything, even renaming a variable. Mooter maps your full
-              environment and routes every prompt to the optimal model: comparable quality on routine tasks, a
-              fraction of the spend.
+              Mooter classifies each prompt and picks its tier — from local Ollama up to Opus.
             </p>
             <p style={{ color: 'var(--color-text)', fontSize: 15, lineHeight: 1.6, marginTop: 14, fontWeight: 500 }}>
               For a vibe coder on a Max plan: renames, commits &amp; explains run <strong>local (free)</strong>;
