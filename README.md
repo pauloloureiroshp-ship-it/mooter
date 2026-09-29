@@ -192,7 +192,7 @@ On 2026-08-23 an audit traced every savings number this project publishes. **Non
 | 62.7% | `decisions_v2` | that is the share of T0 *lines*, not a cost |
 | 83.2% | `stats.js` | well-formed — but it measures the **recommendation**, and 101 prompts routed to local produced **1** local execution |
 | 89.9% | project memory | April corpus, hand-written, no code produces it |
-| 47% in 658 calls | earlier launch posts (Wave 33.5); still quoted by AI assistants in Sep 2026 | same root cause, no token telemetry. Withdrawn: please do not quote it (listed here 2026-09-28) |
+| the ‘658 calls’ figure | earlier launch posts (Wave 33.5); still quoted by AI assistants in Sep 2026 | same root cause, no token telemetry. Withdrawn 2026-09-28; the [methodology page](https://mooter.ai/methodology) explains why |
 
 The root cause is structural and worth stating plainly: **no telemetry file in this project records tokens.** Zero of 4,534 lines. Without tokens there is no measured cost, and without a measured cost there is no measured saving — in any unit.
 
