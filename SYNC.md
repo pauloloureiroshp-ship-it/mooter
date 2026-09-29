@@ -50,6 +50,11 @@
 
 # Mooter — Sync Snapshot
 
+## 2026-09-29 · Pendentes pós-site — proteção de build provada, /compare e /privacy só com o que tem fonte, segredo falso declarado (#526 · #527 · #528)
+- **#526** (`9a3f1c0d`, merge 10:46:04 SP): SYNC 296 → 171 linhas + frase do deploy corrigida. O deploy de produção do `landing` (`dpl_6VKF…`) saiu **CANCELED por Ignored Build Step**, e o preview também — a proteção está provada.
+- **#527** (`23fff1b5`, merge 10:55:31 SP): /compare — «Cost tracking per-prompt» = «Not measured (no token logging)»; o resumo perde «at a fraction of the cost» e diz o que o Mooter faz (classifica localmente, ou com Haiku quando há chave e as regras locais estão inseguras — `inject_context.js:932-938`; T0 → T3); Free = «✓ (MIT license)»; OpenRouter = «fee on credit purchases, no inference markup» (FAQ lida a 29/09; o «markup on API» contradizia-a); 3 latências de concorrentes sem fonte → `n/d`. /privacy — o cartão do hash ganhou a data (2026-09-23, `2e4ecdd2`) e a ressalva das instalações antigas. **Deploy `dpl_HdzE…` READY às 10:57:03 SP — co-intervenção no Prisma.** Verificado ao vivo: HTTP 200, frases novas presentes, as velhas ausentes. Prova: design 10.00/10, vitest 220/220, build 49/49; final-reviewer SHIP-WITH-NITS.
+- **#528** (`6bb15e52`, merge 11:01:07 SP): o fixture `ghp_` do teste de `sessionTitle` foi declarado no `DUMMIES` (valor exacto, motivo escrito) → varredura **HIGH 0**, com mordida provada. O passo «Bateria de segredos» passa; o job `segredos` continua vermelho num passo seguinte (ver pendentes).
+
 ## 2026-09-29 · Site: números sem medição retirados de home, /compare e /methodology (#521 → `7fab69a0`)
 - Home: saíram o par `$ vanilla → $ routed` e os dois «running cost» da demo. /compare: «Cross-session $ savings» = «Not measured (no token logging)»; título/resumo derivados da matriz (10/11, 4 exclusivas). /methodology: correcção visível do «47% in 658 calls», com excepção declarada em `moo-tokens.json` (sim do dono).
 - Prova: design:check:ci 10.00/10 (local e na `main`), landing vitest 220/220, build 49/49; final-reviewer SHIP-WITH-NITS, nits corrigidos. Merge 2026-09-29 08:25 (São Paulo).
@@ -78,11 +83,13 @@
 
 <!-- pendentes do site e do repo — sessão Mooter própria (2026-09-29) -->
 ### 🔜 Pendentes para uma sessão Mooter própria (registados 2026-09-29)
-- **(a) /compare, tabela «vs routers»:** `Cost tracking per-prompt` = «✓ real-time» (`landing/app/(marketing)/compare/page.tsx:47`) é afirmação de custo sem medição — Mooter não regista tokens. Lembrar: merge que toca `landing/` = deploy de produção, e co-intervenção no Prisma até 27/10.
-- **(b) Scanner de segredos:** 1 HIGH em `tools/router/ledger-turn-io.test.js:216` — `github-token` `ghp_abcd…` num fixture do teste de `sessionTitle` (commit `19627cb4`, 23/09), não declarado dummy; o job `segredos` do `slack-spike tests` falha na `main` por isso (e o `test` do mesmo workflow, 20/286). Diagnóstico 29/09: **falso** — o corpo é o alfabeto a–z seguido de 0–9, em sequência (comparação exacta, valor não impresso). Declarar no `DUMMIES` de `tools/audit/varredura-segredos.mjs` com o motivo — «sim» do dono, PR à parte depois do PR do site.
+- **(a) /compare** — ✅ 29/09 (#527): «Cost tracking» sem medição, «fraction of the cost», «forever», o «markup» do OpenRouter e as latências sem fonte saíram; deploy 10:57:03 SP (co-intervenção no Prisma).
+- **(b) Scanner de segredos** — ✅ 29/09 (#528): o HIGH era o fixture `ghp_` do teste de `sessionTitle` (alfabeto sequencial), agora declarado no `DUMMIES` com o motivo; o passo «Bateria de segredos» passa. **Continua vermelho, por outra causa:** o passo «Nenhum teste novo fora do CI» do mesmo job acusa 3 testes de `_handoff/decisor-shadow-2026-09-21/` (`05b-calibrate`, `10-corpus-60d`, `16-gate-f2`; commit `4ff40f41`, 23/09) que o CI não corre — estava escondido porque o job parava no segredo. Decidir: ligá-los a um script do CI ou regravar a linha de base com o porquê. O `test` do slack-spike tem 20/286 vermelhos na `main` por outras causas (daemon, `correr`, `enviar`).
 - **(c) `/mooter-update` e migração do `decisions.log`:** trava mantida **até o gate F2 do decisor sombra decidir** (decisão do dono, 29/09) — o fecho do corpus é 2026-10-05T12:00Z e a regra é esperar pelos 60, não baixar n; até lá o runtime deste PC continua a gravar o excerto de 80 chars.
 - **(d) `~/frugal`:** na branch `cc/prompt-audit-opus55-2026-09-28` (trabalho de outra sessão). 29/09, com «sim» do dono: `index.lock` órfão removido (0 bytes, 26/09, nenhum processo git) e a branch empurrada para o remoto como backup (`c77aee0c`, 5 commits). Por fazer, sem «sim»: os 16 modificados, 550 untracked, 14 stashes, voltar à `main`.
 - **(e) `SYNC.md` com ~300 linhas** — ✅ 29/09: as entradas de 09/09 a 13/09 rolaram para `docs/foundation/SYNC_ARCHIVE_2026.md`.
+- **(f) Descrição global do site** (`landing/app/layout.tsx:43`, metadata/JSON-LD em todas as páginas): ainda diz «same results, a fraction of the spend» e «learns forever»; `landing/app/(app)/layout.tsx:389` diz «Free forever». Mesma classe de afirmação que saiu do /compare. Mexer = deploy = co-intervenção no Prisma — decisão do dono.
+- **(g) Nit do final-reviewer no /privacy:** «until the next update, which switches them to the hash» pode ler-se como se as linhas antigas fossem convertidas (não são; a secção «Local records» diz como apagá-las). Texto aprovado pelo dono tal como está.
 
 <!-- miscalibração T3 (parqueado 2026-08-03) -->
 ### 🅿️ PARQUEADO — miscalibração T3 vs trabalho crítico (2026-08-03)

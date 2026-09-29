@@ -20,6 +20,33 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-29-o-passo-que-falha-primeiro-esconde-os-que-vem-depois
+
+**Contexto:** pendentes pós-site (#526 · #527 · #528), missão 20260929-1022.
+
+**Observado:**
+
+1. **Um job vermelho só mostra a primeira causa.** O job `segredos` falhava na
+   `main` no passo 4 (o fixture `ghp_` falso). Declarado o dummy (#528), o
+   passo 4 passou e o job continuou vermelho — no passo 6, uma catraca de testes
+   fora do CI com 3 ficheiros de 23/09 (`4ff40f41`) que ninguém tinha visto,
+   porque os passos 7–9 e este nunca chegavam a correr. «Corrige o HIGH e o job
+   fica verde» era uma previsão; a descrição do PR teve de ser corrigida depois
+   do CI. **Hipótese:** antes de prometer um job verde, ler os passos `skipped`
+   da última corrida — são dívida não medida, não verde.
+2. **A proteção de build prova-se com o próprio PR que a documenta.** O #526
+   (só docs) saiu CANCELED por Ignored Build Step no preview e em produção
+   (`dpl_6VKF…`); o merge do `main` para dentro do branch do #527 também
+   (o `HEAD^` desse merge só trazia docs). Uma frase no SYNC a dizer «deve sair
+   CANCELED» fica verdadeira no minuto do merge, não antes.
+3. **Uma célula sobre um concorrente estava errada contra a fonte dele.** «⚠️
+   markup on API» (OpenRouter) contradizia a FAQ deles («without any markup on
+   inference pricing»); a taxa real é na compra de créditos. Honestidade não é
+   só não inflacionar o Mooter — é também não inventar o defeito do outro.
+4. **O relógio desta máquina está ~43 s atrás do servidor** (medido contra o
+   `Date:` do mooter.ai). A hora de um deploy vem da Vercel (`ready`), nunca do
+   `date` local.
+
 ### 2026-09-29-o-conector-vercel-faz-deploy-mas-nao-muda-settings
 
 **Contexto:** deploy do mooter.ai depois do D-30 levantado (#521 + /privacy #524).
