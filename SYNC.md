@@ -4,11 +4,11 @@
 
 ## Cabeçalho
 
-- versão instalada: 1.49.4
-- HEAD: ad0deaede95ebc0404a4b6d09dab5f79e4f13457
-- branch: mac/sistema-sync-2026-08-25
-- remoto: n/d (porque não foi possível determinar o upstream: fatal: no upstream configured for branch 'mac/sistema-sync-2026-08-25')
-- gerado_em: 2026-08-25T20:17:14.000Z (derivado do último facto observado; não do relógio da execução)
+- versão instalada: 1.53.0
+- HEAD: 7cebf3b4cb38ce37a6769c308ca00fedca0370e1
+- branch: docs/sync-i2-i3-2026-09-29
+- remoto: 0 à frente / 0 atrás de origin/main (fonte: git rev-list)
+- gerado_em: 2026-09-29T15:24:29.078Z (derivado do último facto observado; não do relógio da execução)
 
 ## Entregas
 
@@ -30,12 +30,15 @@
 | v1.47 | retry.js, terminal.js, board.js, fleet.js, seamless.js | 3af2c2ce — chore(release): adiciona v1.47 a entregas-por-versao.json |
 | v1.48 | trilha.js, trilha-tool.js, seamless.js, fleet.js, tools6.js, probe.js, server.js | 72b8e31f — chore(release): 1.48.0 -> 1.48.1 para o .mcpb do piloto poder instalar |
 | v1.49 | capacidades.js, server-apps.js, probe.js, fleet-ui.html | 15280a66 — chore(v1.49.4): a versao lidera a tag (#348) |
+| v1.50 | n/d (porque a versão não tem entregas descritas na fonte) | 1b4a522b — chore(versao): 1.50.0 -> 1.51.0 |
+| v1.52 | seamless.js | 571300ef — merge origin/main — versao a 1.52.0, SYNC por uniao, arquivo sem duplicado |
+| v1.53 | n/d (porque a versão não tem entregas descritas na fonte) | ac937f6b — release: Mooter 1.53.0 — os botões do Ledger deixaram de ser maquetas (#470) |
 
 ## Trabalho recente (até 1 jobs terminais)
 
-### validacao-generalizacao-2026-08-18
+### work-2026-09-28-e45a
 
-- `job-msyeuimh-84b1` · agente=moo · actor={"type":"system","id":"legacy","origem":"evento anterior à instrumentação de identidade (f-mu0)"} · actor_porque=n/d (porque o evento não contém actor_porque; nunca inferido) · duração=20 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
+- `job-muliexy9-05a2` · agente=moo · actor={"type":"system","id":"system","origem":null} · actor_porque=DEFAULT (n/d — ator não declarado por quem disparou; nunca inferido) · duração=18 (fonte: ledger.duration_s) · desfecho=entregue · custo=0 (fonte: ledger.cost_usd) USD
 
 ## Zona humana
 
@@ -157,7 +160,7 @@ lá e o SYNC é snapshot, não log. Frota em Ed25519 (2/2 devices) · suite `too
 | Arbiter | Haiku 4.5 via Anthropic SDK |
 | Hooks | UserPromptSubmit + PostToolUse + Stop |
 | T0 Local | Ollama brew service (qwen2.5:3b/14b, gemma4:e4b, nomic-embed-text) |
-| T1-T3 | Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.6 |
+| T1-T3 | Hint recomenda `claude-haiku-4-5-20251001` / `claude-sonnet-4-6` / `claude-opus-4-6` (fixos em `classify.js:170-172`, congelado, e `inject_context.js:1595-1597`); os subagentes correm por alias (`model: haiku\|sonnet\|opus` em `agents/*.md`), por isso o modelo que executa é o que o Claude Code resolve para o alias — n/d neste ficheiro |
 | Telemetry | savings-tracker :7821 + hub Cloudflare + D1 |
 | Landing | `mooter.ai` (public waitlist) + `landing-five-azure-16.vercel.app` (Friends Beta) |
 
