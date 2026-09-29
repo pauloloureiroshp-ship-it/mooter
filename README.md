@@ -172,7 +172,6 @@ decisions.log ──► backtest.js ──► router-tuning.json ──► updat
 | Classifier latency | **1ms cached** (n=264) · **134ms p50 when a process spawns** (n=498) — measured 2026-09-03 |
 | Low-confidence rate | 2.0% |
 | **Savings vs naive Opus** | **not measured** — see [Honest numbers](#honest-numbers) |
-| Guaranteed savings (Option-A hits) | measured per-session |
 | Cost model | token-estimated, [see `docs/archive/2026-04-reports/COST_MODEL.md`](docs/archive/2026-04-reports/COST_MODEL.md) |
 | Unit tests (loop + cost model) | **59/59** passing (`node:test`) |
 | Projects validated on | marleyliving (CRM), cloude-home, misc |
