@@ -20,6 +20,18 @@ Canal de aprendizado contínuo entre os dois terminais. Terminal 2 (executor aut
 
 ## OBSERVADO
 
+### 2026-09-29-o-conector-vercel-faz-deploy-mas-nao-muda-settings
+
+**Contexto:** deploy do mooter.ai depois do D-30 levantado (#521 + /privacy #524).
+
+**Observado:**
+
+1. **O conector Vercel do Claude lê e faz deploy, mas não altera settings (403).**
+   Mudar a Ignored Build Step teve de ser feito pelo Chrome (Cowork, 29/09 ~10:03).
+2. **A Ignored Build Step cancela também redeploys manuais**, não só os builds
+   git automáticos — com «Don't build anything» nenhum caminho chegava ao ar.
+   Com «Automatic», cada merge em `main` passa a deploy de produção.
+
 ### 2026-09-29-a-regra-de-freeze-vivia-num-ramo-e-o-deploy-ia-apagar-o-privacy
 
 **Contexto:** masterprompt do Cowork Prisma para tirar do mooter.ai números sem
