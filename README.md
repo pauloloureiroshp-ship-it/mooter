@@ -4,6 +4,8 @@
 
 ### Operate like a master without studying every day — real multi-agent projects in VS Code. Local-first.
 
+**What it is, in one paragraph.** Mooter is a hook for Claude Code that classifies each prompt on your machine and recommends the cheapest tier that can do the job: local Ollama, Haiku, Sonnet or Opus. It is not a proxy: requests go from Claude Code to the model provider directly. Honest state, audited 2026-08-23: 101 of 123 classified prompts were routed to a local or cheap tier (82.1%), yet 1 of 3,225 recorded executions ran locally, so today Mooter mostly advises. No savings figure is published; see [Honest numbers](#honest-numbers).
+
 Mooter sets up, watches, and pilots your project with total visibility: foundation-gap alerts, best practices applied automatically, and the magic visible (Live Preview). The moat is trust: an auditable receipt and adversarial verification (critic ≠ author) on work a non-dev can check. The engine is table stakes; the cockpit is where the proof shows. Five experiences: **Resume · Plan · Route (invisible) · Watch · Review.**
 
 **Two-axis routing — *complexity → model · domain → tools (Moo Packs)*. Zero-proxy · Doctrine-based · Self-tuning · GPU-aware.**
@@ -190,6 +192,7 @@ On 2026-08-23 an audit traced every savings number this project publishes. **Non
 | 62.7% | `decisions_v2` | that is the share of T0 *lines*, not a cost |
 | 83.2% | `stats.js` | well-formed — but it measures the **recommendation**, and 101 prompts routed to local produced **1** local execution |
 | 89.9% | project memory | April corpus, hand-written, no code produces it |
+| the ‘658 calls’ figure | earlier launch posts (Wave 33.5); still quoted by AI assistants in Sep 2026 | same root cause, no token telemetry. Withdrawn 2026-09-28; the [methodology page](https://mooter.ai/methodology) explains why |
 
 The root cause is structural and worth stating plainly: **no telemetry file in this project records tokens.** Zero of 4,534 lines. Without tokens there is no measured cost, and without a measured cost there is no measured saving — in any unit.
 
