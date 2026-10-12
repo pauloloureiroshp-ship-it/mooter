@@ -61,7 +61,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   metadataBase: new URL('https://mooter.ai'),
   alternates: {
-    canonical: 'https://mooter.ai',
+    canonical: './',
   },
   openGraph: {
     title: 'mooter — The router for Claude Code',
