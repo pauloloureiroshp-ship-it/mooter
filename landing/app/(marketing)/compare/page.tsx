@@ -32,6 +32,8 @@ const COLS = ['', 'mooter', 'Claude Code default', 'Claude Code Router', 'LiteLL
 
 const CCR_README = 'https://github.com/musistudio/claude-code-router';
 const OPENROUTER_FAQ = 'https://openrouter.ai/docs/faq';
+const OPENROUTER_AUTO = 'https://openrouter.ai/docs/guides/routing/routers/auto-router';
+const LITELLM_DOCS = 'https://docs.litellm.ai/docs/simple_proxy';
 
 // 2026-10-14 · a coluna do Claude Code Router. Só entra o que o README diz
 // (lido a FACTS_READ, link abaixo da tabela); o resto é `n/d` — «não dito na
@@ -52,7 +54,7 @@ const CCR_CELLS: Record<string, string> = {
 const BASE_ROWS: string[][] = [
   ['Architecture', 'Hook (local)', 'Direct API call', 'HTTP proxy', 'IDE plugin', 'API gateway'],
   ['Local models (Ollama)', '✓ T0 native', '✗', '✓ (configurable)', '✓', '✗'],
-  ['Auto-routing by complexity', '✓ T0–T3 axis', '✗ Opus on all', '⚠️ rule-based', '⚠️ manual', '⚠️ tags'],
+  ['Auto-routing by complexity', '✓ T0–T3 axis', '✗ Opus on all', '⚠️ rule-based', '⚠️ manual', '⚠️ Auto Router: by task type and cost tier'],
   ['Domain routing (packs)', '✓ 7+ Moo Packs', '✗', '✗', '✗', '✗'],
   // 2026-08-27 · dizia '✓ 14ms p50'. O 14 aparecia como literal em três ficheiros
   // e nenhum o ligava a uma medição — apesar de o medidor existir no repo
@@ -77,12 +79,12 @@ const BASE_ROWS: string[][] = [
   // custo por prompt medido; a célula passa a dizer o mesmo que a linha dos $
   // da MultiSessionTable (#521).
   ['Cost tracking per-prompt', 'Not measured (no token logging)', '✗', '✓ in logs', '⚠️ session', '✓ dashboard'],
-  ['Open source', '✓ MIT', 'n/a (closed)', '✓ Apache 2', '✓ Apache 2', '✗ (gateway hosted)'],
+  ['Open source', '✓ MIT', 'n/a (closed)', '✓ MIT (docs footer)', '✓ Apache 2', '✗ (gateway hosted)'],
   // 2026-09-29 · '✓ forever' era uma promessa sem fonte; o que é verificável é a
   // licença. '⚠️ markup on API' do OpenRouter contradizia a FAQ deles («without
   // any markup on inference pricing»); a taxa existe, mas na compra de créditos.
   ['Free', '✓ (MIT license)', 'depends on sub', 'self-host or paid', '✓', '⚠️ fee on credit purchases, no inference markup (openrouter.ai/docs/faq)'],
-  ['Setup time', '1 command', 'n/a', '30+ min (config)', 'install plugin', 'sign up + key'],
+  ['Setup time', '1 command', 'n/a', '≈5 min quickstart (per its docs)', 'install plugin', 'sign up + key'],
   ['Works without internet', '✓ T0 local', '✗', '✗', '✗', '✗'],
 ];
 
@@ -223,9 +225,11 @@ export default function ComparePage() {
         </div>
         <div style={{ maxWidth: 760 }}>
           <p style={{ color: 'var(--color-muted)', fontSize: 13.5, margin: 0, lineHeight: 1.65 }}>
-            Competitor facts as of {FACTS_READ}: the Claude Code Router column, and the OpenRouter cell on fees, were read
-            against their public docs that day (<a href={CCR_README} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Claude Code Router README</a>,{' '}
-            <a href={OPENROUTER_FAQ} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>OpenRouter FAQ</a>);
+            Competitor facts as of {FACTS_READ}: the Claude Code Router column, the LiteLLM license and setup-time cells, and the
+            OpenRouter cells on fees and auto-routing, were read against their public docs that day (<a href={CCR_README} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Claude Code Router README</a>,{' '}
+            <a href={LITELLM_DOCS} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>LiteLLM docs</a>,{' '}
+            <a href={OPENROUTER_FAQ} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>OpenRouter FAQ</a>,{' '}
+            <a href={OPENROUTER_AUTO} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>OpenRouter Auto Router</a>);
             the other cells, and the multi-session table (last read June 2026), were not re-read in this update. n/d means not stated in the
             source we read. If we got something wrong, <a href="https://github.com/pauloloureiroshp-ship-it/mooter/issues" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>open an issue</a> and we&apos;ll fix it.
           </p>
