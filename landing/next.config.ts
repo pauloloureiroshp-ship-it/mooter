@@ -61,6 +61,15 @@ const nextConfig: NextConfig = {
       { source: '/:path*', headers: securityHeaders },
     ];
   },
+  // 2026-10-14 · /setup era uma página que chamava `redirect('/install')`, e o
+  // `redirect()` de uma página responde 307 (temporário). Aqui a resposta é 308
+  // (permanente) e o destino é declarado uma vez. `app/setup/page.tsx` foi
+  // removida: dois sítios a dizer a mesma coisa é como se desalinham.
+  async redirects() {
+    return [
+      { source: '/setup', destination: '/install', permanent: true },
+    ];
+  },
   // Live Edit (MP5.0) · Source mapping — DOM→código como atributo compilado.
   // `code-inspector-plugin` (MIT) carimba `data-insp-path="ficheiro:linha:coluna:tag"` em
   // cada elemento JSX no build de DEV. É a verdade que o select-to-edit lê no DOM (sobrevive

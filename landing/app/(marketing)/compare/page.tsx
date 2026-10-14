@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { LATENCIA } from '@/app/lib/canonical-metrics';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { FACTS_READ } from '@/app/lib/site-pages';
 import Cartucho from '@/components/Cartucho';
 import MultiSessionTable from './MultiSessionTable';
 import versionInfo from '../../version.json';
@@ -13,18 +13,43 @@ import versionInfo from '../../version.json';
 // ênfase passa a ser hairline + peso do texto, que é o que um desenho técnico
 // faz para destacar uma peça.
 //
-// As cotas da margem são CONTADAS deste ficheiro (`ROWS.length`, `COLS.length`)
-// e a data vem do `docs/compare-snapshot.md` real, com `n/d` quando não se lê.
+// As cotas da margem são CONTADAS deste ficheiro (`ROWS.length`, `COLS.length`).
 // Nenhum número foi escrito à mão aqui.
+//
+// 2026-10-14 · UMA data só. A folha tinha três a competir: a do cartucho
+// (2026-08-27), o «as of June 2026» da tabela multi-sessão, e o `Last updated
+// {unknown}` desta errata — que lia `docs/compare-snapshot.md`, ficheiro que não
+// existe na raiz do landing, por isso em produção dizia «unknown». A data passa a
+// ser `FACTS_READ` (lib/site-pages.ts), e a frase diz o que foi relido nesse dia
+// e o que NÃO foi.
 
 export const metadata: Metadata = {
   title: 'How mooter compares',
   description: 'We are not the only LLM router. We are the one built for Claude Code.',
 };
 
-const COLS = ['', 'mooter', 'Claude Code default', 'LiteLLM proxy', 'Continue.dev', 'OpenRouter'];
+const COLS = ['', 'mooter', 'Claude Code default', 'Claude Code Router', 'LiteLLM proxy', 'Continue.dev', 'OpenRouter'];
 
-const ROWS: string[][] = [
+const CCR_README = 'https://github.com/musistudio/claude-code-router';
+const OPENROUTER_FAQ = 'https://openrouter.ai/docs/faq';
+
+// 2026-10-14 · a coluna do Claude Code Router. Só entra o que o README diz
+// (lido a FACTS_READ, link abaixo da tabela); o resto é `n/d` — «não dito na
+// fonte», nunca um ✗ por palpite. As chaves são os rótulos das linhas: se um
+// rótulo mudar, o guarda mais abaixo falha o build em vez de a célula ficar
+// em silêncio no sítio errado.
+const CCR_CELLS: Record<string, string> = {
+  'Architecture': 'Local gateway (requests go through it)',
+  'Cost tracking per-prompt': '⚠️ estimated cost (README)',
+  'Local models (Ollama)': 'n/d (README does not mention Ollama)',
+  'Auto-routing by complexity': '⚠️ rule-based (headers, bodies)',
+  'Code/prompts leave machine': '✓ to the chosen provider',
+  'Open source': '✓ MIT',
+  'Free': '✓ (MIT license)',
+  'Setup time': 'npm install -g, then ccr ui',
+};
+
+const BASE_ROWS: string[][] = [
   ['Architecture', 'Hook (local)', 'Direct API call', 'HTTP proxy', 'IDE plugin', 'API gateway'],
   ['Local models (Ollama)', '✓ T0 native', '✗', '✓ (configurable)', '✓', '✗'],
   ['Auto-routing by complexity', '✓ T0–T3 axis', '✗ Opus on all', '⚠️ rule-based', '⚠️ manual', '⚠️ tags'],
@@ -56,10 +81,23 @@ const ROWS: string[][] = [
   // 2026-09-29 · '✓ forever' era uma promessa sem fonte; o que é verificável é a
   // licença. '⚠️ markup on API' do OpenRouter contradizia a FAQ deles («without
   // any markup on inference pricing»); a taxa existe, mas na compra de créditos.
-  ['Free', '✓ (MIT license)', 'depends on sub', 'self-host or paid', '✓', '⚠️ fee on credit purchases, no inference markup (openrouter.ai/docs/faq, read 2026-09-29)'],
+  ['Free', '✓ (MIT license)', 'depends on sub', 'self-host or paid', '✓', '⚠️ fee on credit purchases, no inference markup (openrouter.ai/docs/faq)'],
   ['Setup time', '1 command', 'n/a', '30+ min (config)', 'install plugin', 'sign up + key'],
   ['Works without internet', '✓ T0 local', '✗', '✗', '✗', '✗'],
 ];
+
+for (const k of Object.keys(CCR_CELLS)) {
+  if (!BASE_ROWS.some((r) => r[0] === k)) throw new Error(`compare: CCR_CELLS has no row "${k}"`);
+}
+
+// A coluna nova entra a seguir à do Claude Code (índice 3); os `n/d` são o que não está na fonte.
+const ROWS: string[][] = BASE_ROWS.map(([label, ...cells]) => [
+  label,
+  cells[0],
+  cells[1],
+  CCR_CELLS[label] ?? 'n/d',
+  ...cells.slice(2),
+]);
 
 function cellColor(v: string): string | undefined {
   if (v.startsWith('✓')) return 'var(--color-green)';
@@ -68,17 +106,7 @@ function cellColor(v: string): string | undefined {
   return undefined;
 }
 
-export default async function ComparePage() {
-  let lastUpdated = 'unknown';
-  try {
-    const md = await readFile(join(process.cwd(), 'docs/compare-snapshot.md'), 'utf-8');
-    lastUpdated = md.match(/Last updated:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? 'unknown';
-  } catch {
-    lastUpdated = 'unknown';
-  }
-  // Não medido é `n/d`, nunca um zero nem uma data inventada.
-  const cota = lastUpdated === 'unknown' ? 'n/d' : lastUpdated;
-
+export default function ComparePage() {
   return (
     <section className="m-pad m-pad-y" style={{ position: 'relative', maxWidth: 1180, margin: '0 auto', padding: '72px 40px' }}>
       {/* A grelha de 8px, faint. Substitui o Dotgrid — papel milimétrico, não
@@ -86,7 +114,7 @@ export default async function ComparePage() {
       <div className="moo-mm" aria-hidden="true" />
 
       {/* O cartucho identifica a folha antes de qualquer conteúdo. */}
-      <Cartucho o_que="COMPARISON" desenho="004" revisao={`v${versionInfo.version}`} data="2026-08-27" />
+      <Cartucho o_que="COMPARISON" desenho="004" revisao={`v${versionInfo.version}`} data={FACTS_READ} />
 
       {/* O ÚNICO momento extremo da folha (regra 10). Um. */}
       <div style={{ position: 'relative', padding: '48px 0 0' }}>
@@ -134,7 +162,7 @@ export default async function ComparePage() {
               de ser tingida a rosa e passa a distinguir-se por hairline
               lateral e peso do texto. */}
           <div className="m-scroll-x" style={{ overflowX: 'auto', borderTop: '1px solid var(--moo-line-strong, var(--color-border-light))' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 880 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 1020 }}>
               <thead>
                 <tr>
                   {COLS.map((c, i) => (
@@ -186,18 +214,26 @@ export default async function ComparePage() {
         </div>
       </div>
 
-      {/* Erratas. A cota é a data real do snapshot — `n/d` quando o ficheiro
-          não se lê, nunca uma data de recurso. */}
+      {/* Erratas. A cota é a data de leitura das fontes — a única da folha. */}
       <div className="moo-secao m-stack">
         <div className="moo-marg">
           errata
-          <b>{cota}</b>
+          <b>{FACTS_READ}</b>
           open to correction
         </div>
         <div style={{ maxWidth: 760 }}>
           <p style={{ color: 'var(--color-muted)', fontSize: 13.5, margin: 0, lineHeight: 1.65 }}>
-            Last updated {lastUpdated}. Snapshot of public functionality at the time. We checked the docs. If we got
-            something wrong, <a href="https://github.com/pauloloureiroshp-ship-it/mooter/issues" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>open an issue</a> and we&apos;ll fix it.
+            Competitor facts as of {FACTS_READ}: the Claude Code Router column, and the OpenRouter cell on fees, were read
+            against their public docs that day (<a href={CCR_README} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Claude Code Router README</a>,{' '}
+            <a href={OPENROUTER_FAQ} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>OpenRouter FAQ</a>);
+            the other cells, and the multi-session table (last read June 2026), were not re-read in this update. n/d means not stated in the
+            source we read. If we got something wrong, <a href="https://github.com/pauloloureiroshp-ship-it/mooter/issues" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>open an issue</a> and we&apos;ll fix it.
+          </p>
+          <p style={{ color: 'var(--color-muted)', fontSize: 13.5, marginTop: 12, lineHeight: 1.65 }}>
+            Head-to-head pages, with sources and when <em>not</em> to use mooter:{' '}
+            <Link href="/vs/claude-code-router" style={{ color: 'var(--color-text)', textDecoration: 'underline', textUnderlineOffset: 3 }}>mooter vs Claude Code Router</Link>
+            {' · '}
+            <Link href="/vs/litellm" style={{ color: 'var(--color-text)', textDecoration: 'underline', textUnderlineOffset: 3 }}>mooter vs LiteLLM</Link>.
           </p>
           <p style={{ color: 'var(--color-muted)', fontSize: 12.5, marginTop: 12, lineHeight: 1.65 }}>
             Cursor / Copilot / Cody — and the open-source agents <strong>Cline</strong>, <strong>Aider</strong> and{' '}

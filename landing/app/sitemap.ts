@@ -1,35 +1,19 @@
 import type { MetadataRoute } from 'next';
+import { PAGES, urlFor } from './lib/site-pages';
 
 // Public, anon-visible pages only. Auth/admin routes (dashboard, onboarding,
 // settings, admin, api) are excluded so they don't appear in Google's index.
 // Wave 33.7 — expanded from 2 → all live marketing routes.
+//
+// 2026-10-14 · o `lastModified` era `new Date()`: as 13 páginas diziam «mudei
+// agora» com a hora do build. Passa a vir de `lib/site-pages.ts`, onde cada
+// página tem a data (YYYY-MM-DD) da sua última mudança de conteúdo, fixa entre
+// builds. A lista de páginas é a mesma que alimenta o /llms.txt.
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = 'https://mooter.ai';
-  const now = new Date();
-  const page = (
-    path: string,
-    priority: number,
-    changeFrequency: 'weekly' | 'monthly',
-  ): MetadataRoute.Sitemap[number] => ({
-    url: `${base}${path}`,
-    lastModified: now,
-    changeFrequency,
-    priority,
-  });
-
-  return [
-    page('/', 1.0, 'weekly'),
-    page('/install', 0.9, 'weekly'),
-    page('/commands', 0.8, 'monthly'),
-    page('/compare', 0.8, 'weekly'),
-    page('/packs', 0.7, 'weekly'),
-    page('/under-the-hood', 0.7, 'monthly'),
-    page('/cockpit', 0.7, 'monthly'),
-    page('/security', 0.7, 'monthly'),
-    page('/sessions', 0.6, 'monthly'),
-    page('/spawn', 0.6, 'monthly'),
-    page('/methodology', 0.6, 'monthly'),
-    page('/changelog', 0.6, 'weekly'),
-    page('/privacy', 0.4, 'monthly'),
-  ];
+  return PAGES.map((p) => ({
+    url: urlFor(p.path),
+    lastModified: p.lastModified,
+    changeFrequency: p.changeFrequency,
+    priority: p.priority,
+  }));
 }

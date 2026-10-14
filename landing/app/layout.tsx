@@ -5,6 +5,7 @@ import CmdKPalette from './_components/CmdKPalette';
 import LpErrorTap from './_components/LpErrorTap';
 import versionInfo from './version.json';
 import { M } from './lib/canonical-metrics';
+import { JsonLd, organizationLd } from './lib/jsonld';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -127,6 +128,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* Organization + sameAs, num bloco SEPARADO: o @graph acima fica como estava.
+            Quem compara o site antes e depois vê um <script> a mais, não um diferente. */}
+        <JsonLd data={organizationLd} />
         {/* Plausible analytics — privacy-first, no cookies, GDPR-compliant */}
         <script defer data-domain="mooter.ai" src="https://plausible.io/js/script.js" />
       </head>

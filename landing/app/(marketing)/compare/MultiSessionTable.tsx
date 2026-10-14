@@ -210,7 +210,7 @@ export default function MultiSessionTable() {
         (prompt-injection escape, disclosed). Marked shipped-but-flawed rather than passing.
       </div>
       <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--color-muted)', fontStyle: 'italic', maxWidth: 900, lineHeight: 1.6 }}>
-        Comparison based on public documentation as of June 2026. Methodology: 11 capabilities derived from observed
+        Comparison based on public documentation. Methodology: 11 capabilities derived from observed
         pain points of multi-session Claude Code workflows. Scores are counted from the cells above — got a cell wrong?{' '}
         {/* O mesmo link existe duas vezes nesta folha: aqui e na errata. Lá é
             esbatido com sublinhado; aqui era rosa. Passa a falar a mesma língua. */}
