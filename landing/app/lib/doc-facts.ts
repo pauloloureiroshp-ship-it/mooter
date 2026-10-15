@@ -36,7 +36,7 @@ export const FAQ: QA[] = [
   },
   {
     q: 'How much money does Mooter save?',
-    a: `Unknown. ${NO_DOLLARS} A headline figure from earlier launch posts has been withdrawn. What can be measured on your own machine is described on the methodology page.`,
+    a: `Unknown. ${NO_DOLLARS} A headline figure from earlier launch posts has been withdrawn.`,
   },
   {
     q: 'Is Mooter a proxy? Does my code go through your servers?',

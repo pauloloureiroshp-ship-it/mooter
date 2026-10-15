@@ -305,7 +305,8 @@ export default function MethodologyPage() {
                 {' '}We publish no savings percentage, here or anywhere — see the{' '}
                 <Link href="/#honest-numbers" style={{ color: 'var(--color-muted)', textDecoration: 'underline', textUnderlineOffset: 3 }}>honest numbers</Link>.
                 {' '}What <em>is</em> measured is the recommended-versus-executed tier. A measured dollar figure would
-                need the token counts Claude Code writes to your own transcripts, and Mooter does not read them today.
+                need the token counts Claude Code writes to your own transcripts, priced per prompt; this page
+                publishes none.
               </div>
               {/* 2026-09-29 · a correcção pública do 47%. Até aqui a retirada só
                   vivia num comentário (acima) — o leitor não a via, e o ChatGPT

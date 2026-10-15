@@ -49,7 +49,7 @@ export const PAGES: SitePage[] = [
   { path: '/security', priority: 0.7, changeFrequency: 'monthly', lastModified: '2026-08-28', summary: 'The 4-layer sandbox around spawned agents.' },
   { path: '/sessions', priority: 0.6, changeFrequency: 'monthly', lastModified: '2026-08-28', summary: 'Cross-session view of Claude Code sessions on one machine.' },
   { path: '/spawn', priority: 0.6, changeFrequency: 'monthly', lastModified: '2026-08-28', summary: 'Spawning local, sandboxed coding agents in git worktrees.' },
-  { path: '/methodology', priority: 0.6, changeFrequency: 'monthly', lastModified: '2026-09-29', summary: 'How prompts are classified into tiers, the withdrawn savings claim, and what is and is not measured.' },
+  { path: '/methodology', priority: 0.6, changeFrequency: 'monthly', lastModified: '2026-10-15', summary: 'How prompts are classified into tiers, the withdrawn savings claim, and what is and is not measured.' },
   { path: '/changelog', priority: 0.6, changeFrequency: 'weekly', lastModified: '2026-08-28', summary: 'What shipped, from GitHub releases.' },
   { path: '/privacy', priority: 0.4, changeFrequency: 'monthly', lastModified: '2026-09-29', summary: 'What stays on your machine, what the routing log keeps, and what telemetry sends (opt-in).' },
   { path: '/vs/claude-code-router', priority: 0.7, changeFrequency: 'monthly', lastModified: '2026-10-14', summary: 'Mooter vs Claude Code Router: a hook that recommends versus a local gateway, with sources and when not to use mooter.' },
