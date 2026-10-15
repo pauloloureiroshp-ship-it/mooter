@@ -9,7 +9,7 @@ import { SITE } from './site-pages';
 // quando alguém partilha o link dizia «sou a página inicial». A imagem é a
 // mesma do layout, para o cartão não ficar sem ela.
 export function pageMeta(path: string, title: string, description: string): Metadata {
-  const image = `/api/og?routed=${encodeURIComponent(M.recomendadoBaratoPct)}`;
+  const image = `/api/og?recommended=${encodeURIComponent(M.recomendadoBaratoPct)}`;
   return {
     title,
     description,

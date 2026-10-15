@@ -46,7 +46,7 @@ export const viewport: Viewport = {
 // ver o /compare, «Not measured (no token logging)»). Fica só o que o Mooter é:
 // um hook local que escolhe o tier de cada prompt, MIT.
 const DESCRIPTION =
-  'The local router for Claude Code: a hook on your machine that routes each prompt to a tier — local Ollama, Haiku, Sonnet or Opus. Open source, MIT.';
+  'The local router for Claude Code: a hook on your machine that recommends a tier for each prompt — local Ollama, Haiku, Sonnet or Opus. Open source, MIT.';
 
 export const metadata: Metadata = {
   title: 'mooter — The router for Claude Code',
@@ -70,17 +70,17 @@ export const metadata: Metadata = {
     // uma poupança — ver canonical-metrics.ts. A meta description e o cartão OG
     // são o que aparece quando alguém partilha o link: é o pior sítio possível
     // para um número que não se sustenta, porque viaja sozinho e sem ressalva.
-    description: `Routes ${M.recomendadoBarato} classified prompts to a local or cheap tier. Zero proxy. Just a hook. Open source · MIT.`,
+    description: `Recommends a local or cheap tier for ${M.recomendadoBarato} classified prompts. Zero proxy. Just a hook. Open source · MIT.`,
     type: 'website',
     url: 'https://mooter.ai',
     siteName: 'mooter',
-    images: [{ url: `/api/og?routed=${encodeURIComponent(M.recomendadoBaratoPct)}`, width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
+    images: [{ url: `/api/og?recommended=${encodeURIComponent(M.recomendadoBaratoPct)}`, width: 1200, height: 630, alt: 'mooter — The router for Claude Code' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'mooter — The router for Claude Code',
-    description: `Routes ${M.recomendadoBarato} classified prompts to a local or cheap tier. Zero proxy. Just a hook. MIT.`,
-    images: [`/api/og?routed=${encodeURIComponent(M.recomendadoBaratoPct)}`],
+    description: `Recommends a local or cheap tier for ${M.recomendadoBarato} classified prompts. Zero proxy. Just a hook. MIT.`,
+    images: [`/api/og?recommended=${encodeURIComponent(M.recomendadoBaratoPct)}`],
   },
 };
 

@@ -43,7 +43,10 @@ export async function GET(request: Request) {
   // passado ainda o trazem, e honra-lo publicaria de novo um numero que este
   // projecto ja concluiu nao conseguir sustentar. Aceitar-e-ignorar e mais
   // seguro que remover: um `undefined` a interpolar dava "undefined less".
-  const routed = searchParams.get('routed');
+  // 2026-10-15: o cartao deixou de dizer «routed»: o Mooter recomenda, nao
+  // encaminha. `routed` continua aceite como alias (links ja partilhados) e
+  // desenha o texto novo — nenhuma pagina aponta para ele.
+  const recommended = searchParams.get('recommended') ?? searchParams.get('routed');
 
   return new ImageResponse(
     (
@@ -62,8 +65,8 @@ export async function GET(request: Request) {
           mooter
         </div>
         <div style={{ color: MOO.text2, fontSize: '32px', marginTop: '20px' }}>
-          {routed
-            ? `${routed} of prompts routed to a local or cheap tier.`
+          {recommended
+            ? `A local or cheap tier was recommended for ${recommended} of classified prompts.`
             : 'Every prompt to the cheapest model that can do it.'}
         </div>
         <div style={{ color: MOO.muted, fontSize: '20px', marginTop: '16px' }}>
